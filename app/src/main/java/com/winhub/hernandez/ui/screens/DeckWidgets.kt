@@ -343,7 +343,8 @@ internal fun DeckDragFrame(
             }
             .drawWithContent {
                 drawContent()
-                if (hasFocus && armed && !DeckTouchMode.touch && right.value > left.value) {
+                // [target] is null once the focused item is gone (tab/page swap): never repaint the last rect.
+                if (target != null && hasFocus && armed && !DeckTouchMode.touch && right.value > left.value) {
                     val g = gap.toPx()
                     val radius = shape.topStart.toPx(
                         Size(right.value - left.value, bottom.value - top.value),
