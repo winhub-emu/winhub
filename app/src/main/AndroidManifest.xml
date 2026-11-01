@@ -273,6 +273,59 @@
             android:theme="@style/AppTheme"/>
         <activity
             android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxMainActivity"
+            android:screenOrientation="sensor"
+            android:launchMode="singleTop"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/AppTheme"/>
+        <activity
+            android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxGameDetailActivity"
+            android:screenOrientation="fullSensor"
+            android:theme="@style/AppTheme"/>
+        <!-- Microsoft sign-in: its own process, so its WebView data (cookies cleared when a sign-in starts and
+             on sign-out; shared with the cloud player) never touches the other stores' web logins. -->
+        <activity
+            android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxLoginActivity"
+            android:process=":xboxlogin"
+            android:screenOrientation="fullSensor"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation"
+            android:theme="@style/AppTheme"/>
+        <activity
+            android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxCloudSettingsActivity"
+            android:screenOrientation="fullSensor"
+            android:theme="@style/AppTheme"/>
+        <!-- Native Xbox Cloud Gaming player (opt-in): WebRTC library + Vulkan compositor frame generation. -->
+        <activity
+            android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxNativePlayerActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:hardwareAccelerated="true"
+            android:theme="@style/AppTheme"/>
+        <!-- Bannerlator's own Xbox Cloud Gaming player (store sign-in, local WebRTC page). -->
+        <activity
+            android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxCloudPlayerActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:hardwareAccelerated="true"
+            android:theme="@style/AppTheme"/>
+        <!-- Xbox Cloud Gaming web player: in the Xbox sign-in process, sharing its WebView sign-in. -->
+        <activity
+            android:exported="false"
+            android:name="com.winhub.hernandez.store.xbox.XboxCloudActivity"
+            android:process=":xboxlogin"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:hardwareAccelerated="true"
+            android:theme="@style/AppTheme"/>
+        <activity
+            android:exported="false"
             android:name="com.winhub.hernandez.store.FolderPickerActivity"
             android:screenOrientation="fullSensor"
             android:theme="@style/AppTheme"/>

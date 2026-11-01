@@ -217,6 +217,8 @@ dependencies {
     // 403 disallowed_useragent (the GOG "Sign in with Google" white screen).
     // Feature-gated at runtime via WebViewFeature.isFeatureSupported().
     implementation 'androidx.webkit:webkit:1.11.0'
+    // Google's WebRTC (BSD) for the native Xbox Cloud Gaming player (XboxNativePlayerActivity).
+    implementation 'io.github.webrtc-sdk:android:125.6422.07'
     implementation 'androidx.preference:preference:1.2.1'
     implementation 'com.google.android.material:material:1.4.0'
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'

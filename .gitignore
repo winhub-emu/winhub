@@ -34,3 +34,8 @@ app/src/main/assets/linuxfs/libfakeinput.so
 app/src/main/assets/linuxfs/libblsession.so
 app/src/main/assets/linuxfs/usr/local/bin/
 art*/
+
+# Xbox store backend (Xodus) and its Windows modules: built by CI from tools/xbox, never committed.
+/app/src/main/assets/xbox/
+/app/src/main/jniLibs/arm64-v8a/libxodus_cli.so
+/app/src/main/jniLibs/arm64-v8a/libxodus_service.so

@@ -53,8 +53,10 @@ import androidx.compose.material3.Text
 import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,7 +90,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 // ── Where a shortcut comes from (drives which launch methods the popup offers) ────────────────────
-private enum class GameSource { STEAM, EPIC, GOG, AMAZON, CUSTOM }
+private enum class GameSource { STEAM, EPIC, GOG, AMAZON, XBOX, CUSTOM }
 
 /**
  * The SteamLite package status shown under the SteamLite chip + the footer's "Update & Launch" gate.
@@ -109,7 +111,7 @@ private class SteamLiteClientUi(
 
 // The launch methods. STEAMLITE → "RealSteam", GOLDBERG → "Goldberg", RAW → "Raw" (the launchMode
 // contract literals the launch pipeline + callers already understand).
-private enum class LaunchMethod(val mode: String) { STEAMLITE("RealSteam"), GOLDBERG("Goldberg"), RAW("Raw") }
+private enum class LaunchMethod(val mode: String) { STEAMLITE("RealSteam"), GOLDBERG("Goldberg"), RAW("Raw"), STREAM("Stream") }
 
 /**
  * Classify a shortcut's store source. Mirrors ShortcutsScreen's per-source gates so this popup offers
@@ -123,6 +125,7 @@ private fun classifySource(shortcut: Shortcut): GameSource = when {
     shortcut.getExtra("storeSource") == "gog" ||
         (shortcut.path?.contains("gog_games", ignoreCase = true) == true) -> GameSource.GOG
     isAmazonShortcut(shortcut) -> GameSource.AMAZON
+    isXboxShortcut(shortcut) -> GameSource.XBOX
     else -> GameSource.CUSTOM
 }
 
@@ -139,6 +142,9 @@ private const val HELP_GOLDBERG =
 private const val HELP_RAW =
     "Raw — launch the game's .exe directly, with no Steam layer. For DRM-free games or when you just " +
         "want the game to start."
+private const val HELP_STREAM =
+    "Stream — plays the game on Microsoft's servers with Xbox Cloud Gaming, nothing runs on this device. " +
+        "Needs a steady connection and an Xbox plan that includes cloud play."
 private const val HELP_PASS =
     "For classic games (Half-Life 2, CS:S) that ignore a controller in Real-Steam mode. Hands the pad " +
         "straight to the game instead of Steam Input. SteamLite only."
@@ -199,9 +205,23 @@ fun LaunchMethodSheet(
     val isSteam = source == GameSource.STEAM
     val hasDetails = isSteam && appId > 0
 
-    val enabledMethods = remember(shortcut) {
-        if (isSteam) listOf(LaunchMethod.STEAMLITE, LaunchMethod.GOLDBERG, LaunchMethod.RAW)
-        else listOf(LaunchMethod.RAW)
+    // Xbox: Raw and Stream only; Stream is enabled once the cached library says the game streams.
+    var streams by remember(shortcut) { mutableStateOf(false) }
+    // A not-installed Xbox entry (added to Games before download): Raw .exe becomes Download, or "Not on PC"
+    // for a console-only game.
+    val notInstalled = remember(shortcut) { com.winhub.hernandez.store.xbox.XboxCloudShortcuts.isNotInstalled(shortcut) }
+    var hasPc by remember(shortcut) { mutableStateOf(true) }
+    LaunchedEffect(shortcut) {
+        if (source == GameSource.XBOX) withContext(Dispatchers.IO) {
+            com.winhub.hernandez.store.xbox.XboxCloudShortcuts.cachedGame(context, shortcut.getExtra("xboxProductId", ""))
+        }.let { game -> streams = game?.cloud == true; hasPc = game?.pc ?: true }
+    }
+    val enabledMethods = remember(shortcut, streams, hasPc) {
+        when {
+            isSteam -> listOf(LaunchMethod.STEAMLITE, LaunchMethod.GOLDBERG, LaunchMethod.RAW)
+            source == GameSource.XBOX -> listOfNotNull(LaunchMethod.RAW.takeIf { !notInstalled || hasPc }, LaunchMethod.STREAM.takeIf { streams })
+            else -> listOf(LaunchMethod.RAW)
+        }
     }
 
     SteamPrefs.init(context)
@@ -211,8 +231,9 @@ fun LaunchMethodSheet(
                 "Goldberg" -> LaunchMethod.GOLDBERG
                 "Raw" -> LaunchMethod.RAW
                 "RealSteam" -> LaunchMethod.STEAMLITE
-                else -> if (isSteam) LaunchMethod.STEAMLITE else LaunchMethod.RAW
-            }.let { if (it in enabledMethods) it else LaunchMethod.RAW },
+                "Stream" -> if (source == GameSource.XBOX) LaunchMethod.STREAM else LaunchMethod.RAW
+                else -> if (isSteam) LaunchMethod.STEAMLITE else if (notInstalled) LaunchMethod.STREAM else LaunchMethod.RAW
+            }.let { if (it in enabledMethods || it == LaunchMethod.STREAM) it else LaunchMethod.RAW },
         )
     }
     var goldbergMode by remember(shortcut) {
@@ -304,7 +325,9 @@ fun LaunchMethodSheet(
     } else null
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val rawLabel = if (notInstalled) (if (hasPc) "Download" else "Not on PC") else "Raw .exe"
 
+    CompositionLocalProvider(LocalRawLabel provides rawLabel) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         if (landscape) {
             LandscapeCard(
@@ -326,7 +349,11 @@ fun LaunchMethodSheet(
             )
         }
     }
+    }
 }
+
+/** Xbox: what the Raw chip is for this entry ("Raw .exe"; "Download" or "Not on PC" before it is installed). */
+private val LocalRawLabel = compositionLocalOf { "Raw .exe" }
 
 // ── Portrait: compact vertical box ────────────────────────────────────────────────────────────────
 
@@ -401,7 +428,7 @@ private fun PortraitCard(
                 Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) {
                     MicroLabel("Launch with")
                     Spacer(Modifier.height(7.dp))
-                    ChipsRow(method, enabledMethods, accent, compact = false, onMethod, toggleHelp)
+                    ChipsRow(method, enabledMethods, accent, compact = false, onMethod, toggleHelp, xbox = source == GameSource.XBOX, rawLabel = LocalRawLabel.current)
                     Spacer(Modifier.height(9.dp))
                     MethodDesc(method, source)
                     if (method == LaunchMethod.STEAMLITE && steamLiteClient != null) {
@@ -506,7 +533,7 @@ private fun LandscapeCard(
                             HelpDot(accent, highlighted = false, onClick = { toggleHelp(HELP_LAUNCH_WITH) })
                         }
                         Spacer(Modifier.height(6.dp))
-                        ChipsRow(method, enabledMethods, accent, compact = true, onMethod, toggleHelp)
+                        ChipsRow(method, enabledMethods, accent, compact = true, onMethod, toggleHelp, xbox = source == GameSource.XBOX, rawLabel = LocalRawLabel.current)
                         Spacer(Modifier.height(6.dp))
                         MethodDesc(method, source)
                         if (method == LaunchMethod.STEAMLITE && steamLiteClient != null) {
@@ -557,7 +584,20 @@ private fun ChipsRow(
     compact: Boolean,
     onMethod: (LaunchMethod) -> Unit,
     toggleHelp: (String) -> Unit,
+    xbox: Boolean = false,
+    /** Xbox: the Raw chip's label ("Raw .exe", "Download" or "Not on PC"). */
+    rawLabel: String = "Raw .exe",
 ) {
+    // Xbox games have no Steam layer: only Raw .exe and Stream.
+    if (xbox) {
+        Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 6.dp)) {
+            SegChip(if (rawLabel == "Raw .exe") "▶️" else "⬇️", rawLabel, method == LaunchMethod.RAW, LaunchMethod.RAW in enabledMethods,
+                accent, compact, { onMethod(LaunchMethod.RAW) }, { toggleHelp(HELP_RAW) })
+            SegChip("☁️", "Stream", method == LaunchMethod.STREAM, LaunchMethod.STREAM in enabledMethods,
+                accent, compact, { onMethod(LaunchMethod.STREAM) }, { toggleHelp(HELP_STREAM) })
+        }
+        return
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 6.dp)) {
         SegChip("🌐", "SteamLite", method == LaunchMethod.STEAMLITE, LaunchMethod.STEAMLITE in enabledMethods,
             accent, compact, { onMethod(LaunchMethod.STEAMLITE) }, { toggleHelp(HELP_STEAMLITE) })
@@ -1091,6 +1131,7 @@ private fun sourceSubline(source: GameSource, appId: Int): String = when (source
     GameSource.EPIC -> "Epic · Raw launch"
     GameSource.GOG -> "GOG · DRM-free · Raw"
     GameSource.AMAZON -> "Amazon Games · Raw"
+    GameSource.XBOX -> "Xbox · Licensed launch"
     GameSource.CUSTOM -> "Custom · Raw"
 }
 
@@ -1101,9 +1142,11 @@ private fun methodDescription(method: LaunchMethod, source: GameSource): String 
         GameSource.EPIC -> "Run the game's .exe directly."
         GameSource.GOG -> "Run the DRM-free .exe directly — no launcher."
         GameSource.AMAZON -> "Run the game's .exe directly — no Amazon Games app."
+        GameSource.XBOX -> "Each launch checks the license with Microsoft and starts the game's .exe; no Xbox app."
         GameSource.CUSTOM -> "Run the .exe directly."
         GameSource.STEAM -> "Run the game's .exe directly — no Steam layer."
     }
+    LaunchMethod.STREAM -> "Plays from Xbox Cloud Gaming — nothing runs here; picture, sound and controller go over the network."
 }
 
 // ── Goldberg sub-mode selectors (shared outlined-menu style: MenuStyle.kt) ────────────────────────

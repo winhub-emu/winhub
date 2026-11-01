@@ -471,6 +471,67 @@ jobs:
         echo "== -sys crates =="
         cargo tree --locked --target aarch64-linux-android -e normal,build --prefix none --format '{p}' | sort -u | grep -- '-sys' || echo "(none)"
 
+    # --- Xbox store backend (tools/xbox): Xodus built for Android ---------------------------------------
+    # xodus-cli / xodus-service for aarch64-linux-android (tools/xbox/build-android.sh: DroidDeck's
+    # recipe, pinned sources and patches) as jniLibs, plus the five Xodus Nexus Windows modules and the
+    # licences as assets/xbox. Keyed on tools/xbox; build-xbox-android.yml saves the same key, so this
+    # normally restores (~40 MB). Small enough to save on any branch.
+    - name: Restore the Xbox backend (keyed on tools/xbox)
+      id: xbox-backend
+      uses: actions/cache/restore@v4
+      with:
+        path: build-xbox/out
+        key: xbox-out-${{ hashFiles('tools/xbox/**') }}
+
+    - name: Build the Xbox backend (only if not cached)
+      if: steps.xbox-backend.outputs.cache-hit != 'true'
+      timeout-minutes: 60
+      run: bash tools/xbox/build-android.sh build-xbox/out
+
+    - name: Save the Xbox backend
+      if: steps.xbox-backend.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: build-xbox/out
+        key: xbox-out-${{ hashFiles('tools/xbox/**') }}
+
+    - name: Stage the Xbox backend into the APK
+      run: |
+        set -euo pipefail
+        O=build-xbox/out
+        install -D -m755 "$O/bin/libxodus_cli.so" app/src/main/jniLibs/arm64-v8a/libxodus_cli.so
+        install -D -m755 "$O/bin/libxodus_service.so" app/src/main/jniLibs/arm64-v8a/libxodus_service.so
+        rm -rf app/src/main/assets/xbox && mkdir -p app/src/main/assets/xbox/windows
+        cp "$O"/windows/*.dll app/src/main/assets/xbox/windows/
+        cp "$O"/version "$O"/LICENSE.* "$O"/*.lock.json app/src/main/assets/xbox/
+        test "$(ls app/src/main/assets/xbox/windows/*.dll | wc -l)" = 6
+        ls -l app/src/main/jniLibs/arm64-v8a/libxodus_*.so app/src/main/assets/xbox app/src/main/assets/xbox/windows
+
+    # bxsaveup.exe (app/src/main/cpp/xbox-saveup): uploads an Xbox game's pending container saves after the game
+    # exited (store/xbox/XboxSaveSync on the shutdown screen). x86_64, like the Nexus modules it loads. Built
+    # with the pinned bylaws/llvm-mingw; not under tools/xbox so the backend cache key is kept.
+    - name: Cache llvm-mingw (Xbox save uploader)
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/llvm-mingw-bylaws-20250920
+        key: llvm-mingw-bylaws-20250920-ubuntu-22.04-x86_64
+
+    - name: Build the Xbox save uploader into assets
+      run: |
+        set -euo pipefail
+        LLVM_MINGW="$HOME/.cache/llvm-mingw-bylaws-20250920"
+        if [ ! -x "$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" ]; then
+          tar_name=llvm-mingw-20250920-ucrt-ubuntu-22.04-x86_64.tar.xz
+          curl -fsSL --retry 5 --retry-delay 5 -o "$RUNNER_TEMP/$tar_name" \
+            "https://github.com/bylaws/llvm-mingw/releases/download/20250920/$tar_name"
+          echo "8dd8c34fc051a50c2fae86015f35057f8aae93fe1e19b34537ef1269a8b4c772  $RUNNER_TEMP/$tar_name" | sha256sum -c -
+          mkdir -p "$LLVM_MINGW"
+          tar -xJf "$RUNNER_TEMP/$tar_name" -C "$LLVM_MINGW" --strip-components=1
+        fi
+        "$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -std=gnu11 -O2 -Wall -Wextra -Werror -s \
+          -o app/src/main/assets/xbox/bxsaveup.exe app/src/main/cpp/xbox-saveup/bxsaveup.c
+        ls -l app/src/main/assets/xbox/bxsaveup.exe
+
     - name: Restore Galaxy Performance SDK jar (optional, from secret)
       # Decodes the proprietary Samsung jar from the encrypted secret into the git-ignored
       # drop-point so app/build.gradle bundles it. No secret => no jar => feature dormant.

@@ -82,6 +82,7 @@ target_link_libraries(fakeinput
 
 add_library(vulkan_renderer SHARED
         winlator/vulkan_jni.cpp
+        winlator/stream_jni.cpp
         winlator/VulkanRendererContext.cpp
         winlator/VulkanRendererScanout.cpp
         winlator/lsfg/lsfg_probe.cpp

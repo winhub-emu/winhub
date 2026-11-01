@@ -407,6 +407,11 @@ public final class StarLaunchBridge {
                     if (EpicEosDetector.hasBeenScanned(activity, epic.appName)) {
                         content += "eos=" + (EpicEosDetector.isEosCached(activity, epic.appName) ? "1" : "0") + "\n";
                     }
+                } else if (storeSource != null && storeSource.startsWith("xbox:")) {
+                    // Xbox: the product id travels with the shortcut; at launch XServerDisplayActivity
+                    // prepares a licensed launch view for it and starts that view's executable.
+                    content += "storeSource=xbox\n"
+                            + "xboxProductId=" + storeSource.substring(5) + "\n";
                 } else if (storeSource != null && !storeSource.isEmpty()) {
                     // GOG / Amazon: an explicit tag, so the badge never has to guess from the path.
                     content += "storeSource=" + storeSource + "\n";

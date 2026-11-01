@@ -1,0 +1,77 @@
+# Xbox backend (Xodus CLI + account service) for Android, from tools/xbox (recipe: DroidDeck's, built
+# here for aarch64-linux-android instead of Linux). _build.yml builds the same recipe before Gradle;
+# this workflow is the fast check for changes to tools/xbox and keeps the corresponding source.
+name: Build Xbox backend (Android)
+
+on:
+  push:
+    paths:
+      - 'tools/xbox/**'
+      - '.github/workflows/build-xbox-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Restore the Xbox build cache
+      id: xbox-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          build-xbox
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: xbox-android-${{ hashFiles('tools/xbox/**') }}-${{ github.run_id }}
+        restore-keys: |
+          xbox-android-${{ hashFiles('tools/xbox/**') }}-
+          xbox-android-
+
+    - name: Build
+      run: |
+        set -euo pipefail
+        rm -rf build-xbox/source-* build-xbox/out
+        bash tools/xbox/build-android.sh build-xbox/out
+
+    # Saved even when the build fails, so a retry reuses OpenSSL and the compiled crates.
+    - name: Save the Xbox build cache
+      if: always() && steps.xbox-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          build-xbox
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
+        key: xbox-android-${{ hashFiles('tools/xbox/**') }}-${{ github.run_id }}
+
+    # The APK build (_build.yml) restores this key instead of building the backend again.
+    - name: Save the built backend for the APK build
+      uses: actions/cache/save@v4
+      with:
+        path: build-xbox/out
+        key: xbox-out-${{ hashFiles('tools/xbox/**') }}
+      continue-on-error: true
+
+    - name: Upload the backend
+      uses: actions/upload-artifact@v4
+      with:
+        name: xbox-android
+        path: build-xbox/out
+        retention-days: 14
+
+    - name: Upload the corresponding source
+      uses: actions/upload-artifact@v4
+      with:
+        name: xbox-corresponding-source
+        path: |
+          build-xbox/xodus-bannerlator-source.tar.xz
+          build-xbox/runtime/*-source.tar.xz
+        retention-days: 14

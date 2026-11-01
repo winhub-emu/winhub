@@ -1,0 +1,13 @@
+# Android stand-in for rustls-platform-verifier 0.7.0 (used by reqwest 0.13), patched in by
+# tools/xbox/build-android.sh. The real crate's Android backend verifies through the Java platform and
+# panics in a plain executable ("Expect rustls-platform-verifier to be initialized"); this one verifies
+# with rustls' WebPKI verifier against Android's system CA store instead.
+[package]
+name = "rustls-platform-verifier"
+version = "0.7.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+rustls = { version = "0.23", default-features = false, features = ["std"] }

@@ -196,6 +196,7 @@ private fun DeckDownloadRow(
         Store.EPIC -> "Epic"
         Store.GOG -> "GOG"
         Store.AMAZON -> "Amazon"
+        Store.XBOX -> "Xbox"
     }
     val stateLabel = when (row.state) {
         DownloadState.QUEUED ->

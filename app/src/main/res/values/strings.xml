@@ -2595,4 +2595,5 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="social_hub_configs_stats">%1$d likes • %2$d replies</string>
     <string name="social_hub_configs_like">Like (%1$d)</string>
     <string name="social_hub_configs_liked">Liked (%1$d)</string>
+    <string name="xbox_saving_on_exit">Saving and uploading your Xbox save…</string>
 </resources>

@@ -79,6 +79,7 @@ import com.winhub.hernandez.core.PreloaderDialog
 import com.winhub.hernandez.core.WineThemeManager
 import com.winhub.hernandez.container.ContainerManager
 import com.winhub.hernandez.store.AmazonMainActivity
+import com.winhub.hernandez.store.xbox.XboxMainActivity
 import com.winhub.hernandez.store.EpicMainActivity
 import com.winhub.hernandez.store.GogMainActivity
 import com.winhub.hernandez.store.SteamMainActivity
@@ -309,6 +310,7 @@ class MainActivity : AppCompatActivity() {
             Screen.Gog    -> GogMainActivity::class.java
             Screen.Epic   -> EpicMainActivity::class.java
             Screen.Amazon -> AmazonMainActivity::class.java
+            Screen.Xbox   -> XboxMainActivity::class.java
             Screen.Steam  -> SteamMainActivity::class.java
             else          -> return
         }

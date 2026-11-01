@@ -25,6 +25,10 @@ class BannerlatorApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        // The Xbox sign-in window and the cloud player run in their own process (":xboxlogin", isolated WebView data). None of
+        // the start-up work below belongs there.
+        if (com.winhub.hernandez.store.xbox.XboxLoginActivity.isLoginProcess()) return
+
         // Crash reporting first and on its own: it must be installed before anything below can throw,
         // and it must not be inside the try/catch that swallows perf-init failures. It chains to the
         // handler already in place, so the perf safety nets installed just after still run.

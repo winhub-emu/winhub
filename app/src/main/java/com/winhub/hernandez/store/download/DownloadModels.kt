@@ -10,7 +10,7 @@ package com.winhub.hernandez.store.download
  */
 
 /** The storefront a download / library entry belongs to. */
-enum class Store { STEAM, EPIC, GOG, AMAZON }
+enum class Store { STEAM, EPIC, GOG, AMAZON, XBOX }
 
 /**
  * Single, store-agnostic human byte formatter for the whole download stack — the exact

@@ -1,0 +1,106 @@
+--- a/crates/xodus-cli/src/commands/run.rs
++++ b/crates/xodus-cli/src/commands/run.rs
+@@ -77,6 +77,7 @@
+     launch_image: &Path,
+     materialize_chain: bool,
+ ) -> (String, String) {
++    if materialize_chain { return (String::new(), String::new()); }
+     let source_nt = source.to_string_lossy().replace('/', "\\");
+     let source_nt = source_nt.trim_end_matches('\\');
+     let mirror_unix = mirror_nt_prefix.map(|prefix| prefix.replace('\\', "/"));
+@@ -200,9 +201,7 @@
+     let entry_path = checked_relative_path(entry_suffix)?;
+     let mut decrypted = HashMap::new();
+     for (name, fd) in fds {
+-        if name.to_ascii_lowercase().ends_with(".exe") || checked_relative_path(name)? == entry_path {
+-            decrypted.insert(checked_relative_path(name)?, *fd);
+-        }
++        decrypted.insert(checked_relative_path(name)?, *fd);
+     }
+     if !decrypted.contains_key(&entry_path) {
+         return Err(std::io::Error::new(
+@@ -222,11 +221,8 @@
+         }
+     }
+     let decrypted_files: HashSet<PathBuf> = decrypted.keys().cloned().collect();
+-    let parent = source_root.parent().unwrap_or_else(|| Path::new("/tmp"));
+-    let mirror = Builder::new()
+-        .prefix(".xodus-chain-")
+-        .tempdir_in(parent)
+-        .or_else(|_| Builder::new().prefix("xodus-chain-").tempdir())?;
++    let mirror = Builder::new().prefix("droiddeck-xbox-")
++        .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700)).tempdir()?;
+     populate_launch_view(
+         source_root,
+         mirror.path(),
+@@ -667,21 +663,15 @@
+     use std::os::fd::AsRawFd;
+ 
+     #[test]
+-    fn full_launch_view_uses_real_executables_and_preserves_encrypted_dll_maps() {
++    fn full_launch_view_needs_no_inherited_descriptor_maps() {
+         let entry = String::from("\\Launcher.exe");
+         let child = String::from("\\Bin\\Child.ExE");
+         let dll = String::from("\\Bin\\Encrypted.dll");
+         let files = [(&entry, 10), (&child, 11), (&dll, 12)];
+         let (nt, unix) = launch_file_maps(&files, Path::new("/package"), Some("\\view"),
+             &entry, 10, Path::new("/view/Launcher.exe"), true);
+-        assert!(nt.contains("10:\\??\\Z:\\package\\Launcher.exe"));
+-        assert!(unix.contains("10:/package/Launcher.exe"));
+-        assert!(!nt.contains("\\view\\Launcher.exe"));
+-        assert!(!nt.contains("\\view\\Bin\\Child.ExE"));
+-        assert!(!unix.contains("/view/Launcher.exe"));
+-        assert!(!unix.contains("/view/Bin/Child.ExE"));
+-        assert!(nt.contains("12:\\??\\Z:\\view\\Bin\\Encrypted.dll"));
+-        assert!(unix.contains("12:/view/Bin/Encrypted.dll"));
++        assert!(nt.is_empty());
++        assert!(unix.is_empty());
+     }
+ 
+     #[test]
+@@ -778,6 +768,25 @@
+             .is_symlink());
+         assert_eq!(std::fs::read(source.join("Dungeons.exe")).unwrap(), b"encrypted launcher");
+         assert_eq!(std::fs::read(nested.join("Shipping.exe")).unwrap(), b"encrypted child");
++    }
++
++    #[test]
++    fn launch_view_materializes_encrypted_dlls_in_private_storage() {
++        let root = tempfile::tempdir().unwrap();
++        std::fs::write(root.path().join("Game.exe"), b"encrypted").unwrap();
++        std::fs::write(root.path().join("Secret.dll"), b"encrypted-dll").unwrap();
++        let mut image = tempfile::tempfile().unwrap();
++        image.write_all(&fake_pe()).unwrap();
++        let exe = String::from("Game.exe");
++        let dll = String::from("Secret.dll");
++        let files = [(&exe, image.as_raw_fd()), (&dll, image.as_raw_fd())];
++        let (view, _, count, _) = create_launch_chain_mirror(root.path(), &exe, &files).unwrap();
++        assert_eq!(count, 2);
++        assert_eq!(std::fs::read(view.path().join("Secret.dll")).unwrap(), fake_pe());
++        assert!(!view.path().join("Secret.dll").is_symlink());
++        assert_eq!(std::fs::read(root.path().join("Secret.dll")).unwrap(), b"encrypted-dll");
++        use std::os::unix::fs::PermissionsExt;
++        assert_eq!(std::fs::metadata(view.path()).unwrap().permissions().mode() & 0o077, 0);
+     }
+ 
+     #[test]
+--- a/crates/xodus-cli/src/commands/run.rs
++++ b/crates/xodus-cli/src/commands/run.rs
+@@ -618 +618,17 @@
++    if wine == "droiddeck:prepare" {
++        use std::io::Write;
++        if !materialize_chain { return ExitCode::FAILURE; }
++        let ready = serde_json::json!({
++            "exe": stub_path,
++            "playfab": playfab_auth_header(client, tokens).await,
++        });
++        println!("DROIDDECK_LAUNCH_V1 {}", ready);
++        let _ = std::io::stdout().flush();
++        let mut release = String::new();
++        let _ = std::io::stdin().read_line(&mut release);
++        drop(launch_mirror);
++        cleanup().await;
++        return ExitCode::SUCCESS;
++    }
++
+     let mut command = Command::new(wine);

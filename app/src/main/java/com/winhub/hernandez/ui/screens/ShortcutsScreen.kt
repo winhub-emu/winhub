@@ -3047,6 +3047,7 @@ fun ShortcutsScreen(
                 launchChoiceFor = null
                 when (mode) {
                     "Goldberg" -> launchWithGoldberg(s, goldbergMode ?: GoldbergMode.REGULAR)
+                    "Stream" -> streamXboxShortcut(activity, s)
                     "Raw" -> {
                         // Raw: run the game's .exe directly with no Steam layer (Epic/GOG/Custom, or a
                         // Steam game the user chose to run raw). The launchMode="Raw" extra is inert to the
@@ -5232,6 +5233,7 @@ private fun ShortcutItemLayoutL(
                     showEos = rememberEosBadge(shortcut),
                     showGog = remember(shortcut) { isGogShortcut(shortcut) },
                     showAmazon = remember(shortcut) { isAmazonShortcut(shortcut) },
+                    showXbox = remember(shortcut) { isXboxShortcut(shortcut) },
                     showCustom = remember(shortcut) { isCustomOriginShortcut(shortcut) },
                                     showLinux = false,
                     modifier = Modifier.padding(start = 6.dp),
@@ -5513,6 +5515,7 @@ private fun ShortcutGridItem(
             showEos = rememberEosBadge(shortcut),
             showGog = remember(shortcut) { isGogShortcut(shortcut) },
             showAmazon = remember(shortcut) { isAmazonShortcut(shortcut) },
+            showXbox = remember(shortcut) { isXboxShortcut(shortcut) },
             showCustom = remember(shortcut) { isCustomOriginShortcut(shortcut) },
             showLinux = false,
             modifier = Modifier
@@ -6216,6 +6219,13 @@ internal fun ShortcutSettingsDialogScreen(
     // Epic Friends Overlay (Phase 3) — provision Epic's real EOS overlay into the prefix so the game's
     // own EOS SDK renders friends/notifications on Shift+F3. Default OFF (opt-in per game).
     var epicOverlayEnabled by remember { mutableStateOf(shortcut.getExtra("epicOverlay", "0") == "1") }
+    // Xbox game whose install ships Microsoft's xgameruntime.dll: use the app's (Xodus Nexus) instead. Default ON.
+    val xboxShipsRuntime = remember {
+        shortcut.getExtra("storeSource") == "xbox" && shortcut.getExtra("xboxProductId").let { id ->
+            !id.isNullOrEmpty() && runCatching { com.winhub.hernandez.store.xbox.XboxRuntime.shipsOwnRuntime(context, id) }.getOrDefault(false)
+        }
+    }
+    var xboxNexusRuntime by remember { mutableStateOf(shortcut.getExtra(com.winhub.hernandez.store.xbox.XboxRuntime.NEXUS_RUNTIME_EXTRA, "1") != "0") }
 
     // Async-loaded state
     var isArm64EC by remember { mutableStateOf(false) }
@@ -6795,6 +6805,7 @@ internal fun ShortcutSettingsDialogScreen(
             if (isEpicShortcut) putExtra("epicOvtForce", if (epicOvtForce) "1" else "0")
             if (isEpicShortcut) putExtra("epicOffline", if (epicOffline) "1" else "0")
             if (isEpicShortcut) putExtra("epicOverlay", if (epicOverlayEnabled) "1" else "0")
+            if (xboxShipsRuntime) putExtra(com.winhub.hernandez.store.xbox.XboxRuntime.NEXUS_RUNTIME_EXTRA, if (xboxNexusRuntime) "1" else "0")
             putExtra("screenSize", screenSize)
             // #413: "" (Container Default) -> null -> putExtra removes the key, so launch re-inherits the
             // container each time (true inherit, not a snapshot). "0"/"1"/"2" store the Center/Top/Bottom override.
@@ -7376,6 +7387,7 @@ internal fun ShortcutSettingsDialogScreen(
                             }
                         }
                     }
+                    if (xboxShipsRuntime) XboxRuntimeRow(xboxNexusRuntime) { xboxNexusRuntime = it }
 
                     // Screen size
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -8354,6 +8366,13 @@ internal fun DeckShortcutSettingsScreen(
     var epicOvtForce by remember { mutableStateOf(shortcut.getExtra("epicOvtForce", "0") == "1") }
     var epicOffline by remember { mutableStateOf(shortcut.getExtra("epicOffline", "0") == "1") }
     var epicOverlayEnabled by remember { mutableStateOf(shortcut.getExtra("epicOverlay", "0") == "1") }
+    // Xbox game whose install ships Microsoft's xgameruntime.dll: use the app's (Xodus Nexus) instead. Default ON.
+    val xboxShipsRuntime = remember {
+        shortcut.getExtra("storeSource") == "xbox" && shortcut.getExtra("xboxProductId").let { id ->
+            !id.isNullOrEmpty() && runCatching { com.winhub.hernandez.store.xbox.XboxRuntime.shipsOwnRuntime(context, id) }.getOrDefault(false)
+        }
+    }
+    var xboxNexusRuntime by remember { mutableStateOf(shortcut.getExtra(com.winhub.hernandez.store.xbox.XboxRuntime.NEXUS_RUNTIME_EXTRA, "1") != "0") }
 
     var isArm64EC by remember { mutableStateOf(false) }
     var archLoaded by remember { mutableStateOf(false) }
@@ -8773,6 +8792,7 @@ internal fun DeckShortcutSettingsScreen(
             if (isEpicShortcut) putExtra("epicOvtForce", if (epicOvtForce) "1" else "0")
             if (isEpicShortcut) putExtra("epicOffline", if (epicOffline) "1" else "0")
             if (isEpicShortcut) putExtra("epicOverlay", if (epicOverlayEnabled) "1" else "0")
+            if (xboxShipsRuntime) putExtra(com.winhub.hernandez.store.xbox.XboxRuntime.NEXUS_RUNTIME_EXTRA, if (xboxNexusRuntime) "1" else "0")
             putExtra("screenSize", screenSize)
             putExtra("screenAlignment", screenAlignment.ifEmpty { null })
             putExtra("graphicsDriver", StringUtils.parseIdentifier(selectedGfxDriver))
@@ -9028,6 +9048,13 @@ internal fun DeckShortcutSettingsScreen(
                                         DeckRow("Epic Friends Overlay", hint = "Experimental in-game overlay on Shift+F3") {
                                             DeckToggle(checked = epicOverlayEnabled, onChange = { epicOverlayEnabled = it })
                                         }
+                                    }
+                                }
+                            }
+                            if (xboxShipsRuntime) {
+                                DeckGroup("Xbox") {
+                                    DeckRow("Use the app's Xbox runtime", hint = "This game ships Microsoft's own Xbox runtime, which needs Windows' Gaming Services. Turn off only to try the game's own.") {
+                                        DeckToggle(checked = xboxNexusRuntime, onChange = { xboxNexusRuntime = it })
                                     }
                                 }
                             }
@@ -10774,6 +10801,7 @@ private fun Set<String>.toggle(path: String): Set<String> =
 // other game comes straight in.
 // [preflightDone] = the SteamLite pre-flight already pulled cloud saves; the activity skips its own pull.
 internal fun launchShortcutNow(activity: Activity, shortcut: Shortcut, preflightDone: Boolean = false) {
+    if (launchXboxOutsideWine(activity, shortcut)) return
     if (!XrActivity.isEnabled(activity)) {
         val intent = Intent(activity, XServerDisplayActivity::class.java).apply {
             putExtra("container_id", shortcut.container.id)
@@ -11009,6 +11037,23 @@ private fun SteamBadge(modifier: Modifier = Modifier) {
  * [isCustomOriginShortcut] for the detection rule.
  */
 @Composable
+private fun XboxBadge(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFF107C10))
+            .padding(horizontal = 5.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "XBOX",
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
 private fun AmazonBadge(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
@@ -11092,6 +11137,51 @@ private fun isCustomOriginShortcut(shortcut: Shortcut): Boolean {
  * `storeSource=amazon` (StarLaunchBridge store overload); pre-tagging ones are recognised by the exec
  * path living under the Amazon install root (`imagefs/Amazon/<title>/…` → `Z:\Amazon\…`).
  */
+@Composable
+private fun XboxRuntimeRow(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Use the app's Xbox runtime", fontSize = 14.sp)
+            Text(
+                "This game ships Microsoft's own Xbox runtime, which needs Windows' Gaming Services. " +
+                        "Turn off only to try the game's own.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+internal fun isXboxShortcut(shortcut: Shortcut): Boolean = shortcut.getExtra("storeSource") == "xbox"
+
+/** Launch method "Stream" on an Xbox shortcut: Xbox Cloud Gaming, nothing starts in Wine. */
+internal fun streamXboxShortcut(activity: Activity, shortcut: Shortcut) {
+    activity.startActivity(com.winhub.hernandez.store.xbox.XboxCloudPlayerActivity.intent(activity,
+        shortcut.getExtra("xboxProductId", ""), shortcut.name ?: ""))
+}
+
+/**
+ * An Xbox entry whose launch does not start Wine: a remembered Stream pick (Xbox Cloud Gaming), or an entry
+ * added to Games before it was downloaded (its launch opens the game's store page to install it). True when handled.
+ */
+internal fun launchXboxOutsideWine(activity: Activity, shortcut: Shortcut): Boolean {
+    if (!isXboxShortcut(shortcut)) return false
+    if (shortcut.getExtra("launchMode", "") == "Stream" && shortcut.getExtra("launchModeRemembered", "") == "1") {
+        streamXboxShortcut(activity, shortcut)
+        return true
+    }
+    if (com.winhub.hernandez.store.xbox.XboxCloudShortcuts.isNotInstalled(shortcut)) {
+        com.winhub.hernandez.store.xbox.XboxCloudShortcuts.openDownload(activity, shortcut)
+        return true
+    }
+    return false
+}
+
 internal fun isAmazonShortcut(shortcut: Shortcut): Boolean {
     if (shortcut.getExtra("storeSource") == "amazon") return true
     val p = shortcut.path ?: return false
@@ -11539,12 +11629,13 @@ private fun ShortcutBadgeOverlay(
     showEos: Boolean,
     showGog: Boolean,
     showAmazon: Boolean = false,
+    showXbox: Boolean = false,
     showCustom: Boolean = false,
     showEa: Boolean = false,
     showLinux: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    if (!showSteam && !showEpic && !showEos && !showGog && !showAmazon && !showCustom && !showEa
+    if (!showSteam && !showEpic && !showEos && !showGog && !showAmazon && !showXbox && !showCustom && !showEa
         && !showLinux) return
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (showSteam) SteamBadge()
@@ -11553,6 +11644,7 @@ private fun ShortcutBadgeOverlay(
         if (showEos) EosBadge()
         if (showGog) GogBadge()
         if (showAmazon) AmazonBadge()
+        if (showXbox) XboxBadge()
         if (showCustom) CustomBadge()
         if (showLinux) LinuxBadge()
     }

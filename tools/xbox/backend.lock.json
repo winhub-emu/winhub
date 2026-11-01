@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "version": "0.2.8",
+  "repository": "https://github.com/xodus-gaming/xodus.git",
+  "commit": "53ea781dcd073e31d7ea68e894134e9c959bff04",
+  "rust": "1.99.0",
+  "cargoLockSha256": "2259b343e00dadc263018beb7664b12e9d58a0b73bff502ad566f5f8619ce28a",
+  "patchId": "linux-run-v24",
+  "compatibility": "linux-run-v18",
+  "patches": [
+    {
+      "file": "xodus-linux-run.patch",
+      "sha256": "68f260ec2c6e9264c47ed1a650868511f5412a756725d4000a865804f4712e8b"
+    },
+    {
+      "file": "xodus-offline-mirror.patch",
+      "sha256": "c865fc2559c43a5b3eb2bc841035c076eae5c42a90fe488f90514384aa916986"
+    },
+    {
+      "file": "xodus-account-status.patch",
+      "sha256": "e2a718d16957733d140891fcdd26cc8cb3db0636307e6ff6e9ffbfa41a2d393c"
+    },
+    {
+      "file": "xodus-streaming-cache-flush.patch",
+      "sha256": "4dd7a129ab9b3aac74d46f926efe26f163741d50fe2853a07f292240ab522b05"
+    },
+    {
+      "file": "xodus-launch-chain.patch",
+      "sha256": "22dfbfc5cec911091351bb2d648f4b16bd274aa276ee4524be738a357c8b219a"
+    },
+    {
+      "file": "xodus-memfd-path.patch",
+      "sha256": "905cfda813f0a434a2c13fd2db973385f0311cbec5c86bc3549737a7838f49fd"
+    },
+    {
+      "file": "xodus-real-launch-images.patch",
+      "sha256": "95fc642e3adfa50414648e40df6ee94262964f5eea0f3762a34765f56d7824b7"
+    },
+    {
+      "file": "xodus-store-license.patch",
+      "sha256": "99a89821e15ba144126515b5e8ec70b0673caf694d9295f16cd6661564b7c579"
+    },
+    {
+      "file": "xodus-store-updates.patch",
+      "sha256": "554e3849122c8cd3c64c7f5904ac06931a088bc8fb4c522ec2c55b972b72ea8e"
+    },
+    {
+      "file": "xodus-streaming-progress.patch",
+      "sha256": "b5e22d8eb595502776c4d6f2a5451403647e31754fc6358bc4f338cab72642a0"
+    },
+    {
+      "file": "xodus-case-insensitive-paths.patch",
+      "sha256": "53dbfd6f734db100fff958e4a311155cad2cb374db456f73544ad76e3799ac8d"
+    },
+    {
+      "file": "xodus-account-profile.patch",
+      "sha256": "135166ff0cf9f95af92dad6fd1c958b6c57e939fbb5b398b5a603b730541554a"
+    },
+    {
+      "file": "xodus-subscription-login.patch",
+      "sha256": "6c3f32c905039948b3ff95a0ceaba9b2a09a9417606653bce9b741c8bba43eb0"
+    },
+    {
+      "file": "xodus-external-auth.patch",
+      "sha256": "0a22d5a84d328780e6f13ac07f8e1db6359ec70139ad4262e4c1ee988973e20e"
+    },
+    {
+      "file": "xodus-keyring-activation.patch",
+      "sha256": "8c71928e0b365f4770532ef968322450f1ebab3a1199e7a10d894119c48c925e"
+    },
+    {
+      "file": "xodus-package-selection.patch",
+      "sha256": "7507cb0535cd914d3607e7940d5e17b949d106d0b89c139b84372a1ee1732c54"
+    },
+    {
+      "file": "xodus-package-metadata.patch",
+      "sha256": "43fccfbb2ea2a9809e7f0b3d9e2f506213e6245d3bbd4c1c631149a67bb2d661"
+    },
+    {
+      "file": "xodus-license-sku.patch",
+      "sha256": "b7c93b6ead7120c5b2af3616e80c0dadf56326a8bc81a2526a5e1f2700f58e20"
+    },
+    {
+      "file": "xodus-keyring-credentials.patch",
+      "sha256": "8b354f95b864ffd7eadb02f0d54eb1361bb92fde14ff8696fabfea5c43d03811"
+    },
+    {
+      "file": "xodus-library-resilience.patch",
+      "sha256": "0136157efe8a1419f91243c496656c4d043422e126c40e4a552e769c53de3545"
+    },
+    {
+      "file": "xodus-game-activity.patch",
+      "sha256": "89bfd422f951515dd393eb479901ff9613441c627d139918c233a19ec21f1e06"
+    },
+    {
+      "file": "xodus-achievements.patch",
+      "sha256": "55e4b56b943f491da4c9836a5d6655417ed63ab6383576a8e0f153ec986039b0"
+    },
+    {
+      "file": "xodus-session-recovery.patch",
+      "sha256": "fa67d768214247a5955716b9691616b45330ebda504703bf372fdda2252b0831"
+    },
+    {
+      "file": "xodus-content-response.patch",
+      "sha256": "e9997951526cfa08e3dd8c5fc4c383bf630e7ab8992d9e211acee40fdc6422a4"
+    }
+  ],
+  "nexusCommit": "396e7fb8fe0e5f00d956091195c614b8a0732ab1"
+}

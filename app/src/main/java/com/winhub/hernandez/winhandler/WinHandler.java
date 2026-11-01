@@ -469,6 +469,33 @@ public class WinHandler {
         });
     }
 
+    /** Largest filename + parameters winhandler.exe takes in one EXEC: its receive buffer is 64 bytes,
+     *  minus the code byte and three ints. */
+    public static final int EXEC_RAW_MAX = 51;
+
+    /**
+     * EXEC without {@link #exec}'s quote parsing: the filename and parameters go to ShellExecute as
+     * given. False (nothing sent) when they don't fit winhandler.exe's buffer ({@link #EXEC_RAW_MAX}).
+     * winhandler.exe sends nothing back; watch the process list to know when the program is done.
+     */
+    public boolean execRaw(String filename, String parameters) {
+        final byte[] filenameBytes = filename.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        final byte[] parametersBytes = (parameters != null ? parameters : "").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        if (filenameBytes.length + parametersBytes.length > EXEC_RAW_MAX)
+            return false;
+        addAction(() -> {
+            sendData.rewind();
+            sendData.put(RequestCodes.EXEC);
+            sendData.putInt(filenameBytes.length + parametersBytes.length + 8);
+            sendData.putInt(filenameBytes.length);
+            sendData.putInt(parametersBytes.length);
+            sendData.put(filenameBytes);
+            sendData.put(parametersBytes);
+            sendPacket(CLIENT_PORT);
+        });
+        return true;
+    }
+
     public void killProcess(final String processName) {
         addAction(() -> {
             sendData.rewind();

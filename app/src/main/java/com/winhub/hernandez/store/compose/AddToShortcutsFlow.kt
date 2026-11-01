@@ -52,6 +52,8 @@ data class AddShortcutResult(
     val gameName: String,
     val success: Boolean,
     val message: String,
+    /** An extra line under the success text (the Xbox store's not-installed entries say how to play them). */
+    val note: String? = null,
 )
 
 /** M3 container picker matching the Containers screen list idiom. */
@@ -61,6 +63,8 @@ fun ContainerPickerDialog(
     containers: List<Container>,
     onDismiss: () -> Unit,
     onSelected: (Container) -> Unit,
+    /** An optional per-container note under its subtitle (e.g. the Xbox store's Proton advice); null = none. */
+    note: (Container) -> String? = { null },
 ) {
     OutlinedAlertDialog(
         onDismissRequest = onDismiss,
@@ -108,6 +112,9 @@ fun ContainerPickerDialog(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
+                                note(container)?.let {
+                                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                                }
                             }
                         }
                     }
@@ -132,7 +139,7 @@ fun AddResultDialog(
         OutlinedAlertDialog(
             onDismissRequest = onDismiss,
             title = { Text("Added to Shortcuts") },
-            text = { Text("\"${result.gameName}\" is ready in Shortcuts.") },
+            text = { Text("\"${result.gameName}\" is ready in Shortcuts." + (result.note?.let { "\n\n$it" } ?: "")) },
             confirmButton = {
                 TextButton(onClick = onOpenShortcuts) { Text("Open Shortcuts") }
             },

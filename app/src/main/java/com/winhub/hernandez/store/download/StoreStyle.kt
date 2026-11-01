@@ -20,6 +20,7 @@ object StoreStyle {
         Store.EPIC   -> Color(0xFF0078F2) // Epic blue
         Store.GOG    -> Color(0xFF9B4DCA) // GOG purple
         Store.AMAZON -> Color(0xFFFF9900) // Amazon orange
+        Store.XBOX   -> Color(0xFF107C10) // Xbox green
     }
 
     /** ARGB int for legacy AndroidView widgets (matches AppThemeState.getCurrentAccentArgb). */
@@ -28,6 +29,7 @@ object StoreStyle {
         Store.EPIC   -> 0xFF0078F2.toInt()
         Store.GOG    -> 0xFF9B4DCA.toInt()
         Store.AMAZON -> 0xFFFF9900.toInt()
+        Store.XBOX   -> 0xFF107C10.toInt()
     }
 
     /** Short display label for a store chip. */
@@ -36,5 +38,6 @@ object StoreStyle {
         Store.EPIC   -> "Epic"
         Store.GOG    -> "GOG"
         Store.AMAZON -> "Amazon"
+        Store.XBOX   -> "Xbox"
     }
 }

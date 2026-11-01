@@ -1,0 +1,19 @@
+diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
+index 24ede3a..79978f7 100644
+--- a/crates/xodus-cli/src/commands/streaming.rs
++++ b/crates/xodus-cli/src/commands/streaming.rs
+@@ -124,6 +124,14 @@ pub async fn run(
+                 .find(|p| p.file_name.ends_with(".msixvc"))
+             else {
+                 eprintln!("No .msixvc file found");
++                // Bannerlator diagnostic: which file types the package offered (extensions only, no names or URLs).
++                let mut kinds: Vec<String> = package.package_files.iter()
++                    .map(|p| p.file_name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default())
++                    .map(|e| if !e.is_empty() && e.len() <= 12 && e.chars().all(|c| c.is_ascii_alphanumeric()) { e } else { "other".into() })
++                    .collect();
++                kinds.sort();
++                kinds.dedup();
++                eprintln!("NEXUS_PACKAGE_FILES_V1 {} {}", package.package_files.len(), if kinds.is_empty() { "none".into() } else { kinds.join(",") });
+                 return ExitCode::FAILURE;
+             };
+             format!(

@@ -1,0 +1,18 @@
+{
+  "repository": "domsvoboda/xodus-nexus",
+  "tag": "runtime-11.0-20261018-gf291f544",
+  "archive": "xodus-nexus-runtime-11.0-20261018-gf291f544-x86_64.tar.xz",
+  "sha512": "8e16634dc4d75ead4b7f48712624e107cfdc29a31a2da1b32624af25a6e3e8938636a6701e076a9dee08eb0c5b36b549342598313971f5fceb5de1e483c43578",
+  "source": {
+    "name": "xodus-nexus-runtime-11.0-20261018-gf291f544-source.tar.xz",
+    "sha256": "58b5d35d23b61f73f771b733fde43ea75096fe8b60f2ddc660949af3d8d87baf"
+  },
+  "dlls": {
+    "twinapi.appcore.dll": "c203bbd707d521c68719b42a0a81db2b4838cc41be83fc76bfd87bf33e507336",
+    "windows.web.dll": "1a510c73ca31475b163692337d3cf37fef3381078df9729662095fc92b2e4e83",
+    "libnghttp2.dll": "2b171eba9296b207fe6016560e5381bc6e7405f3ad5ee5cd4add316358204ec0",
+    "xgameruntime.dll": "060120e0ec6bccfbab516128315a0658b11d3e316f62a917c653daf1a1dd3e05",
+    "winhttp.dll": "81e1da7a731d83fbd24dbe2fa2ecb8f155bd477a9f9b6f4cc3932063cc326c27",
+    "wintypes.dll": "7d06083e3d8b3a7e11555a91e7918f11c7d444a74755d41c8d1990db3697c895"
+  }
+}

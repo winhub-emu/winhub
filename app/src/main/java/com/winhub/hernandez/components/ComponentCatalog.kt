@@ -28,6 +28,11 @@ data class Component(
 object ComponentCatalog {
     const val URL = "https://raw.githubusercontent.com/The412Banner/winlator-contents/main/components.json"
 
+    /** The last catalog [load] read, by name: what an install looks dependencies up in. */
+    @Volatile
+    var byName: Map<String, Component> = emptyMap()
+        private set
+
     fun load(): List<Component> {
         val json = Downloader.downloadString(URL) ?: return emptyList()
         val arr = JSONObject(json).optJSONArray("components") ?: return emptyList()
@@ -53,6 +58,7 @@ object ComponentCatalog {
                 )
             )
         }
+        if (out.isNotEmpty()) byName = out.associateBy { it.name }
         return out
     }
 }

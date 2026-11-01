@@ -994,6 +994,7 @@ fun BigPictureScreen(navController: NavController) {
                 launchChoiceFor = null
                 when (mode) {
                     "Goldberg" -> launchWithGoldberg(s, goldbergMode ?: GoldbergMode.REGULAR)
+                    "Stream" -> streamXboxShortcut(activity, s)
                     "Raw" -> {
                         // Raw: run the game's .exe directly, no Steam layer (Epic/GOG/Custom, or a Steam
                         // game the user chose to run raw). launchMode="Raw" is inert to the launch pipeline
@@ -1853,6 +1854,7 @@ internal fun loadCover(s: Shortcut): ImageBitmap? {
 // `internal` so the Games-wall screen launches games through the identical entry point.
 // [preflightDone] = the SteamLite pre-flight already pulled cloud saves; the activity skips its own pull.
 internal fun launchShortcut(activity: Activity, shortcut: Shortcut, preflightDone: Boolean = false, zoomColor: Int? = null) {
+    if (launchXboxOutsideWine(activity, shortcut)) return
     if (!XrActivity.isEnabled(activity)) {
         val intent = Intent(activity, XServerDisplayActivity::class.java).apply {
             // Home's launch zoom ends on this colour; the loading screen opens from it (see PreloaderOverlayHelper).

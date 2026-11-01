@@ -99,6 +99,9 @@ object StoreDownloadHooks {
         installTotal: Long = 0L,
         downloadDone: Long = 0L,
         downloadTotal: Long = 0L,
+        /** Network speed in bytes/s and seconds left, when the store's downloader reports them (0 / -1 = unknown). */
+        speedBps: Long = 0L,
+        etaSeconds: Long = -1L,
     ) {
         DownloadRegistry.update(key(store, id)) {
             it.copy(
@@ -108,6 +111,8 @@ object StoreDownloadHooks {
                 installTotal = installTotal,
                 downloadDone = downloadDone,
                 downloadTotal = downloadTotal,
+                speedBps = speedBps,
+                etaSeconds = etaSeconds,
             )
         }
         pushNotification(store, id)

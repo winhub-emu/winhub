@@ -93,6 +93,8 @@ fun StoreDetailScaffold(
     headerActions: @Composable RowScope.() -> Unit = { DownloadsButton() },
     /** Small line(s) between the name and the button — install status, exe name. */
     subtitle: (@Composable ColumnScope.() -> Unit)? = null,
+    /** A second, outlined button beside the primary one (Xbox: Stream next to Install). */
+    secondary: StorePrimaryAction.Button? = null,
     /** Line under the primary button (download rate / ETA). */
     infoLine: String? = null,
     tabBadges: Map<Int, String> = emptyMap(),
@@ -121,7 +123,7 @@ fun StoreDetailScaffold(
                 if (subtitle != null) subtitle()
             }
 
-            StorePrimaryActionRow(primary = primary, gear = gear)
+            StorePrimaryActionRow(primary = primary, gear = gear, secondary = secondary)
 
             if (!infoLine.isNullOrBlank()) {
                 Text(
@@ -156,6 +158,7 @@ fun StorePrimaryActionRow(
     primary: StorePrimaryAction,
     gear: List<StoreGearItem>,
     modifier: Modifier = Modifier,
+    secondary: StorePrimaryAction.Button? = null,
 ) {
     var gearExpanded by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
@@ -222,6 +225,24 @@ fun StorePrimaryActionRow(
                     maxLines = 1,
                 )
             }
+        }
+
+        if (secondary != null) Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(46.dp)
+                .clip(shape)
+                .border(1.dp, if (secondary.enabled) cs.primary else cs.outline, shape)
+                .clickable(enabled = secondary.enabled) { secondary.onClick() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = secondary.label,
+                color = if (secondary.enabled) cs.primary else cs.onSurfaceVariant,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
         }
 
         if (gear.isNotEmpty()) {

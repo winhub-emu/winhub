@@ -1,0 +1,171 @@
+diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
+index 5a66715..5b310e4 100644
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -6,6 +6,7 @@ pub mod license;
+ pub mod login;
+ pub mod logout;
+ pub mod profile;
++pub mod cloud_token;
+ pub mod game_activity;
+ pub mod achievements;
+ pub mod subscription;
+diff --git a/crates/xodus-cli/src/commands/cloud_token.rs b/crates/xodus-cli/src/commands/cloud_token.rs
+new file mode 100644
+index 0000000..fbd0ed0
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/cloud_token.rs
+@@ -0,0 +1,124 @@
++//! Xbox Cloud Gaming streaming token for the stored account (Bannerlator). Same bearer
++//! RPS -> Xbox user -> XSTS exchange as the profile read, for the cloud gaming relying party,
++//! then the streaming service's user login (as xbox.com and Greenlight's xal-node do).
++//! Never provisions a device or opens login.
++use std::{process::ExitCode, time::Duration};
++use serde_json::{Value, json};
++use xodus::{models::{live::ExchangeUserTokenOutcome, secrets::Token, soap}, tokens::TokenManager};
++
++const GSSV_RELYING_PARTY: &str = "http://gssv.xboxlive.com/";
++const OFFERINGS: [&str; 2] = ["xgpuweb", "xgpuwebf2p"];
++
++/// The stored account's compact Microsoft account ticket for one service target and policy.
++async fn ticket(tokens: &TokenManager, client: &reqwest::Client, target: &str, policy: soap::PolicyReference) -> Result<(String, String), &'static str> {
++    let (account, device, user) = super::session::prepare(tokens, client).await.map_err(|stage| {
++        super::session::diagnostic(stage); stage
++    })?;
++    let outcome = super::session::exchange(|| async { xodus::api::live::exchange_user_token(client, user.clone(), account.clone(), device.clone(),
++        None, Some("Silent".into()), "{d6d5a677-0872-4ab0-9442-bb792fce85c5}".into(),
++        &[(target.into(), Some(policy.clone()))])
++        .await.map_err(|error| super::session::classify(&error)) }).await?;
++    let response = match outcome {
++        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponseCollection(mut collection)) if !collection.security_tokens.is_empty() => collection.security_tokens.remove(0),
++        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(response)) => *response,
++        _ => return Err("msa-response"),
++    };
++    // Token::from panics on token types it does not know; only take the compact forms here. The cloud
++    // transfer purpose answers with a login proof token, which is what /connect takes (Greenlight
++    // sends the MSAL response's "lpt").
++    let kind = response.token_type.clone();
++    if kind == "urn:passport:loginprooftoken" {
++        let shape = match (&response.requested_security_token.binary_security_token, &response.requested_security_token.encrypted_data) {
++            (Some(token), _) if !token.value.is_empty() => "binary",
++            (_, Some(_)) => "encrypted",
++            _ => "empty",
++        };
++        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 login-proof-{shape}");
++        return match response.requested_security_token.binary_security_token {
++            Some(token) if !token.value.is_empty() => Ok((account, token.value)),
++            _ => Err("msa-ticket"),
++        };
++    }
++    let compact = matches!(kind.as_str(), "urn:passport:compact" | "urn:passport:delegationcompact")
++        && response.requested_security_token.binary_security_token.is_some();
++    if !compact {
++        let slug: String = kind.chars().map(|c| if c.is_ascii_alphabetic() { c.to_ascii_lowercase() } else { '-' }).take(40).collect();
++        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 ticket-type-{slug}");
++        return Err("msa-ticket");
++    }
++    let Token::Compact(ticket) = Token::from(response) else { return Err("msa-ticket"); };
++    Ok((account, ticket))
++}
++
++async fn xsts(tokens: &TokenManager, client: &reqwest::Client) -> Result<(String, String), &'static str> {
++    let (account, ticket) = ticket(tokens, client, "user.auth.xboxlive.com", soap::PolicyReference::mbi_ssl()).await?;
++    let user = xodus::api::xbox::authenticate_xbox_user(client, ticket).await.map_err(|_| "xbox-user")?;
++    let xsts = xodus::api::xbox::request_xsts_token(client, user.token, GSSV_RELYING_PARTY).await.map_err(|_| "xsts")?;
++    Ok((account, xsts.token))
++}
++
++/// The Microsoft account token a cloud session's /connect step takes (xbox.com asks MSAL for
++/// "service::http://Passport.NET/purpose::PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN").
++async fn transfer_token(tokens: &TokenManager, client: &reqwest::Client) -> Result<String, &'static str> {
++    let policy = soap::PolicyReference { uri: "PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN".into(), val: String::default() };
++    Ok(ticket(tokens, client, "http://Passport.NET/purpose", policy).await?.1)
++}
++
++fn regions(value: &Value) -> Vec<Value> {
++    value["offeringSettings"]["regions"].as_array().map(|list| list.iter().filter_map(|region| {
++        let name = region["name"].as_str()?;
++        let base = reqwest::Url::parse(region["baseUri"].as_str()?).ok()?;
++        let host = base.host_str()?;
++        if base.scheme() != "https" || !host.ends_with(".xboxlive.com") || !base.username().is_empty() { return None; }
++        Some(json!({ "name": name, "baseUri": base.as_str().trim_end_matches('/'), "isDefault": region["isDefault"].as_bool().unwrap_or(false) }))
++    }).take(32).collect()).unwrap_or_default()
++}
++
++async fn login(tokens: &TokenManager) -> Result<Value, String> {
++    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
++        .timeout(super::session::REQUEST_TIMEOUT).user_agent("xodus-nexus-cloud/1").build().map_err(|_| "http-client")?;
++    let (account, xsts) = xsts(tokens, &client).await?;
++    let mut failures = Vec::new();
++    for offering in OFFERINGS {
++        let response = client.post(format!("https://{offering}.gssv-play-prod.xboxlive.com/v2/login/user"))
++            .header("x-gssv-client", "XboxComBrowser").header("Cache-Control", "no-store, must-revalidate, no-cache")
++            .json(&json!({ "token": xsts, "offeringId": offering })).send().await.map_err(|_| "gssv-request")?;
++        let status = response.status().as_u16();
++        let body = super::profile::bounded(response, 256 * 1024).await;
++        let Ok(body) = body else { failures.push(format!("{offering}:{status}")); continue; };
++        let value: Value = serde_json::from_slice(&body).map_err(|_| "gssv-json")?;
++        let token = value["gsToken"].as_str().filter(|token| !token.is_empty() && token.len() <= 16384).ok_or("gs-token")?;
++        // Diagnostic lines are letters and dashes only (the app's allow-list).
++        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 gssv-login-ok-{}", if offering == "xgpuweb" { "gamepass" } else { "free" });
++        let transfer = transfer_token(tokens, &client).await;
++        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 transfer-token-{}", if transfer.is_ok() { "ok" } else { "missing" });
++        if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed".into()); }
++        return Ok(json!({ "schema": 1, "account": account, "offering": offering, "gsToken": token, "userToken": transfer.ok(),
++            "durationInSeconds": value["durationInSeconds"].as_u64().unwrap_or(0), "market": value["market"].as_str().unwrap_or_default(),
++            "regions": regions(&value) }));
++    }
++    Err(format!("gssv-login {}", failures.join(" ")))
++}
++
++pub async fn run(tokens: &TokenManager) -> ExitCode {
++    match tokio::time::timeout(Duration::from_secs(45), login(tokens)).await {
++        Ok(Ok(value)) => { println!("{value}"); ExitCode::SUCCESS }
++        Ok(Err(stage)) => { eprintln!("Xbox Cloud Gaming sign-in failed ({stage})."); ExitCode::FAILURE }
++        Err(_) => { eprintln!("Xbox Cloud Gaming sign-in timed out."); ExitCode::FAILURE }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn only_https_xboxlive_regions_are_kept() {
++        let value = json!({"offeringSettings":{"regions":[
++            {"name":"WestEurope","baseUri":"https://weu.core.gssv-play-prod.xboxlive.com/","isDefault":true},
++            {"name":"Evil","baseUri":"https://evil.test/"},
++            {"name":"Plain","baseUri":"http://eus.core.gssv-play-prod.xboxlive.com"}]}});
++        let list = regions(&value);
++        assert_eq!(list.len(), 1);
++        assert_eq!(list[0]["baseUri"], "https://weu.core.gssv-play-prod.xboxlive.com");
++    }
++}
+diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
+index 1ae4167..4b0ac26 100644
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -68,6 +68,8 @@ enum SubCommand {
+         #[arg(long, default_value_t = false)]
+         json: bool,
+     },
++    #[command(about = "Get an Xbox Cloud Gaming streaming token for the stored account")]
++    CloudToken,
+     #[command(about = "Read Xbox gamertag and gamerpic for the stored account")]
+     Profile {
+         #[arg(long, default_value_t = false)]
+@@ -239,6 +241,7 @@ async fn main() -> ExitCode {
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
++            | SubCommand::CloudToken
+             | SubCommand::GameActivity { .. }
+             | SubCommand::Achievements { .. }
+             | SubCommand::Library { .. }
+@@ -304,6 +307,7 @@ async fn main() -> ExitCode {
+             }
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
++        SubCommand::CloudToken => commands::cloud_token::run(&tokens).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
+         SubCommand::Login => commands::login::run(&client, &tokens).await,

@@ -142,11 +142,12 @@ private data class DeckStoreTile(
     val dot: Color,
 )
 
-/** DroidDeck `sourceColours()` mapped onto WinHub's four store screens (order = `Screen.storeItems`). */
+/** DroidDeck `sourceColours()` mapped onto WinHub's store screens (order = `Screen.storeItems`). */
 private val deckStores = listOf(
     DeckStoreTile(Screen.Gog, "GOG", Color(0xFF3A1A3C), Color(0xFFE6A3EA), Color(0xFFA855F7)),
     DeckStoreTile(Screen.Epic, "Epic", Color(0xFF2A2A2A), Color(0xFFDDDDDD), Color(0xFFFFFFFF)),
     DeckStoreTile(Screen.Amazon, "Amazon", Color(0xFF3A2A0A), Color(0xFFFFC266), Color(0xFFFF9900)),
+    DeckStoreTile(Screen.Xbox, "Xbox", Color(0xFF0E2A0E), Color(0xFF8EDB8E), Color(0xFF107C10)),
     DeckStoreTile(Screen.Steam, "Steam", Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF)),
 )
 
@@ -155,6 +156,7 @@ private fun deckStoreLogo(screen: Screen): Int = when (screen) {
     Screen.Steam -> R.drawable.store_logo_steam
     Screen.Epic -> R.drawable.store_logo_epic
     Screen.Gog -> R.drawable.store_logo_gog
+    Screen.Xbox -> R.drawable.store_logo_xbox
     else -> R.drawable.store_logo_amazon
 }
 
@@ -162,6 +164,7 @@ private fun deckStoreBrand(screen: Screen): List<Color> = when (screen) {
     Screen.Steam -> listOf(Color(0xFF1B2838), Color(0xFF171A21))
     Screen.Epic -> listOf(Color(0xFF202020), Color(0xFF121212))
     Screen.Gog -> listOf(Color(0xFF5C2D91), Color(0xFF3B1C60))
+    Screen.Xbox -> listOf(Color(0xFF107C10), Color(0xFF0B5A0B))
     else -> listOf(Color(0xFF232F3E), Color(0xFF131A22))
 }
 
@@ -171,6 +174,8 @@ private fun launchDeckLogin(context: Context, screen: Screen) {
         Screen.Gog -> GogLoginActivity::class.java
         Screen.Epic -> EpicLoginActivity::class.java
         Screen.Amazon -> AmazonLoginActivity::class.java
+        // Xbox's own store screen carries the Microsoft sign-in gate (and the missing-backend notice).
+        Screen.Xbox -> com.winhub.hernandez.store.xbox.XboxMainActivity::class.java
         Screen.Steam -> SteamLoginActivity::class.java
         else -> return
     }
@@ -189,6 +194,7 @@ internal fun deckSignedIn(context: Context, screen: Screen): Boolean = when (scr
     Screen.Gog -> !context.getSharedPreferences("bh_gog_prefs", 0).getString("access_token", null).isNullOrEmpty()
     Screen.Epic -> com.winhub.hernandez.store.EpicCredentialStore.load(context) != null
     Screen.Amazon -> com.winhub.hernandez.store.AmazonCredentialStore.isLoggedIn(context)
+    Screen.Xbox -> com.winhub.hernandez.store.xbox.XboxAccountStore.signedInAs(context) != null
     Screen.Steam -> SteamSessionManager.isLoggedOn() || SteamPrefs.isLoggedIn
     else -> false
 }
@@ -201,6 +207,7 @@ private data class DeckOwnedGame(
     val gog: GogGame? = null,
     val epic: EpicGame? = null,
     val amazon: AmazonGame? = null,
+    val isXbox: Boolean = false,
     val steamAppId: Int = 0,
 )
 
@@ -265,6 +272,19 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
                     })
                 },
             )
+        }
+        Screen.Xbox -> {
+            val account = com.winhub.hernandez.store.xbox.XboxAccountStore.signedInAs(context)
+            val games = if (account == null) emptyList()
+            else com.winhub.hernandez.store.xbox.XboxLibraryCache.read(context, account, com.winhub.hernandez.store.xbox.Xodus.market())?.games.orEmpty()
+            games.map { g ->
+                DeckOwnedGame(
+                    title = g.title,
+                    art = g.posterUrl ?: g.heroUrl,
+                    isXbox = true,
+                    open = { ctx -> ctx.startActivity(com.winhub.hernandez.store.xbox.XboxMainActivity.detailIntent(ctx, g)) },
+                )
+            }
         }
         Screen.Steam -> SteamRepository.getInstance().getCachedGameRows()
             .map { SteamGame.fromGameRow(it) }
@@ -358,7 +378,8 @@ private fun DeckGameCard(game: DeckOwnedGame, onClick: () -> Unit) {
         game.gog != null -> deckStores[0].dot
         game.epic != null -> deckStores[1].dot
         game.amazon != null -> deckStores[2].dot
-        game.steamAppId != 0 -> deckStores[3].dot
+        game.isXbox -> deckStores.first { it.screen == Screen.Xbox }.dot
+        game.steamAppId != 0 -> deckStores.first { it.screen == Screen.Steam }.dot
         else -> null
     }
     Box(
@@ -501,6 +522,25 @@ private suspend fun deckFeatured(context: Context, screen: Screen): DeckStoreDat
             ),
         )
     }
+    Screen.Xbox -> runCatching {
+        val account = com.winhub.hernandez.store.xbox.XboxAccountStore.signedInAs(context)
+        val owned = if (account == null) emptyList()
+        else com.winhub.hernandez.store.xbox.XboxLibraryCache.read(context, account, com.winhub.hernandez.store.xbox.Xodus.market())?.games.orEmpty()
+        val trending = com.winhub.hernandez.store.xbox.XboxCatalog.featured(owned.associate { it.id to it.access })
+        fun xboxBrowse(g: com.winhub.hernandez.store.xbox.XboxGame) = DeckBrowseItem(
+            title = g.title,
+            art = g.posterUrl ?: g.heroUrl,
+            price = when { g.gamePass -> "Game Pass"; g.owned -> "Owned"; else -> "" },
+            open = { ctx -> ctx.startActivity(com.winhub.hernandez.store.xbox.XboxMainActivity.detailIntent(ctx, g)) },
+        )
+        DeckStoreData(
+            hero = trending.firstOrNull()?.let { xboxBrowse(it) },
+            sections = listOfNotNull(
+                trending.drop(1).rail("Trending on PC") { xboxBrowse(it) },
+                owned.take(20).rail("In your library") { xboxBrowse(it) },
+            ),
+        )
+    }.getOrNull() ?: DeckStoreData(null, emptyList())
     else -> DeckStoreData(null, emptyList())
 }
 

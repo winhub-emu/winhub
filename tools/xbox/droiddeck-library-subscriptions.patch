@@ -1,0 +1,95 @@
+--- a/crates/xodus-cli/src/commands/library.rs
++++ b/crates/xodus-cli/src/commands/library.rs
+@@ -96,6 +96,48 @@
+     eprintln!("NEXUS_LIBRARY_DIAGNOSTIC_V1 {stage} {status} {count}");
+ }
+
++const SUBSCRIPTION_PLANS: &[&str] = &[
++    "CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B",
++    "CFQ7TTC0K5DJ", "CFQ7TTC0K6L8", "CFQ7TTC10QFD",
++];
++
++fn subscription_rows(body: &Value) -> Result<Vec<Value>, &'static str> {
++    let rows = body["entitlements"].as_object().ok_or("subscriptions-shape")?;
++    if rows.len() > SUBSCRIPTION_PLANS.len() { return Err("subscriptions-count"); }
++    let mut plans = Vec::new();
++    for (id, row) in rows {
++        if !SUBSCRIPTION_PLANS.contains(&id.as_str()) { return Err("subscriptions-product"); }
++        let status = row["status"].as_str().ok_or("subscriptions-status")?;
++        if status != "Active" { continue; }
++        let expiry = row["endDate"].as_str().filter(|s| s.len() < 50)
++            .filter(|s| chrono::DateTime::parse_from_rfc3339(s).is_ok()).ok_or("subscriptions-expiry")?;
++        plans.push(json!({"productId":id,"status":status,"endDate":expiry}));
++    }
++    Ok(plans)
++}
++
++async fn subscriptions(client: &reqwest::Client, ticket: &str, market: &str) -> Result<Vec<Value>, &'static str> {
++    let url = format!("https://beige.xboxservices.com/PCGAFD/entitlements/subscriptions?market={market}&language=en-US&appVersion=0.2.3");
++    let cv = format!("{}.0", STANDARD_NO_PAD.encode(uuid::Uuid::new_v4().as_bytes()));
++    let mut response = client.post(url)
++        .header("Authorization", ticket).header("X-MS-API-Version", "1.1")
++        .header("Calling-App-Name", "Xodus-Nexus").header("MS-CV", cv)
++        .json(&json!({"productIds":SUBSCRIPTION_PLANS}))
++        .send().await.map_err(|_| "subscriptions-request")?;
++    if !response.status().is_success() {
++        diagnostic("subscriptions-http", response.status().as_u16(), 0);
++        return Err("subscriptions-http");
++    }
++    if response.content_length().is_some_and(|n| n > 262_144) { return Err("subscriptions-size"); }
++    let mut bytes = Vec::new();
++    while let Some(chunk) = response.chunk().await.map_err(|_| "subscriptions-read")? {
++        if bytes.len() + chunk.len() > 262_144 { return Err("subscriptions-size"); }
++        bytes.extend_from_slice(&chunk);
++    }
++    let body: Value = serde_json::from_slice(&bytes).map_err(|_| "subscriptions-json")?;
++    subscription_rows(&body)
++}
++
+ async fn query(tokens: &TokenManager, market: &str) -> Result<Value, &'static str> {
+     if market.len() != 2 || !market.bytes().all(|b| b.is_ascii_uppercase()) {
+         return Err("market");
+@@ -155,6 +197,7 @@
+         let page: Value = serde_json::from_slice(&bytes).map_err(|_| "entitlements-json")?;
+         all.add(&page)?;
+         if continuation.is_none() {
++            let subscriptions = subscriptions(&client, &ticket, market).await?;
+             if tokens.get_user().map_err(|_| "account-check")?.username != account {
+                 return Err("account-changed");
+             }
+@@ -162,7 +205,7 @@
+             for (reason, count) in &all.reasons { diagnostic(reason, 0, *count); }
+             diagnostic(if all.skipped > 0 { "partial" } else { "complete" }, 0, all.skipped);
+             return Ok(json!({"schema":1,"account":account,"market":market,
+-                "checkedAt":chrono::Utc::now().to_rfc3339(),"skippedEntitlements":all.skipped,
++                "checkedAt":chrono::Utc::now().to_rfc3339(),"skippedEntitlements":all.skipped,"subscriptions":subscriptions,
+                 "entitlements":all.entries.into_values().collect::<Vec<_>>()}));
+         }
+     }
+@@ -200,6 +243,26 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    #[test]
++    fn subscription_membership_is_separate_from_product_entitlements() {
++        let body = json!({"entitlements":{"CFQ7TTC0KGQ8":{
++            "status":"Active","endDate":"2099-01-01T00:00:00Z","autoRenew":true,"private":"not-output"}}});
++        assert_eq!(subscription_rows(&body).unwrap(), vec![json!({"productId":"CFQ7TTC0KGQ8",
++            "status":"Active","endDate":"2099-01-01T00:00:00Z"})]);
++        assert!(subscription_rows(&json!({"entitlements":{}})).unwrap().is_empty());
++        assert!(subscription_rows(&json!({"entitlements":{"CFQ7TTC0KGQ8":{"status":"Expired"}}})).unwrap().is_empty());
++    }
++
++    #[test]
++    fn malformed_membership_is_an_error_not_an_empty_subscription_list() {
++        for body in [json!({}), json!({"entitlements":[]}),
++            json!({"entitlements":{"unknown":{"status":"Active"}}}),
++            json!({"entitlements":{"CFQ7TTC0KGQ8":{"status":true}}}),
++            json!({"entitlements":{"CFQ7TTC0KGQ8":{"status":"Active","endDate":"invalid"}}})] {
++            assert!(subscription_rows(&body).is_err());
++        }
++    }
++
+     const A: &str = "9AAAAAAAAAAA";
+     const B: &str = "9BBBBBBBBBBB";
+     const C: &str = "9CCCCCCCCCCC";
