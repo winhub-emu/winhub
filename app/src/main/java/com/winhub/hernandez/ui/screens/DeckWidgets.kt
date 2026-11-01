@@ -229,6 +229,10 @@ internal fun Modifier.deckDragItem(key: Any): Modifier {
         }
 }
 
+/** [deckDragItem] with an auto key, for a button that is its own ring target (no stable id needed). */
+@Composable
+internal fun Modifier.deckDragSelf(): Modifier = deckDragItem(remember { Any() })
+
 private fun Rect.translate(dx: Float, dy: Float): Rect =
     Rect(left + dx, top + dy, right + dx, bottom + dy)
 

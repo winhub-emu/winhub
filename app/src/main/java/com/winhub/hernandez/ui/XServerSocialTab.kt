@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,12 +32,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -76,8 +75,10 @@ import com.winhub.hernandez.store.SocialHubStore
 import com.winhub.hernandez.store.SocialHubStore.Comment
 import com.winhub.hernandez.store.SocialHubStore.Post
 import com.winhub.hernandez.ui.screens.DeckDragFrame
+import com.winhub.hernandez.ui.screens.DeckSearchField
 import com.winhub.hernandez.ui.screens.XmbWaves
 import com.winhub.hernandez.ui.screens.deckDragItem
+import com.winhub.hernandez.ui.screens.deckDragSelf
 import com.winhub.hernandez.util.InAppFilePicker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -113,6 +114,8 @@ internal fun SocialContent() {
     // Restore a saved token (and refresh the feed) once per composition; no-op after the first.
     LaunchedEffect(Unit) { SocialHubStore.init(ctx) }
 
+    // Outer frame for the header buttons; the feed pane has its own for the list.
+    DeckDragFrame(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -130,7 +133,7 @@ internal fun SocialContent() {
             SocialHelpDot { showHelp = true }
             Spacer(Modifier.weight(1f))
             if (accountOrNull != null) {
-                IconButton(onClick = { SocialHubStore.refresh() }, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { SocialHubStore.refresh() }, modifier = Modifier.size(48.dp).deckDragSelf()) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
                         contentDescription = stringResource(R.string.social_hub_refresh),
@@ -146,7 +149,7 @@ internal fun SocialContent() {
                     modifier = Modifier.widthIn(max = 92.dp),
                 )
                 Spacer(Modifier.width(4.dp))
-                TextButton(onClick = { SocialHubStore.signOut() }) {
+                TextButton(onClick = { SocialHubStore.signOut() }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
                     Text(
                         stringResource(R.string.social_hub_sign_out),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -193,6 +196,7 @@ internal fun SocialContent() {
                 )
             }
         }
+    }
     }
 }
 
@@ -288,6 +292,7 @@ private fun PurpleContinue(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.horizontalGradient(listOf(hero, hero.copy(alpha = 0.75f))))
+            .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(horizontal = 26.dp, vertical = 11.dp),
     ) {
@@ -338,7 +343,7 @@ private fun DeviceCodePane(
                 ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(verificationUri)))
             } catch (_: Throwable) {
             }
-        }) {
+        }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
             Text(
                 stringResource(R.string.social_hub_open_device),
                 color = MaterialTheme.colorScheme.primary,
@@ -351,7 +356,7 @@ private fun DeviceCodePane(
             Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
         Spacer(Modifier.height(16.dp))
-        TextButton(onClick = onCancel) {
+        TextButton(onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
             Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -386,6 +391,8 @@ private fun SocialFeed(
         if (needle.isEmpty()) posts else posts.filter { matchesQuery(it, needle) }
     }
 
+    // One frame for the whole pane so the list rows and the New-post button share one smooth ring.
+    DeckDragFrame(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (posts.isNotEmpty()) {
             SocialSearchField(query = query, onQueryChange = onQueryChange)
@@ -425,7 +432,7 @@ private fun SocialFeed(
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(14.dp))
-                    TextButton(onClick = { showNew = true }) {
+                    TextButton(onClick = { showNew = true }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
                         Text(stringResource(R.string.social_hub_new_post))
                     }
                 }
@@ -448,12 +455,11 @@ private fun SocialFeed(
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(14.dp))
-                    TextButton(onClick = { onQueryChange("") }) {
+                    TextButton(onClick = { onQueryChange("") }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
                         Text(stringResource(R.string.social_hub_search_clear))
                     }
                 }
             } else {
-                DeckDragFrame(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 4.dp),
@@ -465,7 +471,6 @@ private fun SocialFeed(
                         }
                     }
                 }
-                }
             }
 
             if (posts.isNotEmpty()) {
@@ -473,7 +478,8 @@ private fun SocialFeed(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(8.dp)
-                        .size(44.dp)
+                        .size(48.dp)
+                        .deckDragSelf()
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
                         .clickable { showNew = true },
@@ -488,6 +494,7 @@ private fun SocialFeed(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -496,41 +503,8 @@ internal fun SocialSearchField(
     onQueryChange: (String) -> Unit,
     @androidx.annotation.StringRes hint: Int = R.string.social_hub_search_hint,
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        placeholder = {
-            Text(
-                stringResource(hint),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-            )
-        },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.social_hub_search_clear),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        },
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = {}),
-        shape = RoundedCornerShape(10.dp),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-    )
+    // Waits for A before it takes the keyboard, so the D-pad never gets trapped in the text box.
+    DeckSearchField(query = query, onQuery = onQueryChange, hint = stringResource(hint))
 }
 
 @Composable
@@ -708,7 +682,7 @@ internal fun SocialThread(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onBack() }, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = { onBack() }, modifier = Modifier.size(48.dp).deckDragSelf()) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.social_hub_back),
@@ -725,7 +699,7 @@ internal fun SocialThread(
                 modifier = Modifier.weight(1f),
             )
             if (post.authorLogin == accountLogin) {
-                IconButton(onClick = { confirmDeletePost = true }, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = { confirmDeletePost = true }, modifier = Modifier.size(48.dp).deckDragSelf()) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = stringResource(R.string.social_hub_delete_post),
@@ -823,7 +797,7 @@ internal fun SocialThread(
                 keyboardActions = KeyboardActions(onSend = { send() }),
             )
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = { send() }, enabled = draft.isNotBlank() && !busy) {
+            IconButton(onClick = { send() }, enabled = draft.isNotBlank() && !busy, modifier = Modifier.size(48.dp).deckDragSelf()) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = stringResource(R.string.social_hub_send),
@@ -861,7 +835,7 @@ private fun SocialCommentRow(comment: Comment, onDelete: (() -> Unit)?) {
             )
             Spacer(Modifier.weight(1f))
             if (onDelete != null) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(26.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp).deckDragSelf()) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = stringResource(R.string.social_hub_delete_reply),
@@ -1006,19 +980,24 @@ private fun SocialComposeDialog(onDismiss: () -> Unit) {
 @Composable
 private fun SocialHelpDot(onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
+    // 48dp hit area (controller/touch); the visible dot stays small.
     Box(
-        Modifier.size(16.dp).clip(CircleShape)
-            .background(cs.surfaceVariant)
-            .border(1.dp, cs.outline, CircleShape)
-            .clickable(onClick = onClick),
+        Modifier.size(48.dp).deckDragSelf().clip(CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            "?",
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 10.sp,
-            color = cs.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-        )
+        Box(
+            Modifier.size(22.dp).clip(CircleShape)
+                .background(cs.surfaceVariant)
+                .border(1.dp, cs.outline, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "?",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 12.sp,
+                color = cs.onSurfaceVariant,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }

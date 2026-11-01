@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -21,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -60,6 +63,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.preference.PreferenceManager
 import coil.compose.AsyncImage
 import com.winhub.hernandez.R
 import com.winhub.hernandez.communityconfigs.DeviceIdentity
@@ -77,7 +82,13 @@ import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.store.SocialHubFormat
 import com.winhub.hernandez.store.SocialHubStore
 import com.winhub.hernandez.store.SocialHubStore.Post
+import com.winhub.hernandez.ui.screens.DeckDragFrame
+import com.winhub.hernandez.ui.screens.DeckEditorCategoryRail
+import com.winhub.hernandez.ui.screens.DeckEditorCategoryRow
+import com.winhub.hernandez.ui.screens.DeckRow
+import com.winhub.hernandez.ui.screens.DeckStretchyTabs
 import com.winhub.hernandez.ui.screens.LocalDeckTabs
+import com.winhub.hernandez.ui.screens.deckDragSelf
 import com.winhub.hernandez.util.InAppFilePicker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -88,21 +99,34 @@ import java.io.File
 private const val TAG = "SocialConfigsTab"
 
 /**
- * Social Hub with two sub-tabs: Feed (the existing [SocialContent]) and Game Configurations. In Deck
- * mode the sub-tab follows the shared Deck tab host (L2/R2); elsewhere LB/RB switch it.
+ * Social Hub with two sub-tabs: Feed (the existing [SocialContent]) and Game Configurations. The
+ * sub-tabs follow the user's Settings layout choice (side rail / top tabs / category pages), like
+ * Contents and Settings. In Deck mode the Deck tab host drives them (L2/R2); elsewhere LB/RB do.
  */
 @Composable
 internal fun SocialHubScreen(deck: Boolean = false) {
+    val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var pagesOpen by rememberSaveable { mutableStateOf(false) }
     val host = LocalDeckTabs.current
     if (deck) {
         LaunchedEffect(host) { host.bind(2) }
         LaunchedEffect(host.index) { tab = host.index }
     }
-    BackHandler(enabled = tab == 1) {
-        tab = 0
-        if (deck) host.select(0)
+    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(ctx) }
+    // A 200dp rail would eat a phone in portrait, so narrow screens fall back to the top strip.
+    val narrow = LocalConfiguration.current.screenWidthDp < 560
+    val chosen = prefs.getString("settings_layout", "rail") ?: "rail"
+    val layout = if (chosen == "rail" && narrow) "tabs" else chosen
+    val labels = listOf(stringResource(R.string.social_hub_subtab_feed), stringResource(R.string.social_hub_subtab_configs))
+    val select = { i: Int ->
+        tab = i
+        if (deck) host.select(i)
     }
+
+    // B goes up one level: category page -> category list; Configs -> Feed.
+    BackHandler(enabled = layout == "pages" && pagesOpen) { pagesOpen = false }
+    BackHandler(enabled = layout != "pages" && tab == 1) { select(0) }
 
     Column(
         modifier = Modifier
@@ -110,61 +134,56 @@ internal fun SocialHubScreen(deck: Boolean = false) {
             .onPreviewKeyEvent { e ->
                 if (deck || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.key) {
-                    Key.ButtonL1 -> { tab = 0; true }
-                    Key.ButtonR1 -> { tab = 1; true }
+                    Key.ButtonL1 -> { select(0); true }
+                    Key.ButtonR1 -> { select(1); true }
                     else -> false
                 }
             },
     ) {
-        SocialTabPills(tab) {
-            tab = it
-            if (deck) host.select(it)
+        if (layout == "tabs") {
+            DeckStretchyTabs(
+                labels = labels,
+                selected = tab,
+                onSelect = select,
+                focusable = !deck,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (tab == 0) SocialContent() else SocialConfigsContent()
-        }
-    }
-}
-
-@Composable
-private fun SocialTabPills(selected: Int, onSelect: (Int) -> Unit) {
-    val labels = listOf(stringResource(R.string.social_hub_subtab_feed), stringResource(R.string.social_hub_subtab_configs))
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        labels.forEachIndexed { index, label ->
-            var focused by remember { mutableStateOf(false) }
-            val shape = RoundedCornerShape(12.dp)
-            val active = index == selected
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(shape)
-                    .background(
-                        if (active) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        if (layout == "pages" && !pagesOpen) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                labels.forEachIndexed { i, label ->
+                    DeckEditorCategoryRow(label = label, selected = i == tab) {
+                        select(i)
+                        pagesOpen = true
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+                if (layout == "rail") {
+                    DeckEditorCategoryRail(
+                        labels = labels,
+                        selected = tab,
+                        onSelect = select,
+                        // Deck switches sub-tabs with L2/R2 and keeps D-pad focus in the page.
+                        padFocus = !deck,
+                        modifier = Modifier.width(180.dp).fillMaxHeight().padding(end = 12.dp),
                     )
-                    .border(
-                        if (focused) 2.dp else 1.dp,
-                        if (focused) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                        shape,
-                    )
-                    .onFocusChanged { focused = it.isFocused }
-                    .clickable { onSelect(index) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    label,
-                    fontSize = 14.sp,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                    color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                }
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    if (layout == "pages") {
+                        DeckRow(
+                            label = "← All categories",
+                            hint = "Back to the category list",
+                            onConfigClick = { pagesOpen = false },
+                            control = {},
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        if (tab == 0) SocialContent() else SocialConfigsContent()
+                    }
+                }
             }
         }
     }
@@ -247,6 +266,7 @@ private fun SocialConfigsContent() {
 
     if (open != null) {
         val note = SocialHubFormat.configNote(open.body)
+        DeckDragFrame(Modifier.fillMaxSize()) {
         SocialThread(
             accountLogin = account?.login.orEmpty(),
             post = open.copy(body = note),
@@ -262,7 +282,9 @@ private fun SocialConfigsContent() {
                 )
             },
         )
+        }
     } else {
+        DeckDragFrame(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -272,14 +294,14 @@ private fun SocialConfigsContent() {
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp).deckDragSelf()) {
                     Icon(
                         Icons.Filled.Refresh,
                         contentDescription = stringResource(R.string.social_hub_refresh),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Button(onClick = { showUpload = true }, enabled = account != null, modifier = Modifier.heightIn(min = 48.dp)) {
+                Button(onClick = { showUpload = true }, enabled = account != null, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.social_hub_configs_upload), fontSize = 14.sp)
@@ -327,6 +349,7 @@ private fun SocialConfigsContent() {
                 }
             }
         }
+        }
     }
 
     if (showUpload) ConfigUploadDialog(onDismiss = { showUpload = false })
@@ -357,7 +380,6 @@ private fun SocialConfigsContent() {
 
 @Composable
 private fun ConfigRow(post: Post, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     val json = remember(post.number) { SocialHubFormat.configJson(post.body).orEmpty() }
     val parts = remember(post.number) { SocialConfigs.componentNames(json) }
@@ -369,12 +391,8 @@ private fun ConfigRow(post: Post, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(
-                if (focused) 2.dp else 1.dp,
-                if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                shape,
-            )
-            .onFocusChanged { focused = it.isFocused }
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
+            .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(12.dp),
     ) {
@@ -459,7 +477,6 @@ private fun EmptyNote(@androidx.annotation.StringRes title: Int, @androidx.annot
 /** On/off filter pill; the check mark (not just the colour) shows the state. */
 @Composable
 private fun ToggleChip(text: String, checked: Boolean, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(20.dp)
     Box(
         contentAlignment = Alignment.Center,
@@ -470,12 +487,8 @@ private fun ToggleChip(text: String, checked: Boolean, onClick: () -> Unit) {
                 if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
             )
-            .border(
-                if (focused) 2.dp else 1.dp,
-                if (focused) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                shape,
-            )
-            .onFocusChanged { focused = it.isFocused }
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
+            .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -523,19 +536,19 @@ private fun ConfigActions(post: Post, signedIn: Boolean, onImport: () -> Unit) {
             }
             val likeLabel = stringResource(if (liked) R.string.social_hub_configs_liked else R.string.social_hub_configs_like, post.likes)
             if (liked) {
-                Button(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f)) {
+                Button(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f).deckDragSelf()) {
                     Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(likeLabel, fontSize = 14.sp)
                 }
             } else {
-                OutlinedButton(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f)) {
+                OutlinedButton(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f).deckDragSelf()) {
                     Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(likeLabel, fontSize = 14.sp)
                 }
             }
-            Button(onClick = onImport, modifier = Modifier.heightIn(min = 48.dp).weight(1f)) {
+            Button(onClick = onImport, modifier = Modifier.heightIn(min = 48.dp).weight(1f).deckDragSelf()) {
                 Text(stringResource(R.string.social_hub_configs_import), fontSize = 14.sp)
             }
         }

@@ -5988,8 +5988,14 @@ private fun Modifier.settingsDpad(dp: SettingsDpad, ids: () -> List<String>, onD
             val order = ids()
             val idx = order.indexOf(dp.focusedId)
             when (ev.key) {
-                Key.DirectionUp -> { dp.focusedId = if (idx <= 0) order.firstOrNull() else order[idx - 1]; true }
-                Key.DirectionDown -> { dp.focusedId = when { idx < 0 -> order.firstOrNull(); idx < order.lastIndex -> order[idx + 1]; else -> order.getOrNull(idx) }; true }
+                // No cursor yet (first press): land on the first real control, not the title close button.
+                Key.DirectionUp, Key.DirectionDown -> if (idx < 0) {
+                    dp.focusedId = order.getOrNull(1) ?: order.firstOrNull(); true
+                } else if (ev.key == Key.DirectionUp) {
+                    dp.focusedId = if (idx <= 0) order.firstOrNull() else order[idx - 1]; true
+                } else {
+                    dp.focusedId = if (idx < order.lastIndex) order[idx + 1] else order.getOrNull(idx); true
+                }
                 Key.DirectionLeft -> { dp.focusedId?.takeIf { it in order }?.let { dp.actions[it]?.onLeft?.invoke() }; true }
                 Key.DirectionRight -> { dp.focusedId?.takeIf { it in order }?.let { dp.actions[it]?.onRight?.invoke() }; true }
                 Key.ButtonA, Key.Enter, Key.DirectionCenter -> { dp.focusedId?.takeIf { it in order }?.let { dp.actions[it]?.activate?.invoke() }; true }
@@ -6963,8 +6969,6 @@ internal fun ShortcutSettingsDialogScreen(
         val f = dp.focusedId
         if (f != null && f !in dpadIds) dp.focusedId = dpadIds.getOrNull(1)
     }
-    // Seed the root focus so the editor receives D-pad from the first frame (it's its own Dialog window).
-    LaunchedEffect(Unit) { runCatching { dp.rootFocus.requestFocus() } }
 
     val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
 
@@ -6972,6 +6976,16 @@ internal fun ShortcutSettingsDialogScreen(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        // Seed the root focus from INSIDE the dialog window: from the host composable the focus target
+        // was not attached yet, the request threw and was swallowed, and Android's default focus search
+        // then dropped the first D-pad press onto a text field (which owns the keys) - the "move the
+        // D-pad around until it works" glitch. Retry briefly until the Surface below is attached.
+        LaunchedEffect(Unit) {
+            for (attempt in 0 until 20) {
+                if (runCatching { dp.rootFocus.requestFocus() }.isSuccess) break
+                kotlinx.coroutines.delay(50)
+            }
+        }
         Surface(
             // A DEFINITE height (not fillMaxHeight fraction): inside a Dialog the window height is
             // effectively unbounded, so fillMaxHeight(fraction) silently no-ops and the Surface

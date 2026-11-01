@@ -117,10 +117,12 @@ import com.winhub.hernandez.store.download.ContentDownloadState
 import com.winhub.hernandez.store.download.InstallProgressDialog
 import com.winhub.hernandez.ui.screens.adrenodownload.DriverFeed
 import com.winhub.hernandez.ui.screens.adrenodownload.DriverSourceStore
+import com.winhub.hernandez.ui.screens.DeckDragFrame
 import com.winhub.hernandez.ui.screens.MenuItemDivider
 import com.winhub.hernandez.ui.screens.OfficialSourceColor
 import com.winhub.hernandez.ui.screens.OutlinedAlertDialog
 import com.winhub.hernandez.ui.screens.SourceTagBadge
+import com.winhub.hernandez.ui.screens.deckDragSelf
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
 import com.winhub.hernandez.util.InAppFilePicker
 import kotlinx.coroutines.Dispatchers
@@ -152,6 +154,8 @@ fun ContentsHubScreen(vm: ContentsHubViewModel = viewModel()) {
     // Same wide/narrow signal the Download tab uses for master–detail governs the tab chrome:
     // narrow → top TabRow; wide → a left vertical NavigationRail, content filling the rest
     // (so landscape reads rail · repo-list · detail).
+    // One animated focus ring for every button below (PrimaryButton / save), as in Deck mode.
+    DeckDragFrame(modifier = Modifier.fillMaxSize(), color = cs.primary) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(cs.background)) {
         val wide = maxWidth >= 760.dp
         if (wide) {
@@ -198,6 +202,7 @@ fun ContentsHubScreen(vm: ContentsHubViewModel = viewModel()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) { HubTabContent(vm, tab, wide = false) }
             }
         }
+    }
     }
 
     // ── Shared install-progress popup ──────────────────────────────────────────────
@@ -774,6 +779,7 @@ private fun SaveArchiveAction(saved: Boolean, enabled: Boolean, onClick: () -> U
         modifier = Modifier
             .fillMaxHeight()
             .width(46.dp)
+            .deckDragSelf()
             .border(1.dp, if (saved) SavedBlue.copy(alpha = 0.5f) else cs.outline, RoundedCornerShape(11.dp))
             .background(if (saved) SavedBlue.copy(alpha = 0.10f) else cs.onSurface.copy(alpha = 0.04f), RoundedCornerShape(11.dp))
             .then(if (enabled) Modifier.combinedClickable(
@@ -816,6 +822,7 @@ private fun PrimaryButton(
     // component when disabled rather than forcing the fill opaque.
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
         modifier = modifier
+            .deckDragSelf()
             .background(container, RoundedCornerShape(11.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .alpha(if (enabled) 1f else 0.5f)

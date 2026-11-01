@@ -338,6 +338,8 @@ private fun DeckAction(
     primary: Boolean,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    // Only list-card actions join the surrounding drag ring; dialog buttons live in another window.
+    ring: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -345,6 +347,7 @@ private fun DeckAction(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .heightIn(min = 44.dp)
+            .then(if (ring) Modifier.deckDragSelf() else Modifier)
             .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(12.dp))
             .background(if (primary) DeckPalette.primary else DeckPalette.surface)
@@ -511,9 +514,7 @@ private fun DeckContentsBrowseTab(
                             key = { index, item -> "$index-${item.sourceName}-${item.type}-${item.downloadUrl}" },
                         ) { index, item ->
                             DeckRise(index = index % 10) {
-                                Box(Modifier.deckDragItem("search-$index-${item.sourceName}-${item.downloadUrl}")) {
-                                    DeckCatalogCard(vm, item, showSource = true)
-                                }
+                                DeckCatalogCard(vm, item, showSource = true)
                             }
                         }
                     }
@@ -589,9 +590,7 @@ private fun DeckContentsBrowseTab(
                                 key = { index, item -> "$index-${item.sourceName}-${item.downloadUrl}" },
                             ) { index, item ->
                                 DeckRise(index = index % 10) {
-                                    Box(Modifier.deckDragItem("cat-$index-${item.sourceName}-${item.downloadUrl}")) {
-                                        DeckCatalogCard(vm, item, showSource = false)
-                                    }
+                                    DeckCatalogCard(vm, item, showSource = false)
                                 }
                             }
                         }
@@ -631,7 +630,11 @@ private fun DeckContentsBrowseTab(
 }
 
 @Composable
-private fun DeckSearchField(query: String, onQuery: (String) -> Unit) {
+internal fun DeckSearchField(
+    query: String,
+    onQuery: (String) -> Unit,
+    hint: String = "Search every repository...",
+) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val edit = rememberDeckEditState()
@@ -678,7 +681,7 @@ private fun DeckSearchField(query: String, onQuery: (String) -> Unit) {
                     Box(Modifier.weight(1f)) {
                         if (query.isEmpty()) {
                             Text(
-                                text = "Search every repository...",
+                                text = hint,
                                 fontSize = 14.sp,
                                 color = DeckPalette.onSurfaceVariant,
                             )
@@ -856,6 +859,7 @@ private fun DeckCatalogCard(
                 primary = !installed,
                 enabled = !installed && !busy,
                 modifier = Modifier.weight(1f),
+                ring = true,
             ) {
                 ContentsInstaller.install(
                     context.applicationContext,
@@ -874,6 +878,7 @@ private fun DeckCatalogCard(
                 primary = false,
                 enabled = !busy && !saved,
                 modifier = Modifier.weight(1f),
+                ring = true,
             ) { vm.saveArchive(item) }
         }
     }
