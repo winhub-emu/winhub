@@ -24,7 +24,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -52,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -623,49 +628,84 @@ private fun XmbPickerPanel(
     p: XmbPicker, nav: XmbNavState, xmb: XmbScope,
     colRight: Float, top: Float, bottom: Float, centerY: Float, colW: Float, accent: Color,
 ) {
-    val pw = min(280f, max(180f, colW * 0.6f))
+    val pw = min(340f, max(240f, colW * 0.8f))
     val px = colRight - pw
-    val ph = bottom - top
-    val shape = RoundedCornerShape(12.dp)
-    Box(
+    val rowDp = 48f
+    // Header + footer + rows: the card hugs its options and only scrolls when they overflow.
+    val ph = min(bottom - top, 44f + 34f + 8f + p.row.options.size * rowDp)
+    val py = (centerY - ph / 2f).coerceIn(top, max(top, bottom - ph))
+    val shape = RoundedCornerShape(18.dp)
+    val listState = rememberLazyListState()
+    LaunchedEffect(p.sel) {
+        val vis = listState.layoutInfo.visibleItemsInfo
+        val first = vis.firstOrNull()?.index ?: return@LaunchedEffect
+        val last = vis.last().index
+        if (p.sel < first) listState.animateScrollToItem(p.sel)
+        else if (p.sel >= last) listState.animateScrollToItem(max(0, p.sel - (last - first) + 1))
+    }
+    Column(
         Modifier
             .zIndex(2f)
-            .offset(px.dp, top.dp)
+            .offset(px.dp, py.dp)
             .width(pw.dp)
             .height(ph.dp)
+            .shadow(18.dp, shape)
             .clip(shape)
-            .background(Color(0xF20E0E12))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), shape),
+            .background(Color(0xF4101015))
+            .border(1.dp, accent.copy(alpha = 0.45f), shape),
     ) {
-        Text(p.row.label.uppercase(), color = Color(0xFF999999), fontSize = 10.5.sp, letterSpacing = 1.sp,
-            modifier = Modifier.padding(start = 12.dp, top = 8.dp))
-        p.row.options.forEachIndexed { j, opt ->
-            val y = centerY - top - 18f + (j - p.sel) * 36f
-            if (y >= 8f && y <= ph - 30f) key(opt) {
-                val ay by animateFloatAsState(y, spring(dampingRatio = 0.9f, stiffness = 600f), label = "xmbPy")
+        Row(
+            Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                p.row.label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Text("${p.row.options.size} options", color = Color(0xFF9A9AA5), fontSize = 12.sp)
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
+            itemsIndexed(p.row.options, key = { _, opt -> opt }) { j, opt ->
                 val isSel = j == p.sel
                 val isCur = opt == p.row.selected
                 val off = opt in p.row.disabledOptions
                 val src = remember { MutableInteractionSource() }
+                val sc by animateFloatAsState(if (isSel) 1.02f else 1f, tween(180), label = "xmbPs")
                 Row(
                     Modifier
-                        .graphicsLayer { translationY = ay.dp.toPx(); alpha = if (off) 0.4f else 1f }
                         .fillMaxWidth()
-                        .height(36.dp)
-                        .background(if (isSel) accent.copy(alpha = 0.32f) else Color.Transparent)
+                        .height(rowDp.dp)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .graphicsLayer { scaleX = sc; scaleY = sc; alpha = if (off) 0.45f else 1f }
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSel) accent.copy(alpha = 0.30f) else Color.Transparent)
                         .xmbClick(src) { p.sel = j; nav.onKey(XmbKey.A, xmb) }
-                        .padding(horizontal = 14.dp),
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Box(
-                        Modifier.size(8.dp).clip(CircleShape)
-                            .background(if (isCur) accent else Color.Transparent)
-                            .border(1.5.dp, if (isCur) accent else Color(0xFF777777), CircleShape)
+                        Modifier.width(3.dp).height(20.dp).clip(RoundedCornerShape(2.dp))
+                            .background(if (isSel) accent else Color.Transparent),
                     )
-                    Text(opt, color = if (isSel) Color.White else Color.White.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        opt,
+                        color = if (isSel) Color.White else Color.White.copy(alpha = 0.78f),
+                        fontSize = 15.sp,
+                        fontWeight = if (isSel || isCur) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+                    )
+                    if (off) Text("Unavailable", color = Color(0xFF9A9AA5), fontSize = 11.sp)
+                    else if (isCur) Icon(Icons.Filled.Check, contentDescription = "Current", tint = accent, modifier = Modifier.size(20.dp))
                 }
             }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
+        Text(
+            "A  Select     B  Back", color = Color(0xFF9A9AA5), fontSize = 12.sp,
+            modifier = Modifier.fillMaxWidth().height(33.dp).wrapContentHeight(Alignment.CenterVertically).padding(horizontal = 16.dp),
+        )
     }
 }
