@@ -1280,7 +1280,7 @@ internal fun DeckLaunchMethodDialog(
 }
 
 /** How long Home's launch zoom plays (ms) before the game's own window opens. */
-internal const val DECK_LAUNCH_ZOOM_MS = 320
+internal const val DECK_LAUNCH_ZOOM_MS = 240
 
 /**
  * The launch pipeline behind the deck menu: Goldberg (patch-then-launch, component on demand),

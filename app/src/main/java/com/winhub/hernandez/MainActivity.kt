@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -732,6 +733,9 @@ private fun AppShell(
 
     val backstackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backstackEntry?.destination?.route ?: startRoute
+    // Back (B on a pad) on the bottom screen has nothing to go up to: swallow it instead of finishing the app.
+    // Registered before any screen's own handler, so those still win while they have something to close.
+    BackHandler(enabled = backstackEntry != null && navController.previousBackStackEntry == null) { }
 
     // Big Picture is a full-bleed couch/TV launcher: no top bar, no drawer gestures, no scaffold
     // content padding (it draws its own immersive layout).

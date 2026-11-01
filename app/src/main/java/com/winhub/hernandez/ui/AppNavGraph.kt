@@ -3,8 +3,6 @@ package com.winhub.hernandez.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -34,7 +32,6 @@ fun AppNavGraph(
     startRoute: String = Screen.Games.route,
     modifier: Modifier = Modifier,
 ) {
-    val activity = LocalContext.current as FragmentActivity
 
     // A screen change tears down the focused node, leaving the window with no focus target at all
     // — after which no key reaches a modifier. Park focus on the nav root so the first D-pad press
@@ -78,7 +75,7 @@ fun AppNavGraph(
 
         composable(Screen.Games.route) {
             // The legacy phone-grid library is gone. Anything that still navigates here lands on Deck.
-            DeckModeScreen(onExit = { activity.finish() })
+            DeckModeScreen()
         }
 
         composable(Screen.Contents.route) {
@@ -94,7 +91,7 @@ fun AppNavGraph(
         composable(Screen.Deck.route) {
             // DroidDeck front end — full-bleed (MainActivity drops the bar on this route).
             // Deck is the only UI: leaving it closes the app instead of dropping into a legacy screen.
-            DeckModeScreen(onExit = { activity.finish() })
+            DeckModeScreen()
         }
 
         composable(Screen.InputControls.route) {

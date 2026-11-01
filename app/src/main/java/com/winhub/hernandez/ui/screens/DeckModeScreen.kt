@@ -98,9 +98,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -153,6 +151,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -271,7 +270,7 @@ private fun deckSections() = listOf(
  * is a shell over working functionality rather than a mock.
  */
 @Composable
-internal fun DeckModeScreen(onExit: () -> Unit) {
+internal fun DeckModeScreen() {
     val context = LocalContext.current
     // Android flips the whole app to touch mode on every screen tap. Compose's `clickable` is
     // non-touch focusable, so that silently drops every shelf card / list row out of the D-pad
@@ -289,14 +288,11 @@ internal fun DeckModeScreen(onExit: () -> Unit) {
     val horizontalRail = tabStyle != "vertical"
     val railSections = remember { deckSections() }
 
-    // Controller-first back stack: B (or system Back) closes the container editor, then returns to
-    // Home from any tab, then leaves Deck Mode.
+    // Controller-first back stack: B (or system Back) closes the container editor and nothing more. It never
+    // jumps to the Home tab and never closes the app or drops to Android's launcher (the BackHandler below
+    // swallows the system Back, so the activity is never finished); tabs change with L1/R1.
     val goBack: () -> Unit = {
-        when {
-            deckDetail != null -> deckDetail = null
-            section != "home" -> section = "home"
-            else -> onExit()
-        }
+        if (deckDetail != null) deckDetail = null
     }
     BackHandler { goBack() }
 
@@ -928,6 +924,8 @@ private fun DeckHome(
     // Launch transition: the chosen cover turns the theme colour and zooms to fill the screen while the game's window waits.
     var launching by remember { mutableStateOf(false) }
     val launchT = remember { Animatable(0f) }
+    // Flips only at the ends of the zoom, so the frames in between don't recompose Home.
+    val launchShown by remember { derivedStateOf { launching || launchT.value > 0.001f } }
     LaunchedEffect(launching) {
         if (launching) {
             launchT.animateTo(1f, tween(DECK_LAUNCH_ZOOM_MS, easing = DeckEase))
@@ -1093,7 +1091,7 @@ private fun DeckHome(
                 onMode = { homeMode = it },
                 xmbRows = xmbSc != null,
                 menuHidden = xmbNested,
-                launching = launching,
+                launching = launchShown,
                 launchT = { launchT.value },
                 info = xmbInfo,
                 actions = actions,
@@ -2402,13 +2400,13 @@ private fun DeckHomeCarousel(
                                 }
                                 true
                             }
-                            e.key == Key.Escape -> { onMode(HomeMode.GAMES); true }
+                            e.key == Key.ButtonB || e.key == Key.Escape -> { onMode(HomeMode.GAMES); true }
                             else -> false
                         }
                         HomeMode.STORES -> when {
                             e.key == Key.DirectionLeft -> { settleCards(cSel - 1); true }
                             e.key == Key.DirectionRight -> { settleCards(cSel + 1); true }
-                            e.key == Key.DirectionDown || e.key == Key.Escape -> { onMode(HomeMode.GAMES); true }
+                            e.key == Key.DirectionDown || e.key == Key.ButtonB || e.key == Key.Escape -> { onMode(HomeMode.GAMES); true }
                             e.key == Key.DirectionUp -> true
                             confirm -> { if (fresh) cards.getOrNull(cSel)?.onClick?.invoke(); true }
                             else -> false
@@ -2429,13 +2427,15 @@ private fun DeckHomeCarousel(
         val wDp = maxWidth.value
         val hDp = maxHeight.value
         val port = hDp > wDp * 1.05f
-        val fHDp = if (port) minOf(wDp * 0.52f, hDp * 0.29f) else (hDp * 0.36f).coerceIn(96f, 280f)
+        val fHDp = if (port) minOf(wDp * 0.56f, hDp * 0.31f) else (hDp * 0.40f).coerceIn(96f, 300f)
         val fWDp = fHDp * 2f / 3f
         val sHDp = fHDp * 0.62f
         val sWDp = sHDp * 2f / 3f
         val gapDp = (fHDp * 0.09f).roundToInt().toFloat()
-        val crossDp = if (port) 16f + sWDp * 0.42f + gapDp else maxOf(16f + sWDp + gapDp, wDp * 0.13f)
-        val homeK = minOf(1.3f, (hDp / 2f - 50f - sHDp / 2f - 10f) * 2f / fHDp).coerceAtLeast(1f)
+        // At rest the row is drawn larger: the chosen cover takes 56% of the height (44% in portrait), at most 1.4x the dropdown's size.
+        val homeK = minOf(if (port) 1.3f else 1.4f, (if (port) hDp * 0.44f else hDp * 0.56f) / fHDp).coerceAtLeast(1f)
+        // The cover before the chosen one stays on screen at the larger size too.
+        val crossDp = if (port) 16f + sWDp * 0.42f + gapDp else maxOf(16f + (sWDp + gapDp) * homeK, wDp * 0.13f)
         val optsTopDp = if (port) 34f else (hDp * 0.25f - sHDp / 2f).coerceAtMost(hDp - fHDp - 12f - 3 * 40f - 6f - 12f).coerceAtLeast(34f)
         val rowH = if (xl && port) 46.dp else 40.dp
         val nVis = if (port) ((hDp * 0.38f) / rowH.value).toInt().coerceIn(3, 8)
@@ -2560,7 +2560,7 @@ private fun DeckHomeCarousel(
                         Box(
                             Modifier
                                 .size(baseW, baseH)
-                                .deckRowLayer(i, cPosNow, cScale, cCenter, cGrow, cAlpha, noDim, baseWPx, baseHPx, x0Px, gapPx)
+                                .deckRowLayer(i, cPosNow, cScale, cCenter, cGrow, cAlpha, noDim, baseWPx, baseHPx, gX0Px, gapPx)
                                 .clip(cardShape)
                                 .background(Brush.linearGradient(card.colors))
                                 .drawWithContent {
@@ -2616,18 +2616,43 @@ private fun DeckHomeCarousel(
                         Modifier
                             .size(gBaseW, gBaseH)
                             .deckRowLayer(i, gPosNow, gScale, gCenter, gGrow, gAlpha, gDim, gBaseWPx, gBaseHPx, gX0Px, gGapPx, growBy, xl)
+                            // The chosen cover glows in the theme colour: a soft halo behind it plus a coloured shadow.
+                            .drawBehind {
+                                val gl = (1f - abs(i - gPos.floatValue)).coerceIn(0f, 1f) * (1f - upT.value)
+                                if (gl > 0.02f) {
+                                    val radius = maxOf(size.width, size.height) * 0.95f
+                                    drawCircle(
+                                        brush = Brush.radialGradient(
+                                            listOf(accent.copy(alpha = 0.5f * gl), Color.Transparent),
+                                            center = center, radius = radius,
+                                        ),
+                                        radius = radius, center = center,
+                                    )
+                                }
+                            }
+                            .graphicsLayer {
+                                val gl = (1f - abs(i - gPos.floatValue)).coerceIn(0f, 1f) * (1f - upT.value)
+                                shadowElevation = 30.dp.toPx() * gl
+                                ambientShadowColor = accent
+                                spotShadowColor = accent
+                                shape = cardShape
+                                clip = false
+                            }
                             .clip(cardShape)
                             .background(Deck.surface)
                             .drawWithContent {
                                 drawContent()
-                                val w = (1f - abs(i - gPos.floatValue)).coerceIn(0f, 1f) * (1f - upT.value)
+                                val near = (1f - abs(i - gPos.floatValue)).coerceIn(0f, 1f)
+                                val w = near * (1f - upT.value)
                                 if (w > 0.02f) {
-                                    val sw = 2.5.dp.toPx()
+                                    // The layer is drawn scaled: keep the ring ~3 dp on screen and flush with the clipped edge.
+                                    val sc = (gScale() * (1f + growBy * near * gGrow())).coerceAtLeast(0.1f)
+                                    val sw = 3.dp.toPx() / sc
                                     drawRoundRect(
                                         color = accent.copy(alpha = w),
                                         topLeft = Offset(sw / 2f, sw / 2f),
                                         size = Size(size.width - sw, size.height - sw),
-                                        cornerRadius = CornerRadius(4.dp.toPx()),
+                                        cornerRadius = CornerRadius((4.dp.toPx() - sw / 2f).coerceAtLeast(0f)),
                                         style = Stroke(width = sw),
                                     )
                                 }
@@ -2751,7 +2776,7 @@ private fun DeckHomeCarousel(
                     modifier = Modifier
                         .offset {
                             IntOffset(
-                                (x0Px + baseWPx * 1.35f * cScale() + 16.dp.toPx()).roundToInt(),
+                                (gX0Px + baseWPx * 1.35f * cScale() + 16.dp.toPx()).roundToInt(),
                                 (cCenter() + baseHPx * cScale() * 0.5f + 8.dp.toPx()).roundToInt(),
                             )
                         }
@@ -2909,8 +2934,7 @@ private fun DeckHomeCarousel(
                     .padding(end = 20.dp, bottom = 12.dp),
             )
 
-            if (launching || launchT() > 0.001f) {
-                val bmp = entries.getOrNull(selected)?.bitmap
+            if (launching) {
                 // Eats every touch so nothing underneath reacts while the game starts.
                 Box(
                     Modifier
@@ -2921,40 +2945,30 @@ private fun DeckHomeCarousel(
                             }
                         },
                 ) {
+                    // A sheet of the theme colour that starts as the chosen cover (covering it within the first moments),
+                    // then grows to the whole screen. Only its layer transform changes, so every frame stays cheap.
                     Box(
                         Modifier
-                            // From the chosen cover's live rect to the whole screen.
-                            // The cover turns the theme colour on the way, so the game's loading screen can open from it.
-                            .layout { measurable, c ->
+                            .fillMaxSize()
+                            .graphicsLayer {
                                 val t = launchT()
                                 val f = 1f + growBy * gGrow()
                                 val cw = gBaseWPx * gScale() * f
                                 val ch = gBaseHPx * gScale() * f
                                 val left = gX0Px + (gBaseWPx + gGapPx) * gScale() * (selected - gPos.floatValue)
                                 val top = gCenter() - ch / 2f
-                                val w = lerp(cw, c.maxWidth.toFloat(), t).roundToInt().coerceAtLeast(1)
-                                val h = lerp(ch, c.maxHeight.toFloat(), t).roundToInt().coerceAtLeast(1)
-                                val placeable = measurable.measure(Constraints.fixed(w, h))
-                                layout(c.maxWidth, c.maxHeight) {
-                                    placeable.place(lerp(left, 0f, t).roundToInt(), lerp(top, 0f, t).roundToInt())
-                                }
-                            }
-                            .graphicsLayer {
-                                shape = RoundedCornerShape(4.dp.toPx() * (1f - launchT()))
+                                transformOrigin = TransformOrigin(0f, 0f)
+                                scaleX = lerp(cw / size.width, 1f, t)
+                                scaleY = lerp(ch / size.height, 1f, t)
+                                translationX = lerp(left, 0f, t)
+                                translationY = lerp(top, 0f, t)
+                                alpha = (t * 6f).coerceIn(0f, 1f)
+                                // The layer is stretched unevenly; undo it on average so the corners stay round.
+                                shape = RoundedCornerShape((4.dp.toPx() * (1f - t) / ((scaleX + scaleY) / 2f)).coerceAtLeast(0f))
                                 clip = true
                             }
-                            .background(Deck.surface),
-                    ) {
-                        if (bmp != null) {
-                            Image(
-                                bitmap = remember(bmp) { bmp.asImageBitmap() },
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = (launchT() * 3f).coerceIn(0f, 1f) }.background(accent))
-                    }
+                            .background(accent),
+                    )
                 }
             }
         }
