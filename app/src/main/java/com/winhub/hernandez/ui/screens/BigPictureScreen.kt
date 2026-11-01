@@ -1852,9 +1852,11 @@ internal fun loadCover(s: Shortcut): ImageBitmap? {
 
 // `internal` so the Games-wall screen launches games through the identical entry point.
 // [preflightDone] = the SteamLite pre-flight already pulled cloud saves; the activity skips its own pull.
-internal fun launchShortcut(activity: Activity, shortcut: Shortcut, preflightDone: Boolean = false) {
+internal fun launchShortcut(activity: Activity, shortcut: Shortcut, preflightDone: Boolean = false, zoomColor: Int? = null) {
     if (!XrActivity.isEnabled(activity)) {
         val intent = Intent(activity, XServerDisplayActivity::class.java).apply {
+            // Home's launch zoom ends on this colour; the loading screen opens from it (see PreloaderOverlayHelper).
+            if (zoomColor != null) putExtra(com.winhub.hernandez.ui.PreloaderOverlayHelper.EXTRA_ZOOM_COLOR, zoomColor)
             putExtra("container_id", shortcut.container.id)
             putExtra("shortcut_path", shortcut.file.path)
             putExtra("shortcut_name", shortcut.name)

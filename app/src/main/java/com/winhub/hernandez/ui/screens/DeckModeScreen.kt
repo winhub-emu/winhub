@@ -22,6 +22,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import com.winhub.hernandez.store.download.DownloadRegistry
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
@@ -97,7 +98,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -639,7 +646,7 @@ private fun DeckHome(
     var cronosBusy by remember { mutableStateOf(false) }
     var cronosName by remember { mutableStateOf("") }
     var homeMode by remember { mutableStateOf(HomeMode.GAMES) }
-    // XMB dropdown: Down (or a tap on the focused cover) opens the Deck XMB over Home's own background.
+    // XMB dropdown: A (or a tap on the focused cover) opens the Deck XMB over Home's own background.
     var xmbShortcut by remember { mutableStateOf<Shortcut?>(null) }
     val xmbNav = remember { XmbNavState() }
     var xmbRootSel by remember { mutableStateOf(0) }
@@ -912,6 +919,33 @@ private fun DeckHome(
         openWrapperManager = { showWrapperManager = true },
     )
     val xmbSc = xmbShortcut?.takeIf { xmbStyle && it.file.path == currentPath }
+    val xmbInfo: (@Composable (Int) -> Unit)? = xmbSc?.let { sc ->
+        @Composable { lines: Int ->
+            val playtime = remember(sc) { xmbPlaytime(context, sc.name) }
+            XmbInfo(sc, playtime, lines)
+        }
+    }
+    // Launch transition: the chosen cover turns the theme colour and zooms to fill the screen while the game's window waits.
+    var launching by remember { mutableStateOf(false) }
+    val launchT = remember { Animatable(0f) }
+    LaunchedEffect(launching) {
+        if (launching) {
+            launchT.animateTo(1f, tween(DECK_LAUNCH_ZOOM_MS, easing = DeckEase))
+            // Safety net: a launch that never opened a window (refused, crashed) hands Home back.
+            delay(6000)
+            launching = false
+        } else {
+            launchT.animateTo(0f, tween(220, easing = DeckEase))
+        }
+    }
+    val homeLifecycle = LocalLifecycleOwner.current
+    DisposableEffect(homeLifecycle) {
+        // Coming back from the game resumes Home: lift the zoom.
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) launching = false }
+        homeLifecycle.lifecycle.addObserver(observer)
+        onDispose { homeLifecycle.lifecycle.removeObserver(observer) }
+    }
+    val homeFade by animateFloatAsState(if (xmbNested) 0f else 1f, tween(260), label = "homeFade")
     val details = current?.game?.let { g ->
         buildList {
             add("Store" to hubOriginLabel(current))
@@ -1042,8 +1076,9 @@ private fun DeckHome(
 
             DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {
-                    alpha = intro.value
-                    translationY = (1f - intro.value) * 60.dp.toPx()
+                    // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
+                    alpha = intro.value * homeFade
+                    translationY = (1f - intro.value) * 60.dp.toPx() - (1f - homeFade) * 12.dp.toPx()
                 },
                 entries = visible,
                 loaded = entries != null && (visible.isNotEmpty() || entries.orEmpty().isEmpty()),
@@ -1058,6 +1093,9 @@ private fun DeckHome(
                 onMode = { homeMode = it },
                 xmbRows = xmbSc != null,
                 menuHidden = xmbNested,
+                launching = launching,
+                launchT = { launchT.value },
+                info = xmbInfo,
                 actions = actions,
                 cards = cards,
                 onAdd = { addModeMenu = true },
@@ -1086,9 +1124,11 @@ private fun DeckHome(
                 focusable = false,
                 fillWidth = false,
                 height = 30.dp,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
-            DeckStatusStrip(Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp))
+            DeckStatusStrip(
+                Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },
+            )
             AnimatedVisibility(
                 visible = splash,
                 exit = fadeOut(tween(450)),
@@ -1176,13 +1216,9 @@ private fun DeckHome(
                             xmbNav.onKey(k, xmbScope)
                         },
                 ) {
-                    // The tool's columns open beside the dropdown, level with the row that was picked.
-                    val coverH = (maxHeight * 0.34f).coerceIn(96.dp, 168.dp)
-                    val topM = ((maxHeight - coverH * 0.95f - 12.dp - 160.dp) / 2).coerceIn(14.dp, 60.dp)
                     XmbNestedLayer(
                         xmbNav, xmbScope, maxWidth.value, maxHeight.value, maxHeight > maxWidth, Deck.primary,
                         xmbSc?.name.orEmpty(), xmbSc?.icon, actions.map { it.icon }, xmbRootSel,
-                        anchorY = (topM + coverH * 0.95f + 12.dp).value, baseX = 266f, besideRoot = true,
                     )
                 }
             }
@@ -1256,6 +1292,7 @@ private fun DeckHome(
                 request = launchRequest,
                 onMenuClosed = { launchRequest = null; launchSteam = null },
                 steamOverride = launchSteam,
+                onLaunching = { launching = true },
             )
 
             pending?.let { (file, identity) ->
@@ -2177,6 +2214,10 @@ private fun Modifier.deckRowLayer(
     baseHPx: Float,
     x0Px: Float,
     gapPx: Float,
+    /** How much larger the chosen cover is than the rest (0.35 = 35%). */
+    growBy: Float = 0.35f,
+    /** XMB look: every cover shares the chosen cover's top edge, and the ones before it stay faintly visible. */
+    topAlign: Boolean = false,
 ): Modifier = graphicsLayer {
     val s0 = scale()
     val bw = baseWPx * s0
@@ -2184,13 +2225,21 @@ private fun Modifier.deckRowLayer(
     val d = index - pos()
     val near = (1f - abs(d)).coerceIn(0f, 1f)
     val g = grow()
-    val s = s0 * (1f + 0.35f * near * g)
-    translationX = x0Px + step * d + 0.35f * bw * d.coerceIn(0f, 1f) * g
-    translationY = centerY() - baseHPx / 2f
+    val s = s0 * (1f + growBy * near * g)
+    translationX = x0Px + step * d + growBy * bw * d.coerceIn(0f, 1f) * g
     scaleX = s
     scaleY = s
-    transformOrigin = TransformOrigin(0f, 0.5f)
-    alpha = (1f + d).coerceIn(0f, 1f) * rowAlpha() * (0.78f + 0.22f * near) * (1f - 0.88f * dimOthers() * (1f - near))
+    if (topAlign) {
+        // centerY is the chosen cover's middle; the others hang from its top edge.
+        translationY = centerY() - baseHPx * s0 * (1f + growBy * g) / 2f
+        transformOrigin = TransformOrigin(0f, 0f)
+        alpha = ((if (d >= 0f) 0.82f else 0.82f + d * 0.32f) + 0.18f * near * g).coerceIn(0f, 1f) *
+            rowAlpha() * (1f - 0.88f * dimOthers() * (1f - near))
+    } else {
+        translationY = centerY() - baseHPx / 2f
+        transformOrigin = TransformOrigin(0f, 0.5f)
+        alpha = (1f + d).coerceIn(0f, 1f) * rowAlpha() * (0.78f + 0.22f * near) * (1f - 0.88f * dimOthers() * (1f - near))
+    }
 }
 
 /**
@@ -2221,6 +2270,11 @@ private fun DeckHomeCarousel(
     xmbRows: Boolean = false,
     /** The XMB dropdown's tools are open as columns beside it: the rows stay but ignore taps. */
     menuHidden: Boolean = false,
+    /** XMB look: the pane beside the open dropdown (playtime, genres, description); gets how many description lines fit. */
+    info: (@Composable (Int) -> Unit)? = null,
+    /** A launch is under way: input is ignored and the chosen cover turns the theme colour and zooms to full screen, [launchT] 0..1. */
+    launching: Boolean = false,
+    launchT: () -> Float = { 0f },
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -2303,6 +2357,7 @@ private fun DeckHomeCarousel(
 
     fun handleKey(e: KeyEvent): Boolean {
                     if (!enabled || e.type != KeyEventType.KeyDown) return false
+                    if (launching) return true
                     val fresh = e.nativeKeyEvent.repeatCount == 0
                     val confirm = e.key == Key.ButtonA || e.key == Key.Enter ||
                         e.key == Key.NumPadEnter || e.key == Key.DirectionCenter
@@ -2318,15 +2373,26 @@ private fun DeckHomeCarousel(
                             e.key == Key.ButtonY -> { if (classic) { if (fresh) onMenu() } else onFavorite(); true }
                             e.key == Key.DirectionLeft -> if (selected > 0) { settleGames(selected - 1); true } else false
                             e.key == Key.DirectionRight -> { if (selected < n - 1) settleGames(selected + 1); true }
-                            e.key == Key.DirectionDown -> { if (!classic) onMode(HomeMode.OPTIONS); true }
+                            // XMB: A opens the dropdown and Down has nowhere to go; Classic: A plays.
+                            e.key == Key.DirectionDown -> true
                             e.key == Key.DirectionUp -> { onMode(HomeMode.STORES); true }
-                            confirm -> { if (fresh) actions.firstOrNull()?.onClick?.invoke(); true }
+                            confirm -> {
+                                if (fresh) { if (classic) actions.firstOrNull()?.onClick?.invoke() else onMode(HomeMode.OPTIONS) }
+                                true
+                            }
                             else -> false
                         }
                         HomeMode.OPTIONS -> when {
                             e.key == Key.DirectionUp -> { if (menuIdx > 0) menuIdx-- else onMode(HomeMode.GAMES); true }
                             e.key == Key.DirectionDown -> { if (menuIdx < actions.lastIndex) menuIdx++; true }
-                            e.key == Key.DirectionLeft || e.key == Key.DirectionRight -> true
+                            // XMB: Left/Right change the game under the open dropdown, which starts again on its first row.
+                            e.key == Key.DirectionLeft || e.key == Key.DirectionRight -> {
+                                if (!classic) {
+                                    settleGames(if (e.key == Key.DirectionLeft) selected - 1 else selected + 1)
+                                    menuIdx = 0
+                                }
+                                true
+                            }
                             confirm -> {
                                 if (fresh) {
                                     val action = actions.getOrNull(menuIdx)
@@ -2352,29 +2418,65 @@ private fun DeckHomeCarousel(
 
     val cardShape = RoundedCornerShape(4.dp)
     BoxWithConstraints(modifier.fillMaxSize()) {
+        // The store cards' size, and the covers' in Classic.
         val baseH = (maxHeight * 0.34f).coerceIn(96.dp, 168.dp)
         val baseW = baseH * 2f / 3f
         val x0 = 28.dp
-        val rowH = 40.dp
+        // XMB look (everything but Classic): the XMB home's own numbers, in dp. The chosen cover is fH tall and the
+        // rest sH, all hanging from its top edge; at rest the row is drawn up to 1.3x larger, as big as fits under the
+        // cards' peek, and the dropdown folds it back to 1x with the options column under the chosen cover.
+        val xl = !classic
+        val wDp = maxWidth.value
+        val hDp = maxHeight.value
+        val port = hDp > wDp * 1.05f
+        val fHDp = if (port) minOf(wDp * 0.52f, hDp * 0.29f) else (hDp * 0.36f).coerceIn(96f, 280f)
+        val fWDp = fHDp * 2f / 3f
+        val sHDp = fHDp * 0.62f
+        val sWDp = sHDp * 2f / 3f
+        val gapDp = (fHDp * 0.09f).roundToInt().toFloat()
+        val crossDp = if (port) 16f + sWDp * 0.42f + gapDp else maxOf(16f + sWDp + gapDp, wDp * 0.13f)
+        val homeK = minOf(1.3f, (hDp / 2f - 50f - sHDp / 2f - 10f) * 2f / fHDp).coerceAtLeast(1f)
+        val optsTopDp = if (port) 34f else (hDp * 0.25f - sHDp / 2f).coerceAtMost(hDp - fHDp - 12f - 3 * 40f - 6f - 12f).coerceAtLeast(34f)
+        val rowH = if (xl && port) 46.dp else 40.dp
+        val nVis = if (port) ((hDp * 0.38f) / rowH.value).toInt().coerceIn(3, 8)
+            else maxOf(2, ((hDp - (optsTopDp + fHDp + 12f) - 12f - 6f) / rowH.value).toInt())
+        val titleHDp = fHDp - sHDp - 8f
+        val titleLines = if (titleHDp > 58f) 2 else 1
+        val titleSp = (if (titleLines == 2) (titleHDp - 18f) / 2.4f else titleHDp - 22f).coerceIn(15f, 26f)
+        val gBaseH = if (xl) (sHDp * homeK).dp else baseH
+        val gBaseW = gBaseH * 2f / 3f
+        val growBy = if (xl) fHDp / sHDp - 1f else 0.35f
         val hPx = with(density) { maxHeight.toPx() }
         val baseWPx = with(density) { baseW.toPx() }
         val baseHPx = with(density) { baseH.toPx() }
         val x0Px = with(density) { x0.toPx() }
         val gapPx = with(density) { 14.dp.toPx() }
+        val gBaseWPx = with(density) { gBaseW.toPx() }
+        val gBaseHPx = with(density) { gBaseH.toPx() }
+        val gX0Px = with(density) { (if (xl) crossDp.dp else x0).toPx() }
+        val gGapPx = with(density) { (if (xl) gapDp * homeK else 14f).dp.toPx() }
+        val extraPx = with(density) { 6.dp.toPx() }
+        // The options column's left edge: its 34 dp icon box sits centred under the chosen cover (less the row's own 8 dp padding).
+        val menuX = with(density) { if (xl) (crossDp + fWDp / 2f - 17f - 8f).dp.toPx() else x0Px }
         // Quick menu layout: the row folds to half size at the top, the menu hangs under the chosen cover.
         // The XMB dropdown folds the row less (the Deck XMB keeps its cover large) and hides the neighbours.
-        val menuScale = if (xmbRows) 0.95f else 0.5f
+        val menuScale = if (xl) 1f / homeK else if (xmbRows) 0.95f else 0.5f
         // The XMB dropdown shows four rows; the cover and the rows are centred as one block so the cover isn't pushed to the top.
         val topMargin = if (xmbRows) ((maxHeight - baseH * menuScale - 12.dp - rowH * 4) / 2).coerceIn(14.dp, 60.dp) else 14.dp
-        val optsY = baseHPx * (menuScale / 2f) + with(density) { topMargin.toPx() }
-        val menuTopPx = optsY + baseHPx * (menuScale / 2f) + with(density) { 12.dp.toPx() }
-        val titleMax = (maxWidth - x0 - baseW * 1.35f - 40.dp - (if (maxWidth > 560.dp) 230.dp else 0.dp)).coerceAtLeast(120.dp)
+        val optsY = if (xl) with(density) { (optsTopDp + fHDp / 2f).dp.toPx() }
+            else baseHPx * (menuScale / 2f) + with(density) { topMargin.toPx() }
+        val menuTopPx = if (xl) with(density) { (optsTopDp + fHDp + 12f).dp.toPx() }
+            else optsY + baseHPx * (menuScale / 2f) + with(density) { 12.dp.toPx() }
+        val titleMax = (
+            if (xl) maxWidth - (crossDp + homeK * (fWDp + 16f)).dp - 16.dp
+            else maxWidth - x0 - baseW * 1.35f - 40.dp
+        ).let { it - (if (maxWidth > 560.dp) 230.dp else 0.dp) }.coerceAtLeast(120.dp)
 
         val gScale = { 1f - (1f - menuScale) * menuT.value - 0.45f * upT.value }
         val gCenter = { hPx / 2f + (optsY - hPx / 2f) * menuT.value + (hPx / 2f) * upT.value }
         val gGrow = { 1f - upT.value }
         val gAlpha = { 1f - 0.4f * upT.value }
-        val gDim = { (if (xmbRows) 1.13f else 0.57f) * menuT.value }
+        val gDim = { if (xl) 0f else (if (xmbRows) 1.13f else 0.57f) * menuT.value }
         val gPosNow = { gPos.floatValue }
         val cScale = { 0.55f + 0.45f * upT.value }
         val cCenter = { 2f + (hPx / 2f - 2f) * upT.value }
@@ -2392,7 +2494,7 @@ private fun DeckHomeCarousel(
                 cSel = p.roundToInt().coerceIn(0, cards.size - 1)
             } else if (mode == HomeMode.GAMES && n > 0) {
                 gJob?.cancel()
-                val p = (gPos.floatValue - delta / ((baseWPx + gapPx) * gScale())).coerceIn(-0.45f, n - 1 + 0.45f)
+                val p = (gPos.floatValue - delta / ((gBaseWPx + gGapPx) * gScale())).coerceIn(-0.45f, n - 1 + 0.45f)
                 gPos.floatValue = p
                 val r = p.roundToInt().coerceIn(0, n - 1)
                 if (r != selected) onSelect(r)
@@ -2429,7 +2531,7 @@ private fun DeckHomeCarousel(
                         if (mode == HomeMode.STORES) {
                             settleCards((cPos.floatValue - velocity / ((baseWPx + gapPx) * cScale()) * 0.14f).roundToInt())
                         } else if (mode == HomeMode.GAMES && n > 0) {
-                            settleGames((gPos.floatValue - velocity / ((baseWPx + gapPx) * gScale()) * 0.14f).roundToInt())
+                            settleGames((gPos.floatValue - velocity / ((gBaseWPx + gGapPx) * gScale()) * 0.14f).roundToInt())
                         }
                     },
                 )
@@ -2512,8 +2614,8 @@ private fun DeckHomeCarousel(
                 key(i) {
                     Box(
                         Modifier
-                            .size(baseW, baseH)
-                            .deckRowLayer(i, gPosNow, gScale, gCenter, gGrow, gAlpha, gDim, baseWPx, baseHPx, x0Px, gapPx)
+                            .size(gBaseW, gBaseH)
+                            .deckRowLayer(i, gPosNow, gScale, gCenter, gGrow, gAlpha, gDim, gBaseWPx, gBaseHPx, gX0Px, gGapPx, growBy, xl)
                             .clip(cardShape)
                             .background(Deck.surface)
                             .drawWithContent {
@@ -2586,11 +2688,21 @@ private fun DeckHomeCarousel(
                     label = "homeGameTitle",
                     modifier = Modifier
                         .offset {
-                            val below = gCenter() + baseHPx * gScale() * 0.5f + 8.dp.toPx()
-                            IntOffset(
-                                (x0Px + baseWPx * 1.35f * gScale() + 16.dp.toPx()).roundToInt(),
-                                (below + (gCenter() - 22.dp.toPx() - below) * menuT.value).roundToInt(),
-                            )
+                            if (xl) {
+                                // Right of the chosen cover, under the row of the others, in the dropdown too.
+                                val k = homeK * gScale()
+                                val coverTop = gCenter() - gBaseHPx * gScale() * (1f + growBy * gGrow()) / 2f
+                                IntOffset(
+                                    (gX0Px + k * (fWDp + 16f).dp.toPx()).roundToInt(),
+                                    (coverTop + gBaseHPx * gScale() + 8.dp.toPx() * k).roundToInt(),
+                                )
+                            } else {
+                                val below = gCenter() + baseHPx * gScale() * 0.5f + 8.dp.toPx()
+                                IntOffset(
+                                    (x0Px + baseWPx * 1.35f * gScale() + 16.dp.toPx()).roundToInt(),
+                                    (below + (gCenter() - 22.dp.toPx() - below) * menuT.value).roundToInt(),
+                                )
+                            }
                         }
                         .widthIn(max = titleMax)
                         // The tools' columns open where the title sits: it steps aside while one is open.
@@ -2600,7 +2712,7 @@ private fun DeckHomeCarousel(
                     if (entry != null) {
                         val playtime = remember(entry) { hubPlaytimeLabel(context, entry.title) }
                         Column {
-                            if (idx == 0 && entry.game != null && hubHasPlaytime(context, entry.title)) {
+                            if (idx == 0 && entry.game != null && hubHasPlaytime(context, entry.title) && (!xl || titleLines == 2)) {
                                 Text(
                                     "CONTINUE PLAYING",
                                     color = accent,
@@ -2612,10 +2724,10 @@ private fun DeckHomeCarousel(
                             Text(
                                 (if (entry.game?.shortcutPath in favs) "\u2605 " else "") + entry.title,
                                 color = Color.White,
-                                fontSize = 22.sp,
-                                lineHeight = 25.sp,
+                                fontSize = if (xl) titleSp.sp else 22.sp,
+                                lineHeight = if (xl) (titleSp * 1.15f).sp else 25.sp,
                                 fontWeight = FontWeight.Black,
-                                maxLines = 2,
+                                maxLines = if (xl) titleLines else 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
@@ -2670,6 +2782,25 @@ private fun DeckHomeCarousel(
                 }
             }
 
+            if (xl && info != null && menuVisible) {
+                // Right of the options column (under it in portrait), faded in with the dropdown.
+                val colTopDp = optsTopDp + fHDp + 12f
+                val infoXDp = if (port) 16f else crossDp + fWDp / 2f - 17f + 34f + 12f + 176f + 12f
+                val infoYDp = if (port) colTopDp + nVis * rowH.value + 6f + 10f else colTopDp
+                val infoWDp = if (port) wDp - 32f else wDp - infoXDp - 24f
+                val infoHDp = if (port) hDp - infoYDp - 84f else hDp - infoYDp - 36f
+                if (infoWDp >= 120f && infoHDp >= 40f) {
+                    Column(
+                        Modifier
+                            .offset(infoXDp.dp, infoYDp.dp)
+                            .width(infoWDp.dp)
+                            .height(infoHDp.dp)
+                            .graphicsLayer { alpha = menuT.value }
+                            .clipToBounds(),
+                    ) { info(if (port) 6 else 3) }
+                }
+            }
+
             if (menuVisible) {
                 actions.forEachIndexed { idx, action ->
                     val focused = idx == menuIdx
@@ -2679,14 +2810,20 @@ private fun DeckHomeCarousel(
                         modifier = Modifier
                             .graphicsLayer {
                                 val rel = idx - menuPos.value
-                                translationX = x0Px - (1f - menuT.value) * 12.dp.toPx()
-                                translationY = menuTopPx + rel * rowH.toPx()
+                                translationX = menuX - (1f - menuT.value) * 12.dp.toPx()
+                                translationY = menuTopPx + rel * rowH.toPx() + (if (xl) extraPx * rel.coerceIn(0f, 1f) else 0f)
                                 // Rows already passed fade out above the focused one, like the XMB.
                                 // The XMB dropdown keeps clear of the cover: rows scrolled past vanish at its top edge, and only
-                                // four rows show below.
-                                alpha = menuT.value *
-                                    (if (xmbRows) (1f + 3f * rel).coerceIn(0f, 1f) else (1f + rel).coerceIn(0f, 1f)) *
-                                    (if (xmbRows) ((menuTopPx + 4f * rowH.toPx() - translationY) / rowH.toPx()).coerceIn(0f, 1f) else 1f)
+                                // nVis rows show below, each a little fainter (the picked one has a gap under it).
+                                alpha = if (xl) {
+                                    menuT.value * (1f + 3f * rel).coerceIn(0f, 1f) *
+                                        (if (rel > 0f) maxOf(0.35f, 1f - 0.13f * rel) else 1f) *
+                                        ((menuTopPx + nVis * rowH.toPx() + extraPx - translationY) / rowH.toPx()).coerceIn(0f, 1f)
+                                } else {
+                                    menuT.value *
+                                        (if (xmbRows) (1f + 3f * rel).coerceIn(0f, 1f) else (1f + rel).coerceIn(0f, 1f)) *
+                                        (if (xmbRows) ((menuTopPx + 4f * rowH.toPx() - translationY) / rowH.toPx()).coerceIn(0f, 1f) else 1f)
+                                }
                             }
                             .height(rowH)
                             .clip(RoundedCornerShape(10.dp))
@@ -2763,7 +2900,7 @@ private fun DeckHomeCarousel(
                     mode == HomeMode.OPTIONS -> "A  Select      B  Back"
                     mode == HomeMode.STORES -> "A  Add game      B  Back"
                     classic -> "A  Play    ↑  Add game    Y  Menu    L2 R2  Shelves"
-                    else -> "A  Play    ↑  Add game    ↓  Options    Y  Favourite    L2 R2  Shelves"
+                    else -> "A  Options    ↑  Add game    Y  Favourite    L2 R2  Shelves"
                 },
                 color = Deck.onSurfaceVariant,
                 fontSize = 12.sp,
@@ -2771,6 +2908,55 @@ private fun DeckHomeCarousel(
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = 12.dp),
             )
+
+            if (launching || launchT() > 0.001f) {
+                val bmp = entries.getOrNull(selected)?.bitmap
+                // Eats every touch so nothing underneath reacts while the game starts.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                            }
+                        },
+                ) {
+                    Box(
+                        Modifier
+                            // From the chosen cover's live rect to the whole screen.
+                            // The cover turns the theme colour on the way, so the game's loading screen can open from it.
+                            .layout { measurable, c ->
+                                val t = launchT()
+                                val f = 1f + growBy * gGrow()
+                                val cw = gBaseWPx * gScale() * f
+                                val ch = gBaseHPx * gScale() * f
+                                val left = gX0Px + (gBaseWPx + gGapPx) * gScale() * (selected - gPos.floatValue)
+                                val top = gCenter() - ch / 2f
+                                val w = lerp(cw, c.maxWidth.toFloat(), t).roundToInt().coerceAtLeast(1)
+                                val h = lerp(ch, c.maxHeight.toFloat(), t).roundToInt().coerceAtLeast(1)
+                                val placeable = measurable.measure(Constraints.fixed(w, h))
+                                layout(c.maxWidth, c.maxHeight) {
+                                    placeable.place(lerp(left, 0f, t).roundToInt(), lerp(top, 0f, t).roundToInt())
+                                }
+                            }
+                            .graphicsLayer {
+                                shape = RoundedCornerShape(4.dp.toPx() * (1f - launchT()))
+                                clip = true
+                            }
+                            .background(Deck.surface),
+                    ) {
+                        if (bmp != null) {
+                            Image(
+                                bitmap = remember(bmp) { bmp.asImageBitmap() },
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = (launchT() * 3f).coerceIn(0f, 1f) }.background(accent))
+                    }
+                }
+            }
         }
     }
 }

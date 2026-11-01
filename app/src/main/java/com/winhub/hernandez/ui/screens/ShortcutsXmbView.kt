@@ -866,7 +866,7 @@ private fun XmbActionRow(action: XmbAction, selected: Boolean, accent: Color, ic
 // Right / lower pane: store badges, playtime and Game Details.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun XmbInfo(s: Shortcut, playtime: String?, descLines: Int) {
+internal fun XmbInfo(s: Shortcut, playtime: String?, descLines: Int) {
     val details = remember(s) { buildLaunchDetails(s) }
     val factColor = Color(0xFFD0D0D0)
     FlowRow(
@@ -997,7 +997,7 @@ private fun rememberGamepadConnected(): Boolean {
 }
 
 // "Xh Ym" from the same prefs XServerDisplayActivity writes; null = never played.
-private fun xmbPlaytime(context: Context, name: String): String? {
+internal fun xmbPlaytime(context: Context, name: String): String? {
     val ms = context.getSharedPreferences("playtime_stats", Context.MODE_PRIVATE).getLong("${name}_playtime", 0L)
     if (ms <= 0L) return null
     val mins = ms / 60_000L

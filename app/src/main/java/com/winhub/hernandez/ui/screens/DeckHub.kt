@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
@@ -1278,6 +1279,9 @@ internal fun DeckLaunchMethodDialog(
     }
 }
 
+/** How long Home's launch zoom plays (ms) before the game's own window opens. */
+internal const val DECK_LAUNCH_ZOOM_MS = 320
+
 /**
  * The launch pipeline behind the deck menu: Goldberg (patch-then-launch, component on demand),
  * SteamLite (component on demand → Steam pre-flight) and Raw (direct), mirroring BigPictureScreen's
@@ -1289,12 +1293,35 @@ internal fun DeckLaunchStack(
     request: Shortcut?,
     onMenuClosed: () -> Unit,
     steamOverride: Boolean? = null,
+    /** Called as a launch begins; the game's window then waits [DECK_LAUNCH_ZOOM_MS] so the host can play its transition. */
+    onLaunching: ((Shortcut) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var preflightFor by remember { mutableStateOf<Shortcut?>(null) }
     var componentDownloadFor by remember { mutableStateOf<Shortcut?>(null) }
     var componentDownloadLabel by remember { mutableStateOf("") }
     var componentDownloadProgress by remember { mutableStateOf(0f) }
+
+    fun go(s: Shortcut, preflightDone: Boolean = false) {
+        val splash = onLaunching
+        if (splash == null) {
+            launchShortcut(activity, s, preflightDone)
+            return
+        }
+        splash(s)
+        val zoomColor = Deck.primary.toArgb()
+        activity.window.decorView.postDelayed(
+            {
+                if (!activity.isFinishing) {
+                    launchShortcut(activity, s, preflightDone, zoomColor)
+                    // No system slide: the theme colour carries straight into the loading screen.
+                    @Suppress("DEPRECATION")
+                    activity.overridePendingTransition(0, 0)
+                }
+            },
+            DECK_LAUNCH_ZOOM_MS.toLong(),
+        )
+    }
 
     fun launchWithGoldberg(s: Shortcut, gm: GoldbergMode) {
         val appId = steamAppIdOf(s)
@@ -1307,10 +1334,10 @@ internal fun DeckLaunchStack(
                 }.getOrNull().orEmpty()
                 activity.runOnUiThread {
                     if (installDir.isEmpty()) {
-                        launchShortcut(activity, s)
+                        go(s)
                     } else {
                         GoldbergPatcher.applyModeAsync(context, appId, installDir, s.name, gm) { _, _ ->
-                            launchShortcut(activity, s)
+                            go(s)
                         }
                     }
                 }
@@ -1369,7 +1396,7 @@ internal fun DeckLaunchStack(
                             .let { if (it == GoldbergMode.OFF) GoldbergMode.REGULAR else it }
                         launchWithGoldberg(s, gm)
                     }
-                    "Raw" -> launchShortcut(activity, s)
+                    "Raw" -> go(s)
                     else -> launchWithSteamLite(s)
                 }
                 onMenuClosed()
@@ -1386,7 +1413,7 @@ internal fun DeckLaunchStack(
                     s.saveData()
                     when (mode) {
                         "Goldberg" -> launchWithGoldberg(s, gm ?: GoldbergMode.REGULAR)
-                        "Raw" -> launchShortcut(activity, s)
+                        "Raw" -> go(s)
                         else -> launchWithSteamLite(s)
                     }
                 },
@@ -1450,7 +1477,7 @@ internal fun DeckLaunchStack(
                 gameName = s.name,
                 pullCloudSaves = savePrefs.getBoolean("auto_download_steam_on_launch", true),
             ),
-            onLaunch = { preflightFor = null; launchShortcut(activity, s, preflightDone = true) },
+            onLaunch = { preflightFor = null; go(s, preflightDone = true) },
             onDismiss = { preflightFor = null },
             onSignIn = {
                 preflightFor = null

@@ -1,7 +1,9 @@
 package com.winhub.hernandez.ui
 
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.platform.ComposeView
@@ -24,6 +26,12 @@ import com.winhub.hernandez.ui.theme.WinlatorTheme
  *     view stays touch-transparent, so the running session below is never blocked.
  */
 object PreloaderOverlayHelper {
+
+    /** Int extra: the theme colour Home's launch zoom ended on; the loading screen opens from it. */
+    const val EXTRA_ZOOM_COLOR = "launch_zoom_color"
+
+    private const val REVEAL_DELAY_MS = 140L
+    private const val REVEAL_MS = 280L
 
     @JvmStatic
     fun attach(activity: AppCompatActivity) {
@@ -48,6 +56,27 @@ object PreloaderOverlayHelper {
         val matchParent = ViewGroup.LayoutParams.MATCH_PARENT
         host.addView(overlay, FrameLayout.LayoutParams(matchParent, matchParent))
         val params = FrameLayout.LayoutParams(matchParent, matchParent)
-        (activity.window.decorView as ViewGroup).addView(host, params)
+        val decor = activity.window.decorView as ViewGroup
+        decor.addView(host, params)
+        if (activity.intent?.hasExtra(EXTRA_ZOOM_COLOR) == true) {
+            playReveal(decor, activity.intent.getIntExtra(EXTRA_ZOOM_COLOR, 0))
+        }
+    }
+
+    /** A full-screen sheet of the zoom colour that shrinks away, uncovering the loading screen beneath it. */
+    private fun playReveal(decor: ViewGroup, color: Int) {
+        val sheet = View(decor.context).apply { setBackgroundColor(color) }
+        decor.addView(sheet, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        sheet.post {
+            sheet.pivotX = sheet.width / 2f
+            sheet.pivotY = sheet.height / 2f
+            sheet.animate()
+                .scaleX(0f).scaleY(0f).alpha(0f)
+                .setStartDelay(REVEAL_DELAY_MS)
+                .setDuration(REVEAL_MS)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction { decor.removeView(sheet) }
+                .start()
+        }
     }
 }
