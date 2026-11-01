@@ -79,6 +79,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -278,6 +280,15 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
                             )
                             Spacer(Modifier.height(8.dp))
                         }
+        // Switching tabs removes the focused control with the old page; once the swap settles, put the
+        // pad on the new page's first control (top-left in focus order) instead of a lost focus.
+        val tabContentFocus = remember { FocusRequester() }
+        var firstTabShown by remember { mutableStateOf(true) }
+        LaunchedEffect(tab, pagesCategoryOpen) {
+            if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
+            kotlinx.coroutines.delay(220)
+            runCatching { tabContentFocus.requestFocus() }
+        }
                         AnimatedContent(
                             targetState = tab,
                             transitionSpec = {
@@ -293,7 +304,7 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
                                             },
                                     )
                             },
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            modifier = Modifier.weight(1f).fillMaxWidth().focusRequester(tabContentFocus).focusGroup(),
                             label = "contentsTab",
                         ) { which ->
                             when (which) {
@@ -568,13 +579,11 @@ private fun DeckContentsBrowseTab(
                                     key = { index, source -> "$index-${source.name}-${source.driverOnly}" },
                                 ) { index, source ->
                                     DeckRise(index = index % 10) {
-                                        Box(Modifier.deckDragItem("source-$index-${source.name}")) {
-                                            DeckSourceCard(
-                                                source = source,
-                                                onOpen = { onRepo(source.name) },
-                                                onMenu = { menuFor = source },
-                                            )
-                                        }
+                                        DeckSourceCard(
+                                            source = source,
+                                            onOpen = { onRepo(source.name) },
+                                            onMenu = { menuFor = source },
+                                        )
                                     }
                                 }
                             }
@@ -954,6 +963,7 @@ private fun DeckSourceCard(
             .clip(shape)
             .background(DeckPalette.surface)
             .border(1.dp, DeckPalette.line, shape)
+            .deckRing(interaction, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
             .padding(10.dp),
     ) {
@@ -1071,7 +1081,6 @@ private fun DeckContentsFilesTab(vm: ContentsHubViewModel) {
                     key = { index, type -> "$index-$type" },
                 ) { index, type ->
                     DeckRise(index = index % 10) {
-                        Box(Modifier.deckDragItem("saved-$index-$type")) {
                         DeckSavedFolder(
                             type = type,
                             files = folders[type].orEmpty(),
@@ -1092,7 +1101,6 @@ private fun DeckContentsFilesTab(vm: ContentsHubViewModel) {
                             onShare = { file -> shareDeckArchive(context, file) },
                             onDelete = { file -> pendingDelete = file },
                         )
-                        }
                     }
                 }
             }
@@ -1137,6 +1145,7 @@ private fun DeckSavedFolder(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                    .deckRing(interaction, shape)
                     .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
                 .padding(14.dp),
         ) {

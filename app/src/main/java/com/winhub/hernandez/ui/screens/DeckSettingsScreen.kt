@@ -26,6 +26,9 @@ import com.winhub.hernandez.ui.components.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -412,10 +415,21 @@ internal fun DeckSettingsScreen() {
                 )
             }
 
+        // Switching tabs removes the focused control with the old page; once the swap settles, put the
+        // pad on the new page's first control (top-left in focus order) instead of a lost focus.
+        val tabContentFocus = remember { FocusRequester() }
+        var firstTabShown by remember { mutableStateOf(true) }
+        LaunchedEffect(settingsTab, settingsPagesCategoryOpen) {
+            if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
+            kotlinx.coroutines.delay(80)
+            runCatching { tabContentFocus.requestFocus() }
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .focusRequester(tabContentFocus)
+                .focusGroup()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 8.dp),
         ) {

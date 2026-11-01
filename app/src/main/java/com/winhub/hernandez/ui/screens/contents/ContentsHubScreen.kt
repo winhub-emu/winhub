@@ -88,6 +88,9 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -150,6 +153,15 @@ private fun tabIcon(t: HubTab): ImageVector = when (t) {
 fun ContentsHubScreen(vm: ContentsHubViewModel = viewModel()) {
     val cs = MaterialTheme.colorScheme
     var tab by remember { mutableStateOf(HubTab.DOWNLOAD) }
+    // Switching tabs removes the focused control with the old page: put the pad on the new tab's first
+    // control (top-left in focus order) instead of a lost focus.
+    val tabContentFocus = remember { FocusRequester() }
+    var firstTabShown by remember { mutableStateOf(true) }
+    LaunchedEffect(tab) {
+        if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
+        kotlinx.coroutines.delay(80)
+        runCatching { tabContentFocus.requestFocus() }
+    }
 
     // Same wide/narrow signal the Download tab uses for master–detail governs the tab chrome:
     // narrow → top TabRow; wide → a left vertical NavigationRail, content filling the rest
@@ -178,7 +190,7 @@ fun ContentsHubScreen(vm: ContentsHubViewModel = viewModel()) {
                         )
                     }
                 }
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) { HubTabContent(vm, tab, wide = true) }
+                Box(modifier = Modifier.weight(1f).fillMaxHeight().focusRequester(tabContentFocus).focusGroup()) { HubTabContent(vm, tab, wide = true) }
             }
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -199,7 +211,7 @@ fun ContentsHubScreen(vm: ContentsHubViewModel = viewModel()) {
                 }
                 // Weighted so the tab content gets the REMAINING height after the TabRow and its own
                 // internal lists scroll within it (never clipped, incl. large interface scale).
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) { HubTabContent(vm, tab, wide = false) }
+                Box(modifier = Modifier.weight(1f).fillMaxWidth().focusRequester(tabContentFocus).focusGroup()) { HubTabContent(vm, tab, wide = false) }
             }
         }
     }
