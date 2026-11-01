@@ -45,7 +45,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -132,7 +131,6 @@ private val ContentsBlue = Color(0xFF3D9BFF)
 
 private enum class DeckContentsTab(val label: String) {
     BROWSE("Browse"),
-    SOURCES("Sources"),
     FILES("My Files"),
     INSTALLED("Installed"),
 }
@@ -178,30 +176,29 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
 
     val installedKeys by vm.installedKeys.collectAsState()
     val folders by vm.savedFolders.collectAsState()
-    val selectedSource by vm.selected.collectAsState()
+    val browseCategory by vm.categoryType.collectAsState()
+    var browseRepo by remember { mutableStateOf<String?>(null) }
     val archived = remember(folders) { folders.values.sumOf { it.size } }
 
-    // B in a repository detail folds back to the repository list before it leaves the section.
-    val onSourcesTab = tab == DeckContentsTab.SOURCES.ordinal
-    val detailOpen = onSourcesTab && selectedSource != null
+    // Picking another component family starts again at its repository list.
+    LaunchedEffect(browseCategory) { browseRepo = null }
+
+    // B inside a repository folds back to the repository list before it leaves the section.
+    val detailOpen = browseCategory != null && browseRepo != null
     DisposableEffect(detailOpen, pagesCategoryOpen) {
         tabs.onBack = {
             if (pagesCategoryOpen) {
                 pagesCategoryOpen = false
                 true
             } else if (detailOpen) {
-                vm.selectSource(null)
+                browseRepo = null
                 true
             } else false
         }
         onDispose { tabs.onBack = null }
     }
     BackHandler(enabled = detailOpen || pagesCategoryOpen) {
-        if (pagesCategoryOpen) pagesCategoryOpen = false else vm.selectSource(null)
-    }
-    // Stepping away from Sources returns to the repository list next time.
-    LaunchedEffect(onSourcesTab) {
-        if (!onSourcesTab && selectedSource != null) vm.selectSource(null)
+        if (pagesCategoryOpen) pagesCategoryOpen = false else browseRepo = null
     }
 
     Box(Modifier.fillMaxSize().background(DeckPalette.background)) {
@@ -300,9 +297,8 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
                             label = "contentsTab",
                         ) { which ->
                             when (which) {
-                                0 -> DeckContentsBrowseTab(vm)
-                                1 -> DeckContentsSourcesTab(vm)
-                                2 -> DeckContentsFilesTab(vm)
+                                0 -> DeckContentsBrowseTab(vm, browseRepo) { browseRepo = it }
+                                1 -> DeckContentsFilesTab(vm)
                                 else -> DeckContentsInstalledTab(vm)
                             }
                         }
@@ -461,16 +457,34 @@ private fun DeckLoading() {
 // ── Browse ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DeckContentsBrowseTab(vm: ContentsHubViewModel) {
+private fun DeckContentsBrowseTab(
+    vm: ContentsHubViewModel,
+    repo: String?,
+    onRepo: (String?) -> Unit,
+) {
     val query by vm.query.collectAsState()
     val results by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
     val category by vm.categoryType.collectAsState()
     val items by vm.categoryItems.collectAsState()
     val loading by vm.categoryLoading.collectAsState()
+    val sources by vm.sources.collectAsState()
+
+    var showAdd by remember { mutableStateOf(false) }
+    var showTransfer by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<HubSource?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        DeckSearchField(query) { vm.setQuery(it) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { DeckSearchField(query) { vm.setQuery(it) } }
+            Spacer(Modifier.width(8.dp))
+            DeckIconAction(Icons.Filled.Add, "Add repository") { showAdd = true }
+            Spacer(Modifier.width(8.dp))
+            DeckIconAction(Icons.Filled.FileDownload, "Import or export sources") { showTransfer = true }
+            Spacer(Modifier.width(8.dp))
+            DeckIconAction(Icons.Filled.Settings, "Contents settings") { showSettings = true }
+        }
         Spacer(Modifier.height(12.dp))
         when {
             query.isNotBlank() -> {
@@ -508,20 +522,28 @@ private fun DeckContentsBrowseTab(vm: ContentsHubViewModel) {
             category != null -> {
                 val title = deckContentCategories.firstOrNull { it.type == category }?.title
                     ?: category ?: "Components"
+                val repoItems = if (repo == null) items else items.filter { it.sourceName == repo }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    DeckIconAction(Icons.Filled.ArrowBack, "All component families") {
-                        vm.selectCategory(null)
+                    DeckIconAction(
+                        Icons.Filled.ArrowBack,
+                        if (repo == null) "All component families" else "Back to repositories",
+                    ) {
+                        if (repo == null) vm.selectCategory(null) else onRepo(null)
                     }
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = title,
+                            text = if (repo == null) title else "$title - $repo",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = DeckPalette.onBackground,
                         )
                         Text(
-                            text = "${items.size} release${if (items.size == 1) "" else "s"} across every repository",
+                            text = if (repo == null) {
+                                "Choose a repository"
+                            } else {
+                                "${repoItems.size} release${if (repoItems.size == 1) "" else "s"}"
+                            },
                             fontSize = 12.sp,
                             color = DeckPalette.onSurfaceVariant,
                         )
@@ -531,18 +553,44 @@ private fun DeckContentsBrowseTab(vm: ContentsHubViewModel) {
                 when {
                     loading -> DeckLoading()
                     items.isEmpty() -> DeckEmpty("No releases found for $title.")
+                    repo == null -> {
+                        val names = items.map { it.sourceName }.toSet()
+                        val repos = sources.filter { it.name in names }
+                        if (repos.isEmpty()) DeckEmpty("No repository offers $title.")
+                        else DeckDragFrame(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                itemsIndexed(
+                                    repos,
+                                    key = { index, source -> "$index-${source.name}-${source.driverOnly}" },
+                                ) { index, source ->
+                                    DeckRise(index = index % 10) {
+                                        Box(Modifier.deckDragItem("source-$index-${source.name}")) {
+                                            DeckSourceCard(
+                                                source = source,
+                                                onOpen = { onRepo(source.name) },
+                                                onMenu = { menuFor = source },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     else -> DeckDragFrame(modifier = Modifier.fillMaxSize()) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             itemsIndexed(
-                                items,
+                                repoItems,
                                 key = { index, item -> "$index-${item.sourceName}-${item.downloadUrl}" },
                             ) { index, item ->
                                 DeckRise(index = index % 10) {
                                     Box(Modifier.deckDragItem("cat-$index-${item.sourceName}-${item.downloadUrl}")) {
-                                        DeckCatalogCard(vm, item, showSource = true)
+                                        DeckCatalogCard(vm, item, showSource = false)
                                     }
                                 }
                             }
@@ -572,6 +620,13 @@ private fun DeckContentsBrowseTab(vm: ContentsHubViewModel) {
                 }
             }
         }
+    }
+
+    if (showAdd) DeckAddSourceDialog(vm, onDismiss = { showAdd = false })
+    if (showTransfer) DeckTransferDialog(vm, onDismiss = { showTransfer = false })
+    if (showSettings) DeckContentsSettingsDialog(vm, onDismiss = { showSettings = false })
+    menuFor?.let { source ->
+        DeckSourceMenuDialog(vm, source, onDismiss = { menuFor = null })
     }
 }
 
@@ -881,73 +936,6 @@ private fun DeckDownloadStatus(state: ContentDownloadState) {
 // ── Sources ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DeckContentsSourcesTab(vm: ContentsHubViewModel) {
-    val sources by vm.sources.collectAsState()
-    val selected by vm.selected.collectAsState()
-
-    var showAdd by remember { mutableStateOf(false) }
-    var showTransfer by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var menuFor by remember { mutableStateOf<HubSource?>(null) }
-
-    if (selected != null) {
-        DeckSourceDetail(vm, selected!!)
-    } else {
-        Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Repositories",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DeckPalette.onBackground,
-                    )
-                    Text(
-                        text = "Every component and driver source you can browse",
-                        fontSize = 12.sp,
-                        color = DeckPalette.onSurfaceVariant,
-                    )
-                }
-                DeckIconAction(Icons.Filled.Add, "Add repository") { showAdd = true }
-                Spacer(Modifier.width(8.dp))
-                DeckIconAction(Icons.Filled.FileDownload, "Import or export sources") { showTransfer = true }
-                Spacer(Modifier.width(8.dp))
-                DeckIconAction(Icons.Filled.Settings, "Contents settings") { showSettings = true }
-            }
-            Spacer(Modifier.height(10.dp))
-            DeckDragFrame(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    itemsIndexed(
-                        sources,
-                        key = { index, source -> "$index-${source.name}-${source.driverOnly}" },
-                    ) { index, source ->
-                        DeckRise(index = index % 10) {
-                            Box(Modifier.deckDragItem("source-$index-${source.name}")) {
-                                DeckSourceCard(
-                                    source = source,
-                                    onOpen = { vm.selectSource(source) },
-                                    onMenu = { menuFor = source },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showAdd) DeckAddSourceDialog(vm, onDismiss = { showAdd = false })
-    if (showTransfer) DeckTransferDialog(vm, onDismiss = { showTransfer = false })
-    if (showSettings) DeckContentsSettingsDialog(vm, onDismiss = { showSettings = false })
-    menuFor?.let { source ->
-        DeckSourceMenuDialog(vm, source, onDismiss = { menuFor = null })
-    }
-}
-
-@Composable
 private fun DeckSourceCard(
     source: HubSource,
     onOpen: () -> Unit,
@@ -1018,83 +1006,6 @@ private fun DeckSourceCard(
         }
         Spacer(Modifier.width(6.dp))
         DeckIconAction(Icons.Filled.MoreVert, "Repository options", onClick = onMenu)
-    }
-}
-
-@Composable
-private fun DeckSourceDetail(vm: ContentsHubViewModel, source: HubSource) {
-    val types by vm.detailTypes.collectAsState()
-    val items by vm.detailItems.collectAsState()
-    val loading by vm.detailLoading.collectAsState()
-    var filter by remember(source.name) { mutableStateOf("All") }
-
-    Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            DeckIconAction(Icons.Filled.ArrowBack, "Back to repositories") { vm.selectSource(null) }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = source.name,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DeckPalette.onBackground,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (source.isOfficial) {
-                        Spacer(Modifier.width(8.dp))
-                        DeckBadge("Official", DeckPalette.primary)
-                    }
-                }
-                Text(
-                    text = "${source.displayFormat} - ${items.size} ${if (source.driverOnly) "drivers" else "components"}",
-                    fontSize = 12.sp,
-                    color = DeckPalette.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            DeckIconAction(Icons.Filled.Refresh, "Refresh repository") { vm.refreshSelected() }
-        }
-        Spacer(Modifier.height(10.dp))
-        val filterLabels = listOf("All") + types
-        DeckStretchyTabs(
-            labels = filterLabels,
-            selected = filterLabels.indexOf(filter).let { if (it < 0) 0 else it },
-            onSelect = { filter = filterLabels[it] },
-            focusable = true,
-            selectOnFocus = true,
-            scroll = true,
-            height = 34.dp,
-        )
-        Spacer(Modifier.height(10.dp))
-        when {
-            loading -> DeckLoading()
-            items.isEmpty() -> DeckEmpty("No components available from this repository.")
-            else -> {
-                val shown = if (filter == "All") items else items.filter { it.type == filter }
-                if (shown.isEmpty()) DeckEmpty("No ${filter} releases in this repository.")
-                else DeckDragFrame(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        itemsIndexed(
-                            shown,
-                            key = { index, item -> "$index-${item.type}-${item.downloadUrl}" },
-                        ) { index, item ->
-                            DeckRise(index = index % 10) {
-                                Box(Modifier.deckDragItem("repo-$index-${item.type}-${item.downloadUrl}")) {
-                                    DeckCatalogCard(vm, item, showSource = false)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1722,11 +1633,6 @@ private fun DeckSourceMenuDialog(
 ) {
     val context = LocalContext.current
     DeckConfigDialog(title = source.name, onDismiss = onDismiss) {
-        DeckDialogAction(Icons.Filled.Apps, if (source.driverOnly) "Browse drivers" else "Browse components") {
-            onDismiss()
-            vm.selectSource(source)
-        }
-        DeckDialogDivider()
         DeckDialogAction(Icons.Filled.OpenInNew, "Open source page") {
             runCatching {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(vm.browseUrl(source))))
