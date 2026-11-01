@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import com.winhub.hernandez.ui.components.RadioButton
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
+import com.winhub.hernandez.ui.components.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect

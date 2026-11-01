@@ -43,7 +43,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
+import com.winhub.hernandez.ui.components.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.DropdownMenu
@@ -57,15 +57,15 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import com.winhub.hernandez.ui.components.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
+import com.winhub.hernandez.ui.components.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton

@@ -26,8 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -39,9 +37,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -74,6 +71,7 @@ import com.winhub.hernandez.store.SocialHubFormat
 import com.winhub.hernandez.store.SocialHubStore
 import com.winhub.hernandez.store.SocialHubStore.Comment
 import com.winhub.hernandez.store.SocialHubStore.Post
+import com.winhub.hernandez.ui.screens.ControllerTextField
 import com.winhub.hernandez.ui.screens.DeckDragFrame
 import com.winhub.hernandez.ui.screens.DeckSearchField
 import com.winhub.hernandez.ui.screens.XmbWaves
@@ -133,7 +131,7 @@ internal fun SocialContent() {
             SocialHelpDot { showHelp = true }
             Spacer(Modifier.weight(1f))
             if (accountOrNull != null) {
-                IconButton(onClick = { SocialHubStore.refresh() }, modifier = Modifier.size(48.dp).deckDragSelf()) {
+                IconButton(onClick = { SocialHubStore.refresh() }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
                         contentDescription = stringResource(R.string.social_hub_refresh),
@@ -682,7 +680,7 @@ internal fun SocialThread(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onBack() }, modifier = Modifier.size(48.dp).deckDragSelf()) {
+            IconButton(onClick = { onBack() }, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.social_hub_back),
@@ -699,7 +697,7 @@ internal fun SocialThread(
                 modifier = Modifier.weight(1f),
             )
             if (post.authorLogin == accountLogin) {
-                IconButton(onClick = { confirmDeletePost = true }, modifier = Modifier.size(48.dp).deckDragSelf()) {
+                IconButton(onClick = { confirmDeletePost = true }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = stringResource(R.string.social_hub_delete_post),
@@ -781,23 +779,18 @@ internal fun SocialThread(
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            ControllerTextField(
                 value = draft,
                 onValueChange = { draft = it },
+                hint = stringResource(R.string.social_hub_reply_hint),
                 modifier = Modifier.weight(1f),
-                placeholder = {
-                    Text(
-                        stringResource(R.string.social_hub_reply_hint),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
                 maxLines = 3,
                 enabled = !busy,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { send() }),
+                imeAction = ImeAction.Send,
+                onImeAction = { send() },
             )
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = { send() }, enabled = draft.isNotBlank() && !busy, modifier = Modifier.size(48.dp).deckDragSelf()) {
+            IconButton(onClick = { send() }, enabled = draft.isNotBlank() && !busy, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = stringResource(R.string.social_hub_send),
@@ -835,7 +828,7 @@ private fun SocialCommentRow(comment: Comment, onDelete: (() -> Unit)?) {
             )
             Spacer(Modifier.weight(1f))
             if (onDelete != null) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp).deckDragSelf()) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = stringResource(R.string.social_hub_delete_reply),
@@ -901,20 +894,19 @@ private fun SocialComposeDialog(onDismiss: () -> Unit) {
         title = { Text(stringResource(R.string.social_hub_new_post_title)) },
         text = {
             Column {
-                OutlinedTextField(
+                ControllerTextField(
                     value = title,
                     onValueChange = { title = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.social_hub_post_title_field)) },
+                    hint = stringResource(R.string.social_hub_post_title_field),
                     singleLine = true,
                     enabled = !busy && !uploading,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                ControllerTextField(
                     value = body,
                     onValueChange = { body = it },
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    label = { Text(stringResource(R.string.social_hub_post_body_field)) },
+                    hint = stringResource(R.string.social_hub_post_body_field),
+                    minHeight = 120.dp,
                     enabled = !busy && !uploading,
                 )
                 Spacer(Modifier.height(6.dp))

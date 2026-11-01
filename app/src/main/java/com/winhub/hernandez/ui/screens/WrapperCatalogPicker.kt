@@ -26,7 +26,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Text

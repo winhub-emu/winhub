@@ -45,9 +45,9 @@ import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
+import com.winhub.hernandez.ui.components.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer

@@ -82,7 +82,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -979,7 +979,7 @@ fun FileManagerScreen(
                     if (clipboardFiles.size > 1) {
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Checkbox(
+                            com.winhub.hernandez.ui.components.Checkbox(
                                 checked = conflictApplyToAll,
                                 onCheckedChange = { conflictApplyToAll = it },
                             )
@@ -2061,7 +2061,7 @@ private fun FileItemRow(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = if (compact) 3.dp else 8.dp),
         ) {
             if (selectionMode) {
-                androidx.compose.material3.Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+                com.winhub.hernandez.ui.components.Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
                 Spacer(Modifier.width(4.dp))
             }
             when {
@@ -2459,7 +2459,7 @@ private fun FileGridTile(
                         )
                     }
                     if (selectionMode) {
-                        androidx.compose.material3.Checkbox(
+                        com.winhub.hernandez.ui.components.Checkbox(
                             checked = selected,
                             onCheckedChange = { onToggleSelect() },
                             modifier = Modifier.align(Alignment.TopStart),
@@ -2659,7 +2659,7 @@ private fun AttributeToggleRow(
             )
         }
         Spacer(Modifier.width(8.dp))
-        androidx.compose.material3.Switch(
+        com.winhub.hernandez.ui.components.Switch(
             checked = checked,
             enabled = enabled,
             onCheckedChange = onToggle,

@@ -11,7 +11,7 @@ import androidx.compose.material3.AlertDialog
 import com.winhub.hernandez.ui.screens.MenuItemDivider
 import com.winhub.hernandez.ui.screens.OutlinedAlertDialog
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
-import androidx.compose.material3.Checkbox
+import com.winhub.hernandez.ui.components.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox

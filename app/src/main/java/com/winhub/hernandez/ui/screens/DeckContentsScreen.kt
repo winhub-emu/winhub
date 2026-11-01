@@ -707,7 +707,7 @@ internal fun DeckSearchField(
                 }
             },
         )
-        if (!edit.editing) DeckEditOverlay(edit, Modifier.matchParentSize())
+        if (!edit.editing) DeckEditOverlay(edit, Modifier.matchParentSize(), ring = shape)
     }
 }
 

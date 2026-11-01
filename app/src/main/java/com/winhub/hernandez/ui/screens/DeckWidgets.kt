@@ -972,8 +972,14 @@ internal fun rememberDeckEditState(): DeckEditState {
 
 /** Transparent focus target laid over a field while it is not editing. A / Enter starts editing. */
 @Composable
-internal fun DeckEditOverlay(state: DeckEditState, modifier: Modifier = Modifier) {
+internal fun DeckEditOverlay(
+    state: DeckEditState,
+    modifier: Modifier = Modifier,
+    // When set, the overlay (the thing the pad actually focuses) draws the focus stroke itself.
+    ring: RoundedCornerShape? = null,
+) {
     val focus = remember { FocusRequester() }
+    val source = remember { MutableInteractionSource() }
     LaunchedEffect(Unit) {
         if (state.returnFocus) {
             state.returnFocus = false
@@ -983,8 +989,9 @@ internal fun DeckEditOverlay(state: DeckEditState, modifier: Modifier = Modifier
     Box(
         modifier = modifier
             .focusRequester(focus)
+            .then(if (ring != null) Modifier.deckOuterFocusStroke(source, ring) else Modifier)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = source,
                 indication = null,
             ) { state.editing = true }
             .onPreviewKeyEvent { event ->

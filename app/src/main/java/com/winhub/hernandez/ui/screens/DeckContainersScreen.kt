@@ -562,6 +562,7 @@ private fun DeckOutlineButton(text: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(DeckPalette.surfaceVariant)
             .border(1.dp, DeckPalette.line2, RoundedCornerShape(12.dp))
+            .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {
@@ -585,6 +586,7 @@ private fun DeckDangerButton(text: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(DeckPalette.error.copy(alpha = 0.12f))
             .border(1.dp, DeckPalette.error, RoundedCornerShape(12.dp))
+            .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {

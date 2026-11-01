@@ -53,7 +53,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -400,7 +400,7 @@ fun InputControlsScreen() {
                                     else selectedItems + i
                                 }.padding(vertical = 2.dp)
                             ) {
-                                androidx.compose.material3.Checkbox(checked = i in selectedItems, onCheckedChange = {
+                                com.winhub.hernandez.ui.components.Checkbox(checked = i in selectedItems, onCheckedChange = {
                                     selectedItems = if (it) selectedItems + i else selectedItems - i
                                 })
                                 Spacer(Modifier.width(8.dp))

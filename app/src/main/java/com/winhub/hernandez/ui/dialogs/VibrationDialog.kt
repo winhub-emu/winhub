@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import com.winhub.hernandez.ui.screens.OutlinedAlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Switch
+import com.winhub.hernandez.ui.components.Checkbox
+import com.winhub.hernandez.ui.components.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable

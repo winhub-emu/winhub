@@ -36,10 +36,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,6 +81,7 @@ import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.store.SocialHubFormat
 import com.winhub.hernandez.store.SocialHubStore
 import com.winhub.hernandez.store.SocialHubStore.Post
+import com.winhub.hernandez.ui.screens.ControllerTextField
 import com.winhub.hernandez.ui.screens.DeckDragFrame
 import com.winhub.hernandez.ui.screens.DeckEditorCategoryRail
 import com.winhub.hernandez.ui.screens.DeckEditorCategoryRow
@@ -294,7 +294,7 @@ private fun SocialConfigsContent() {
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp).deckDragSelf()) {
+                IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Filled.Refresh,
                         contentDescription = stringResource(R.string.social_hub_refresh),
@@ -592,11 +592,11 @@ private fun ConfigUploadDialog(onDismiss: () -> Unit) {
                 pick != null -> Column {
                     Text(pick.name, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
+                    ControllerTextField(
                         value = note,
                         onValueChange = { note = it },
-                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                        label = { Text(stringResource(R.string.social_hub_configs_note_hint)) },
+                        hint = stringResource(R.string.social_hub_configs_note_hint),
+                        minHeight = 120.dp,
                         enabled = !busy,
                     )
                     error?.let {
