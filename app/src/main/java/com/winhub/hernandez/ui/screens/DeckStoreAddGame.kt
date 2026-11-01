@@ -46,6 +46,8 @@ internal data class DeckAddRequest(
     val store: String? = null,
     val coverUrl: String? = null,
     val appId: Int? = null,
+    /** Extra .desktop keys written after the shortcut is created (the Xbox store's storeSource/xboxProductId). */
+    val extras: Map<String, String> = emptyMap(),
     val resolveExe: suspend () -> String?,
 )
 
@@ -117,7 +119,7 @@ internal fun DeckStoreAddFlow(request: DeckAddRequest, onDismiss: () -> Unit) {
                         }
                         val created = createDeckCronosContainer(context, name) ?: return@runCatching null
                         withContext(Dispatchers.IO) {
-                            linkStoreGame(context, created, File(path), name, appId, art, request.store)
+                            linkStoreGame(context, created, File(path), name, appId, art, request.store, request.extras)
                         }
                     }.getOrNull()
                     busy = false
@@ -143,7 +145,7 @@ internal fun DeckStoreAddFlow(request: DeckAddRequest, onDismiss: () -> Unit) {
                             withContext(Dispatchers.IO) { fetchHubCover(context, it) }
                         }
                         withContext(Dispatchers.IO) {
-                            linkStoreGame(context, container, File(path), name, appId, art, request.store)
+                            linkStoreGame(context, container, File(path), name, appId, art, request.store, request.extras)
                         }
                     }.getOrNull()
                     busy = false
@@ -168,8 +170,15 @@ private fun linkStoreGame(
     appId: Int?,
     coverPath: String?,
     store: String?,
+    extras: Map<String, String> = emptyMap(),
 ): HubGame {
     val desktop = ExeShortcutImporter.addToShortcuts(context, container, exeFile, name, appId)
+    if (extras.isNotEmpty()) {
+        com.winhub.hernandez.container.Shortcut(container, desktop).apply {
+            extras.forEach { (k, v) -> putExtra(k, v) }
+            saveData()
+        }
+    }
     val game = HubGame(name, container.id, desktop.absolutePath, appId, coverPath, store)
     HubGamesStore.add(context, game)
     return game

@@ -208,6 +208,7 @@ private data class DeckOwnedGame(
     val epic: EpicGame? = null,
     val amazon: AmazonGame? = null,
     val isXbox: Boolean = false,
+    val xbox: com.winhub.hernandez.store.xbox.XboxGame? = null,
     val steamAppId: Int = 0,
 )
 
@@ -282,6 +283,7 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
                     title = g.title,
                     art = g.posterUrl ?: g.heroUrl,
                     isXbox = true,
+                    xbox = g,
                     open = { ctx -> ctx.startActivity(com.winhub.hernandez.store.xbox.XboxMainActivity.detailIntent(ctx, g)) },
                 )
             }
@@ -441,6 +443,7 @@ private data class DeckBrowseItem(
     val price: String,
     val catalog: CatalogItem? = null,
     val appId: Int = 0,
+    val xbox: com.winhub.hernandez.store.xbox.XboxGame? = null,
     val open: (Context) -> Unit,
 )
 
@@ -531,6 +534,7 @@ private suspend fun deckFeatured(context: Context, screen: Screen): DeckStoreDat
             title = g.title,
             art = g.posterUrl ?: g.heroUrl,
             price = when { g.gamePass -> "Game Pass"; g.owned -> "Owned"; else -> "" },
+            xbox = g,
             open = { ctx -> ctx.startActivity(com.winhub.hernandez.store.xbox.XboxMainActivity.detailIntent(ctx, g)) },
         )
         DeckStoreData(
@@ -777,6 +781,7 @@ internal fun DeckStoresScreen() {
     var gogInstall by remember { mutableStateOf<GogGame?>(null) }
     var epicInstall by remember { mutableStateOf<EpicGame?>(null) }
     var amazonInstall by remember { mutableStateOf<AmazonGame?>(null) }
+    var xboxInstall by remember { mutableStateOf<com.winhub.hernandez.store.xbox.XboxGame?>(null) }
     var steamInstall by remember { mutableStateOf<DeckSteamTarget?>(null) }
     var showDownloads by remember { mutableStateOf(false) }
     var showMature by remember { mutableStateOf(StoreMatureSetting.get(context)) }
@@ -819,7 +824,7 @@ internal fun DeckStoresScreen() {
     val deckTabs = LocalDeckTabs.current
     LaunchedEffect(deckTabs) { deckTabs.bind(1) }
     val canLeaveStore = inStore && !showDownloads && gogInstall == null && epicInstall == null &&
-        amazonInstall == null && steamInstall == null
+        amazonInstall == null && xboxInstall == null && steamInstall == null
     val backLayer = LocalDeckBack.current
     DisposableEffect(canLeaveStore) {
         backLayer.onBack = if (canLeaveStore) {
@@ -836,6 +841,7 @@ internal fun DeckStoresScreen() {
             g.gog != null -> gogInstall = g.gog
             g.epic != null -> epicInstall = g.epic
             g.amazon != null -> amazonInstall = g.amazon
+            g.xbox != null -> xboxInstall = g.xbox
             g.steamAppId != 0 -> steamInstall = DeckSteamTarget(g.steamAppId, g.title, g.art)
             else -> g.open(context)
         }
@@ -865,6 +871,7 @@ internal fun DeckStoresScreen() {
                 }
                 if (owned != null) epicInstall = owned else item.open(context)
             }
+            active.screen == Screen.Xbox && item.xbox != null -> xboxInstall = item.xbox
             active.screen == Screen.Steam && item.appId != 0 ->
                 steamInstall = DeckSteamTarget(item.appId, item.title, item.art)
             else -> item.open(context)
@@ -911,6 +918,14 @@ internal fun DeckStoresScreen() {
                         putExtra("catalog_item_id", g.catalogItemId)
                     })
                 },
+            )
+        }
+        xboxInstall != null -> {
+            val g = xboxInstall!!
+            DeckXboxInstall(
+                game = g,
+                onBack = { xboxInstall = null },
+                onOpenStore = { context.startActivity(com.winhub.hernandez.store.xbox.XboxMainActivity.detailIntent(context, g)) },
             )
         }
         amazonInstall != null -> {
