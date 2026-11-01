@@ -2,7 +2,7 @@ package com.winhub.hernandez.store.compose
 
 import android.app.Activity
 import android.content.Intent
-import androidx.compose.foundation.clickable
+import com.winhub.hernandez.ui.components.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer

@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.winhub.hernandez.ui.screens.DeckDragRegistry
 import com.winhub.hernandez.ui.screens.DeckPalette
@@ -64,7 +65,8 @@ class ControllerFocusIndication(private val outline: Color = FocusOutlineColor) 
         val instance = remember(interactionSource, outline) { ControllerFocusInstance(outline) }
         instance.focused = focused
         instance.pressed = pressed
-        instance.drag = LocalDeckDrag.current
+        val window = LocalView.current
+        instance.drag = LocalDeckDrag.current?.takeIf { it.view === window }
         return instance
     }
 }

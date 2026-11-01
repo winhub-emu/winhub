@@ -19,7 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import com.winhub.hernandez.R
 import com.winhub.hernandez.ui.ControllerFocusIndication
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import com.winhub.hernandez.ui.ControllerNavRoot
+import com.winhub.hernandez.ui.screens.DeckDragFrame
 
 private val DefaultColorScheme = darkColorScheme(
     primary          = Primary,
@@ -86,7 +89,8 @@ fun WinlatorTheme(content: @Composable () -> Unit) {
             // inherits (keys are only dispatched while something in the tree holds focus). Set
             // inside MaterialTheme so nothing deeper can shadow it.
             CompositionLocalProvider(LocalIndication provides remember(colorScheme.primary) { ControllerFocusIndication(colorScheme.primary) }) {
-                ControllerNavRoot { content() }
+                // One animated focus ring for the whole window; screens with their own frame override it.
+                ControllerNavRoot { DeckDragFrame(Modifier.fillMaxSize()) { content() } }
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.winhub.hernandez.ui.screens
 
 import android.os.Handler
+import android.view.View
 import android.os.Looper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -97,6 +98,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -161,6 +163,9 @@ internal class DeckDragRegistry {
     var focusedKey: Any? by mutableStateOf(null)
     var rootTopLeft: Offset by mutableStateOf(Offset.Zero)
 
+    /** The window view this frame lives in; items from another window (a Dialog) must not register. */
+    var view: View? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private var clearToken = 0
     private var pendingClear: Runnable? = null
@@ -206,6 +211,7 @@ internal val LocalDeckDrag = compositionLocalOf<DeckDragRegistry?> { null }
 @Composable
 internal fun Modifier.deckDragItem(key: Any): Modifier {
     val registry = LocalDeckDrag.current
+    val view = LocalView.current
     DisposableEffect(registry, key) {
         onDispose {
             registry?.bounds?.remove(key)
@@ -214,7 +220,8 @@ internal fun Modifier.deckDragItem(key: Any): Modifier {
             if (registry?.focusedKey == key) registry?.clearNow()
         }
     }
-    if (registry == null) return this
+    // A Dialog inherits the frame's registry but has its own window coordinates: skip it there.
+    if (registry == null || registry.view !== view) return this
     return this
         .onGloballyPositioned { coords ->
             val local = coords.boundsInRoot().translate(-registry.rootTopLeft.x, -registry.rootTopLeft.y)
@@ -251,6 +258,7 @@ internal fun DeckDragFrame(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val registry = remember { DeckDragRegistry() }
+    registry.view = LocalView.current
     var hasFocus by remember { mutableStateOf(false) }
     val left = remember { Animatable(0f) }
     val top = remember { Animatable(0f) }

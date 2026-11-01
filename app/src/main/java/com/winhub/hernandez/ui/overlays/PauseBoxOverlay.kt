@@ -3,7 +3,7 @@ package com.winhub.hernandez.ui.overlays
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.winhub.hernandez.ui.components.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
