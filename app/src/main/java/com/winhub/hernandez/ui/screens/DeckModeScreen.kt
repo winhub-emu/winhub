@@ -3,6 +3,10 @@ package com.winhub.hernandez.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import com.winhub.hernandez.core.AppOrientation
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.content.Intent
@@ -272,6 +276,8 @@ private fun deckSections() = listOf(
 @Composable
 internal fun DeckModeScreen() {
     val context = LocalContext.current
+    // Portrait app-orientation pref: touch-first layout with every tab in a bottom bar.
+    val portrait = remember { AppOrientation.mode(context) == AppOrientation.PORTRAIT }
     // Android flips the whole app to touch mode on every screen tap. Compose's `clickable` is
     // non-touch focusable, so that silently drops every shelf card / list row out of the D-pad
     // focus tree until the next hardware key — the hero survives only because it forces
@@ -285,7 +291,7 @@ internal fun DeckModeScreen() {
     var deckDetail by remember { mutableStateOf<Int?>(null) }
     // General tab style: "horizontal" (top strip, default) or "vertical" (left rail).
     val tabStyle by AppThemeState.generalTabStyle.collectAsState()
-    val horizontalRail = tabStyle != "vertical"
+    val horizontalRail = portrait || tabStyle != "vertical"
     val railSections = remember { deckSections() }
 
     // Controller-first back stack: B (or system Back) closes the container editor and nothing more. It never
@@ -385,9 +391,9 @@ internal fun DeckModeScreen() {
     DisposableEffect(Unit) {
         val activity = context as? Activity
         val previousOrientation = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        if (!portrait) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         val controller = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
-        if (controller != null) {
+        if (controller != null && !portrait) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
         }
@@ -433,6 +439,7 @@ internal fun DeckModeScreen() {
                 .background(Deck.background)
                 // Behind the bar too, so a see-through top bar shows the page glow.
                 .drawBehind { drawDeckCornerGlow(Deck.primary) }
+                .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->
                     if (DeckConsole.boot) {
@@ -462,7 +469,7 @@ internal fun DeckModeScreen() {
                 .onFocusChanged { shellOnly = it.isFocused }
                 .focusable(),
         ) {
-            DeckTopTabs(
+            if (!portrait) DeckTopTabs(
                 sections = railSections,
                 selected = section,
                 onSelect = { next -> section = next; deckDetail = null },
@@ -483,10 +490,16 @@ internal fun DeckModeScreen() {
                     onDetailOpen = { id -> deckDetail = id },
                     onGraphicPane = { graphicPane = it },
                     homeFocus = homeHeroFocus,
+                    portrait = portrait,
                 )
-                DeckHintBar(Modifier.align(Alignment.BottomEnd), onBack = hintBack, onPrev = { hintStep(-1) }, onNext = { hintStep(1) }, subTabs = tabs.count > 1)
+                if (!portrait) DeckHintBar(Modifier.align(Alignment.BottomEnd), onBack = hintBack, onPrev = { hintStep(-1) }, onNext = { hintStep(1) }, subTabs = tabs.count > 1)
                 DeckCornerGlow()
             }
+            if (portrait) DeckBottomTabs(
+                sections = railSections,
+                selected = section,
+                onSelect = { next -> section = next; deckDetail = null },
+            )
         }
     } else {
     Row(
@@ -1501,6 +1514,7 @@ private fun DeckPaneContent(
     onDetailOpen: (Int) -> Unit,
     onGraphicPane: (String) -> Unit,
     homeFocus: FocusRequester,
+    portrait: Boolean = false,
 ) {
     // Every tab switch slides the incoming pane up from the bottom while the outgoing one
     // drops away — one motion for the whole shell.
@@ -1545,7 +1559,8 @@ private fun DeckPaneContent(
                     DeckContainersScreen(onEditContainer = onDetailOpen)
                 }
             }
-            "stores" -> DeckStoresScreen()
+            // Portrait uses the classic store screens; Deck-styled stores stay for landscape.
+            "stores" -> if (portrait) PortraitStoresScreen() else DeckStoresScreen()
             "file_manager" -> FileManagerScreen(deckMode = true)
             "graphics" -> DeckGraphicsPane(
                 pane = graphicPane,
@@ -1712,6 +1727,64 @@ private fun DeckTopTabs(
         }
     }
     HorizontalDivider(color = Deck.line.copy(alpha = barOpacity))
+}
+
+/**
+ * Portrait bottom bar: every section as an icon + label tab (72dp wide, 60dp tall), scrolling
+ * sideways when they don't all fit and keeping the selected one centred. Touch only.
+ */
+@Composable
+private fun DeckBottomTabs(
+    sections: List<DeckSection>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    val barOpacity by AppThemeState.topBarOpacity.collectAsState()
+    val density = LocalDensity.current
+    val scroll = rememberScrollState()
+    val itemWidth = 72.dp
+    val index = sections.indexOfFirst { it.key == selected }.coerceAtLeast(0)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().background(Deck.surface.copy(alpha = barOpacity))) {
+        val viewportPx = with(density) { maxWidth.toPx() }
+        val itemPx = with(density) { itemWidth.toPx() }
+        LaunchedEffect(index, viewportPx) {
+            scroll.animateScrollTo((index * itemPx - (viewportPx - itemPx) / 2f).toInt().coerceAtLeast(0))
+        }
+        Column {
+            HorizontalDivider(color = Deck.line.copy(alpha = barOpacity))
+            Row(modifier = Modifier.horizontalScroll(scroll).padding(horizontal = 4.dp, vertical = 4.dp)) {
+                sections.forEach { item ->
+                    val current = selected == item.key
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .width(itemWidth)
+                            .height(60.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (current) Deck.primary.copy(alpha = 0.14f) else Color.Transparent)
+                            .focusProperties { canFocus = false }
+                            .clickable { onSelect(item.key) },
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = null,
+                            tint = if (current) Deck.primary else Deck.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Text(
+                            text = item.label,
+                            color = if (current) Deck.primary else Deck.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            fontWeight = if (current) FontWeight.SemiBold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
