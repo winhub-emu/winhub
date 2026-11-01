@@ -104,9 +104,9 @@ internal fun DeckXboxInstall(game: XboxGame, onBack: () -> Unit, onOpenStore: ((
             errorText = null
             busy = true
             scope.launch {
-                val choices = withContext(Dispatchers.IO) { runCatching { XboxDownloads.resolve(appCtx, game) } }
+                val resolved = withContext(Dispatchers.IO) { runCatching { XboxDownloads.resolve(appCtx, game) } }
                 busy = false
-                choices.onFailure { errorText = it.message ?: "The Xbox package could not be resolved." }
+                resolved.onFailure { errorText = it.message ?: "The Xbox package could not be resolved." }
                     .onSuccess { list ->
                         if (list.size == 1) XboxDownloads.start(appCtx, game, list.single().contentId)
                         else choices = list
