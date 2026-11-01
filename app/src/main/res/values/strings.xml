@@ -2580,9 +2580,6 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="social_hub_configs_empty_hint">Share your game settings so others can import them in one tap.</string>
     <string name="social_hub_configs_working">Working…</string>
     <string name="social_hub_configs_pick_exe">Select the game\'s .exe</string>
-    <string name="social_hub_configs_by">By %1$s</string>
-    <string name="social_hub_configs_components">Components:\n%1$s</string>
-    <string name="social_hub_configs_import_hint">Import builds a new container for this game, downloads the components it needs from their sources and applies the settings.</string>
     <string name="social_hub_configs_import">Import</string>
     <string name="social_hub_configs_close">Close</string>
     <string name="social_hub_configs_back">Back</string>
@@ -2591,4 +2588,11 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="social_hub_configs_no_games">No games found. Add a game first.</string>
     <string name="social_hub_configs_note_hint">Note (optional)</string>
     <string name="social_hub_configs_share">Share</string>
+    <string name="social_hub_configs_search_hint">Search configs</string>
+    <string name="social_hub_configs_matches_device">Matches my device</string>
+    <string name="social_hub_configs_no_match">No configs match</string>
+    <string name="social_hub_configs_no_match_hint">Try another word, or turn off the device filter.</string>
+    <string name="social_hub_configs_stats">%1$d likes • %2$d replies</string>
+    <string name="social_hub_configs_like">Like (%1$d)</string>
+    <string name="social_hub_configs_liked">Liked (%1$d)</string>
 </resources>

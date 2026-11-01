@@ -491,7 +491,11 @@ private fun SocialFeed(
 }
 
 @Composable
-private fun SocialSearchField(query: String, onQueryChange: (String) -> Unit) {
+internal fun SocialSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    @androidx.annotation.StringRes hint: Int = R.string.social_hub_search_hint,
+) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
@@ -499,7 +503,7 @@ private fun SocialSearchField(query: String, onQueryChange: (String) -> Unit) {
         singleLine = true,
         placeholder = {
             Text(
-                stringResource(R.string.social_hub_search_hint),
+                stringResource(hint),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
@@ -624,7 +628,13 @@ private fun SocialPostRow(post: Post, onClick: () -> Unit) {
 // ───── Thread (post + replies) ─────
 
 @Composable
-private fun SocialThread(accountLogin: String, post: Post?) {
+internal fun SocialThread(
+    accountLogin: String,
+    post: Post?,
+    onBack: () -> Unit = { SocialHubStore.openPost(null) },
+    // Extra content between the post card and the replies (the Configs tab puts its actions here).
+    extra: @Composable () -> Unit = {},
+) {
     val comments by SocialHubStore.comments.collectAsState()
     val commentsLoading by SocialHubStore.commentsLoading.collectAsState()
     val busy by SocialHubStore.busy.collectAsState()
@@ -669,7 +679,7 @@ private fun SocialThread(accountLogin: String, post: Post?) {
                     confirmDeletePost = false
                     scope.launch {
                         SocialHubStore.deletePost(post.number)
-                        SocialHubStore.openPost(null)
+                        onBack()
                     }
                 }) { Text(stringResource(R.string.social_hub_delete)) }
             },
@@ -698,7 +708,7 @@ private fun SocialThread(accountLogin: String, post: Post?) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { SocialHubStore.openPost(null) }, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = { onBack() }, modifier = Modifier.size(36.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.social_hub_back),
@@ -763,6 +773,7 @@ private fun SocialThread(accountLogin: String, post: Post?) {
             }
         }
         Spacer(Modifier.height(8.dp))
+        extra()
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when {

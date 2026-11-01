@@ -71,6 +71,8 @@ object SocialHubStore {
         val commentCount: Int,
         /** Author identity drives the delete affordance; "" when unknown. */
         val authorLogin: String,
+        /** GitHub +1 reactions on the issue. */
+        val likes: Int = 0,
     ) {
         val isMine: Boolean get() = authorLogin.isNotEmpty() && authorLogin == SocialHubStore.accountOrNull()?.login
         val images: List<String> get() = SocialHubFormat.imageUrls(body)
@@ -377,6 +379,57 @@ object SocialHubStore {
         }
     }
 
+    /** Result of [toggleLike]: [error] is a user-facing message, [reactionId] is the caller's +1 afterwards (null = not liked). */
+    data class LikeResult(val error: String?, val reactionId: Long?)
+
+    /** The signed-in user's +1 reaction id on issue [number], or null when none / signed out / on a failed read. */
+    suspend fun myLikeId(number: Int): Long? = withContext(Dispatchers.IO) {
+        val login = _account.value?.login ?: return@withContext null
+        val request = Request.Builder()
+            .url("$ISSUES_URL/$number/reactions?content=%2B1&per_page=100")
+            .headers(authHeaders()).get().build()
+        val (code, text) = execute(request)
+        if (code !in 200..299) return@withContext null
+        try {
+            val array = JSONArray(text)
+            (0 until array.length()).map { array.getJSONObject(it) }
+                .firstOrNull { it.optJSONObject("user")?.optString("login") == login }
+                ?.optLong("id")
+        } catch (t: Throwable) {
+            if (BuildConfig.DEBUG) Log.w(TAG, "myLikeId", t)
+            null
+        }
+    }
+
+    /** Like when [myReactionId] is null, otherwise remove that like. Keeps the config list's count in step. */
+    suspend fun toggleLike(number: Int, myReactionId: Long?): LikeResult = withContext(Dispatchers.IO) {
+        if (_account.value == null) return@withContext LikeResult("Sign in to like configs.", myReactionId)
+        val url = "$ISSUES_URL/$number/reactions"
+        if (myReactionId == null) {
+            val (code, text) = postJson(url, JSONObject().put("content", "+1").toString())
+            if (code !in 200..299) return@withContext LikeResult(githubError(text, code, "Could not like this."), null)
+            val id = try {
+                JSONObject(text).optLong("id").takeIf { it > 0 }
+            } catch (t: Throwable) {
+                null
+            }
+            // 200 = GitHub already had our +1, so the count must not move.
+            if (code == 201) adjustLikes(number, +1)
+            LikeResult(null, id)
+        } else {
+            val (code, text) = execute(Request.Builder().url("$url/$myReactionId").headers(authHeaders()).delete().build())
+            if (code !in 200..299 && code != 404) return@withContext LikeResult(githubError(text, code, "Could not remove your like."), myReactionId)
+            if (code != 404) adjustLikes(number, -1)
+            LikeResult(null, null)
+        }
+    }
+
+    private fun adjustLikes(number: Int, delta: Int) {
+        _configs.value = _configs.value.map { p ->
+            if (p.number == number) p.copy(likes = (p.likes + delta).coerceAtLeast(0)) else p
+        }
+    }
+
     /**
      * Reply to the open post. Returns null on success, or a user-facing error string.
      * Same optimistic rule as [createPost]: the created comment is appended locally.
@@ -571,6 +624,7 @@ object SocialHubStore {
             createdAtMs = parseGitHubTime(o.optString("created_at")) ?: now,
             commentCount = o.optInt("comments"),
             authorLogin = login,
+            likes = o.optJSONObject("reactions")?.optInt("+1") ?: 0,
         )
     }
 
@@ -618,6 +672,9 @@ object SocialHubStore {
             _comments.value = current + comment
             val open = _openPost.value ?: return
             _posts.value = _posts.value.map { p ->
+                if (p.number == open) p.copy(commentCount = p.commentCount + 1) else p
+            }
+            _configs.value = _configs.value.map { p ->
                 if (p.number == open) p.copy(commentCount = p.commentCount + 1) else p
             }
         } catch (t: Throwable) {

@@ -28,16 +28,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,6 +69,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.winhub.hernandez.R
+import com.winhub.hernandez.communityconfigs.DeviceIdentity
+import com.winhub.hernandez.communityconfigs.GameMatcher
 import com.winhub.hernandez.communityconfigs.SocialConfigs
 import com.winhub.hernandez.container.ContainerManager
 import com.winhub.hernandez.container.Shortcut
@@ -175,8 +180,13 @@ private fun SocialConfigsContent() {
     val configs by SocialHubStore.configs.collectAsState()
     val loading by SocialHubStore.configsLoading.collectAsState()
 
-    var detail by remember { mutableStateOf<Post?>(null) }
+    // Number, not Post: the open config is re-read from the list so likes/replies stay live.
+    var detailNumber by remember { mutableStateOf<Int?>(null) }
     var showUpload by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var matchesMyDevice by rememberSaveable { mutableStateOf(false) }
+    // (soc, gpu) of this device; the GPU probe is native, so it stays off the main thread.
+    var userHw by remember { mutableStateOf<Pair<String?, String?>?>(null) }
     var importing by remember { mutableStateOf<ImportUi?>(null) }
     // The config waiting for the user to pick the game's exe.
     var pendingImport by remember { mutableStateOf<Post?>(null) }
@@ -184,6 +194,32 @@ private fun SocialConfigsContent() {
     LaunchedEffect(Unit) {
         SocialHubStore.init(ctx)
         SocialHubStore.refreshConfigs()
+    }
+    LaunchedEffect(Unit) {
+        userHw = withContext(Dispatchers.IO) { DeviceIdentity.soc() to DeviceIdentity.gpu(ctx) }
+    }
+    // Leaving the tab with a thread open must not leave the store pointing at it.
+    DisposableEffect(Unit) { onDispose { SocialHubStore.openPost(null) } }
+
+    val open = detailNumber?.let { n -> configs.firstOrNull { it.number == n } }
+    val closeDetail = {
+        detailNumber = null
+        SocialHubStore.openPost(null)
+    }
+    BackHandler(enabled = open != null) { closeDetail() }
+
+    val visible = remember(configs, query, matchesMyDevice, userHw) {
+        val tokens = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        configs.filter { post ->
+            val json = SocialHubFormat.configJson(post.body).orEmpty()
+            val (device, soc) = SocialConfigs.hardware(json)
+            val haystack = (listOf(post.title, post.author, device, soc, SocialHubFormat.configNote(post.body)) +
+                SocialConfigs.componentNames(json)).joinToString(" ").lowercase()
+            val textOk = tokens.all { haystack.contains(it) }
+            val hwOk = !matchesMyDevice ||
+                (userHw?.let { (mySoc, myGpu) -> GameMatcher.hardwareMatchesUser(mySoc, myGpu, listOf(device, soc)) } ?: false)
+            textOk && hwOk
+        }
     }
 
     val pickExeTitle = stringResource(R.string.social_hub_configs_pick_exe)
@@ -209,90 +245,88 @@ private fun SocialConfigsContent() {
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                stringResource(R.string.social_hub_subtab_configs),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    Icons.Filled.Refresh,
-                    contentDescription = stringResource(R.string.social_hub_refresh),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    if (open != null) {
+        val note = SocialHubFormat.configNote(open.body)
+        SocialThread(
+            accountLogin = account?.login.orEmpty(),
+            post = open.copy(body = note),
+            onBack = closeDetail,
+            extra = {
+                ConfigActions(
+                    post = open,
+                    signedIn = account != null,
+                    onImport = {
+                        pendingImport = open
+                        pickExe.launch(InAppFilePicker.buildIntent(ctx, InAppFilePicker.SHORTCUT, pickExeTitle))
+                    },
                 )
-            }
-            Button(onClick = { showUpload = true }, enabled = account != null, modifier = Modifier.heightIn(min = 48.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.social_hub_configs_upload), fontSize = 14.sp)
-            }
-        }
-        if (account == null) {
-            Text(
-                stringResource(R.string.social_hub_configs_sign_in_hint),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                loading && configs.isEmpty() -> Column(
-                    Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.height(10.dp))
-                    Text(stringResource(R.string.social_hub_configs_loading), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                configs.isEmpty() -> Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        stringResource(R.string.social_hub_configs_empty),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.social_hub_configs_empty_hint),
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                    items(configs, key = { it.number }) { post -> ConfigRow(post) { detail = post } }
-                }
-            }
-        }
-    }
-
-    detail?.let { post ->
-        ConfigDetailDialog(
-            post = post,
-            onDismiss = { detail = null },
-            onImport = {
-                detail = null
-                pendingImport = post
-                pickExe.launch(InAppFilePicker.buildIntent(ctx, InAppFilePicker.SHORTCUT, pickExeTitle))
-            },
-            onDelete = {
-                detail = null
-                scope.launch { SocialHubStore.deletePost(post.number)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
             },
         )
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    stringResource(R.string.social_hub_subtab_configs),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        Icons.Filled.Refresh,
+                        contentDescription = stringResource(R.string.social_hub_refresh),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Button(onClick = { showUpload = true }, enabled = account != null, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.social_hub_configs_upload), fontSize = 14.sp)
+                }
+            }
+            if (account == null) {
+                Text(
+                    stringResource(R.string.social_hub_configs_sign_in_hint),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            SocialSearchField(query = query, onQueryChange = { query = it }, hint = R.string.social_hub_configs_search_hint)
+            Spacer(Modifier.height(6.dp))
+            ToggleChip(
+                text = stringResource(R.string.social_hub_configs_matches_device),
+                checked = matchesMyDevice,
+                onClick = { matchesMyDevice = !matchesMyDevice },
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    loading && configs.isEmpty() -> Column(
+                        Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(10.dp))
+                        Text(stringResource(R.string.social_hub_configs_loading), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    configs.isEmpty() -> EmptyNote(R.string.social_hub_configs_empty, R.string.social_hub_configs_empty_hint)
+                    visible.isEmpty() -> EmptyNote(R.string.social_hub_configs_no_match, R.string.social_hub_configs_no_match_hint)
+                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+                        items(visible, key = { it.number }) { post ->
+                            ConfigRow(post) {
+                                detailNumber = post.number
+                                SocialHubStore.openPost(post.number)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showUpload) ConfigUploadDialog(onDismiss = { showUpload = false })
@@ -389,57 +423,123 @@ private fun ConfigRow(post: Post, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+         Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.social_hub_configs_stats, post.likes, post.commentCount),
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
 @Composable
-private fun ConfigDetailDialog(post: Post, onDismiss: () -> Unit, onImport: () -> Unit, onDelete: () -> Unit) {
+private fun EmptyNote(@androidx.annotation.StringRes title: Int, @androidx.annotation.StringRes hint: Int) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            stringResource(title),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(hint),
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** On/off filter pill; the check mark (not just the colour) shows the state. */
+@Composable
+private fun ToggleChip(text: String, checked: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(
+                if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            )
+            .border(
+                if (focused) 2.dp else 1.dp,
+                if (focused) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                shape,
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            if (checked) "✓ $text" else text,
+            fontSize = 14.sp,
+            fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/** Like + Import for the open config, shown between the post card and the replies. */
+@Composable
+private fun ConfigActions(post: Post, signedIn: Boolean, onImport: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     val json = remember(post.number) { SocialHubFormat.configJson(post.body).orEmpty() }
     val parts = remember(post.number) { SocialConfigs.componentNames(json) }
     val (device, soc) = remember(post.number) { SocialConfigs.hardware(json) }
-    val note = remember(post.number) { SocialHubFormat.configNote(post.body) }
+    var myLike by remember(post.number) { mutableStateOf<Long?>(null) }
+    var liking by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(post.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(stringResource(R.string.social_hub_configs_by, post.author), fontSize = 14.sp)
-                val hw = listOf(device, soc).filter { it.isNotBlank() }.joinToString(" • ")
-                if (hw.isNotBlank()) Text(hw, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (note.isNotBlank()) Text(note, fontSize = 14.sp)
-                if (parts.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.social_hub_configs_components, parts.joinToString("\n")),
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+    LaunchedEffect(post.number, signedIn) { myLike = SocialHubStore.myLikeId(post.number) }
+
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val hw = listOf(device, soc).filter { it.isNotBlank() }.joinToString(" • ")
+        if (hw.isNotBlank()) Text(hw, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!signedIn) {
+            Text(stringResource(R.string.social_hub_configs_sign_in_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (parts.isNotEmpty()) {
+            Text(parts.joinToString(" • "), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            val liked = myLike != null
+            val likeClick = {
+                liking = true
+                scope.launch {
+                    val r = SocialHubStore.toggleLike(post.number, myLike)
+                    if (r.error != null) Toast.makeText(ctx, r.error, Toast.LENGTH_LONG).show() else myLike = r.reactionId
+                    liking = false
                 }
-                Text(
-                    stringResource(R.string.social_hub_configs_import_hint),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Unit
             }
-        },
-        confirmButton = {
-            Button(onClick = onImport, modifier = Modifier.heightIn(min = 48.dp)) {
+            val likeLabel = stringResource(if (liked) R.string.social_hub_configs_liked else R.string.social_hub_configs_like, post.likes)
+            if (liked) {
+                Button(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f)) {
+                    Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(likeLabel, fontSize = 14.sp)
+                }
+            } else {
+                OutlinedButton(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f)) {
+                    Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(likeLabel, fontSize = 14.sp)
+                }
+            }
+            Button(onClick = onImport, modifier = Modifier.heightIn(min = 48.dp).weight(1f)) {
                 Text(stringResource(R.string.social_hub_configs_import), fontSize = 14.sp)
             }
-        },
-        dismissButton = {
-            Row {
-                if (post.isMine) {
-                    TextButton(onClick = onDelete, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text(stringResource(R.string.social_hub_delete))
-                    }
-                }
-                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(stringResource(R.string.social_hub_configs_close))
-                }
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable
