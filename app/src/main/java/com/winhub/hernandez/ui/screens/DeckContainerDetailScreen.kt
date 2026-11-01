@@ -134,8 +134,9 @@ internal fun DeckContainerDetailScreen(
     // Category-navigation layout — a setting (Settings → Appearance → Container Editor Layout).
     // "rail" = animated left rail (default), "pages" = full-page list.
     val context = LocalContext.current
+    val portraitUi = LocalDeckPortrait.current
     val layoutPref = remember {
-        PreferenceManager.getDefaultSharedPreferences(context)
+        if (portraitUi) "pages" else PreferenceManager.getDefaultSharedPreferences(context)
             .getString("container_editor_layout", "rail")?.takeIf { it != "tabs" } ?: "rail"
     }
     // "popup" = config editors open in a DeckConfigDialog; "dropdown" = classic inline

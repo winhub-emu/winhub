@@ -133,7 +133,8 @@ internal fun DeckSettingsScreen() {
     var editorLayout by remember { mutableStateOf(prefs.getString("container_editor_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
     // This page's own category layout ("tabs" | "rail" | "pages"). Defaults to the left rail — the
     // requested default — and is independent of the container editor's choice.
-    var settingsLayout by remember { mutableStateOf(prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
+    val portraitUi = LocalDeckPortrait.current
+    var settingsLayout by remember { mutableStateOf(if (portraitUi) "pages" else prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
     // One switch to make Save Manager and Contents follow the Settings Layout above instead of
     // always using their top strip. Off by default so the classic Deck tabs stay untouched.
     var universalLayout by remember { mutableStateOf(prefs.getBoolean("deck_universal_layout", false)) }
@@ -660,6 +661,25 @@ internal fun DeckSettingsScreen() {
             )
         }
 
+        // ── Orientation ── (only place this can be changed; the app restarts its screen to apply it)
+        DeckGroup(title = "Orientation") {
+            DeckChoiceRow(
+                label = "App orientation",
+                hint = "Portrait is a touch-first layout with the tabs along the bottom",
+                options = listOf(
+                    AppOrientation.AUTO to "Landscape",
+                    AppOrientation.PORTRAIT to "Portrait",
+                ),
+                selected = if (AppOrientation.mode(context) == AppOrientation.PORTRAIT) AppOrientation.PORTRAIT else AppOrientation.AUTO,
+                onPick = { mode ->
+                    if (mode != AppOrientation.mode(context)) {
+                        AppOrientation.setMode(context, mode)
+                        activity?.recreate()
+                    }
+                },
+            )
+        }
+
         // ── Home ──
         DeckGroup(title = "Home") {
             DeckChoiceRow(
@@ -707,7 +727,7 @@ internal fun DeckSettingsScreen() {
                     prefs.edit().putString("config_editor_style", it).apply()
                 },
             )
-            DeckChoiceRow(
+            if (!portraitUi) DeckChoiceRow(
                 label = "Container Editor Layout",
                 hint = "How the container editor arranges its categories",
                 options = listOf(
@@ -720,7 +740,7 @@ internal fun DeckSettingsScreen() {
                     prefs.edit().putString("container_editor_layout", it).apply()
                 },
             )
-            DeckChoiceRow(
+            if (!portraitUi) DeckChoiceRow(
                 label = "Settings Layout",
                 hint = "How this Settings page arranges its categories",
                 options = listOf(
@@ -734,7 +754,7 @@ internal fun DeckSettingsScreen() {
                     prefs.edit().putString("settings_layout", it).apply()
                 },
             )
-            DeckRow(
+            if (!portraitUi) DeckRow(
                 label = "Apply Settings layout everywhere",
                 hint = "Save Manager and Contents use the Settings Layout choice above",
             ) {

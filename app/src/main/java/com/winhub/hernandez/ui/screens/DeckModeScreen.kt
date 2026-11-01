@@ -429,6 +429,7 @@ internal fun DeckModeScreen() {
             LocalDeckBack provides backLayer,
             LocalDeckEditTracker provides editTracker,
             LocalDeckMode provides true,
+            LocalDeckPortrait provides portrait,
         ) {
     // Horizontal style puts the sections in a top strip (L1/R1 switch them); vertical keeps the
     // left rail. Both host the same pane content below/right of the nav.
@@ -626,6 +627,7 @@ internal fun decodeCover(context: Context, asset: String): Bitmap? = runCatching
 private fun DeckHome(
     heroFocus: FocusRequester = remember { FocusRequester() },
     onEditContainer: (Int) -> Unit = {},
+    portrait: Boolean = false,
 ) {
     val context = LocalContext.current
     val activity = context as Activity
@@ -633,7 +635,7 @@ private fun DeckHome(
     // L2/R2 switch the shelves (All / Recent / Favourites / Store games) through the shell's sub-tabs.
     val deckTabs = LocalDeckTabs.current
     // Home style (Settings > Appearance): XMB keeps this Home and swaps the game dropdown for the XMB one.
-    val xmbStyle = remember { PreferenceManager.getDefaultSharedPreferences(context).getString("home_style", "xmb") != "classic" }
+    val xmbStyle = !portrait && remember { PreferenceManager.getDefaultSharedPreferences(context).getString("home_style", "xmb") != "classic" }
     LaunchedEffect(deckTabs) { deckTabs.bind(4) }
     val shelf = deckTabs.index
     var favs by remember {
@@ -1054,7 +1056,7 @@ private fun DeckHome(
                 .background(Deck.background)
                 .clipToBounds(),
         ) {
-            DeckCapsuleWall(
+            if (!portrait) DeckCapsuleWall(
                 covers = wallCovers,
                 driftMs = if (covers.isEmpty()) 75_000 else 40_000,
             )
@@ -1083,9 +1085,20 @@ private fun DeckHome(
                     )
                 },
             )
-            DeckWallFade()
+            if (!portrait) DeckWallFade()
 
-            DeckHomeCarousel(
+            if (portrait) PortraitHome(
+                entries = visible,
+                loaded = entries != null,
+                selected = sel,
+                favs = favs,
+                shelf = shelf,
+                onShelf = { deckTabs.select(it) },
+                onSelect = { selected = it },
+                onPlay = { current?.let { playEntry(it) } },
+                onMenu = { classicMenu = true },
+                onAdd = { addModeMenu = true },
+            ) else DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {
                     // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
                     alpha = intro.value * homeFade
@@ -1118,7 +1131,7 @@ private fun DeckHome(
                     color = DeckPalette.primary,
                     modifier = Modifier.align(Alignment.Center),
                 )
-            } else if (visible.isEmpty() && entries.orEmpty().isNotEmpty()) {
+            } else if (!portrait && visible.isEmpty() && entries.orEmpty().isNotEmpty()) {
                 Text(
                     if (xmbStyle) "Nothing on this shelf yet - press Y on a game to favourite it" else "Nothing on this shelf yet - open a game's menu (Y) to favourite it",
                     color = DeckPalette.onSurfaceVariant,
@@ -1128,7 +1141,7 @@ private fun DeckHome(
             }
 
             // Shelves (L2/R2) top centre, status top right.
-            DeckStretchyTabs(
+            if (!portrait) DeckStretchyTabs(
                 labels = listOf("All", "Recent", "Favourites", "Store games"),
                 selected = shelf,
                 onSelect = { deckTabs.select(it) },
@@ -1137,7 +1150,7 @@ private fun DeckHome(
                 height = 30.dp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
-            DeckStatusStrip(
+            if (!portrait) DeckStatusStrip(
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },
             )
             AnimatedVisibility(
@@ -1532,7 +1545,7 @@ private fun DeckPaneContent(
         label = "deckSection",
     ) { currentSection ->
         when (currentSection) {
-            "home" -> DeckHome(heroFocus = homeFocus, onEditContainer = onEditContainer)
+            "home" -> DeckHome(heroFocus = homeFocus, onEditContainer = onEditContainer, portrait = portrait)
             "containers" -> AnimatedContent(
                 targetState = deckDetail,
                 transitionSpec = {

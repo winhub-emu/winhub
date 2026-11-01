@@ -176,16 +176,23 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
             )
             Spacer(Modifier.height(10.dp))
 
-            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            DeckEditorCategoryRail(
-                labels = listOf("Cronos", "Containers"),
-                selected = subtab,
-                onSelect = { tabs.select(it) },
-                padFocus = false,
-                modifier = Modifier.width(200.dp).fillMaxHeight(),
-            )
-            Spacer(Modifier.width(16.dp))
-
+            DeckRailLayout(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                rail = {
+                    if (LocalDeckPortrait.current) {
+                        DeckPortraitChips(listOf("Cronos", "Containers"), subtab) { tabs.select(it) }
+                    } else {
+                        DeckEditorCategoryRail(
+                            labels = listOf("Cronos", "Containers"),
+                            selected = subtab,
+                            onSelect = { tabs.select(it) },
+                            padFocus = false,
+                            modifier = Modifier.width(200.dp).fillMaxHeight(),
+                        )
+                        Spacer(Modifier.width(16.dp))
+                    }
+                },
+            ) { bodyModifier ->
             AnimatedContent(
                 targetState = subtab,
                 transitionSpec = {
@@ -201,10 +208,7 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                                 },
                         )
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .focusGroup(),
+                modifier = bodyModifier.focusGroup(),
                 label = "storageTab",
             ) { which ->
                 if (which == 0) {

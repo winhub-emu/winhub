@@ -1833,7 +1833,7 @@ fun FileManagerScreen(
                         selected = deckLocations.indexOfFirst { it.selected },
                         onSelect = { deckLocations.getOrNull(it)?.onClick?.invoke() },
                         selectOnFocus = true,
-                        modifier = Modifier.width(170.dp).fillMaxHeight().padding(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier.width(if (LocalDeckPortrait.current) 112.dp else 170.dp).fillMaxHeight().padding(horizontal = 8.dp, vertical = 6.dp),
                     )
                 }
             }

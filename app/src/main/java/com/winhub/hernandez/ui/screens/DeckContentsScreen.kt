@@ -168,7 +168,9 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
     val context = LocalContext.current
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     val universalLayout = prefs.getBoolean("deck_universal_layout", false)
-    val layout = if (universalLayout) {
+    val layout = if (LocalDeckPortrait.current) {
+        "pages"
+    } else if (universalLayout) {
         prefs.getString("settings_layout", "rail") ?: "rail"
     } else {
         "tabs"
