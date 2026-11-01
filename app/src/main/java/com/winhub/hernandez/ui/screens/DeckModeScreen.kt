@@ -2620,10 +2620,10 @@ private fun DeckHomeCarousel(
                             .drawBehind {
                                 val gl = (1f - abs(i - gPos.floatValue)).coerceIn(0f, 1f) * (1f - upT.value)
                                 if (gl > 0.02f) {
-                                    val radius = maxOf(size.width, size.height) * 0.95f
+                                    val radius = maxOf(size.width, size.height) * 0.68f
                                     drawCircle(
                                         brush = Brush.radialGradient(
-                                            listOf(accent.copy(alpha = 0.5f * gl), Color.Transparent),
+                                            listOf(accent.copy(alpha = 0.4f * gl), Color.Transparent),
                                             center = center, radius = radius,
                                         ),
                                         radius = radius, center = center,
@@ -2632,7 +2632,7 @@ private fun DeckHomeCarousel(
                             }
                             .graphicsLayer {
                                 val gl = (1f - abs(i - gPos.floatValue)).coerceIn(0f, 1f) * (1f - upT.value)
-                                shadowElevation = 30.dp.toPx() * gl
+                                shadowElevation = 12.dp.toPx() * gl
                                 ambientShadowColor = accent
                                 spotShadowColor = accent
                                 shape = cardShape
