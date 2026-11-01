@@ -501,6 +501,8 @@ jobs:
         O=build-xbox/out
         install -D -m755 "$O/bin/libxodus_cli.so" app/src/main/jniLibs/arm64-v8a/libxodus_cli.so
         install -D -m755 "$O/bin/libxodus_service.so" app/src/main/jniLibs/arm64-v8a/libxodus_service.so
+        # The CLI built here gets HTTP 400 from user.auth.xboxlive.com on this device; AbuNashmi's build of the same recipe works.
+        install -D -m755 tools/xbox-prebuilt/libxodus_cli.so app/src/main/jniLibs/arm64-v8a/libxodus_cli.so
         rm -rf app/src/main/assets/xbox && mkdir -p app/src/main/assets/xbox/windows
         cp "$O"/windows/*.dll app/src/main/assets/xbox/windows/
         cp "$O"/version "$O"/LICENSE.* "$O"/*.lock.json app/src/main/assets/xbox/
