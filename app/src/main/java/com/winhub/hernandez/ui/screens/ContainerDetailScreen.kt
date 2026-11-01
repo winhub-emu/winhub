@@ -39,6 +39,9 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
+import com.winhub.hernandez.ui.components.TextButton
+import com.winhub.hernandez.ui.components.OutlinedButton
+import com.winhub.hernandez.ui.components.Button
 import com.winhub.hernandez.ui.components.Switch
 import com.winhub.hernandez.ui.components.Checkbox
 import com.winhub.hernandez.ui.components.IconButton

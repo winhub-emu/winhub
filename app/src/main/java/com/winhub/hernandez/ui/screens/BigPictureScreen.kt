@@ -60,7 +60,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material3.Button
+import com.winhub.hernandez.ui.components.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,11 +70,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
+import com.winhub.hernandez.ui.components.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -928,7 +928,7 @@ fun BigPictureScreen(navController: NavController) {
                                 "Needs ${mc.label}${mc.wanted.ifBlank { "" }.let { if (it.isBlank()) "" else " ($it)" }}",
                                 color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f),
                             )
-                            androidx.compose.material3.TextButton(onClick = { bpInstallFor = mc }) { Text("Install") }
+                            com.winhub.hernandez.ui.components.TextButton(onClick = { bpInstallFor = mc }) { Text("Install") }
                         }
                     }
                     res.missingDrivers.forEach { md ->
@@ -938,14 +938,14 @@ fun BigPictureScreen(navController: NavController) {
                                 "Needs GPU driver ${md.wanted}",
                                 color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f),
                             )
-                            androidx.compose.material3.TextButton(onClick = { bpDriverFor = md }) { Text("Install") }
+                            com.winhub.hernandez.ui.components.TextButton(onClick = { bpDriverFor = md }) { Text("Install") }
                         }
                     }
                     res.advisories.forEach { Text("• $it", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp) }
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { communityApplyResult = null }) { Text("Done") }
+                com.winhub.hernandez.ui.components.TextButton(onClick = { communityApplyResult = null }) { Text("Done") }
             },
         )
     }

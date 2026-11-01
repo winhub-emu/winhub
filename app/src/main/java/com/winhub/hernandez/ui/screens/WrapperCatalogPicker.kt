@@ -27,10 +27,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import com.winhub.hernandez.ui.components.IconButton
-import androidx.compose.material3.OutlinedButton
+import com.winhub.hernandez.ui.components.OutlinedButton
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue

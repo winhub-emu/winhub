@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.*
+import com.winhub.hernandez.ui.components.TextButton
 import com.winhub.hernandez.ui.components.Switch
 import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.runtime.*
