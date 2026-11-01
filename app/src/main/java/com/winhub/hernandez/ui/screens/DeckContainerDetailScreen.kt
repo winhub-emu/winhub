@@ -250,6 +250,15 @@ internal fun DeckContainerDetailScreen(
                 )
             }
 
+        // After a tab switch the old page (and the focus on it) is gone: once its exit finishes, put
+        // the pad on the new page's first control instead of leaving it to the first random press.
+        val tabContentFocus = remember { FocusRequester() }
+        var firstTabShown by remember { mutableStateOf(true) }
+        LaunchedEffect(tab, pagesCategoryOpen) {
+            if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
+            kotlinx.coroutines.delay(220)
+            runCatching { tabContentFocus.requestFocus() }
+        }
         // ── Tab content — L1/R1 drag the page sideways, DroidDeck's long glide ──
         AnimatedContent(
             targetState = tab,
@@ -269,6 +278,7 @@ internal fun DeckContainerDetailScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .focusRequester(tabContentFocus)
                 .focusGroup(),
             label = "deckContainerTab",
         ) { currentTab ->

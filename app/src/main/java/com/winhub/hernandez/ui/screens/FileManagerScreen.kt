@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -1593,40 +1594,7 @@ fun FileManagerScreen(
             if (favItems.isNotEmpty()) add(RailSection("★ FAVORITES", favItems))
         }
 
-        if (deckMode && (!pickMode || driveCPath != null)) {
-            // Deck replaces the collapsible rail with a horizontal pill strip: every rail target
-            // (drives, quick folders, pinned favourites) plus the Favorites view stays reachable,
-            // and pills select on focus so D-pad users land on the one they navigate to.
-            val deckLocations = buildList {
-                add(RailItem("★ Favorites", Icons.Filled.Star, showFavorites) { showFavorites = true })
-                addAll(storageItems)
-                addAll(quickItems)
-                addAll(favItems)
-            }
-            val deckSelected = deckLocations.indexOfFirst { it.selected }
-            if (deckLocations.size > 1) {
-                DeckStretchyTabs(
-                    labels = deckLocations.map { it.label },
-                    selected = deckSelected,
-                    onSelect = { deckLocations.getOrNull(it)?.onClick?.invoke() },
-                    focusable = true,
-                    selectOnFocus = true,
-                    scroll = true,
-                    height = 34.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            }
-        }
-
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // The slim picker normally hides the rail; the add-a-game-from-C: flow (driveCPath set) is
-            // the exception — it shows the rail so the "Drive C:" location item is reachable. Pickers
-            // that don't pass driveCPath keep the rail hidden exactly as before.
-            if ((!pickMode || driveCPath != null) && !deckMode) {
-                CollapsibleRail(state = fmRailState, title = "Files", sections = locationSections, outlinedItems = true)
-            }
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
         // ── Favorites list OR file list ──
         if (showFavorites) {
@@ -1843,6 +1811,32 @@ fun FileManagerScreen(
         }
         }
             } // end content Box (beside the rail)
+            // Locations rail lives on the RIGHT, like the other sections' side navigation.
+            // The slim picker normally hides the rail; the add-a-game-from-C: flow (driveCPath set) is
+            // the exception — it shows the rail so the "Drive C:" location item is reachable. Pickers
+            // that don't pass driveCPath keep the rail hidden exactly as before.
+            if ((!pickMode || driveCPath != null) && !deckMode) {
+                CollapsibleRail(state = fmRailState, title = "Files", sections = locationSections, outlinedItems = true)
+            }
+            if (deckMode && (!pickMode || driveCPath != null)) {
+                // Deck: every rail target (drives, quick folders, pinned favourites) plus the Favorites
+                // view as a vertical list; rows select on focus so D-pad users land on the one they navigate to.
+                val deckLocations = buildList {
+                    add(RailItem("★ Favorites", Icons.Filled.Star, showFavorites) { showFavorites = true })
+                    addAll(storageItems)
+                    addAll(quickItems)
+                    addAll(favItems)
+                }
+                if (deckLocations.size > 1) {
+                    DeckEditorCategoryRail(
+                        labels = deckLocations.map { it.label },
+                        selected = deckLocations.indexOfFirst { it.selected },
+                        onSelect = { deckLocations.getOrNull(it)?.onClick?.invoke() },
+                        selectOnFocus = true,
+                        modifier = Modifier.width(170.dp).fillMaxHeight().padding(horizontal = 8.dp, vertical = 6.dp),
+                    )
+                }
+            }
         } // end rail + content Row
         // (New Folder moved into the top toolbar; the bottom bar was removed to reclaim its strip.)
     }

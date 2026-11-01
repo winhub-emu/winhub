@@ -134,8 +134,9 @@ internal fun SocialHubScreen(deck: Boolean = false) {
             .onPreviewKeyEvent { e ->
                 if (deck || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.key) {
-                    Key.ButtonL1 -> { select(0); true }
-                    Key.ButtonR1 -> { select(1); true }
+                    // L2/R2 like Deck's sub-tabs, plus the bumpers.
+                    Key.ButtonL1, Key.ButtonL2 -> { select(0); true }
+                    Key.ButtonR1, Key.ButtonR2 -> { select(1); true }
                     else -> false
                 }
             },

@@ -106,6 +106,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import androidx.compose.ui.unit.IntSize
 import com.winhub.hernandez.ui.theme.AppThemeState
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -209,7 +211,7 @@ internal val LocalDeckDrag = compositionLocalOf<DeckDragRegistry?> { null }
 
 /** Marks a focusable item as a member of the surrounding [DeckDragFrame]. */
 @Composable
-internal fun Modifier.deckDragItem(key: Any): Modifier {
+internal fun Modifier.deckDragItem(key: Any, selfOnly: Boolean = false): Modifier {
     val registry = LocalDeckDrag.current
     val view = LocalView.current
     DisposableEffect(registry, key) {
@@ -228,7 +230,9 @@ internal fun Modifier.deckDragItem(key: Any): Modifier {
             if (registry.bounds[key] != local) registry.bounds[key] = local
         }
         .onFocusChanged { state ->
-            if (state.isFocused || state.hasFocus) {
+            // selfOnly: a clickable that merely CONTAINS the focused child (a card around its buttons)
+            // must not claim the ring - that made it jump to the whole card, "super big".
+            if (state.isFocused || (!selfOnly && state.hasFocus)) {
                 registry.focus(key)
             } else if (registry.focusedKey == key) {
                 registry.clearSoon(key)
@@ -238,7 +242,18 @@ internal fun Modifier.deckDragItem(key: Any): Modifier {
 
 /** [deckDragItem] with an auto key, for a button that is its own ring target (no stable id needed). */
 @Composable
-internal fun Modifier.deckDragSelf(): Modifier = deckDragItem(remember { Any() })
+internal fun Modifier.deckDragSelf(): Modifier = deckDragItem(remember { Any() }, selfOnly = true)
+
+/**
+ * Focus ring for a Deck control that handles its own click: the smooth drag ring when it sits in a
+ * frame of THIS window, otherwise (dialogs, un-framed screens) the static stroke of the same look.
+ */
+@Composable
+internal fun Modifier.deckRing(interaction: InteractionSource, shape: RoundedCornerShape): Modifier {
+    val registry = LocalDeckDrag.current
+    val view = LocalView.current
+    return if (registry != null && registry.view === view) deckDragSelf() else deckOuterFocusStroke(interaction, shape)
+}
 
 private fun Rect.translate(dx: Float, dy: Float): Rect =
     Rect(left + dx, top + dy, right + dx, bottom + dy)
@@ -266,10 +281,27 @@ internal fun DeckDragFrame(
     val bottom = remember { Animatable(0f) }
     var armed by remember { mutableStateOf(false) }
 
-    val target = registry.focusedKey?.let { registry.bounds[it] }
+    var frameSize by remember { mutableStateOf(IntSize.Zero) }
+    // A rect covering (nearly) the whole frame is a scrim/page container that took focus, never a
+    // control worth ringing: ignore it instead of drawing a screen-sized ring.
+    val target = registry.focusedKey?.let { registry.bounds[it] }?.takeIf {
+        frameSize == IntSize.Zero || !(it.width > frameSize.width * 0.92f && it.height > frameSize.height * 0.6f)
+    }
+    // [lastKey] / [keyChangedAt] tell a focus MOVE (glide) from the same item shifting under a scroll
+    // (follow it instantly): re-animating on every scrolled frame made the ring lag and stretch huge.
+    val lastKey = remember { arrayOfNulls<Any>(1) }
+    val keyChangedAt = remember { LongArray(1) }
     LaunchedEffect(target, registry.focusedKey) {
         val t = target ?: return@LaunchedEffect
-        if (!armed) {
+        val now = System.nanoTime()
+        if (lastKey[0] != registry.focusedKey) {
+            lastKey[0] = registry.focusedKey
+            keyChangedAt[0] = now
+        }
+        val settled = now - keyChangedAt[0] > 350_000_000L
+        val far = armed && frameSize != IntSize.Zero &&
+            (abs(t.top - top.value) > frameSize.height * 0.6f || abs(t.left - left.value) > frameSize.width * 0.6f)
+        if (!armed || settled || far) {
             left.snapTo(t.left); top.snapTo(t.top); right.snapTo(t.right); bottom.snapTo(t.bottom)
             armed = true
             return@LaunchedEffect
@@ -296,7 +328,10 @@ internal fun DeckDragFrame(
 
     Box(
         modifier = modifier
-            .onGloballyPositioned { registry.rootTopLeft = it.positionInRoot() }
+            .onGloballyPositioned {
+                registry.rootTopLeft = it.positionInRoot()
+                frameSize = it.size
+            }
             .onFocusChanged { state ->
                 hasFocus = state.isFocused || state.hasFocus
                 if (!hasFocus) {

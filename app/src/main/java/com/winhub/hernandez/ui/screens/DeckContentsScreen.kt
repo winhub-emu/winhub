@@ -326,6 +326,7 @@ private fun DeckIconAction(
             .size(44.dp)
             .clip(RoundedCornerShape(11.dp))
             .border(1.dp, DeckPalette.line, RoundedCornerShape(11.dp))
+            .deckRing(interaction, RoundedCornerShape(11.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
@@ -338,8 +339,6 @@ private fun DeckAction(
     primary: Boolean,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
-    // Only list-card actions join the surrounding drag ring; dialog buttons live in another window.
-    ring: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -347,7 +346,7 @@ private fun DeckAction(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .heightIn(min = 44.dp)
-            .then(if (ring) Modifier.deckDragSelf() else Modifier)
+            .deckRing(interaction, RoundedCornerShape(12.dp))
             .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(12.dp))
             .background(if (primary) DeckPalette.primary else DeckPalette.surface)
@@ -386,6 +385,7 @@ private fun DeckDangerAction(text: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(DeckPalette.error.copy(alpha = 0.12f))
             .border(1.dp, DeckPalette.error, RoundedCornerShape(12.dp))
+            .deckRing(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
@@ -860,7 +860,6 @@ private fun DeckCatalogCard(
                 primary = !installed,
                 enabled = !installed && !busy,
                 modifier = Modifier.weight(1f),
-                ring = true,
             ) {
                 ContentsInstaller.install(
                     context.applicationContext,
@@ -879,7 +878,6 @@ private fun DeckCatalogCard(
                 primary = false,
                 enabled = !busy && !saved,
                 modifier = Modifier.weight(1f),
-                ring = true,
             ) { vm.saveArchive(item) }
         }
     }
@@ -1451,6 +1449,7 @@ private fun DeckInstalledComponents(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                    .deckRing(interaction, RoundedCornerShape(14.dp))
                     .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
                 .padding(14.dp),
         ) {

@@ -178,6 +178,7 @@ import com.winhub.hernandez.ui.LocalTopBarTransparent
 import com.winhub.hernandez.ui.Screen
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -6966,8 +6967,9 @@ internal fun ShortcutSettingsDialogScreen(
     // doesn't have: move it to that section's first control (index 1, just past the title close).
     // Untouched for touch users, whose cursor stays null.
     LaunchedEffect(selectedTab) {
-        val f = dp.focusedId
-        if (f != null && f !in dpadIds) dp.focusedId = dpadIds.getOrNull(1)
+        // A pad user (cursor exists) lands on the new section's first control every time; touch users
+        // have no cursor and are left alone.
+        if (dp.focusedId != null) dp.focusedId = dpadIds.getOrNull(1)
     }
 
     val isPortrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -8951,7 +8953,16 @@ internal fun DeckShortcutSettingsScreen(
                             .padding(start = 16.dp),
                     )
                 }
-                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                // A tab switch removes the focused control with the old page: put the pad on the new
+                // page's first control (top-left in focus order) instead of a lost focus.
+                val tabContentFocus = remember { FocusRequester() }
+                var firstTabShown by remember { mutableStateOf(true) }
+                LaunchedEffect(selectedTab, pagesCategoryOpen) {
+                    if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
+                    kotlinx.coroutines.delay(80)
+                    runCatching { tabContentFocus.requestFocus() }
+                }
+                Box(modifier = Modifier.weight(1f).fillMaxHeight().focusRequester(tabContentFocus).focusGroup()) {
                     Column(
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),

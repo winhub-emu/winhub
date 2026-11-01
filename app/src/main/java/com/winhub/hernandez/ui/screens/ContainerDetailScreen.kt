@@ -58,7 +58,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import android.content.res.Configuration
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -94,6 +98,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.lazy.items
 import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -211,6 +216,18 @@ fun ContainerDetailScreen(
         }
     ) { padding ->
         val contentScroll = rememberScrollState()
+        // Switching tabs drops focus with the old content; put the pad on the new tab's first control
+        // (top-left in focus order) so it never has to be coaxed back by pressing random directions.
+        val tabContentFocus = remember { FocusRequester() }
+        val keyboardCtl = LocalSoftwareKeyboardController.current
+        var firstTabShown by remember { mutableStateOf(true) }
+        LaunchedEffect(viewModel.selectedTab) {
+            if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
+            contentScroll.scrollTo(0)
+            delay(80)
+            // The first control is often the name field; keep the keyboard down until the user opts in.
+            if (runCatching { tabContentFocus.requestFocus() }.isSuccess) keyboardCtl?.hide()
+        }
 
         // ── Shared collapsible left rail (landscape: expanded by default + per-screen persistence A;
         //    portrait: always collapsed, no toggle). See ui/components/CollapsibleRail. ─────────────
@@ -240,6 +257,8 @@ fun ContainerDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusRequester(tabContentFocus)
+                    .focusGroup()
                     .verticalScroll(contentScroll)
                     .padding(horizontal = 12.dp)
                     .padding(top = 8.dp)
