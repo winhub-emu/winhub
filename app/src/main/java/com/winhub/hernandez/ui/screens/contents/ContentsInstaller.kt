@@ -173,6 +173,29 @@ object ContentsInstaller {
     }
 
     /**
+     * Like [installAwait] but for an adrenotools GPU driver zip: returns the installed driver id (what a
+     * shortcut's graphicsDriverConfig `version` holds), or null when the download/install failed.
+     */
+    suspend fun installDriverAwait(
+        appContext: Context,
+        downloadUrl: String,
+        onStatus: (String) -> Unit = {},
+    ): String? = withContext(Dispatchers.IO) {
+        val ctx = appContext.applicationContext
+        var temp: File? = null
+        try {
+            temp = RemoteSourceRepository(ctx).downloadToTemp(downloadUrl, onStatus)
+            onStatus("Installing")
+            AdrenotoolsManager(ctx).installDriver(Uri.fromFile(temp!!))?.takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            Log.w(TAG, "driver install failed for $downloadUrl", e)
+            null
+        } finally {
+            temp?.let { runCatching { it.delete() } }
+        }
+    }
+
+    /**
      * "Save archive only": downloads the catalog item and files the raw archive in [ComponentLibrary]
      * (My Files, under the Contents save location) — no extract, no install, the app's contents folder
      * is untouched. Deliberately rides the SAME rails as [install]: same registry key (so a row is

@@ -133,7 +133,7 @@ import com.winhub.hernandez.store.GogMainActivity
 import com.winhub.hernandez.store.SteamMainActivity
 import com.winhub.hernandez.ui.LocalTopBarOverlayInset
 import com.winhub.hernandez.ui.Screen
-import com.winhub.hernandez.ui.SocialContent
+import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.screens.contents.ContentsHubScreen
 import com.winhub.hernandez.ui.findActivity
 import com.winhub.hernandez.ui.theme.DangerRed
@@ -685,7 +685,7 @@ private fun xmbAppMenu(onGo: (Screen) -> Unit, onOpenContainer: (Int?) -> Unit):
                 }
 
                 Screen.SocialHub -> XmbRow.Link(key = d.route, label = d.label, icon = appIconFor(d)) {
-                    screenMenu(d) { SocialContent() }
+                    screenMenu(d) { SocialHubScreen() }
                 }
 
                 else ->

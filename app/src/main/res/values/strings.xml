@@ -2571,4 +2571,24 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="social_hub_reply_count_one">%d reply</string>
     <string name="social_hub_reply_count_many">%d replies</string>
     <string name="social_hub_images_more">+%1$d more</string>
+    <string name="social_hub_subtab_feed">Feed</string>
+    <string name="social_hub_subtab_configs">Game Configurations</string>
+    <string name="social_hub_configs_upload">Upload</string>
+    <string name="social_hub_configs_sign_in_hint">Sign in on the Feed tab to upload configs.</string>
+    <string name="social_hub_configs_loading">Loading configs…</string>
+    <string name="social_hub_configs_empty">No configs yet</string>
+    <string name="social_hub_configs_empty_hint">Share your game settings so others can import them in one tap.</string>
+    <string name="social_hub_configs_working">Working…</string>
+    <string name="social_hub_configs_pick_exe">Select the game\'s .exe</string>
+    <string name="social_hub_configs_by">By %1$s</string>
+    <string name="social_hub_configs_components">Components:\n%1$s</string>
+    <string name="social_hub_configs_import_hint">Import builds a new container for this game, downloads the components it needs from their sources and applies the settings.</string>
+    <string name="social_hub_configs_import">Import</string>
+    <string name="social_hub_configs_close">Close</string>
+    <string name="social_hub_configs_back">Back</string>
+    <string name="social_hub_configs_upload_title">Upload a config</string>
+    <string name="social_hub_configs_loading_games">Loading your games…</string>
+    <string name="social_hub_configs_no_games">No games found. Add a game first.</string>
+    <string name="social_hub_configs_note_hint">Note (optional)</string>
+    <string name="social_hub_configs_share">Share</string>
 </resources>

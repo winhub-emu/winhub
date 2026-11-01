@@ -135,7 +135,7 @@ fun AppNavGraph(
         }
 
         composable(Screen.SocialHub.route) {
-            SocialContent()
+            SocialHubScreen()
         }
     }
 }

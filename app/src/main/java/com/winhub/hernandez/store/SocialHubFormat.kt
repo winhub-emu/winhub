@@ -80,6 +80,39 @@ object SocialHubFormat {
         ""
     }
 
+    /** Marks an issue body as a shared game config; the label alone cannot be trusted (see [CONFIG_LABEL]). */
+    const val CONFIG_MARKER = "<!--winhub-config-->"
+
+    /** Issue label the Configs tab filters on. Non-collaborators cannot set labels, hence the marker too. */
+    const val CONFIG_LABEL = "Configs"
+
+    /** Body of a config issue: optional note, the marker, then the config JSON in a fenced block. */
+    fun buildConfigBody(note: String, configJson: String): String =
+        (if (note.isBlank()) "" else note.trim() + "\n\n") + CONFIG_MARKER + "\n```json\n" + configJson + "\n```\n"
+
+    fun isConfig(body: String?): Boolean = body?.contains(CONFIG_MARKER) == true
+
+    /** The config JSON inside a config issue body, or null when the body has none. */
+    fun configJson(body: String?): String? {
+        val text = body ?: return null
+        val marker = text.indexOf(CONFIG_MARKER)
+        if (marker < 0) return null
+        val open = text.indexOf("```json", marker)
+        if (open < 0) return null
+        val start = text.indexOf('\n', open)
+        if (start < 0) return null
+        val end = text.indexOf("```", start)
+        if (end < 0) return null
+        return text.substring(start + 1, end).trim().ifBlank { null }
+    }
+
+    /** The user's note: everything before the marker. */
+    fun configNote(body: String?): String {
+        val text = body ?: return ""
+        val marker = text.indexOf(CONFIG_MARKER)
+        return (if (marker < 0) text else text.substring(0, marker)).trim()
+    }
+
     /** "just now" style label for the composer's upload hint. */
     fun uploadLabel(fileName: String): String = fileName.substringAfterLast('/').ifBlank { "image" }
 }

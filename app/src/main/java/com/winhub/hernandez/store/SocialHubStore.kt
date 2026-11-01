@@ -117,6 +117,13 @@ object SocialHubStore {
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading
 
+    private val _configs = MutableStateFlow<List<Post>>(emptyList())
+    /** Config issues (label "Configs" or the body marker), newest first. Kept out of [posts]. */
+    val configs: StateFlow<List<Post>> = _configs
+
+    private val _configsLoading = MutableStateFlow(false)
+    val configsLoading: StateFlow<Boolean> = _configsLoading
+
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy
 
@@ -195,6 +202,21 @@ object SocialHubStore {
             )
             _loading.value = false
             _openPost.value?.let { loadComments(it) }
+        }
+    }
+
+    /** Configs tab reload. Reads work signed-out (rate-limited); a failed fetch keeps the list on screen. */
+    fun refreshConfigs() {
+        scope.launch {
+            _configsLoading.value = true
+            fetchConfigs().fold(
+                onSuccess = { _configs.value = it },
+                onFailure = { t ->
+                    if (BuildConfig.DEBUG) Log.w(TAG, "refreshConfigs", t)
+                    _error.value = t.message ?: "Could not load the configs."
+                },
+            )
+            _configsLoading.value = false
         }
     }
 
@@ -331,6 +353,31 @@ object SocialHubStore {
     }
 
     /**
+     * Publish a config as an issue labelled [SocialHubFormat.CONFIG_LABEL]. The label is best-effort
+     * (GitHub drops it for non-collaborators); the body marker is what the Configs tab relies on.
+     * Returns null on success, or a user-facing error string.
+     */
+    suspend fun createConfig(title: String, note: String, configJson: String): String? = withContext(Dispatchers.IO) {
+        mutate("Could not publish the config.") {
+            val json = JSONObject()
+                .put("title", title)
+                .put("body", SocialHubFormat.buildConfigBody(note, configJson))
+                .put("labels", JSONArray().put(SocialHubFormat.CONFIG_LABEL))
+                .toString()
+            val (code, text) = postJson(ISSUES_URL, json)
+            if (code in 200..299) {
+                try {
+                    val post = postFromJson(JSONObject(text), System.currentTimeMillis())
+                    if (_configs.value.none { it.number == post.number }) _configs.value = listOf(post) + _configs.value
+                } catch (t: Throwable) {
+                    if (BuildConfig.DEBUG) Log.w(TAG, "createConfig insert", t)
+                }
+                null
+            } else githubError(text, code, "Could not publish the config.")
+        }
+    }
+
+    /**
      * Reply to the open post. Returns null on success, or a user-facing error string.
      * Same optimistic rule as [createPost]: the created comment is appended locally.
      */
@@ -360,6 +407,7 @@ object SocialHubStore {
             val (code, text) = patchJson("$ISSUES_URL/$postNumber", json)
             if (code in 200..299) {
                 _posts.value = _posts.value.filterNot { it.number == postNumber }
+                _configs.value = _configs.value.filterNot { it.number == postNumber }
                 null
             } else githubError(text, code, "Could not delete the post.")
         }
@@ -448,9 +496,50 @@ object SocialHubStore {
             val o = array.getJSONObject(i)
             if (o.has("pull_request")) continue // the API mixes PRs into /issues
             if (SocialHubFormat.isDeleted(o.optString("body"))) continue
+            if (isConfigIssue(o)) continue // shown in the Configs tab, not the feed
             out.add(postFromJson(o, now))
         }
         out
+    }
+
+    private fun isConfigIssue(o: JSONObject): Boolean {
+        if (SocialHubFormat.isConfig(o.optString("body"))) return true
+        val labels = o.optJSONArray("labels") ?: return false
+        for (i in 0 until labels.length()) {
+            if (labels.optJSONObject(i)?.optString("name").equals(SocialHubFormat.CONFIG_LABEL, ignoreCase = true)) return true
+        }
+        return false
+    }
+
+    /**
+     * Config issues = everything labelled "Configs" plus any recent issue carrying the body marker
+     * (uploaders without triage rights cannot label). Entries without a parseable config block are dropped.
+     */
+    private fun fetchConfigs(): Result<List<Post>> = runCatching {
+        val token = _account.value?.accessToken
+        val now = System.currentTimeMillis()
+        val byNumber = LinkedHashMap<Int, Post>()
+        val labelled = "$ISSUES_URL?state=all&labels=${SocialHubFormat.CONFIG_LABEL}&per_page=$PER_PAGE&sort=created&direction=desc"
+        val recent = "$ISSUES_URL?state=all&per_page=$PER_PAGE&sort=created&direction=desc"
+        for ((i, url) in listOf(labelled, recent).withIndex()) {
+            val (code, text) = execute(Request.Builder().url(url).headers(authHeaders(token)).get().build())
+            if (code !in 200..299) {
+                // The labelled query is the primary one; the marker sweep is a bonus and may fail alone.
+                if (i == 0) throw IllegalStateException(githubError(text, code, "Could not load the configs."))
+                continue
+            }
+            val array = JSONArray(text)
+            for (j in 0 until array.length()) {
+                val o = array.getJSONObject(j)
+                if (o.has("pull_request")) continue
+                val body = o.optString("body")
+                if (SocialHubFormat.isDeleted(body) || SocialHubFormat.configJson(body) == null) continue
+                if (!isConfigIssue(o)) continue
+                val post = postFromJson(o, now)
+                byNumber.putIfAbsent(post.number, post)
+            }
+        }
+        byNumber.values.sortedByDescending { it.createdAtMs }
     }
 
     private fun fetchComments(postNumber: Int): Result<List<Comment>> = runCatching {

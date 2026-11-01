@@ -215,7 +215,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.io.FileOutputStream
 import com.winhub.hernandez.ui.ControllerFocusIndication
-import com.winhub.hernandez.ui.SocialContent
+import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.theme.AppThemeState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -1555,7 +1555,7 @@ private fun DeckPaneContent(
             "contents" -> DeckContentsScreen()
             // The full Save Manager (Steam / Custom / Epic / GOG / Settings), in Deck chrome.
             "saves" -> SaveManagerScreen(deckMode = true)
-            "social_hub" -> SocialContent()
+            "social_hub" -> SocialHubScreen(deck = true)
             "settings" -> DeckSettingsScreen()
             // Defensive fallback only; never composes alongside the "home" branch, so it
             // gets its own requester instead of sharing the rail's homeHeroFocus.
