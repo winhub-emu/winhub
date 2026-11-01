@@ -35,6 +35,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import com.winhub.hernandez.ui.screens.DeckDragRegistry
+import com.winhub.hernandez.ui.screens.DeckPalette
+import com.winhub.hernandez.ui.screens.DeckTouchMode
+import com.winhub.hernandez.ui.screens.LocalDeckDrag
 import com.winhub.hernandez.ui.theme.AppThemeState
 
 /** Live theme accent, used as the default focus-outline color. */
@@ -44,7 +48,7 @@ private val FocusOutlineColor get() = Color(AppThemeState.getCurrentAccentArgb()
 val LocalControllerRootFocus = staticCompositionLocalOf { FocusRequester() }
 
 /**
- * Global focus indication: a purple rounded outline around whatever Compose node currently holds
+ * Global focus indication: a rounded Deck-accent outline around whatever Compose node currently holds
  * focus, plus a light wash while it is pressed. Provided via `LocalIndication`, so it applies to
  * every `clickable`/`focusable` in the app — and to dialogs, which inherit composition locals.
  * This replaces the ripple.
@@ -60,6 +64,7 @@ class ControllerFocusIndication(private val outline: Color = FocusOutlineColor) 
         val instance = remember(interactionSource, outline) { ControllerFocusInstance(outline) }
         instance.focused = focused
         instance.pressed = pressed
+        instance.drag = LocalDeckDrag.current
         return instance
     }
 }
@@ -67,18 +72,22 @@ class ControllerFocusIndication(private val outline: Color = FocusOutlineColor) 
 private class ControllerFocusInstance(private val color: Color) : IndicationInstance {
     var focused: State<Boolean> = mutableStateOf(false)
     var pressed: State<Boolean> = mutableStateOf(false)
+    // The surrounding DeckDragFrame, if any. While its smooth ring is on a registered item it
+    // already marks the focus, so this static outline stays out of the way (no double ring).
+    var drag: DeckDragRegistry? = null
 
     override fun ContentDrawScope.drawIndication() {
         drawContent()
         if (pressed.value) {
             drawRect(color = color.copy(alpha = 0.16f))
         }
-        if (focused.value && !com.winhub.hernandez.ui.screens.DeckTouchMode.touch) {
-            val stroke = 3.dp.toPx()
+        if (focused.value && !DeckTouchMode.touch && drag?.focusedKey == null) {
+            // Same look as the Deck drag ring (Deck accent, 2.5dp, rounded) so un-framed controls match it.
+            val stroke = 2.5.dp.toPx()
             val half = stroke / 2f
-            val radius = 10.dp.toPx()
+            val radius = 14.dp.toPx()
             drawRoundRect(
-                color = color,
+                color = DeckPalette.primary,
                 topLeft = Offset(half, half),
                 size = Size(size.width - stroke, size.height - stroke),
                 cornerRadius = CornerRadius(radius, radius),

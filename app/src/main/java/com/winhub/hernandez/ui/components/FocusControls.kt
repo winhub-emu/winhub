@@ -6,7 +6,6 @@ import androidx.compose.material3.CheckboxColors
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButtonColors
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.SwitchColors
@@ -35,7 +34,7 @@ fun IconButton(
     androidx.compose.material3.IconButton(
         onClick = onClick,
         modifier = modifier.deckOuterFocusStroke(
-            interactionSource, RoundedCornerShape(percent = 50), focusColor = MaterialTheme.colorScheme.primary,
+            interactionSource, RoundedCornerShape(percent = 50),
         ),
         enabled = enabled,
         colors = colors,
@@ -57,7 +56,7 @@ fun Checkbox(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier.deckOuterFocusStroke(
-            interactionSource, RoundedCornerShape(10.dp), focusColor = MaterialTheme.colorScheme.primary,
+            interactionSource, RoundedCornerShape(10.dp),
         ),
         enabled = enabled,
         colors = colors,
@@ -79,7 +78,7 @@ fun Switch(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier.deckOuterFocusStroke(
-            interactionSource, RoundedCornerShape(percent = 50), focusColor = MaterialTheme.colorScheme.primary,
+            interactionSource, RoundedCornerShape(percent = 50),
         ),
         thumbContent = thumbContent,
         enabled = enabled,
@@ -101,7 +100,7 @@ fun RadioButton(
         selected = selected,
         onClick = onClick,
         modifier = modifier.deckOuterFocusStroke(
-            interactionSource, RoundedCornerShape(percent = 50), focusColor = MaterialTheme.colorScheme.primary,
+            interactionSource, RoundedCornerShape(percent = 50),
         ),
         enabled = enabled,
         colors = colors,

@@ -632,8 +632,9 @@ private fun DeckContentsBrowseTab(
 @Composable
 internal fun DeckSearchField(
     query: String,
-    onQuery: (String) -> Unit,
     hint: String = "Search every repository...",
+    // Last, so existing trailing-lambda callers keep working.
+    onQuery: (String) -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
