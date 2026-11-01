@@ -126,14 +126,23 @@ internal object Xodus {
     /** Copies the backend's allow-listed diagnostic lines (no tokens, no names) into the Xbox log. */
     fun diagnostics(app: Context, child: Child): Thread = Thread({
         runCatching {
+            var afterPanic = false
             child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->
                 if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|NEXUS_PACKAGE_FILES_V1 [0-9]{1,5} [a-z0-9,]{1,200}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.")))
                     XboxDiag.log(app, "backend: $line")
                 else if (line.length <= 300 && line.matches(KNOWN_ERRORS)) {
                     child.lastError = line
                     XboxDiag.log(app, "backend error: $line")
-                } else if (line.length in 1..200 && line.all { it in ' '..'~' } && (line.startsWith("error") || line.startsWith("Error") || line.contains("panicked")))
-                    XboxDiag.log(app, "backend error class: " + line.substringBefore(':').take(80))
+                } else if (line.length in 1..200 && line.all { it in ' '..'~' } && (line.startsWith("error") || line.startsWith("Error") || line.contains("panicked"))) {
+                    val panic = line.contains("panicked")
+                    // A panic's location (file:line) and message are the only way to tell why the backend died; long token-like runs are redacted.
+                    XboxDiag.log(app, "backend error class: " + if (panic) line.replace(Regex("[A-Za-z0-9_.~+/=-]{40,}"), "<redacted>") else line.substringBefore(':').take(80))
+                    afterPanic = panic
+                } else if (afterPanic) {
+                    afterPanic = false
+                    if (line.length in 1..300 && line.all { it in ' '..'~' })
+                        XboxDiag.log(app, "backend panic: " + line.replace(Regex("[A-Za-z0-9_.~+/=-]{40,}"), "<redacted>"))
+                }
             } }
         }
     }, "xbox-diagnostics").apply { start() }
