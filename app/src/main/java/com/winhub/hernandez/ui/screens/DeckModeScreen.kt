@@ -45,8 +45,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.filled.Delete
 import androidx.preference.PreferenceManager
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -657,6 +662,8 @@ private fun DeckHome(
     var classicMenu by remember { mutableStateOf(false) }
     // Portrait: tapping a cover opens its game page over the grid.
     var portraitPageOpen by remember { mutableStateOf(false) }
+    // Game details / Search covers / Clone / Copy to Drive C / Change executable (classic + portrait menus).
+    var gameTool by remember { mutableStateOf<HubToolRequest?>(null) }
     var portraitOptions by remember { mutableStateOf(false) }
     var addMode by remember { mutableStateOf(HubAddMode.MASTER) }
     var cronosBusy by remember { mutableStateOf(false) }
@@ -686,6 +693,16 @@ private fun DeckHome(
             c == null -> Toast.makeText(context, "Container not found", Toast.LENGTH_SHORT).show()
             !File(g.shortcutPath).isFile -> Toast.makeText(context, "Shortcut not found", Toast.LENGTH_SHORT).show()
             else -> shortcutSettingsFor = Shortcut(c, File(g.shortcutPath))
+        }
+    }
+
+    fun openGameTool(entry: HubEntry, tool: HubTool) {
+        val g = entry.game ?: return
+        val c = containers.find { it.id == g.containerId }
+        when {
+            c == null -> Toast.makeText(context, "Container not found", Toast.LENGTH_SHORT).show()
+            !File(g.shortcutPath).isFile -> Toast.makeText(context, "Shortcut not found", Toast.LENGTH_SHORT).show()
+            else -> gameTool = HubToolRequest(tool, Shortcut(c, File(g.shortcutPath)))
         }
     }
 
@@ -1013,6 +1030,11 @@ private fun DeckHome(
             DeckMenuAction("Play", Icons.Filled.PlayArrow) { playEntry(entry) },
             DeckMenuAction("Launch method", Icons.Filled.Layers) { openLaunchMethod(entry) },
             DeckMenuAction("Settings", Icons.Filled.Settings) { openGameSettings(entry) },
+            DeckMenuAction("Game details", Icons.Filled.Edit) { openGameTool(entry, HubTool.DETAILS) },
+            DeckMenuAction("Search covers", Icons.Filled.Search) { openGameTool(entry, HubTool.COVERS) },
+            DeckMenuAction("Clone to container", Icons.Filled.ContentCopy) { openGameTool(entry, HubTool.CLONE) },
+            DeckMenuAction("Copy to Drive C", Icons.Filled.DriveFileMove) { openGameTool(entry, HubTool.DRIVE_C) },
+            DeckMenuAction("Change executable", Icons.Filled.SwapHoriz) { openGameTool(entry, HubTool.CHANGE_EXE) },
             DeckMenuAction("Add to Home Screen", Icons.Filled.Home) { addToHomeScreen(entry) },
             DeckMenuAction("Properties", Icons.Filled.Info) { showProperties(entry) },
             DeckMenuAction("Delete", Icons.Filled.Delete, danger = true) { deleteEntry(entry) },
@@ -1184,6 +1206,13 @@ private fun DeckHome(
                 exit = fadeOut(tween(450)),
                 modifier = Modifier.align(Alignment.Center),
             ) { DeckWordmark() }
+
+            HubGameToolsHost(
+                request = gameTool,
+                containers = containers,
+                onClose = { gameTool = null },
+                onChanged = { sc -> syncCover(sc); reloadEntries() },
+            )
 
             if (classicMenu && portrait && current != null && classicItems.isNotEmpty()) {
                 PortraitGameMenuSheet(

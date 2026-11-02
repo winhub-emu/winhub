@@ -5646,7 +5646,7 @@ private fun ShortcutGridItem(
  * reseeds cleanly (the compose-state "key on the config" rule).
  */
 @Composable
-private fun GameDetailsSheet(
+internal fun GameDetailsSheet(
     shortcut: Shortcut,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
@@ -11224,7 +11224,7 @@ private enum class CopyToCPhase { CONFIRM, OVERWRITE, COPYING, DELETE_ORIGINAL }
  * On cancel or any failure the partial destination is deleted and the shortcut is left untouched.
  */
 @Composable
-private fun CopyToDriveCCoordinator(
+internal fun CopyToDriveCCoordinator(
     target: Shortcut?,
     onFinished: () -> Unit,
 ) {
@@ -11503,7 +11503,7 @@ private fun CopyToDriveCCoordinator(
  * shortcut is touched ONLY on a valid, mappable pick; anything else warns and aborts unchanged.
  */
 @Composable
-private fun ChangeExecutableCoordinator(
+internal fun ChangeExecutableCoordinator(
     target: Shortcut?,
     onFinished: () -> Unit,
 ) {

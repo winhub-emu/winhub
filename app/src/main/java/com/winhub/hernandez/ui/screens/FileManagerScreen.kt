@@ -1124,6 +1124,65 @@ fun FileManagerScreen(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
+        // Shared collapsible rail: landscape expanded by default, portrait collapsed icon-only. Not
+        // shown in pick mode (the themed picker keeps its slim layout). Built each recompose (cheap)
+        // so it tracks the current drive/favourites without stale click lambdas.
+        val fmRailState = rememberRailState("filemanager")
+        fun locItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
+            RailItem(label, icon, !showFavorites && currentRoot.absolutePath == dir.absolutePath) {
+                showFavorites = false; openDrive(dir)
+            }
+        val storageItems = buildList {
+            add(locItem("Internal", Icons.Filled.Smartphone, File("/storage/emulated/0")))
+            drives.filter { it.removable }.forEach { d ->
+                add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
+                    showFavorites = false; if (d.readable) openDrive(d.dir)
+                })
+            }
+            // Add-a-game-from-C: (add-game flow only). openDrive() pins currentRoot = drive_c so
+            // up/back is bounded at C:\ and the user can't wander up into the Linux prefix. RailItem
+            // carries no per-item colour — C: gets the standard accent highlight like Internal/SD
+            // (the amber Drive C: identity lives on the Favorites badge, not the rail).
+            driveCPath?.takeIf { it.isDirectory }?.let { dc ->
+                add(locItem("Drive C:", Icons.Filled.Storage, dc))
+            }
+        }
+        // Quick locations are shortcuts INTO internal storage, not drives: jump there but keep the
+        // floor at the storage root so the user can still climb out of Download/Games/Pictures.
+        fun quickItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
+            RailItem(label, icon, !showFavorites && currentDir.absolutePath == dir.absolutePath) {
+                showFavorites = false; jumpTo(dir)
+            }
+        val quickItems = buildList {
+            File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(quickItem("Downloads", Icons.Filled.Download, it)) }
+            File("/storage/emulated/0/Winlator/Games").takeIf { it.isDirectory }?.let { add(quickItem("Games", Icons.Filled.SportsEsports, it)) }
+            File("/storage/emulated/0/Pictures").takeIf { it.isDirectory }?.let { add(quickItem("Pictures", Icons.Filled.Image, it)) }
+        }
+        val favItems = remember(favTick) { FavoritesStore.list(context).map(::File).filter { it.exists() } }
+            .map { d -> RailItem(d.name, Icons.Filled.Star, false) { showFavorites = false; jumpTo(d) } }
+        val locationSections = buildList {
+            add(RailSection("STORAGE", storageItems))
+            if (quickItems.isNotEmpty()) add(RailSection("QUICK", quickItems))
+            if (favItems.isNotEmpty()) add(RailSection("★ FAVORITES", favItems))
+        }
+        // Portrait Deck: the locations (storage, quick folders, favourites) run across the top as a tab strip.
+        if (deckMode && LocalDeckPortrait.current && (!pickMode || driveCPath != null)) {
+            val topLocations = buildList {
+                add(RailItem("★ Favorites", Icons.Filled.Star, showFavorites) { showFavorites = true })
+                addAll(storageItems)
+                addAll(quickItems)
+                addAll(favItems)
+            }
+            if (topLocations.size > 1) {
+                DeckPortraitTabStrip(
+                    labels = topLocations.map { it.label },
+                    icons = topLocations.map { it.icon },
+                    selected = topLocations.indexOfFirst { it.selected },
+                    onSelect = { topLocations.getOrNull(it)?.onClick?.invoke() },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+        }
         // ── Dir-pick action bar: confirm the currently-browsed folder ──
         if (pickDirMode) {
             Button(
@@ -1553,47 +1612,6 @@ fun FileManagerScreen(
         }
 
         // ── Left locations rail (mockup Option 2) + content ──
-        // Shared collapsible rail: landscape expanded by default, portrait collapsed icon-only. Not
-        // shown in pick mode (the themed picker keeps its slim layout). Built each recompose (cheap)
-        // so it tracks the current drive/favourites without stale click lambdas.
-        val fmRailState = rememberRailState("filemanager")
-        fun locItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
-            RailItem(label, icon, !showFavorites && currentRoot.absolutePath == dir.absolutePath) {
-                showFavorites = false; openDrive(dir)
-            }
-        val storageItems = buildList {
-            add(locItem("Internal", Icons.Filled.Smartphone, File("/storage/emulated/0")))
-            drives.filter { it.removable }.forEach { d ->
-                add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
-                    showFavorites = false; if (d.readable) openDrive(d.dir)
-                })
-            }
-            // Add-a-game-from-C: (add-game flow only). openDrive() pins currentRoot = drive_c so
-            // up/back is bounded at C:\ and the user can't wander up into the Linux prefix. RailItem
-            // carries no per-item colour — C: gets the standard accent highlight like Internal/SD
-            // (the amber Drive C: identity lives on the Favorites badge, not the rail).
-            driveCPath?.takeIf { it.isDirectory }?.let { dc ->
-                add(locItem("Drive C:", Icons.Filled.Storage, dc))
-            }
-        }
-        // Quick locations are shortcuts INTO internal storage, not drives: jump there but keep the
-        // floor at the storage root so the user can still climb out of Download/Games/Pictures.
-        fun quickItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
-            RailItem(label, icon, !showFavorites && currentDir.absolutePath == dir.absolutePath) {
-                showFavorites = false; jumpTo(dir)
-            }
-        val quickItems = buildList {
-            File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(quickItem("Downloads", Icons.Filled.Download, it)) }
-            File("/storage/emulated/0/Winlator/Games").takeIf { it.isDirectory }?.let { add(quickItem("Games", Icons.Filled.SportsEsports, it)) }
-            File("/storage/emulated/0/Pictures").takeIf { it.isDirectory }?.let { add(quickItem("Pictures", Icons.Filled.Image, it)) }
-        }
-        val favItems = remember(favTick) { FavoritesStore.list(context).map(::File).filter { it.exists() } }
-            .map { d -> RailItem(d.name, Icons.Filled.Star, false) { showFavorites = false; jumpTo(d) } }
-        val locationSections = buildList {
-            add(RailSection("STORAGE", storageItems))
-            if (quickItems.isNotEmpty()) add(RailSection("QUICK", quickItems))
-            if (favItems.isNotEmpty()) add(RailSection("★ FAVORITES", favItems))
-        }
 
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
@@ -1828,7 +1846,7 @@ fun FileManagerScreen(
                     addAll(quickItems)
                     addAll(favItems)
                 }
-                if (deckLocations.size > 1) {
+                if (deckLocations.size > 1 && !LocalDeckPortrait.current) {
                     DeckEditorCategoryRail(
                         labels = deckLocations.map { it.label },
                         selected = deckLocations.indexOfFirst { it.selected },

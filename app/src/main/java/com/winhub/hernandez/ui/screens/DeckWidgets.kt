@@ -1266,8 +1266,9 @@ internal fun DeckTextRow(
     mask: Boolean = false,
 ) {
     val edit = rememberDeckEditState()
-    DeckRow(label, hint) {
-        Box(Modifier.width(width)) {
+    @Composable
+    fun FieldBox(boxModifier: Modifier) {
+        Box(boxModifier) {
             TextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -1301,6 +1302,16 @@ internal fun DeckTextRow(
             )
             if (!edit.editing) DeckEditOverlay(edit, Modifier.matchParentSize())
         }
+    }
+    if (LocalDeckPortrait.current) {
+        // A fixed-width field beside the label squeezes the label to a sliver on a phone: stack them.
+        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, color = DeckPalette.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (hint != null) Text(hint, color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
+            FieldBox(Modifier.fillMaxWidth())
+        }
+    } else {
+        DeckRow(label, hint) { FieldBox(Modifier.width(width)) }
     }
 }
 

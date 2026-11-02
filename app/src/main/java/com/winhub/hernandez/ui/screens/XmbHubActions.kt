@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
@@ -13,6 +15,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import com.winhub.hernandez.container.Shortcut
 
 /** What only Home can do for a game: its own launch-method, settings, pin, container and delete flows. */
@@ -24,8 +27,7 @@ internal class HubXmbOps(
 )
 
 /**
- * The XMB options column for a Home game: kept short. Saves, clone, copy to Drive C, change executable and export live
- * under Settings > General, so they are not repeated here. Launch method, Add to Home Screen, Container properties and
+ * The XMB options column for a Home game. Saves and export live under Settings > General. Launch method, Add to Home Screen, Container properties and
  * Delete run Home's own flows.
  */
 internal fun hubXmbActions(
@@ -41,7 +43,10 @@ internal fun hubXmbActions(
     if (isSteamOriginShortcut(shortcut)) {
         add(XmbAction("Cloud Saves", Icons.Filled.CloudSync, "Steam Cloud sync — opens its own screen") { launchSaveManager(context, steamAppIdOf(shortcut)) })
     }
-    add(XmbAction("Scrape cover", Icons.Filled.Search, menu = { xmbScrapeCoverMenu(it, shortcut) }))
+    add(XmbAction("Search covers", Icons.Filled.Search, menu = { xmbScrapeCoverMenu(it, shortcut) }))
+    add(XmbAction("Clone to container", Icons.Filled.ContentCopy, menu = { xmbCloneMenu(it, shortcut, host) }))
+    add(XmbAction("Copy to Drive C", Icons.Filled.DriveFileMove, menu = { xmbCopyToDriveCMenu(it, shortcut) }))
+    add(XmbAction("Change executable", Icons.Filled.SwapHoriz, menu = { xmbChangeExeMenu(it, shortcut) }))
     add(XmbAction("View logs", Icons.Filled.Description, menu = { xmbLogsMenu(it, shortcut) }))
     add(XmbAction("Add to Home Screen", Icons.Filled.Home) { ops.addToHome() })
     add(XmbAction("Properties", Icons.Filled.Info, "Times played, playtime", menu = { xmbPropertiesMenu(it, shortcut) }))
