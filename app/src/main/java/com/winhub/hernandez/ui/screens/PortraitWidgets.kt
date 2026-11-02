@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Settings
@@ -218,6 +219,7 @@ private fun portraitTabIcon(label: String): ImageVector = when (label) {
     "Steam", "Epic", "GOG" -> Icons.Filled.Storefront
     "Custom", "Game Configurations" -> Icons.Filled.Tune
     "Feed" -> Icons.Filled.People
+    "Profile" -> Icons.Filled.Person
     else -> Icons.Filled.Settings
 }
 

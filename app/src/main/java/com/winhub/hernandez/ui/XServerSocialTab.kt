@@ -522,13 +522,13 @@ private fun SocialPostRow(post: Post, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
-                model = post.authorAvatar,
+                model = com.winhub.hernandez.store.rememberShownAvatar(post.authorLogin, post.authorAvatar),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp).clip(CircleShape),
             )
             Spacer(Modifier.width(7.dp))
             Text(
-                post.author,
+                com.winhub.hernandez.store.rememberShownName(post.authorLogin, post.author),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -716,13 +716,13 @@ internal fun SocialThread(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
-                    model = post.authorAvatar,
+                    model = com.winhub.hernandez.store.rememberShownAvatar(post.authorLogin, post.authorAvatar),
                     contentDescription = null,
                     modifier = Modifier.size(22.dp).clip(CircleShape),
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
-                    post.author,
+                    com.winhub.hernandez.store.rememberShownName(post.authorLogin, post.author),
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -813,13 +813,13 @@ private fun SocialCommentRow(comment: Comment, onDelete: (() -> Unit)?) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
-                model = comment.authorAvatar,
+                model = com.winhub.hernandez.store.rememberShownAvatar(comment.authorLogin, comment.authorAvatar),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp).clip(CircleShape),
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                comment.author,
+                com.winhub.hernandez.store.rememberShownName(comment.authorLogin, comment.author),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,

@@ -2573,6 +2573,7 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="social_hub_images_more">+%1$d more</string>
     <string name="social_hub_subtab_feed">Feed</string>
     <string name="social_hub_subtab_configs">Game Configurations</string>
+    <string name="social_hub_subtab_profile">Profile</string>
     <string name="social_hub_configs_upload">Upload</string>
     <string name="social_hub_configs_sign_in_hint">Sign in on the Feed tab to upload configs.</string>
     <string name="social_hub_configs_loading">Loading configs…</string>

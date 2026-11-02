@@ -110,7 +110,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
     var pagesOpen by rememberSaveable { mutableStateOf(false) }
     val host = LocalDeckTabs.current
     if (deck) {
-        LaunchedEffect(host) { host.bind(2) }
+        LaunchedEffect(host) { host.bind(3) }
         LaunchedEffect(host.index) { tab = host.index }
     }
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(ctx) }
@@ -118,7 +118,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
     val narrow = LocalConfiguration.current.screenWidthDp < 560
     val chosen = prefs.getString("settings_layout", "rail") ?: "rail"
     val layout = if (chosen == "rail" && narrow) "tabs" else chosen
-    val labels = listOf(stringResource(R.string.social_hub_subtab_feed), stringResource(R.string.social_hub_subtab_configs))
+    val labels = listOf(stringResource(R.string.social_hub_subtab_feed), stringResource(R.string.social_hub_subtab_configs), stringResource(R.string.social_hub_subtab_profile))
     val select = { i: Int ->
         tab = i
         if (deck) host.select(i)
@@ -126,7 +126,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
 
     // B goes up one level: category page -> category list; Configs -> Feed.
     BackHandler(enabled = layout == "pages" && pagesOpen) { pagesOpen = false }
-    BackHandler(enabled = layout != "pages" && tab == 1) { select(0) }
+    BackHandler(enabled = layout != "pages" && tab != 0) { select(0) }
 
     Column(
         modifier = Modifier
@@ -135,8 +135,8 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                 if (deck || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.key) {
                     // L2/R2 like Deck's sub-tabs, plus the bumpers.
-                    Key.ButtonL1, Key.ButtonL2 -> { select(0); true }
-                    Key.ButtonR1, Key.ButtonR2 -> { select(1); true }
+                    Key.ButtonL1, Key.ButtonL2 -> { select((tab - 1).coerceAtLeast(0)); true }
+                    Key.ButtonR1, Key.ButtonR2 -> { select((tab + 1).coerceAtMost(2)); true }
                     else -> false
                 }
             },
@@ -186,7 +186,11 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                         Spacer(Modifier.height(8.dp))
                     }
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        if (tab == 0) SocialContent() else SocialConfigsContent()
+                        when (tab) {
+                            0 -> SocialContent()
+                            1 -> SocialConfigsContent()
+                            else -> SocialProfileContent(onGoFeed = { select(0) })
+                        }
                     }
                 }
             }
@@ -403,13 +407,13 @@ private fun ConfigRow(post: Post, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
-                model = post.authorAvatar,
+                model = com.winhub.hernandez.store.rememberShownAvatar(post.authorLogin, post.authorAvatar),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp).clip(CircleShape),
             )
             Spacer(Modifier.width(7.dp))
             Text(
-                post.author,
+                com.winhub.hernandez.store.rememberShownName(post.authorLogin, post.author),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,

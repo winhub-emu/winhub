@@ -158,6 +158,7 @@ object SocialHubStore {
     fun init(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
+        SocialProfiles.init(context.applicationContext)
         val saved = GitHubAuthClient.load(appContext ?: return) ?: return
         _account.value = saved
         scope.launch {
@@ -187,6 +188,7 @@ object SocialHubStore {
      */
     fun refresh() {
         if (_account.value == null) return
+        SocialProfiles.refresh()
         scope.launch {
             _loading.value = true
             val result = fetchPosts()
@@ -550,6 +552,7 @@ object SocialHubStore {
             if (o.has("pull_request")) continue // the API mixes PRs into /issues
             if (SocialHubFormat.isDeleted(o.optString("body"))) continue
             if (isConfigIssue(o)) continue // shown in the Configs tab, not the feed
+            if (o.optString("body").contains(SocialProfiles.ISSUE_MARKER)) continue // profile storage, never shown
             out.add(postFromJson(o, now))
         }
         out
@@ -689,7 +692,7 @@ object SocialHubStore {
 
     // ── HTTP plumbing ───────────────────────────────────────────────────────────────────────────
 
-    private fun authHeaders(token: String? = _account.value?.accessToken): okhttp3.Headers {
+    internal fun authHeaders(token: String? = _account.value?.accessToken): okhttp3.Headers {
         val builder = okhttp3.Headers.Builder()
             .add("Accept", "application/vnd.github+json")
             .add("X-GitHub-Api-Version", "2022-11-28")
@@ -699,19 +702,19 @@ object SocialHubStore {
         return builder.build()
     }
 
-    private fun postJson(url: String, json: String): Pair<Int, String> {
+    internal fun postJson(url: String, json: String): Pair<Int, String> {
         val body = json.toRequestBody("application/json".toMediaTypeOrNull())
         val request = Request.Builder().url(url).headers(authHeaders()).post(body).build()
         return execute(request)
     }
 
-    private fun patchJson(url: String, json: String): Pair<Int, String> {
+    internal fun patchJson(url: String, json: String): Pair<Int, String> {
         val body = json.toRequestBody("application/json".toMediaTypeOrNull())
         val request = Request.Builder().url(url).headers(authHeaders()).patch(body).build()
         return execute(request)
     }
 
-    private fun execute(request: Request): Pair<Int, String> = try {
+    internal fun execute(request: Request): Pair<Int, String> = try {
         client.newCall(request).execute().use { resp ->
             resp.code to (resp.body?.string() ?: "")
         }
@@ -737,7 +740,7 @@ object SocialHubStore {
     }
 
     /** Turn a GitHub error body into a sentence the drawer can show verbatim. */
-    private fun githubError(body: String, code: Int, fallback: String): String {
+    internal fun githubError(body: String, code: Int, fallback: String): String {
         if (code == -1) return body.ifBlank { fallback }
         if (code == 401) return "Your GitHub sign-in expired. Sign in again."
         if (code == 403) return "GitHub refused (rate limit or missing permission). Try again shortly."

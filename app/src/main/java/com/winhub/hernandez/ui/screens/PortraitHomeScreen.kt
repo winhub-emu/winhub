@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.ui.AccountAvatar
-import com.winhub.hernandez.ui.AccountUiBus
+import com.winhub.hernandez.store.SocialHubStore
+import com.winhub.hernandez.store.rememberShownAvatar
 import kotlinx.coroutines.delay
 import java.util.Date
 
@@ -296,7 +298,7 @@ private fun PortraitHeader() {
     val context = LocalContext.current
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
-        AccountUiBus.refresh(context)
+        SocialHubStore.init(context)
         while (true) {
             now = System.currentTimeMillis()
             delay(30_000)
@@ -307,8 +309,9 @@ private fun PortraitHeader() {
         Text("WinHub", color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         Text(time, color = Deck.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.width(12.dp))
+        val gh by SocialHubStore.account.collectAsState()
         AccountAvatar(
-            avatarUrl = AccountUiBus.account?.displayAvatarUrl,
+            avatarUrl = gh?.let { rememberShownAvatar(it.login, it.avatarUrl) },
             size = 36.dp,
             fallbackTint = Deck.onSurfaceVariant,
         )
