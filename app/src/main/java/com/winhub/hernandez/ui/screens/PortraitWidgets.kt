@@ -7,6 +7,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,6 +87,56 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
                     fontSize = 14.sp,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Portrait tab strip in bannercode's Deck style: one rounded glass card, scrolls sideways, the
+ * selected tab is a filled primary pill with its icon + label. Scrolls the selection into view.
+ */
+@Composable
+internal fun DeckPortraitTabStrip(
+    labels: List<String>,
+    icons: List<ImageVector>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(selected) { listState.animateScrollToItem(selected.coerceAtLeast(0)) }
+    val cardShape = RoundedCornerShape(18.dp)
+    LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .background(Deck.surface)
+            .border(1.dp, Deck.line, cardShape),
+    ) {
+        itemsIndexed(labels) { i, label ->
+            val on = i == selected
+            val source = remember { MutableInteractionSource() }
+            val focused by source.collectIsFocusedAsState()
+            val shape = RoundedCornerShape(12.dp)
+            val tint = if (on) Deck.onPrimary else Deck.onSurfaceVariant
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .clip(shape)
+                    .background(if (on) Deck.primary else Color.Transparent)
+                    .border(if (focused) 2.dp else 0.dp, if (focused) Deck.primary else Color.Transparent, shape)
+                    .clickable(interactionSource = source, indication = null) { if (!on) onSelect(i) }
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 14.dp),
+            ) {
+                icons.getOrNull(i)?.let { Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
+                Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, maxLines = 1)
             }
         }
     }

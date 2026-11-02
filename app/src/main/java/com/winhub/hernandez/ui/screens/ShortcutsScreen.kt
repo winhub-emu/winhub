@@ -8890,8 +8890,10 @@ internal fun DeckShortcutSettingsScreen(
 
     // Category-navigation layout — the SAME setting the container editor honours
     // (Settings → Appearance → Container Editor Layout): "tabs" | "rail" | "pages".
-    val layoutPref = remember {
-        PreferenceManager.getDefaultSharedPreferences(context)
+    // Portrait ignores the preference: tabs always run across the top as a Deck strip ("portrait").
+    val portraitDeck = LocalDeckPortrait.current
+    val layoutPref = remember(portraitDeck) {
+        if (portraitDeck) "portrait" else PreferenceManager.getDefaultSharedPreferences(context)
             .getString("container_editor_layout", "rail")?.takeIf { it != "tabs" } ?: "rail"
     }
     // "pages" layout: whether a category page is open (false = the category list page).
@@ -8928,6 +8930,16 @@ internal fun DeckShortcutSettingsScreen(
                     modifier = Modifier.weight(1f).padding(start = 4.dp),
                 )
                 DeckButton("Save") { save(); onDismiss() }
+            }
+
+            if (layoutPref == "portrait") {
+                DeckPortraitTabStrip(
+                    labels = tabTitles,
+                    icons = tabTitles.map { shortcutTabIcon(it) },
+                    selected = tabIndices.indexOf(selectedTab).coerceAtLeast(0),
+                    onSelect = { selectedTab = tabIndices[it] },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
             }
 
             if (layoutPref == "tabs") {

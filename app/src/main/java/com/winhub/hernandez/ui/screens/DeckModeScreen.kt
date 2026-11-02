@@ -655,6 +655,7 @@ private fun DeckHome(
     var classicMenu by remember { mutableStateOf(false) }
     // Portrait: tapping a cover opens its game page over the grid.
     var portraitPageOpen by remember { mutableStateOf(false) }
+    var portraitOptions by remember { mutableStateOf(false) }
     var addMode by remember { mutableStateOf(HubAddMode.MASTER) }
     var cronosBusy by remember { mutableStateOf(false) }
     var cronosName by remember { mutableStateOf("") }
@@ -816,6 +817,7 @@ private fun DeckHome(
                 val list = entries.orEmpty().filter { it.game?.shortcutPath != g.shortcutPath }
                 entries = list
                 selected = selected.coerceIn(0, (list.size - 1).coerceAtLeast(0))
+                portraitPageOpen = false
                 Toast.makeText(context, "Removed \"${g.name}\"", Toast.LENGTH_SHORT).show()
             }
         }
@@ -1137,8 +1139,17 @@ private fun DeckHome(
                     onBack = { portraitPageOpen = false },
                     onPlay = { playEntry(current) },
                     onSettings = { openGameSettings(current) },
-                    onMenu = { classicMenu = true },
+                    onMenu = { portraitOptions = true },
                 )
+                if (portraitOptions && classicItems.isNotEmpty()) {
+                    PortraitGameMenuSheet(
+                        title = current.title,
+                        subtitle = hubOriginLabel(current) + " · " + hubPlaytimeLabel(context, current.title),
+                        cover = current.bitmap,
+                        items = classicItems,
+                        onDismiss = { portraitOptions = false },
+                    )
+                }
             }
             if (entries == null) {
                 CircularProgressIndicator(
