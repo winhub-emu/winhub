@@ -653,6 +653,8 @@ private fun DeckHome(
     var addModeMenu by remember { mutableStateOf(false) }
     // Classic style: long-press a cover / Y opens the console-style game menu instead of the dropdown.
     var classicMenu by remember { mutableStateOf(false) }
+    // Portrait: tapping a cover opens its game page over the grid.
+    var portraitPageOpen by remember { mutableStateOf(false) }
     var addMode by remember { mutableStateOf(HubAddMode.MASTER) }
     var cronosBusy by remember { mutableStateOf(false) }
     var cronosName by remember { mutableStateOf("") }
@@ -1094,7 +1096,7 @@ private fun DeckHome(
                 favs = favs,
                 shelf = shelf,
                 onShelf = { deckTabs.select(it) },
-                onSelect = { selected = it },
+                onSelect = { selected = it; portraitPageOpen = true },
                 onPlay = { current?.let { playEntry(it) } },
                 onMenu = { classicMenu = true },
                 onAdd = { addModeMenu = true },
@@ -1126,6 +1128,18 @@ private fun DeckHome(
                 focus = heroFocus,
                 enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu,
             )
+            if (portrait && portraitPageOpen && current != null) {
+                BackHandler(enabled = shortcutSettingsFor == null && !classicMenu) { portraitPageOpen = false }
+                PortraitGamePage(
+                    entry = current,
+                    favourite = current.game?.shortcutPath in favs,
+                    containerName = containers.find { it.id == current.game?.containerId }?.name,
+                    onBack = { portraitPageOpen = false },
+                    onPlay = { playEntry(current) },
+                    onSettings = { openGameSettings(current) },
+                    onMenu = { classicMenu = true },
+                )
+            }
             if (entries == null) {
                 CircularProgressIndicator(
                     color = DeckPalette.primary,

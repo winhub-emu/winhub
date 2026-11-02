@@ -31,7 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,7 +43,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 
 private val shelfLabels = listOf("All", "Recent", "Favourites", "Store games")
 
@@ -67,7 +65,6 @@ internal fun PortraitHome(
     modifier: Modifier = Modifier,
 ) {
     val state = rememberLazyGridState()
-    val scope = rememberCoroutineScope()
     val current = entries.getOrNull(selected)
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -153,10 +150,7 @@ internal fun PortraitHome(
                 entry = entries[i],
                 isSelected = i == selected,
                 favourite = entries[i].game?.shortcutPath in favs,
-                onClick = {
-                    onSelect(i)
-                    scope.launch { state.animateScrollToItem(0) }
-                },
+                onClick = { onSelect(i) },
             )
         }
     }
