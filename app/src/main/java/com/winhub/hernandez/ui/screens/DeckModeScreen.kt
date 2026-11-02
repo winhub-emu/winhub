@@ -1798,7 +1798,8 @@ private fun DeckBottomTabs(
             scroll.animateScrollTo((index * itemPx - (viewportPx - itemPx) / 2f).toInt().coerceAtLeast(0))
         }
         Column {
-            HorizontalDivider(color = Deck.line.copy(alpha = barOpacity))
+            PortraitTabDivider()
+            val accent = deckAccentBrush()
             Row(modifier = Modifier.horizontalScroll(scroll).padding(horizontal = 4.dp, vertical = 4.dp)) {
                 sections.forEach { item ->
                     val current = selected == item.key
@@ -1810,6 +1811,7 @@ private fun DeckBottomTabs(
                             .height(60.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (current) Deck.primary.copy(alpha = 0.14f) else Color.Transparent)
+                            .then(if (current) Modifier.border(1.5.dp, accent, RoundedCornerShape(12.dp)) else Modifier)
                             .focusProperties { canFocus = false }
                             .clickable { onSelect(item.key) },
                     ) {
