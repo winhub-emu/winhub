@@ -135,8 +135,9 @@ internal fun DeckContainerDetailScreen(
     // "rail" = animated left rail (default), "pages" = full-page list.
     val context = LocalContext.current
     val portraitUi = LocalDeckPortrait.current
+    val portraitStrip = rememberPortraitStrip()
     val layoutPref = remember {
-        if (portraitUi) "portrait" else PreferenceManager.getDefaultSharedPreferences(context)
+        if (portraitUi) (if (portraitStrip) "portrait" else "pages") else PreferenceManager.getDefaultSharedPreferences(context)
             .getString("container_editor_layout", "rail")?.takeIf { it != "tabs" } ?: "rail"
     }
     // "popup" = config editors open in a DeckConfigDialog; "dropdown" = classic inline

@@ -168,8 +168,9 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
     val context = LocalContext.current
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     val universalLayout = prefs.getBoolean("deck_universal_layout", false)
+    val portraitStrip = rememberPortraitStrip()
     val layout = if (LocalDeckPortrait.current) {
-        "portrait"
+        if (portraitStrip) "portrait" else "pages"
     } else if (universalLayout) {
         prefs.getString("settings_layout", "rail") ?: "rail"
     } else {

@@ -33,6 +33,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.preference.PreferenceManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -179,3 +181,10 @@ private fun portraitTabIcon(label: String): ImageVector = when (label) {
 internal fun DeckPortraitTabs(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     DeckPortraitTabStrip(labels, labels.map { portraitTabIcon(it) }, selected, onSelect, modifier)
 }
+
+/** Portrait-only preference: "strip" (icon tabs on top, default) or "pages" (full-page category list). */
+internal const val PORTRAIT_TABS_PREF = "portrait_tabs_style"
+
+@Composable
+internal fun rememberPortraitStrip(): Boolean =
+    PreferenceManager.getDefaultSharedPreferences(LocalContext.current).getString(PORTRAIT_TABS_PREF, "strip") != "pages"

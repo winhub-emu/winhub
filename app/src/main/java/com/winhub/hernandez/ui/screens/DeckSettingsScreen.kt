@@ -134,7 +134,7 @@ internal fun DeckSettingsScreen() {
     // This page's own category layout ("tabs" | "rail" | "pages"). Defaults to the left rail — the
     // requested default — and is independent of the container editor's choice.
     val portraitUi = LocalDeckPortrait.current
-    var settingsLayout by remember { mutableStateOf(if (portraitUi) "portrait" else prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
+    var settingsLayout by remember { mutableStateOf(if (portraitUi) (if (prefs.getString(PORTRAIT_TABS_PREF, "strip") != "pages") "portrait" else "pages") else prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
     // One switch to make Save Manager and Contents follow the Settings Layout above instead of
     // always using their top strip. Off by default so the classic Deck tabs stay untouched.
     var universalLayout by remember { mutableStateOf(prefs.getBoolean("deck_universal_layout", false)) }
@@ -687,8 +687,8 @@ internal fun DeckSettingsScreen() {
             )
         }
 
-        // ── Home ──
-        DeckGroup(title = "Home") {
+        // ── Home ── (landscape only: portrait Home is always the cover grid)
+        if (!portraitUi) DeckGroup(title = "Home") {
             DeckChoiceRow(
                 label = "Home style",
                 hint = "XMB gives the game dropdown the full XMB tool list (details, saves, cover, clone, logs and more)",
@@ -732,6 +732,20 @@ internal fun DeckSettingsScreen() {
                 onPick = {
                     configEditorStyle = it
                     prefs.edit().putString("config_editor_style", it).apply()
+                },
+            )
+            if (portraitUi) DeckChoiceRow(
+                label = "Portrait Tabs",
+                hint = "How the container editor, Contents, Settings and Storage arrange their categories",
+                options = listOf(
+                    "strip" to "Icon Tabs (top)",
+                    "pages" to "Category List",
+                ),
+                selected = settingsLayout.let { if (it == "pages") "pages" else "strip" },
+                onPick = {
+                    settingsLayout = if (it == "pages") "pages" else "portrait"
+                    settingsPagesCategoryOpen = false
+                    prefs.edit().putString(PORTRAIT_TABS_PREF, it).apply()
                 },
             )
             if (!portraitUi) DeckChoiceRow(
