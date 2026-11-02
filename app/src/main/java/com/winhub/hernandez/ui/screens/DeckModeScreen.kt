@@ -1184,7 +1184,15 @@ private fun DeckHome(
                 modifier = Modifier.align(Alignment.Center),
             ) { DeckWordmark() }
 
-            if (classicMenu && current != null && classicItems.isNotEmpty()) {
+            if (classicMenu && portrait && current != null && classicItems.isNotEmpty()) {
+                PortraitGameMenuSheet(
+                    title = current.title,
+                    subtitle = hubOriginLabel(current) + " · " + hubPlaytimeLabel(context, current.title),
+                    cover = current.bitmap,
+                    items = classicItems,
+                    onDismiss = { classicMenu = false },
+                )
+            } else if (classicMenu && current != null && classicItems.isNotEmpty()) {
                 DeckConsoleGameMenu(
                     title = current.title,
                     subtitle = hubOriginLabel(current),
