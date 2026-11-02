@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -30,7 +31,11 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +53,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winhub.hernandez.ui.AccountAvatar
+import com.winhub.hernandez.ui.AccountUiBus
+import kotlinx.coroutines.delay
+import java.util.Date
 
 private val shelfLabels = listOf("All", "Recent", "Favourites", "Store games")
 
@@ -82,7 +91,7 @@ internal fun PortraitHome(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("WinHub", color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            PortraitHeader()
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
@@ -278,5 +287,30 @@ private fun PortraitCover(entry: HubEntry, isSelected: Boolean, favourite: Boole
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp),
             )
         }
+    }
+}
+
+/** WinHub wordmark on the left; on the right the clock and the Social Hub account's avatar. */
+@Composable
+private fun PortraitHeader() {
+    val context = LocalContext.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        AccountUiBus.refresh(context)
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val time = remember(now) { android.text.format.DateFormat.getTimeFormat(context).format(Date(now)) }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text("WinHub", color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(time, color = Deck.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(12.dp))
+        AccountAvatar(
+            avatarUrl = AccountUiBus.account?.displayAvatarUrl,
+            size = 36.dp,
+            fallbackTint = Deck.onSurfaceVariant,
+        )
     }
 }
