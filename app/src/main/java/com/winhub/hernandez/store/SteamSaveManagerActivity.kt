@@ -249,7 +249,8 @@ internal fun SaveManagerScreen(
     // page's tabs / side rail / category pages instead of always using the top strip.
     val deckPrefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     val universalLayout = remember { deckPrefs.getBoolean("deck_universal_layout", false) }
-    val sectionLayout = if (deckMode && universalLayout) {
+    val portraitDeck = com.winhub.hernandez.ui.screens.LocalDeckPortrait.current
+    val sectionLayout = if (deckMode && universalLayout && !portraitDeck) {
         deckPrefs.getString("settings_layout", "rail") ?: "rail"
     } else {
         "tabs"
@@ -497,6 +498,7 @@ internal fun SaveManagerScreen(
             else -> "Settings"
         }
 
+        if (deckMode && portraitDeck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Saves")
         if (deckMode && sectionLayout == "tabs") {
             // Deck sections, same language as the Stores strip: landing on a pill selects its tab.
             if (com.winhub.hernandez.ui.screens.LocalDeckPortrait.current) {

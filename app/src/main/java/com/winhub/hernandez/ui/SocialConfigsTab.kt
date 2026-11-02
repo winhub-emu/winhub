@@ -117,7 +117,8 @@ internal fun SocialHubScreen(deck: Boolean = false) {
     // A 200dp rail would eat a phone in portrait, so narrow screens fall back to the top strip.
     val narrow = LocalConfiguration.current.screenWidthDp < 560
     val chosen = prefs.getString("settings_layout", "rail") ?: "rail"
-    val layout = if (chosen == "rail" && narrow) "tabs" else chosen
+    val portraitDeck = com.winhub.hernandez.ui.screens.LocalDeckPortrait.current
+    val layout = if (portraitDeck) "tabs" else if (chosen == "rail" && narrow) "tabs" else chosen
     val labels = listOf(stringResource(R.string.social_hub_subtab_feed), stringResource(R.string.social_hub_subtab_configs), stringResource(R.string.social_hub_subtab_profile))
     val select = { i: Int ->
         tab = i
@@ -131,6 +132,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .then(if (portraitDeck) Modifier.padding(horizontal = 16.dp) else Modifier)
             .onPreviewKeyEvent { e ->
                 if (deck || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.key) {
@@ -141,8 +143,9 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                 }
             },
     ) {
+        if (deck && portraitDeck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social Hub", horizontal = 0.dp)
         if (layout == "tabs") {
-            if (com.winhub.hernandez.ui.screens.LocalDeckPortrait.current) {
+            if (portraitDeck) {
                 com.winhub.hernandez.ui.screens.DeckPortraitChips(labels, tab, select)
             } else {
                             DeckStretchyTabs(

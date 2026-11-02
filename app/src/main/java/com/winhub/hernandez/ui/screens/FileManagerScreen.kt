@@ -1110,6 +1110,7 @@ fun FileManagerScreen(
             .fillMaxSize()
             .background(if (deckMode) DeckPalette.background else MaterialTheme.colorScheme.background),
     ) {
+        if (deckMode && !pickMode && LocalDeckPortrait.current) PortraitScreenTitle("Files")
         // ── Pick-mode title ──
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(

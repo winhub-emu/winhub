@@ -235,3 +235,12 @@ internal const val PORTRAIT_TABS_PREF = "portrait_tabs_style"
 @Composable
 internal fun rememberPortraitStrip(): Boolean =
     PreferenceManager.getDefaultSharedPreferences(LocalContext.current).getString(PORTRAIT_TABS_PREF, "strip") != "pages"
+
+/** Page title for portrait Deck screens that don't bring their own (same look as Contents' header). */
+@Composable
+internal fun PortraitScreenTitle(title: String, subtitle: String? = null, horizontal: androidx.compose.ui.unit.Dp = 16.dp) {
+    Column(Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = 8.dp, bottom = 10.dp)) {
+        Text(title, color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        if (subtitle != null) Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 13.sp)
+    }
+}
