@@ -1101,8 +1101,7 @@ private fun DeckHome(
                 shelf = shelf,
                 onShelf = { deckTabs.select(it) },
                 onSelect = { selected = it; portraitPageOpen = true },
-                onPlay = { current?.let { playEntry(it) } },
-                onMenu = { classicMenu = true },
+                onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
             ) else DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {

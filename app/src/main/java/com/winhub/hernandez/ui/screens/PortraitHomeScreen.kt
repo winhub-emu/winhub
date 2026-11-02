@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,7 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -34,9 +34,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -59,13 +64,15 @@ internal fun PortraitHome(
     shelf: Int,
     onShelf: (Int) -> Unit,
     onSelect: (Int) -> Unit,
-    onPlay: () -> Unit,
-    onMenu: () -> Unit,
+    onPlay: (Int) -> Unit,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state = rememberLazyGridState()
-    val current = entries.getOrNull(selected)
+    val context = LocalContext.current
+    // Jump-back-in banner: the game played last, if it is on the current shelf.
+    val lastPlayed = context.getSharedPreferences("hub_prefs", Context.MODE_PRIVATE).getString("last_played", null)
+    val continueIndex = if (lastPlayed == null) -1 else entries.indexOfFirst { it.game?.shortcutPath == lastPlayed }
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         state = state,
@@ -104,9 +111,9 @@ internal fun PortraitHome(
                 }
             }
         }
-        if (current != null) {
+        if (continueIndex >= 0) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                PortraitHero(current, current.game?.shortcutPath in favs, onPlay, onMenu)
+                PortraitContinueBanner(entries[continueIndex], onOpen = { onSelect(continueIndex) }, onPlay = { onPlay(continueIndex) })
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -156,56 +163,82 @@ internal fun PortraitHome(
     }
 }
 
+/** "Continue playing" banner (bannercode's hero, compact): art fading down into the title, tap = game page, Play = go. */
 @Composable
-private fun PortraitHero(entry: HubEntry, favourite: Boolean, onPlay: () -> Unit, onMenu: () -> Unit) {
+private fun PortraitContinueBanner(entry: HubEntry, onOpen: () -> Unit, onPlay: () -> Unit) {
+    val context = LocalContext.current
     val hue = remember(entry.title) { hueOf(entry.title) * 360f }
     val bitmap = remember(entry.bitmap) { entry.bitmap?.asImageBitmap() }
+    val hours = remember(entry.title) { hubPlaytimeLabel(context, entry.title) }
+    val shape = RoundedCornerShape(24.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(220.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(Color.hsv(hue, 0.55f, 0.55f), Color.hsv((hue + 40f) % 360f, 0.6f, 0.25f)))),
+            .height(210.dp)
+            .clip(shape)
+            .background(Deck.surface)
+            .border(1.5.dp, deckAccentBrush(), shape)
+            .clickable { onOpen() },
     ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.linearGradient(listOf(Color.hsv(hue, 0.55f, 0.55f).copy(alpha = 0.5f), Color.Transparent))),
+        )
         if (bitmap != null) {
-            Image(bitmap = bitmap, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.6f), 1f to Color.Transparent),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    },
+            )
         }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xDD000000)))))
-        Column(modifier = Modifier.align(Alignment.BottomStart).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column {
-                Text(entry.title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(
-                    (entry.game?.store ?: "Custom") + if (favourite) " · Favourite" else "",
-                    color = Color(0xCCFFFFFF),
-                    fontSize = 14.sp,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(18.dp),
+        ) {
+            Text("CONTINUE PLAYING", color = Deck.primary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+            Text(
+                entry.title,
+                color = Deck.onBackground,
+                fontSize = 26.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp)
+                        .height(48.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(Deck.primary)
-                        .clickable { onPlay() },
+                        .clickable { onPlay() }
+                        .padding(horizontal = 22.dp),
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Deck.onPrimary)
                     Spacer(Modifier.size(6.dp))
                     Text("Play", color = Deck.onPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0x66000000))
-                        .border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(14.dp))
-                        .clickable { onMenu() },
-                ) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = "Game menu", tint = Color.White)
-                }
+                Text(
+                    hubOriginLabel(entry) + " · " + hours,
+                    color = Deck.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -221,7 +254,7 @@ private fun PortraitCover(entry: HubEntry, isSelected: Boolean, favourite: Boole
             .aspectRatio(0.66f)
             .clip(shape)
             .background(Brush.linearGradient(listOf(Color.hsv(hue, 0.55f, 0.55f), Color.hsv((hue + 40f) % 360f, 0.6f, 0.25f))))
-            .then(if (isSelected) Modifier.border(2.dp, Deck.primary, shape) else Modifier)
+            .border(if (isSelected) 2.5.dp else 1.5.dp, deckAccentBrush(), shape)
             .clickable { onClick() },
     ) {
         if (bitmap != null) {
