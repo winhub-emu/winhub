@@ -176,13 +176,11 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
             )
             Spacer(Modifier.height(10.dp))
 
-            val portraitStrip = rememberPortraitStrip()
             DeckRailLayout(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 rail = {
                     if (LocalDeckPortrait.current) {
-                        if (portraitStrip) DeckPortraitTabs(listOf("Cronos", "Containers"), subtab, { tabs.select(it) }, Modifier.padding(bottom = 10.dp))
-                        else DeckPortraitChips(listOf("Cronos", "Containers"), subtab) { tabs.select(it) }
+                        DeckPortraitChips(listOf("Cronos", "Containers"), subtab) { tabs.select(it) }
                     } else {
                         DeckEditorCategoryRail(
                             labels = listOf("Cronos", "Containers"),

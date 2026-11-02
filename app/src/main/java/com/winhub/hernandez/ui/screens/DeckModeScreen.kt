@@ -443,6 +443,8 @@ internal fun DeckModeScreen() {
                 .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->
+                    // Portrait is touch-only: gamepad and D-pad keys do nothing here (landscape keeps both).
+                    if (portrait && isPadKey(e.key)) return@onPreviewKeyEvent true
                     if (DeckConsole.boot) {
                         if (e.type == KeyEventType.KeyDown && (e.key == Key.ButtonA || e.key == Key.Enter || e.key == Key.DirectionCenter || e.key == Key.ButtonStart)) DeckConsole.boot = false
                         return@onPreviewKeyEvent true
@@ -3108,4 +3110,11 @@ private class DeckInputModeManager(
 
     override fun requestInputMode(inputMode: InputMode): Boolean =
         delegate.requestInputMode(inputMode)
+}
+
+private fun isPadKey(k: Key): Boolean = when (k) {
+    Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter,
+    Key.ButtonA, Key.ButtonB, Key.ButtonX, Key.ButtonY, Key.ButtonL1, Key.ButtonR1, Key.ButtonL2, Key.ButtonR2,
+    Key.ButtonStart, Key.ButtonSelect, Key.ButtonThumbLeft, Key.ButtonThumbRight -> true
+    else -> false
 }

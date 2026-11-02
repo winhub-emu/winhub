@@ -65,7 +65,7 @@ import coil.request.ImageRequest
 import com.winhub.hernandez.store.compose.AddResultDialog
 import com.winhub.hernandez.store.compose.AddShortcutResult
 import com.winhub.hernandez.store.compose.AddToShortcutsRequest
-import com.winhub.hernandez.store.compose.ContainerPickerDialog
+import com.winhub.hernandez.store.compose.DeckAddToShortcuts
 import com.winhub.hernandez.store.compose.openShortcutsScreen
 import com.winhub.hernandez.store.download.DownloadEntry
 import com.winhub.hernandez.store.download.DownloadRegistry
@@ -152,20 +152,7 @@ class DownloadManagerActivity : ComponentActivity() {
                 uninstallResult?.let { UninstallResultBar(it) { uninstallResult = null } }
 
                 addToShortcuts?.let { req ->
-                    ContainerPickerDialog(
-                        gameName = req.gameName,
-                        containers = req.containers,
-                        onDismiss = { addToShortcuts = null },
-                        onSelected = { container ->
-                            addToShortcuts = null
-                            StarLaunchBridge.writeShortcutAsync(
-                                this@DownloadManagerActivity, container,
-                                req.gameName, req.exePath, req.coverUrl,
-                            ) { success, message ->
-                                addResult = AddShortcutResult(req.gameName, success, message)
-                            }
-                        },
-                    )
+                    DeckAddToShortcuts(req, null) { addToShortcuts = null }
                 }
 
                 addResult?.let { result ->

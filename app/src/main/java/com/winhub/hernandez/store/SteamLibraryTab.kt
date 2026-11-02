@@ -61,7 +61,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.winhub.hernandez.store.compose.AddResultDialog
 import com.winhub.hernandez.store.compose.AddShortcutResult
 import com.winhub.hernandez.store.compose.AddToShortcutsRequest
-import com.winhub.hernandez.store.compose.ContainerPickerDialog
+import com.winhub.hernandez.store.compose.DeckAddToShortcuts
 import com.winhub.hernandez.store.compose.openShortcutsScreen
 import com.winhub.hernandez.ui.screens.OutlinedAlertDialog
 
@@ -487,20 +487,7 @@ fun SteamLibraryTab(
             }
 
             addToShortcuts?.let { req ->
-                ContainerPickerDialog(
-                    gameName = req.gameName,
-                    containers = req.containers,
-                    onDismiss = { addToShortcuts = null },
-                    onSelected = { container ->
-                        addToShortcuts = null
-                        val a = activity ?: return@ContainerPickerDialog
-                        StarLaunchBridge.writeShortcutAsync(
-                            a, container, req.gameName, req.exePath, req.coverUrl,
-                        ) { success, message ->
-                            addResult = AddShortcutResult(req.gameName, success, message)
-                        }
-                    },
-                )
+                DeckAddToShortcuts(req, null) { addToShortcuts = null }
             }
 
             addResult?.let { result ->

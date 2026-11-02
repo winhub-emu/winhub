@@ -93,7 +93,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.winhub.hernandez.store.compose.AddResultDialog
 import com.winhub.hernandez.store.compose.AddShortcutResult
 import com.winhub.hernandez.store.compose.AddToShortcutsRequest
-import com.winhub.hernandez.store.compose.ContainerPickerDialog
+import com.winhub.hernandez.store.compose.DeckAddToShortcuts
 import com.winhub.hernandez.store.compose.openShortcutsScreen
 import com.winhub.hernandez.store.download.DownloadRegistry
 import com.winhub.hernandez.store.download.DownloadsButton
@@ -499,23 +499,7 @@ class SteamGameDetailActivity : ComponentActivity(), SteamRepository.SteamEventL
                 }
 
                 addToShortcuts?.let { req ->
-                    ContainerPickerDialog(
-                        gameName = req.gameName,
-                        containers = req.containers,
-                        onDismiss = { addToShortcuts = null },
-                        onSelected = { container ->
-                            addToShortcuts = null
-                            StarLaunchBridge.writeShortcutAsync(
-                                this@SteamGameDetailActivity, container,
-                                req.gameName, req.exePath, req.coverUrl, appId,
-                            ) { success, message ->
-                                addResult = AddShortcutResult(req.gameName, success, message)
-                                // The game now has a launch container — re-resolve so the Cloud Saves
-                                // section flips out of the "set up first" state.
-                                if (success) game?.let { resolveCloudContainer(it) }
-                            }
-                        },
-                    )
+                    DeckAddToShortcuts(req, appId) { addToShortcuts = null; game?.let { resolveCloudContainer(it) } }
                 }
 
                 addResult?.let { result ->

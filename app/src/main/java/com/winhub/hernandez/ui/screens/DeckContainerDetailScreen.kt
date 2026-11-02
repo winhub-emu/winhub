@@ -50,6 +50,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -176,9 +177,10 @@ internal fun DeckContainerDetailScreen(
                 Text(
                     text = title,
                     color = Deck.onBackground,
-                    fontSize = 24.sp,
+                    fontSize = if (portraitUi) 18.sp else 24.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = when {

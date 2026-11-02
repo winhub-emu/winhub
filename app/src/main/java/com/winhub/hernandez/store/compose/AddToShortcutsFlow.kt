@@ -171,3 +171,21 @@ fun openShortcutsScreen(activity: Activity) {
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
     )
 }
+
+/**
+ * Steam's "Add to shortcuts" now runs the Deck add flow (Master Containers vs Cronos, then confirm), so
+ * the game lands in the library on Home instead of only being written into a container.
+ */
+@Composable
+fun DeckAddToShortcuts(req: AddToShortcutsRequest, appId: Int?, onDismiss: () -> Unit) {
+    com.winhub.hernandez.ui.screens.DeckStoreAddFlow(
+        request = com.winhub.hernandez.ui.screens.DeckAddRequest(
+            title = req.gameName,
+            store = "Steam",
+            coverUrl = req.coverUrl,
+            appId = appId,
+            resolveExe = { req.exePath },
+        ),
+        onDismiss = onDismiss,
+    )
+}

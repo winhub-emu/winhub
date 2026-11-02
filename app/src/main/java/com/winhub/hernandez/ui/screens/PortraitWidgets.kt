@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -22,7 +25,9 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SportsEsports
@@ -35,7 +40,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.preference.PreferenceManager
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -78,34 +85,65 @@ internal fun DeckRailLayout(
     }
 }
 
-/** Equal-width 48dp touch chips for switching between a page's few categories. */
+/** Darker -> lighter variant of the theme's primary: the stroke on selected items and the divider under tabs. */
+@Composable
+internal fun deckAccentBrush(alpha: Float = 1f): Brush {
+    val base = Deck.primary
+    return Brush.horizontalGradient(
+        listOf(
+            lerp(base, Color.Black, 0.45f).copy(alpha = alpha),
+            lerp(base, Color.White, 0.45f).copy(alpha = alpha),
+        ),
+    )
+}
+
+/** Subtle gradient hairline between a tab bar and the screen below it. */
+@Composable
+internal fun PortraitTabDivider(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(1.5.dp).background(deckAccentBrush(0.55f)))
+}
+
+/** Touch-only 48dp pill chips with the icon left of the label: equal width up to 3, sideways scroll beyond. */
 @Composable
 internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-    ) {
-        labels.forEachIndexed { i, label ->
-            val on = i == selected
-            val shape = RoundedCornerShape(24.dp)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(shape)
-                    .background(if (on) Deck.primary.copy(alpha = 0.18f) else Deck.surface)
-                    .border(1.5.dp, if (on) Deck.primary else Deck.line, shape)
-                    .clickable { onSelect(i) },
-            ) {
-                Text(
-                    label,
-                    color = if (on) Deck.primary else Deck.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
-                )
+    val equal = labels.size <= 3
+    val accent = deckAccentBrush()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().then(if (equal) Modifier else Modifier.horizontalScroll(rememberScrollState())),
+        ) {
+            labels.forEachIndexed { i, label ->
+                val on = i == selected
+                val shape = RoundedCornerShape(24.dp)
+                val tint = if (on) Deck.primary else Deck.onSurfaceVariant
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .then(if (equal) Modifier.weight(1f) else Modifier)
+                        .height(48.dp)
+                        .clip(shape)
+                        .background(if (on) Deck.primary.copy(alpha = 0.18f) else Deck.surface)
+                        .then(if (on) Modifier.border(1.5.dp, accent, shape) else Modifier.border(1.dp, Deck.line, shape))
+                        .clickable { onSelect(i) }
+                        .padding(horizontal = 16.dp),
+                ) {
+                    Icon(portraitTabIcon(label), contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        label,
+                        color = tint,
+                        fontSize = 14.sp,
+                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 1,
+                    )
+                }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        PortraitTabDivider()
+        Spacer(Modifier.height(10.dp))
     }
 }
 
@@ -124,12 +162,14 @@ internal fun DeckPortraitTabStrip(
     val listState = rememberLazyListState()
     LaunchedEffect(selected) { listState.animateScrollToItem(selected.coerceAtLeast(0)) }
     val cardShape = RoundedCornerShape(18.dp)
+    val accent = deckAccentBrush()
+    Column(modifier = modifier.fillMaxWidth()) {
     LazyRow(
         state = listState,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .clip(cardShape)
             .background(Deck.surface)
@@ -138,7 +178,6 @@ internal fun DeckPortraitTabStrip(
         itemsIndexed(labels) { i, label ->
             val on = i == selected
             val source = remember { MutableInteractionSource() }
-            val focused by source.collectIsFocusedAsState()
             val shape = RoundedCornerShape(12.dp)
             val tint = if (on) Deck.onPrimary else Deck.onSurfaceVariant
             Row(
@@ -147,7 +186,7 @@ internal fun DeckPortraitTabStrip(
                 modifier = Modifier
                     .clip(shape)
                     .background(if (on) Deck.primary else Color.Transparent)
-                    .border(if (focused) 2.dp else 0.dp, if (focused) Deck.primary else Color.Transparent, shape)
+                    .then(if (on) Modifier.border(1.5.dp, accent, shape) else Modifier)
                     .clickable(interactionSource = source, indication = null) { if (!on) onSelect(i) }
                     .heightIn(min = 48.dp)
                     .padding(horizontal = 14.dp),
@@ -156,6 +195,9 @@ internal fun DeckPortraitTabStrip(
                 Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, maxLines = 1)
             }
         }
+    }
+    Spacer(Modifier.height(8.dp))
+    PortraitTabDivider()
     }
 }
 
@@ -173,6 +215,9 @@ private fun portraitTabIcon(label: String): ImageVector = when (label) {
     "Interface" -> Icons.Filled.Apps
     "Appearance" -> Icons.Filled.Visibility
     "Cronos" -> Icons.Filled.Layers
+    "Steam", "Epic", "GOG" -> Icons.Filled.Storefront
+    "Custom", "Game Configurations" -> Icons.Filled.Tune
+    "Feed" -> Icons.Filled.People
     else -> Icons.Filled.Settings
 }
 

@@ -499,6 +499,13 @@ internal fun SaveManagerScreen(
 
         if (deckMode && sectionLayout == "tabs") {
             // Deck sections, same language as the Stores strip: landing on a pill selects its tab.
+            if (com.winhub.hernandez.ui.screens.LocalDeckPortrait.current) {
+                Box(Modifier.padding(horizontal = 16.dp)) {
+                    com.winhub.hernandez.ui.screens.DeckPortraitChips(
+                        deckTabLabels, deckTabs.indexOf(selectedTab).coerceAtLeast(0),
+                    ) { selectedTab = deckTabs[it] }
+                }
+            } else {
             DeckStretchyTabs(
                 labels = deckTabLabels,
                 dots = listOf(
@@ -515,6 +522,7 @@ internal fun SaveManagerScreen(
                 selectOnFocus = true,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+            }
             Spacer(Modifier.height(10.dp))
         }
 

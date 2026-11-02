@@ -240,8 +240,7 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
                 Spacer(Modifier.height(12.dp))
             }
             if (layout == "portrait") {
-                DeckPortraitTabs(tabLabels, tab, { tabs.select(it) })
-                Spacer(Modifier.height(12.dp))
+                DeckPortraitChips(tabLabels, tab) { tabs.select(it) }
             }
             if (layout == "pages" && !pagesCategoryOpen) {
                 Column(

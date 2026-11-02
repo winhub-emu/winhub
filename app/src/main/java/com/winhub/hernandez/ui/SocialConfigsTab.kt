@@ -142,13 +142,17 @@ internal fun SocialHubScreen(deck: Boolean = false) {
             },
     ) {
         if (layout == "tabs") {
-            DeckStretchyTabs(
-                labels = labels,
-                selected = tab,
-                onSelect = select,
-                focusable = !deck,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            if (com.winhub.hernandez.ui.screens.LocalDeckPortrait.current) {
+                com.winhub.hernandez.ui.screens.DeckPortraitChips(labels, tab, select)
+            } else {
+                            DeckStretchyTabs(
+                    labels = labels,
+                    selected = tab,
+                    onSelect = select,
+                    focusable = !deck,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
         }
         if (layout == "pages" && !pagesOpen) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {

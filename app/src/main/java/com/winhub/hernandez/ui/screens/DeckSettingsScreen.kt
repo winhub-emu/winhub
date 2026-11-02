@@ -736,7 +736,7 @@ internal fun DeckSettingsScreen() {
             )
             if (portraitUi) DeckChoiceRow(
                 label = "Portrait Tabs",
-                hint = "How the container editor, Contents, Settings and Storage arrange their categories",
+                hint = "How the container editor, Contents and Settings arrange their categories",
                 options = listOf(
                     "strip" to "Icon Tabs (top)",
                     "pages" to "Category List",
