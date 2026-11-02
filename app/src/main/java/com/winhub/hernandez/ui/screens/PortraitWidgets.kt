@@ -14,6 +14,21 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.DeveloperBoard
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -140,4 +155,27 @@ internal fun DeckPortraitTabStrip(
             }
         }
     }
+}
+
+/** Glyph for a portrait tab, by its label (same Material set the shortcut editor uses). */
+private fun portraitTabIcon(label: String): ImageVector = when (label) {
+    "Graphics" -> Icons.Filled.Memory
+    "Performance" -> Icons.Filled.Speed
+    "CPU", "System" -> Icons.Filled.DeveloperBoard
+    "Input" -> Icons.Filled.SportsEsports
+    "Environment" -> Icons.Filled.Extension
+    "Wine" -> Icons.Filled.Widgets
+    "Browse" -> Icons.Filled.Search
+    "My Files" -> Icons.Filled.FolderOpen
+    "Installed", "Containers" -> Icons.Filled.Inventory2
+    "Interface" -> Icons.Filled.Apps
+    "Appearance" -> Icons.Filled.Visibility
+    "Cronos" -> Icons.Filled.Layers
+    else -> Icons.Filled.Settings
+}
+
+/** [DeckPortraitTabStrip] with the icon picked from each label. */
+@Composable
+internal fun DeckPortraitTabs(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    DeckPortraitTabStrip(labels, labels.map { portraitTabIcon(it) }, selected, onSelect, modifier)
 }

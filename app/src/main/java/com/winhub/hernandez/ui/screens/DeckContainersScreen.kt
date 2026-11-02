@@ -180,7 +180,7 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 rail = {
                     if (LocalDeckPortrait.current) {
-                        DeckPortraitChips(listOf("Cronos", "Containers"), subtab) { tabs.select(it) }
+                        DeckPortraitTabs(listOf("Cronos", "Containers"), subtab, { tabs.select(it) }, Modifier.padding(bottom = 10.dp))
                     } else {
                         DeckEditorCategoryRail(
                             labels = listOf("Cronos", "Containers"),

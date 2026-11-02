@@ -169,7 +169,7 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     val universalLayout = prefs.getBoolean("deck_universal_layout", false)
     val layout = if (LocalDeckPortrait.current) {
-        "pages"
+        "portrait"
     } else if (universalLayout) {
         prefs.getString("settings_layout", "rail") ?: "rail"
     } else {
@@ -236,6 +236,10 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
                     onSelect = { tabs.select(it) },
                     focusable = false,
                 )
+                Spacer(Modifier.height(12.dp))
+            }
+            if (layout == "portrait") {
+                DeckPortraitTabs(tabLabels, tab, { tabs.select(it) })
                 Spacer(Modifier.height(12.dp))
             }
             if (layout == "pages" && !pagesCategoryOpen) {

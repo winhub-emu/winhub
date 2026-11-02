@@ -134,7 +134,7 @@ internal fun DeckSettingsScreen() {
     // This page's own category layout ("tabs" | "rail" | "pages"). Defaults to the left rail — the
     // requested default — and is independent of the container editor's choice.
     val portraitUi = LocalDeckPortrait.current
-    var settingsLayout by remember { mutableStateOf(if (portraitUi) "pages" else prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
+    var settingsLayout by remember { mutableStateOf(if (portraitUi) "portrait" else prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
     // One switch to make Save Manager and Contents follow the Settings Layout above instead of
     // always using their top strip. Off by default so the classic Deck tabs stay untouched.
     var universalLayout by remember { mutableStateOf(prefs.getBoolean("deck_universal_layout", false)) }
@@ -380,6 +380,13 @@ internal fun DeckSettingsScreen() {
                 focusable = false,
                 scroll = true,
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),
+            )
+        }
+
+        if (settingsLayout == "portrait") {
+            DeckPortraitTabs(
+                settingsTabs, settingsTab, { settingsTab = it; subTabs.select(it) },
+                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
 
