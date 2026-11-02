@@ -26,7 +26,7 @@ Your one-stop place for all your games, now on Android.</h1>
 
 ## Links 🔗
 
-- [Discord server](https://discord.gg/Q74CNHJnq2)
+- [Discord server](https://discord.gg/KpwUbc2cby)
     
 - [Telegram](https://t.me/winhubemul)
 
