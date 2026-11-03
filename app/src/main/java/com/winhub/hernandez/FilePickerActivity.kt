@@ -2,20 +2,28 @@ package com.winhub.hernandez
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import com.winhub.hernandez.ui.screens.FileManagerScreen
+import com.winhub.hernandez.ui.screens.LocalDeckPortrait
 import com.winhub.hernandez.ui.theme.AppThemeState
 import com.winhub.hernandez.ui.theme.WinlatorTheme
 import java.io.File
 
 /**
- * Themed host for the app's own File Manager in pick mode (issue #73). Every import call site — the
+ * Themed host for the app's own File Manager in pick mode (issue #73), in its Deck style (portrait or landscape layout). Every import call site — the
  * Compose screens and the legacy Java Activities/Fragments — launches this via ActivityResult and
  * reads the picked path back from the {@code selectedFile} extra. Downstream import code is
  * unchanged: callers wrap the path as {@code Uri.fromFile(File(path))}.
@@ -47,18 +55,26 @@ class FilePickerActivity : ComponentActivity() {
         setContent {
             WinlatorTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    FileManagerScreen(
-                        pickMode = true,
-                        pickDirMode = pickDir,
-                        pickExtensions = extensions,
-                        initialDir = initialDir,
-                        pickerTitle = title,
-                        driveCPath = driveCPath,
-                        onPick = { file ->
-                            setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_SELECTED_FILE, file.absolutePath))
-                            finish()
-                        },
-                    )
+                    // The Deck file manager in the orientation the picker was opened in: portrait gets
+                    // the touch-first layout (locations strip on top), landscape the rail layout.
+                    val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
+                    CompositionLocalProvider(LocalDeckPortrait provides portrait) {
+                        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                            FileManagerScreen(
+                                pickMode = true,
+                                pickDirMode = pickDir,
+                                pickExtensions = extensions,
+                                initialDir = initialDir,
+                                pickerTitle = title,
+                                driveCPath = driveCPath,
+                                onPick = { file ->
+                                    setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_SELECTED_FILE, file.absolutePath))
+                                    finish()
+                                },
+                                deckMode = true,
+                            )
+                        }
+                    }
                 }
             }
         }

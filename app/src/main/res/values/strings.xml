@@ -24,6 +24,8 @@
     <string name="winhub_ping_no_updates">No necessary updates found.</string>
     <string name="winhub_ping_notice_sub">Assets checked — everything is current.</string>
     <string name="winhub_ping_notice_kicker">WINHUB</string>
+    <string name="winhub_update_available">Update available</string>
+    <string name="winhub_update_available_sub">V %1$s is ready. Open Settings › Updater to install it.</string>
     <string name="winhub_ping_throttled">GitHub is throttling — try later</string>
     <string name="winhub_ping_failed">Couldn\'t check for updates — no connection</string>
     <string name="reset_to_app_defaults">Reset to app defaults</string>

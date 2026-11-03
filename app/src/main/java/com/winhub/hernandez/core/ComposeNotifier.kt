@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
@@ -58,7 +60,7 @@ import com.winhub.hernandez.R
 import kotlinx.coroutines.delay
 
 /**
- * A purple, top-right Compose banner that replaces a Toast for the WinHub update check.
+ * A top-right Compose banner, tinted with the active app theme, that replaces a Toast for the WinHub update check.
  *
  * The banner is NOT an overlay window: it is attached to whatever Activity is currently resumed
  * (so no `SYSTEM_ALERT_WINDOW` permission and no window-leak risk) and torn down again when the
@@ -77,7 +79,10 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var resumed: Activity? = null
     private var installed = false
-    private var pending: String? = null
+    private var pending: Notice? = null
+
+    /** What the banner says: [sub] null = the default line; [update] swaps the icon for a download arrow. */
+    private data class Notice(val message: String, val sub: String?, val update: Boolean)
 
     /** Hard one-per-process limit: the first banner to actually reach the screen wins. */
     @Volatile
@@ -100,23 +105,36 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
      * check, "Settings saved!" and the updater results cannot stack over one another.
      */
     @JvmStatic
-    fun show(context: Context?, message: String) {
+    @JvmOverloads
+    fun show(context: Context?, message: String, sub: String? = null, update: Boolean = false) {
         if (shownThisSession) return
         val app = context?.applicationContext as? Application ?: return
         mainHandler.post {
             if (shownThisSession) return@post
             install(app)
             val host = resumed
-            if (host != null && !host.isFinishing && !host.isDestroyed) showOn(host, message)
-            else pending = message
+            val notice = Notice(message, sub, update)
+            if (host != null && !host.isFinishing && !host.isDestroyed) showOn(host, notice)
+            else pending = notice
         }
+    }
+
+    /** "Update available" banner for a newer release; same one-per-process rule as [show]. */
+    fun showUpdate(context: Context?, versionName: String) {
+        val app = context?.applicationContext ?: return
+        show(
+            app,
+            app.getString(R.string.winhub_update_available),
+            app.getString(R.string.winhub_update_available_sub, versionName),
+            update = true,
+        )
     }
 
     override fun onActivityResumed(activity: Activity) {
         resumed = activity
-        pending?.let { message ->
+        pending?.let { notice ->
             pending = null
-            if (!activity.isFinishing && !activity.isDestroyed) showOn(activity, message)
+            if (!activity.isFinishing && !activity.isDestroyed) showOn(activity, notice)
         }
     }
 
@@ -135,7 +153,7 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
     override fun onActivityStopped(activity: Activity) = Unit
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
-    private fun showOn(host: Activity, message: String) {
+    private fun showOn(host: Activity, notice: Notice) {
         if (shownThisSession) return
         val content = host.findViewById<FrameLayout>(android.R.id.content) ?: return
         shownThisSession = true
@@ -145,7 +163,7 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
         val view = ComposeView(host)
         view.tag = VIEW_TAG
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-        view.setContent { WinhubNotice(message = message) { content.removeView(view) } }
+        view.setContent { WinhubNotice(notice) { content.removeView(view) } }
 
         val params = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -162,7 +180,7 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
     }
 
     @Composable
-    private fun WinhubNotice(message: String, onGone: () -> Unit) {
+    private fun WinhubNotice(notice: Notice, onGone: () -> Unit) {
         var shown by remember { mutableStateOf(false) }
         // Gate so the exit branch never runs before the banner has actually been shown.
         var started by remember { mutableStateOf(false) }
@@ -195,15 +213,18 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                 enter = slideInHorizontally(tween(340)) { it } + fadeIn(tween(300)),
                 exit = slideOutHorizontally(tween(EXIT_ANIM_MS)) { it } + fadeOut(tween(EXIT_ANIM_MS)),
             ) {
-                NoticeCard(message = message, onClick = { shown = false })
+                NoticeCard(notice = notice, onClick = { shown = false })
             }
         }
     }
 
     @Composable
-    private fun NoticeCard(message: String, onClick: () -> Unit) {
+    private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
         val shape = RoundedCornerShape(22.dp)
-        val accent = com.winhub.hernandez.ui.theme.AppThemeState.deckPreset.primary
+        // Read from the theme state so the banner follows the active app theme.
+        val theme = com.winhub.hernandez.ui.theme.AppThemeState.deckPreset
+        val accent = theme.primary
+        val ink = theme.onPrimary
 
         Column(
             modifier = Modifier
@@ -213,16 +234,16 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            Color(0xFF2E7DE0),
-                            Color(0xFF1A5FBF),
-                            Color(0xFF0A2A52),
+                            accent,
+                            lerp(accent, Color.Black, 0.3f),
+                            theme.accentDim,
                         )
                     )
                 )
                 .border(
                     width = 1.dp,
                     brush = Brush.linearGradient(
-                        listOf(Color.White.copy(alpha = 0.38f), Color.White.copy(alpha = 0.06f))
+                        listOf(ink.copy(alpha = 0.38f), ink.copy(alpha = 0.06f))
                     ),
                     shape = shape,
                 )
@@ -235,7 +256,7 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                     .fillMaxWidth()
                     .height(2.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.55f))
+                    .background(ink.copy(alpha = 0.55f))
             )
             Spacer(Modifier.size(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -243,14 +264,14 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.16f))
-                        .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape),
+                        .background(ink.copy(alpha = 0.16f))
+                        .border(1.dp, ink.copy(alpha = 0.28f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.CheckCircle,
+                        imageVector = if (notice.update) Icons.Filled.Download else Icons.Filled.CheckCircle,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = ink,
                         modifier = Modifier.size(21.dp),
                     )
                 }
@@ -258,7 +279,7 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.winhub_ping_notice_kicker),
-                        color = Color.White.copy(alpha = 0.74f),
+                        color = ink.copy(alpha = 0.74f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.6.sp,
@@ -266,8 +287,8 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                     )
                     Spacer(Modifier.size(3.dp))
                     Text(
-                        text = message,
-                        color = Color.White,
+                        text = notice.message,
+                        color = ink,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         lineHeight = 18.sp,
@@ -275,8 +296,8 @@ object ComposeNotifier : Application.ActivityLifecycleCallbacks {
                     )
                     Spacer(Modifier.size(4.dp))
                     Text(
-                        text = stringResource(R.string.winhub_ping_notice_sub),
-                        color = Color.White.copy(alpha = 0.78f),
+                        text = notice.sub ?: stringResource(R.string.winhub_ping_notice_sub),
+                        color = ink.copy(alpha = 0.78f),
                         fontSize = 11.sp,
                         maxLines = 2,
                     )

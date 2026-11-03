@@ -103,9 +103,24 @@ object WinhubPing {
         }
     }
 
-    /** Posts the run outcome on the main looper; [ComposeNotifier.show] is main-thread safe. */
+    /** Reports the run outcome; [ComposeNotifier.show] is safe from any thread. */
     private fun report(context: Context?, ok: Int, throttled: Boolean) {
         if (context == null) return
+        if (ok > 0 && UpdateManager.isNotifyEnabled(context)) {
+            // A newer release turns the banner into "Update available"; the user's skipped version stays quiet.
+            UpdateManager.check(context) { info ->
+                val newer = info?.takeIf { it.isNewer && it.versionCode != UpdateManager.skippedVersionCode(context) }
+                mainHandler.post {
+                    if (newer != null) ComposeNotifier.showUpdate(context, newer.versionName)
+                    else showOutcome(context, ok, throttled)
+                }
+            }
+            return
+        }
+        showOutcome(context, ok, throttled)
+    }
+
+    private fun showOutcome(context: Context, ok: Int, throttled: Boolean) {
         val message = context.getString(
             when {
                 ok > 0 -> R.string.winhub_ping_no_updates
@@ -115,7 +130,7 @@ object WinhubPing {
         )
         // Every outcome goes through the top-right Compose banner (one per app open, enforced by
         // ComposeNotifier). The centered toast is kept only for the rest of the app.
-        mainHandler.post { ComposeNotifier.show(context, message) }
+        ComposeNotifier.show(context, message)
     }
 
     private fun download(index: Int): Outcome {
