@@ -141,10 +141,10 @@ internal fun DeckSettingsScreen() {
     var settingsTab by remember { mutableStateOf(0) }
     // The categories are this page's sub-tabs: L2/R2 step them, like Contents and Storage.
     val subTabs = LocalDeckTabs.current
-    LaunchedEffect(subTabs) { subTabs.bind(5) }
+    LaunchedEffect(subTabs) { subTabs.bind(6) }
     LaunchedEffect(subTabs.index) { if (settingsTab != subTabs.index) settingsTab = subTabs.index }
     var settingsPagesCategoryOpen by remember { mutableStateOf(false) }
-    val settingsTabs = remember { listOf("General", "Interface", "Appearance", "System", "Graphics") }
+    val settingsTabs = remember { listOf("General", "Interface", "Appearance", "System", "Graphics", "Updater") }
 
     // ── Theme + config-editor presentation (immediate-write). ──
     val themeChoices = remember { selectableThemePresets }
@@ -300,6 +300,23 @@ internal fun DeckSettingsScreen() {
     var showPerformance by remember { mutableStateOf(false) }
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateNote by remember { mutableStateOf<String?>(null) }
+    fun checkNow() {
+        checkingUpdate = true
+        updateNote = null
+        UpdateManager.check(context) { info ->
+            activity?.runOnUiThread {
+                checkingUpdate = false
+                updateNote = info?.takeIf { it.isNewer }?.let { "V ${it.versionName} available" }
+                    ?: "You're on the latest build"
+            }
+        }
+    }
+    fun selectChannel(preview: Boolean) {
+        if (preview == includePre) return
+        includePre = preview
+        UpdateManager.setIncludePrereleases(context, preview)
+        checkNow()
+    }
 
     // SAF launchers for the two path pickers.
     val winlatorPathLauncher = rememberLauncherForActivityResult(
@@ -452,35 +469,6 @@ internal fun DeckSettingsScreen() {
         }
         when (settingsTab) {
         0 -> {
-        // ── Updates ──
-        DeckGroup(title = "Updates") {
-            DeckRow(label = "Notify me about updates") {
-                DeckToggle(notifyUpdates) {
-                    notifyUpdates = it
-                    UpdateManager.setNotifyEnabled(context, it)
-                }
-            }
-            DeckRow(label = "Include pre-releases (beta builds)") {
-                DeckToggle(includePre) {
-                    includePre = it
-                    UpdateManager.setIncludePrereleases(context, it)
-                }
-            }
-            DeckRow(
-                label = if (checkingUpdate) "Checking…" else "Check for updates",
-                hint = updateNote,
-            ) {
-                DeckButton("Check", primary = false) {
-                    checkingUpdate = true
-                    updateNote = null
-                    UpdateManager.check(context) { info ->
-                        checkingUpdate = false
-                        updateNote = info?.versionName?.let { "V $it available" } ?: "You're on the latest build"
-                    }
-                }
-            }
-        }
-
         // ── Steam ──
         DeckGroup(title = "Steam") {
             DeckRow(label = "Steam chat notifications") {
@@ -925,6 +913,36 @@ internal fun DeckSettingsScreen() {
         DeckGroup(title = "Performance") {
             DeckRow(label = "Open Performance settings") {
                 DeckButton("Open", primary = false) { showPerformance = true }
+            }
+        }
+        }
+        5 -> {
+        // ── Release channel ── (Stable = latest non-prerelease, Preview = newest release incl. betas)
+        DeckGroup(title = "Release channel") {
+            DeckRow(
+                label = "Update channel",
+                hint = if (includePre) "Preview: beta builds, newest first" else "Stable: tested releases only",
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DeckButton("Stable", primary = !includePre) { selectChannel(false) }
+                    DeckButton("Preview", primary = includePre) { selectChannel(true) }
+                }
+            }
+        }
+
+        // ── Updates ──
+        DeckGroup(title = "Updates") {
+            DeckRow(label = "Notify me about updates") {
+                DeckToggle(notifyUpdates) {
+                    notifyUpdates = it
+                    UpdateManager.setNotifyEnabled(context, it)
+                }
+            }
+            DeckRow(
+                label = if (checkingUpdate) "Checking…" else "Check for updates",
+                hint = updateNote ?: "Installed: V ${UpdateManager.installedVersionName()}",
+            ) {
+                DeckButton("Check", primary = false) { checkNow() }
             }
         }
         }

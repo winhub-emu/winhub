@@ -927,6 +927,8 @@ private fun AppShell(
     if (showAboutDialog) {
         AboutDialog(onDismiss = onDismissAboutDialog)
     }
+    // The update card, whichever button started the download (banner, Settings, About).
+    com.winhub.hernandez.ui.UpdateHost()
 }
 
 @Composable

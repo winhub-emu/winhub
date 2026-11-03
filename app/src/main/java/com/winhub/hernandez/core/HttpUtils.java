@@ -157,6 +157,67 @@ public abstract class HttpUtils {
         }
     }
 
+    /** Byte-level progress for {@link #downloadToFile}: {@code total} is -1 when the server sent no length. */
+    public interface ProgressListener {
+        void onProgress(long bytes, long total);
+    }
+
+    /**
+     * Download {@code url} to {@code destination} with no UI of its own. Progress is reported in
+     * bytes on the download thread; {@code onComplete} gets true only when the whole body was
+     * written and nobody set {@code interruptRef}. A failed or cancelled download leaves no
+     * partial file behind. Follows one more redirect by hand for the cases HttpURLConnection
+     * refuses to follow itself (a scheme change on the way to the asset host).
+     */
+    public static void downloadToFile(final String url, final File destination, final AtomicBoolean interruptRef,
+                                      final ProgressListener onProgress, final Callback<Boolean> onComplete) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            boolean ok = false;
+            try {
+                interruptRef.set(false);
+                HttpURLConnection connection = (HttpURLConnection)(new URL(url)).openConnection();
+                connection.setRequestProperty("User-Agent", "Bannerlator");
+                int code = connection.getResponseCode();
+                if (code / 100 == 3) {
+                    String next = connection.getHeaderField("Location");
+                    connection.disconnect();
+                    if (next == null) { onComplete.call(false); return; }
+                    connection = (HttpURLConnection)(new URL(next)).openConnection();
+                    connection.setRequestProperty("User-Agent", "Bannerlator");
+                    code = connection.getResponseCode();
+                }
+                if (code != HttpURLConnection.HTTP_OK) {
+                    onComplete.call(false);
+                    return;
+                }
+                long total = connection.getContentLengthLong();
+                try (InputStream inStream = new BufferedInputStream(connection.getInputStream(), StreamUtils.BUFFER_SIZE);
+                     OutputStream outStream = new FileOutputStream(destination)) {
+                    byte[] buffer = new byte[64 * 1024];
+                    long done = 0;
+                    long lastReport = 0;
+                    int n;
+                    while ((n = inStream.read(buffer)) != -1 && !interruptRef.get()) {
+                        outStream.write(buffer, 0, n);
+                        done += n;
+                        long now = System.currentTimeMillis();
+                        if (onProgress != null && (now - lastReport >= 100 || done == total)) {
+                            lastReport = now;
+                            onProgress.onProgress(done, total);
+                        }
+                    }
+                    ok = !interruptRef.get() && (total < 0 || done == total);
+                    if (ok && onProgress != null) onProgress.onProgress(done, total < 0 ? done : total);
+                }
+            }
+            catch (Exception e) {
+                ok = false;
+            }
+            if (!ok && destination.isFile()) destination.delete();
+            onComplete.call(ok);
+        });
+    }
+
     public static void download(final Activity activity, final String url, final File destination, final Callback<Boolean> onDownloadComplete) {
         final DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
         final AtomicBoolean interruptRef = new AtomicBoolean();
