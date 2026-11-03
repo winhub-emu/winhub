@@ -3,6 +3,7 @@ package com.winhub.hernandez.widget;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Build;
+import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -10,6 +11,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import com.winhub.hernandez.renderer.HostRenderer;
+import com.winhub.hernandez.renderer.egl.EglRenderer;
 import com.winhub.hernandez.renderer.vulkan.VulkanRenderer;
 import com.winhub.hernandez.xserver.XServer;
 
@@ -45,20 +47,31 @@ public class XServerView extends FrameLayout {
         vulkanSurfaceView.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         addView(vulkanSurfaceView);
-        renderer = new VulkanRenderer(this, xServer);
+        if ("egl".equalsIgnoreCase(rendererType)) {
+            EglRenderer egl = new EglRenderer(this, xServer);
+            // The native side can refuse to start on a device; Vulkan is the safe fallback.
+            if (egl.start()) renderer = egl;
+            else Log.w("XServerView", "EGL renderer unavailable, falling back to Vulkan");
+        }
+        if (renderer == null) renderer = new VulkanRenderer(this, xServer);
+        final VulkanRenderer vulkan = renderer instanceof VulkanRenderer ? (VulkanRenderer) renderer : null;
+        final EglRenderer eglRenderer = renderer instanceof EglRenderer ? (EglRenderer) renderer : null;
         vulkanSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                ((VulkanRenderer)renderer).onSurfaceCreated(holder.getSurface());
+                if (vulkan != null) vulkan.onSurfaceCreated(holder.getSurface());
+                else eglRenderer.onSurfaceCreated(holder.getSurface());
             }
             @Override
             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                ((VulkanRenderer)renderer).onSurfaceChanged(width, height);
+                if (vulkan != null) vulkan.onSurfaceChanged(width, height);
+                else eglRenderer.onSurfaceChanged(width, height);
                 reassertFrameRate();
             }
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
-                ((VulkanRenderer)renderer).onSurfaceDestroyed();
+                if (vulkan != null) vulkan.onSurfaceDestroyed();
+                else eglRenderer.onSurfaceDestroyed();
             }
         });
     }

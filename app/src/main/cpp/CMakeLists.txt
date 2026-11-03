@@ -38,9 +38,17 @@ add_library(winlator SHARED
         winlator/vulkan.c
         winlator/perf_turbo.c
         winlator/ring_fence.c
+        winlator/renderer/egl.cpp
+        winlator/renderer/renderer_jni.cpp
+        winlator/renderer/shader.cpp
+        winlator/renderer/window.cpp
+        winlator/renderer/cursor.cpp
+        winlator/renderer/xform.cpp
+        winlator/renderer/view_transformation.cpp
 )
 
 target_compile_options(winlator PRIVATE -Wall -Wextra)
+target_include_directories(winlator PRIVATE winlator/renderer)
 
 target_link_libraries(winlator
         log

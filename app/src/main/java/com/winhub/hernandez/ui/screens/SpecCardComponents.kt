@@ -51,6 +51,7 @@ internal fun parseDxwrapperConfig(cfg: String): Pair<String, String> {
 // Map a renderer id to a display label, or "" if unknown. Legacy "opengl"/"gl" ids degrade to Vulkan.
 internal fun rendererLabelOf(renderer: String): String = when (renderer.lowercase()) {
     "vulkan", "opengl", "gl" -> "Vulkan (X11)"
+    "egl" -> "EGL (X11)"
     else -> ""
 }
 
