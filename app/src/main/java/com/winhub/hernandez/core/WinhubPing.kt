@@ -8,6 +8,7 @@ import com.winhub.hernandez.BuildConfig
 import com.winhub.hernandez.R
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
 
 /**
@@ -44,6 +45,9 @@ object WinhubPing {
     /** Human-ish spacing between requests, so no two runs have the same rhythm. */
     private const val JITTER_MIN_MS = 80L
     private const val JITTER_MAX_MS = 300L
+
+    /** How long the banner waits for the update lookup before it just reports the run outcome. */
+    private const val UPDATE_LOOKUP_WAIT_MS = 5_000L
 
     private enum class Outcome { OK, FAILED, THROTTLED }
 
@@ -108,12 +112,23 @@ object WinhubPing {
         if (context == null) return
         if (ok > 0 && UpdateManager.isNotifyEnabled(context)) {
             // A newer release turns the banner into "Update available"; the user's skipped version stays quiet.
-            UpdateManager.check(context) { info ->
-                val newer = info?.takeIf { it.isNewer && it.versionCode != UpdateManager.skippedVersionCode(context) }
+            // First answer wins: the lookup, or the timeout, so a slow or failed lookup never costs the banner.
+            val answered = AtomicBoolean(false)
+            fun answer(newer: UpdateManager.UpdateInfo?) {
+                if (!answered.compareAndSet(false, true)) return
                 mainHandler.post {
                     if (newer != null) ComposeNotifier.showUpdate(context, newer.versionName)
                     else showOutcome(context, ok, throttled)
                 }
+            }
+            mainHandler.postDelayed({ answer(null) }, UPDATE_LOOKUP_WAIT_MS)
+            try {
+                UpdateManager.check(context) { info ->
+                    answer(info?.takeIf { it.isNewer && it.versionCode != UpdateManager.skippedVersionCode(context) })
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "update lookup failed", t)
+                answer(null)
             }
             return
         }
