@@ -498,7 +498,7 @@ internal fun SaveManagerScreen(
             else -> "Settings"
         }
 
-        if (deckMode && portraitDeck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Saves")
+        if (deckMode) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Saves")
         if (deckMode && sectionLayout == "tabs") {
             // Deck sections, same language as the Stores strip: landing on a pill selects its tab.
             if (com.winhub.hernandez.ui.screens.LocalDeckPortrait.current) {

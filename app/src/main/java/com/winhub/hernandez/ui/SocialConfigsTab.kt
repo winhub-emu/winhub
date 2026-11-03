@@ -143,7 +143,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                 }
             },
     ) {
-        if (deck && portraitDeck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social Hub", horizontal = 0.dp)
+        if (deck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social Hub", horizontal = 0.dp)
         if (layout == "tabs") {
             if (portraitDeck) {
                 com.winhub.hernandez.ui.screens.DeckPortraitChips(labels, tab, select)
