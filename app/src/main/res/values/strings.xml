@@ -315,6 +315,15 @@
     <string name="fex_extreme_wn">Extreme-wn</string>
     <string name="fex_extreme_tso_wn">Extreme (TSO)-wn</string>
     <string name="fex_extreme_gn">Extreme-gn</string>
+    <string name="fex_performance_x87_full">Performance (full x87)</string>
+    <string name="fex_unreal_engine_3">Unreal Engine 3</string>
+    <string name="bcn_layer_fast">Faster BCn layer (Fcharan build)</string>
+    <string name="help_bcn_layer_fast"><![CDATA[
+        <b>Faster BCn layer</b><br /><br />
+        Uses Fcharan\'s build of leegao\'s BCn texture layer (from WinlatorMali 1.2, 2026-10-22) instead of the bundled one. Its author says it loads textures faster with the same memory use.<br /><br />
+        Try it on a Mali GPU when textures take long to appear or a game stutters while loading. If textures break or the game crashes, turn it off again. The ETC2 / ASTC transcode choices are not used by this build. Mali GPUs only; nothing changes on other GPUs.<br /><br />
+        Credit: Fcharan (GunaCharanTeja, WinlatorMali) and leegao (bcn_layer, MIT).
+    ]]></string>
 
     <!-- Help for the Box64 variables added alongside the 19 -> 32 expansion. Wording follows
          WinNative, which has shipped these knobs longest. Without these the "?" button had

@@ -37,6 +37,7 @@ add_library(winlator SHARED
         winlator/alsa_client.c
         winlator/vulkan.c
         winlator/perf_turbo.c
+        winlator/mali_counters.cpp
         winlator/ring_fence.c
         winlator/renderer/egl.cpp
         winlator/renderer/renderer_jni.cpp

@@ -10,8 +10,12 @@ sealed class DriverFeed {
     /** The existing format: a JSON array of `{verName, remoteUrl}` at [url]. */
     data class Json(val url: String) : DriverFeed()
 
-    /** A GitHub repo whose releases' `.zip` assets are each a driver. */
-    data class GithubReleases(val owner: String, val repo: String) : DriverFeed()
+    /**
+     * A GitHub repo whose releases' `.zip` assets are each a driver. [assetPattern] (a regex, matched
+     * anywhere in the asset name) keeps only those assets, for repos that attach several packages of one
+     * driver to each release; null = every `.zip`.
+     */
+    data class GithubReleases(val owner: String, val repo: String, val assetPattern: String? = null) : DriverFeed()
 }
 
 data class RemoteDriverSource(
@@ -53,12 +57,41 @@ object DriverSources {
     )
 
     /**
+     * PanVK (Mesa) drivers for Arm Mali GPUs. Listed only on a Mali GPU ([builtIns]); everywhere else
+     * the source list is exactly [BUILT_IN].
+     */
+    val MALI_BUILT_IN: List<RemoteDriverSource> = listOf(
+        // Each release carries one package per launcher; the -bannerlator.zip is the one made for us
+        // (same driver as -adrenotools.zip, plus a README and an ICD json for loading it without the wrapper).
+        RemoteDriverSource(
+            name = "PanVK-kbase (Mali)",
+            feeds = listOf(DriverFeed.GithubReleases("zenithblue-oss", "panvk-kbase-android", "(?i)-bannerlator\\.zip$")),
+            builtIn = true,
+        ),
+        RemoteDriverSource(
+            name = "FristOneRR PanVK (Mali)",
+            feeds = listOf(DriverFeed.GithubReleases("FristOneRR", "FristOneRR-Panvk-Driver")),
+            builtIn = true,
+        ),
+        // Built for the Mali-G615.
+        RemoteDriverSource(
+            name = "PanVK G615 (GunaCharanTeja)",
+            feeds = listOf(DriverFeed.GithubReleases("GunaCharanTeja", "panvk-kbase-android", "(?i)-adrenotools\\.zip$")),
+            builtIn = true,
+        ),
+    )
+
+    /** The built-in sources for this device: the Mali ones first on a Mali GPU, then [BUILT_IN]. */
+    fun builtIns(): List<RemoteDriverSource> =
+        if (com.winhub.hernandez.core.MaliPanvk.isMaliGpu()) MALI_BUILT_IN + BUILT_IN else BUILT_IN
+
+    /**
      * The live source list the UI + smart installer use: built-ins whose name the user hasn't disabled
      * (in original order), followed by the user's custom sources. Backed by [DriverSourceStore].
      */
     fun allSources(context: Context): List<RemoteDriverSource> {
         val store = DriverSourceStore(context)
         val disabled = store.disabledBuiltIns()
-        return BUILT_IN.filter { it.name !in disabled } + store.customSources()
+        return builtIns().filter { it.name !in disabled } + store.customSources()
     }
 }

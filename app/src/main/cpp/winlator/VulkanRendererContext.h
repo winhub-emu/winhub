@@ -651,6 +651,8 @@ private:
     // slot's fence wait, one frame later.
     VkQueryPool fgQueryPool_        = VK_NULL_HANDLE;
     bool        fgTimestampsOk_     = false;
+    // Arm Mali (vendorID 0x13B5): set in createLogicalDevice; gates the Mali-only paths below.
+    bool        isMaliDevice_       = false;
     float       fgTimestampPeriodNs_ = 0.0f;
     bool        fgQueryPending_[MAX_FRAMES_IN_FLIGHT] = {};
     uint32_t    fgQueryGens_[MAX_FRAMES_IN_FLIGHT]    = {};

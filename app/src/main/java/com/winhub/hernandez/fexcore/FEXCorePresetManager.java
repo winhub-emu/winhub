@@ -178,6 +178,27 @@ public class FEXCorePresetManager {
             envVars.put("FEX_SMCCHECKS", "full");
             envVars.put("FEX_HIDEHYPERVISORBIT", "1");
         }
+        else if (id.equals(FEXCorePreset.PERFORMANCE_X87_FULL)) {
+            // From WinlatorMali (GunaCharanTeja): PERFORMANCE with full x87 precision, for games
+            // whose physics or math break under reduced precision. Its id keeps WinlatorMali's
+            // "PERFORMANCE_X87_OFF" (reduced precision off) so configs from there match.
+            envVars.put("FEX_TSOENABLED", "0");
+            envVars.put("FEX_VECTORTSOENABLED", "0");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
+            envVars.put("FEX_X87REDUCEDPRECISION", "0");
+            envVars.put("FEX_MULTIBLOCK", "1");
+        }
+        else if (id.equals(FEXCorePreset.UNREAL_ENGINE_3)) {
+            // From WinlatorMali (GunaCharanTeja), tested there on X-Men Origins: Wolverine: every
+            // TSO option on, reduced x87 precision, multiblock off.
+            envVars.put("FEX_TSOENABLED", "1");
+            envVars.put("FEX_VECTORTSOENABLED", "1");
+            envVars.put("FEX_MEMCPYSETTSOENABLED", "1");
+            envVars.put("FEX_HALFBARRIERTSOENABLED", "1");
+            envVars.put("FEX_X87REDUCEDPRECISION", "1");
+            envVars.put("FEX_MULTIBLOCK", "0");
+        }
         else if (id.startsWith(FEXCorePreset.CUSTOM)) {
             for (String[] preset : customPresetsIterator(context)) {
                 if (preset[0].equals(id)) {
@@ -201,6 +222,8 @@ public class FEXCorePresetManager {
         presets.add(new FEXCorePreset(FEXCorePreset.EXTREME_TSO, context.getString(R.string.fex_extreme_tso_wn)));
         presets.add(new FEXCorePreset(FEXCorePreset.EXTREME_GN, context.getString(R.string.fex_extreme_gn)));
         presets.add(new FEXCorePreset(FEXCorePreset.DENUVO, context.getString(R.string.denuvo)));
+        presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE_X87_FULL, context.getString(R.string.fex_performance_x87_full)));
+        presets.add(new FEXCorePreset(FEXCorePreset.UNREAL_ENGINE_3, context.getString(R.string.fex_unreal_engine_3)));
         for (String[] preset : customPresetsIterator(context)) presets.add(new FEXCorePreset(preset[0], preset[1]));
         return presets;
     }

@@ -62,7 +62,7 @@ class DriverSourceStore(context: Context) {
     fun addCustom(name: String, feed: DriverFeed) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
-        val taken = (customSources().map { it.name } + DriverSources.BUILT_IN.map { it.name })
+        val taken = (customSources().map { it.name } + (DriverSources.BUILT_IN + DriverSources.MALI_BUILT_IN).map { it.name })
             .map { it.lowercase() }
         if (trimmed.lowercase() in taken) return
 

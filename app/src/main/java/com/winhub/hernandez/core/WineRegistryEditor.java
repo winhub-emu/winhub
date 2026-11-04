@@ -210,6 +210,9 @@ public class WineRegistryEditor implements Closeable {
                 keyLocation = createKey(key);
             } else return;
         }
+        // createKey returns null when it could not write the key (IOException); the value is
+        // skipped instead of crashing in getValueLocation. Fix from WinlatorMali 6e3f4c0 (teja4).
+        if (keyLocation == null) return;
 
         Location valueLocation = getValueLocation(keyLocation, name);
         char[] buffer = new char[StreamUtils.BUFFER_SIZE];
@@ -364,7 +367,7 @@ public class WineRegistryEditor implements Closeable {
     }
 
     private Location getValueLocation(Location keyLocation, String name) {
-        if (keyLocation.start == keyLocation.end) return null;
+        if (keyLocation == null || keyLocation.start == keyLocation.end) return null;
         try (BufferedReader reader = new BufferedReader(new FileReader(cloneFile), StreamUtils.BUFFER_SIZE)) {
             reader.skip(keyLocation.start);
             name = name != null ? "\"" + escape(name) + "\"=" : "@=";

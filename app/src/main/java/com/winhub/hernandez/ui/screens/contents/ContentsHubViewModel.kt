@@ -452,7 +452,7 @@ class ContentsHubViewModel(app: Application) : AndroidViewModel(app) {
         repo.restoreDefaultSources()
         _showOfficial.value = repo.showOfficial()
         val store = DriverSourceStore(appCtx)
-        DriverSources.BUILT_IN.forEach { store.setBuiltInEnabled(it.name, true) }
+        DriverSources.builtIns().forEach { store.setBuiltInEnabled(it.name, true) }
         reloadSources()
     }
 

@@ -545,7 +545,7 @@ private fun ManageSourcesDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text("Built-in sources", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
-                DriverSources.BUILT_IN.forEach { src ->
+                DriverSources.builtIns().forEach { src ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),

@@ -404,7 +404,43 @@ void VulkanRendererContext::createLogicalDevice() {
     }
     ci.enabledExtensionCount=(uint32_t)extList.size(); ci.ppEnabledExtensionNames=extList.data();
 
-    if (vk_.CreateDevice(physicalDevice,&ci,nullptr,&device)!=VK_SUCCESS) {
+    // Mali only: a HIGH global-priority queue, as the Wayland compositor already asks for
+    // (vk_present.c). WinlatorMali measured its frame work waiting 23-40 ms behind a GPU-bound game
+    // on a Mali-G615 at default priority (frame_gen.cpp, GunaCharanTeja). One extra try; a refusal
+    // (NOT_PERMITTED or anything else) falls through to the device create below, unchanged.
+    // Every other GPU goes straight to that create exactly as before.
+    VkPhysicalDeviceProperties devProps{};
+    vk_.GetPhysicalDeviceProperties(physicalDevice, &devProps);
+    isMaliDevice_ = devProps.vendorID == 0x13B5;
+    bool created = false;
+    if (isMaliDevice_) {
+        const char* gpExt = nullptr;
+        for (auto& e : av) {
+            if (strcmp(e.extensionName, "VK_KHR_global_priority") == 0) { gpExt = "VK_KHR_global_priority"; break; }
+            if (strcmp(e.extensionName, "VK_EXT_global_priority") == 0) gpExt = "VK_EXT_global_priority";
+        }
+        if (gpExt) {
+            VkDeviceQueueGlobalPriorityCreateInfoEXT gp{};
+            gp.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_EXT;
+            gp.globalPriority = VK_QUEUE_GLOBAL_PRIORITY_HIGH_EXT;
+            std::vector<const char*> gpList = extList;
+            gpList.push_back(gpExt);
+            VkDeviceCreateInfo gci = ci;
+            gci.enabledExtensionCount = (uint32_t)gpList.size(); gci.ppEnabledExtensionNames = gpList.data();
+            qi.pNext = &gp;
+            VkResult gr = vk_.CreateDevice(physicalDevice, &gci, nullptr, &device);
+            qi.pNext = nullptr;
+            if (gr == VK_SUCCESS) {
+                created = true;
+                RLOG("createLogicalDevice: Mali - high-priority queue (%s)", gpExt);
+            } else {
+                device = VK_NULL_HANDLE;
+                RLOG("createLogicalDevice: Mali - high-priority queue refused (%d); default priority", (int)gr);
+            }
+        }
+    }
+
+    if (!created && vk_.CreateDevice(physicalDevice,&ci,nullptr,&device)!=VK_SUCCESS) {
         // A driver that rejects the feature chain must not cost us the whole
         // renderer: retry once with the pre-LSFG device create, unchanged.
         if (lsfgCaps_.featuresEnabled) {
@@ -1661,9 +1697,13 @@ bool VulkanRendererContext::importAHBToWinTex(WinTex& wt, AHardwareBuffer* ahb) 
     AHardwareBuffer_Desc desc{};
     AHardwareBuffer_describe(ahb,&desc);
 
+    // externalFormat must be 0 or a value from vkGetAndroidHardwareBufferPropertiesANDROID, and a
+    // non-zero one also needs format UNDEFINED; a VkFormat number here is invalid usage. Adreno drivers
+    // have always accepted it, so they keep it unchanged; on Mali it is 0 (= the plain format below).
+    // Same for the view below.
     VkExternalFormatANDROID ef{};
     ef.sType=VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID;
-    ef.externalFormat=swapRB ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_B8G8R8A8_UNORM;
+    ef.externalFormat=isMaliDevice_ ? 0 : (swapRB ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_B8G8R8A8_UNORM);
 
     VkExternalMemoryImageCreateInfo emi{};
     emi.sType=VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
@@ -1703,7 +1743,7 @@ bool VulkanRendererContext::importAHBToWinTex(WinTex& wt, AHardwareBuffer* ahb) 
 
     VkExternalFormatANDROID vef{};
     vef.sType=VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID;
-    vef.externalFormat=swapRB ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_B8G8R8A8_UNORM;
+    vef.externalFormat=isMaliDevice_ ? 0 : (swapRB ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_B8G8R8A8_UNORM);
 
     VkImageViewCreateInfo vi{};
     vi.sType=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;

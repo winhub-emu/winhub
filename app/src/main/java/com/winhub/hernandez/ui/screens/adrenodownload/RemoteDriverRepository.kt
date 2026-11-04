@@ -30,7 +30,7 @@ class RemoteDriverRepository(private val context: Context) {
                 try {
                     val feedEntries = when (feed) {
                         is DriverFeed.Json -> fetchJsonFeed(source.name, feed.url)
-                        is DriverFeed.GithubReleases -> fetchGithubReleasesFeed(source.name, feed.owner, feed.repo)
+                        is DriverFeed.GithubReleases -> fetchGithubReleasesFeed(source.name, feed.owner, feed.repo, feed.assetPattern)
                     }
                     anySuccess = true
                     for (e in feedEntries) if (!merged.containsKey(e.downloadUrl)) merged[e.downloadUrl] = e
@@ -60,8 +60,17 @@ class RemoteDriverRepository(private val context: Context) {
         return out
     }
 
-    /** GitHub releases: each `.zip` asset across all releases (newest-first, as the API returns them). */
-    private fun fetchGithubReleasesFeed(sourceName: String, owner: String, repo: String): List<RemoteDriverEntry> {
+    /**
+     * GitHub releases: each `.zip` asset across all releases (newest-first, as the API returns them),
+     * only those matching [assetPattern] when one is given.
+     */
+    private fun fetchGithubReleasesFeed(
+        sourceName: String,
+        owner: String,
+        repo: String,
+        assetPattern: String? = null,
+    ): List<RemoteDriverEntry> {
+        val filter = assetPattern?.let { Regex(it) }
         val body = httpGetText(
             "https://api.github.com/repos/$owner/$repo/releases?per_page=100",
             accept = "application/vnd.github+json",
@@ -75,6 +84,7 @@ class RemoteDriverRepository(private val context: Context) {
                 val a = assets.getJSONObject(j)
                 val name = a.optString("name", "")
                 if (!name.endsWith(".zip", ignoreCase = true)) continue
+                if (filter != null && !filter.containsMatchIn(name)) continue
                 val dl = a.optString("browser_download_url", "")
                 if (dl.isEmpty()) continue
                 out.add(
