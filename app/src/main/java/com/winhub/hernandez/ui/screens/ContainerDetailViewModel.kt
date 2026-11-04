@@ -492,7 +492,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         audioDriverEntries = res.getStringArray(R.array.audio_driver_entries).toList()
         emulatorEntries   = res.getStringArray(R.array.emulator_entries).toList()
         vulkanSupported = GPUInformation.isVulkanSupported(context)
-        rendererEntries = if (vulkanSupported) listOf("Vulkan") else emptyList()
+        rendererEntries = if (vulkanSupported) listOf("Vulkan", "EGL") else listOf("EGL")
         lcAllEntries      = res.getStringArray(R.array.some_lc_all).toList()
         startupSelectionEntries = res.getStringArray(R.array.startup_selection_entries).toList()
         mouseWarpEntries  = listOf(
@@ -646,7 +646,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             seed?.getReshadeLoadout(), seed?.getReshadeMode(), seed?.getReshadeParams(), seed?.getReshadeEffect()
         )
 
-        // Renderer: Vulkan is the only host renderer. Legacy ids (opengl/surfaceflinger) degrade to it.
+        // Renderer: Vulkan or EGL. Legacy ids (opengl/surfaceflinger) degrade to the first entry.
         selectedRenderer = identifierToDisplay(seed?.renderer ?: "vulkan", rendererEntries)
 
         val locale = java.util.Locale.getDefault()

@@ -271,6 +271,10 @@ public class PresentExtension implements Extension {
             (xr instanceof com.winhub.hernandez.renderer.vulkan.VulkanRenderer)
                 ? (com.winhub.hernandez.renderer.vulkan.VulkanRenderer) xr : null;
 
+        final com.winhub.hernandez.renderer.egl.EglRenderer er =
+            (xr instanceof com.winhub.hernandez.renderer.egl.EglRenderer)
+                ? (com.winhub.hernandez.renderer.egl.EglRenderer) xr : null;
+
         final int targetFps = this.frameRateLimit;
 
         long ust = System.nanoTime() / 1000;
@@ -298,6 +302,12 @@ public class PresentExtension implements Extension {
                     && ((GPUImage) pixmap.drawable.getTexture()).getHardwareBufferPtr() != 0) {
                 sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
                 vr.onUpdateWindowContentDirect(window, pixmap.drawable, xOff, yOff);
+                emitIdleNotify(window, pixmap, serial, idleFence, targetFps, vr);
+            } else if (er != null && window.attributes.isMapped() && xOff == 0 && yOff == 0
+                    && er.canPresentDirect(window, pixmap.drawable)) {
+                // EGL: sample the pixmap's buffer directly instead of copying it into the window content.
+                sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
+                er.onUpdateWindowContentDirect(window, pixmap.drawable, xOff, yOff);
                 emitIdleNotify(window, pixmap, serial, idleFence, targetFps, vr);
             } else {
                 content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);

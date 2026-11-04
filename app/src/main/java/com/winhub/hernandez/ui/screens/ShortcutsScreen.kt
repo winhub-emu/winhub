@@ -6289,8 +6289,11 @@ internal fun ShortcutSettingsDialogScreen(
         mutableStateOf(shortcut.getExtra("dxwrapperConfig", shortcut.container.getDXWrapperConfig()))
     }
 
-    // Renderer (host) — Vulkan is the only host renderer.
-    var selectedRenderer by remember { mutableStateOf("Vulkan") }
+    // Renderer (host): Vulkan or EGL. Anything else (legacy ids) is Vulkan.
+    var selectedRenderer by remember {
+        val id = shortcut.getExtra("renderer", shortcut.container.renderer)
+        mutableStateOf(if (id.equals("egl", ignoreCase = true)) "EGL" else "Vulkan")
+    }
 
 
     // Deck mode is only turned on through a warning that says what it breaks.
@@ -7127,7 +7130,7 @@ internal fun ShortcutSettingsDialogScreen(
                         DpDrop(
                             dp, "renderer",
                             label = stringResource(R.string.renderer),
-                            options = listOf("Vulkan"),
+                            options = listOf("Vulkan", "EGL"),
                             selected = selectedRenderer,
                             onSelect = { selectedRenderer = it },
                             modifier = Modifier.weight(1f)
@@ -8424,7 +8427,7 @@ internal fun DeckShortcutSettingsScreen(
 
     var selectedRenderer by remember {
         val id = shortcut.getExtra("renderer", shortcut.container.renderer)
-        mutableStateOf("Vulkan")
+        mutableStateOf(if (id.equals("egl", ignoreCase = true)) "EGL" else "Vulkan")
     }
     var unrealHdrOverride by remember { mutableStateOf(com.winhub.hernandez.core.UnrealHdr.shortcutChoice(shortcut)) }
 

@@ -1290,8 +1290,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
         hudCounterEnabled = fpsConfig.get("hudEnabled", "1").equals("1");
         String hudStyle = fpsConfig.get("hudStyle", "fusion");
 
-        // Host renderer is Vulkan (the only host renderer).
-        String rendererMode = "Vulkan";
+        // Host renderer: Vulkan, or EGL when the container/game picked it.
+        String rendererMode = "egl".equals(resolvedRenderer()) ? "EGL" : "Vulkan";
         // The configured wrapper NAMES what a D3D game would load here — it is not evidence that THIS
         // game loads one: a native OpenGL or Vulkan title never touches DXVK. It stays the tag for a
         // D3D API the resolvers actually prove (startDxApiDetection's fallback arg) and the
@@ -6548,6 +6548,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
             inGameControlsEditor = null;
         }
         super.onDestroy();
+        // The EGL render thread outlives the surface; stop it with the session.
+        if (xServerView != null && xServerView.getRenderer() instanceof com.winhub.hernandez.renderer.egl.EglRenderer)
+            xServerView.getRenderer().forceCleanup();
         // Power-user perf: stop the thermal watchdog and revert any privileged sysfs writes on game
         // exit (no-op unless a root toggle wrote something this session).
         com.winhub.hernandez.perf.TempWatchdog.INSTANCE.stop();
@@ -7733,13 +7736,19 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private void setupUI() {
         FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
         xServerView = new XServerView(this, xServer);
-        // Vulkan is the only host renderer; any legacy/unknown id (e.g. the removed OpenGL or
-        // SurfaceFlinger options) degrades to Vulkan.
-        xServerView.initRenderer("vulkan");
-        // Gate the drawer's live Present Mode selector: it only exists on the Vulkan host renderer.
-        XServerDrawerState.INSTANCE.setRendererIsVulkan(true);
+        // Vulkan unless the container/game picked EGL; any legacy/unknown id degrades to Vulkan, and
+        // initRenderer itself falls back to Vulkan if the EGL renderer cannot start on this device.
+        xServerView.initRenderer(resolvedRenderer());
         final HostRenderer renderer = xServerView.getRenderer();
+        // Gate the drawer's live Present Mode selector: it only exists on the Vulkan host renderer.
+        XServerDrawerState.INSTANCE.setRendererIsVulkan(
+            renderer instanceof com.winhub.hernandez.renderer.vulkan.VulkanRenderer);
         renderer.setCursorVisible(false);
+        if (renderer instanceof com.winhub.hernandez.renderer.egl.EglRenderer) {
+            // Frames that skip the CPU copy path still have to tick the perf HUD.
+            ((com.winhub.hernandez.renderer.egl.EglRenderer) renderer).setHudFrameTick(this::driveHudFrameTick);
+            if (container != null) renderer.setFilterMode(container.getRendererFilterMode());
+        }
 
         // Power-user perf (non-root): arm the thermal watchdog for this session, and if the priority
         // boost is on, raise the guest CPU-worker subtree once it exists (short delay so the guest is
@@ -10465,8 +10474,12 @@ return true;
                 + " (gmemMode=" + gmemMode + ")");
     }
 
+    // Host renderer for this session: the shortcut's pick wins, then the container's. EGL is opt-in; any
+    // other id (including the removed legacy ones) runs on Vulkan.
     private String resolvedRenderer() {
-        return "vulkan";
+        if (container == null) return "vulkan";
+        String id = shortcut != null ? shortcut.getExtra("renderer", container.getRenderer()) : container.getRenderer();
+        return "egl".equalsIgnoreCase(id) ? "egl" : "vulkan";
     }
 
     // Per-game overrides for the Vulkan-settings block (native / Colors=swapRB / present mode).

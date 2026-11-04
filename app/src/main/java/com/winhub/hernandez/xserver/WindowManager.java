@@ -44,6 +44,8 @@ public class WindowManager extends XResourceManager {
 
         default void onUpdateWindowAttributes(Window window, Bitmask mask) {}
 
+        default void onReparentWindow(Window window, Window newParent) {}
+
         default void onModifyWindowProperty(Window window, Property property) {}
     }
 
@@ -280,6 +282,9 @@ public class WindowManager extends XResourceManager {
         Window oldParent = window.getParent();
         if (oldParent != null) oldParent.removeChild(window);
         newParent.addChild(window);
+        for (int i = onWindowModificationListeners.size()-1; i >= 0; i--) {
+            onWindowModificationListeners.get(i).onReparentWindow(window, newParent);
+        }
     }
 
     public void setRenderingEnabled(boolean enabled) {

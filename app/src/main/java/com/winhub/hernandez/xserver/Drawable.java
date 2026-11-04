@@ -115,6 +115,12 @@ public class Drawable extends XResource {
         return texture instanceof NativeTexture ? ((NativeTexture)texture).getStride() : width;
     }
 
+    /** AHardwareBuffer holding this drawable's pixels, or 0 when they live in plain memory. Read by the EGL renderer. */
+    public long getBackingAHB() {
+        Texture current = texture;
+        return current instanceof GPUImage ? ((GPUImage)current).getHardwareBufferPtr() : 0L;
+    }
+
     public Runnable getOnDrawListener() {
         return onDrawListener;
     }

@@ -379,8 +379,8 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
         subtitle = "Versions, frame rate, filtering…") { xmbDxConfigMenu(xmb, s) }
 
     val rendId = p.ex("renderer", c.renderer).lowercase()
-    val rend = "Vulkan"
-    rows += XmbRow.Choice("renderer", "Renderer", Icons.Filled.DesktopWindows, listOf("Vulkan"), rend) { v ->
+    val rend = if (rendId == "egl") "EGL" else "Vulkan"
+    rows += XmbRow.Choice("renderer", "Renderer", Icons.Filled.DesktopWindows, listOf("Vulkan", "EGL"), rend) { v ->
         xmb.set(p, "renderer", v.lowercase())
     }
     if (rend == "Vulkan") {
