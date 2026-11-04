@@ -300,12 +300,16 @@ internal fun DeckSettingsScreen() {
     var showPerformance by remember { mutableStateOf(false) }
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateNote by remember { mutableStateOf<String?>(null) }
+    // Kept so the install button below has the build to download.
+    var availableUpdate by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
     fun checkNow() {
         checkingUpdate = true
         updateNote = null
+        availableUpdate = null
         UpdateManager.check(context) { info ->
             activity?.runOnUiThread {
                 checkingUpdate = false
+                availableUpdate = info?.takeIf { it.isNewer }
                 updateNote = info?.takeIf { it.isNewer }?.let { "V ${it.versionName} available" }
                     ?: "You're on the latest build"
             }
@@ -943,6 +947,17 @@ internal fun DeckSettingsScreen() {
                 hint = updateNote ?: "Installed: V ${UpdateManager.installedVersionName()}",
             ) {
                 DeckButton("Check", primary = false) { checkNow() }
+            }
+            availableUpdate?.let { update ->
+                val sizeMb = update.downloadSize.takeIf { it > 0 }?.let { " (${it / (1024 * 1024)} MB)" } ?: ""
+                DeckRow(
+                    label = "Download & install V ${update.versionName}",
+                    hint = (update.notes.takeIf { it.isNotBlank() } ?: "Downloads in the background and opens the installer") + sizeMb,
+                ) {
+                    DeckButton("Install", primary = true) {
+                        activity?.let { UpdateManager.downloadAndInstall(it, update) {} }
+                    }
+                }
             }
         }
         }
