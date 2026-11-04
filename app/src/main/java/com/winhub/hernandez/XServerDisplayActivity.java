@@ -6550,6 +6550,10 @@ public class XServerDisplayActivity extends AppCompatActivity {
             inGameControlsEditor.dispose();
             inGameControlsEditor = null;
         }
+        if (startProgramsExecutor != null) {
+            startProgramsExecutor.shutdownNow();
+            startProgramsExecutor = null;
+        }
         super.onDestroy();
         // The EGL render thread outlives the surface; stop it with the session.
         if (xServerView != null && xServerView.getRenderer() instanceof com.winhub.hernandez.renderer.egl.EglRenderer)
@@ -6998,6 +7002,44 @@ public class XServerDisplayActivity extends AppCompatActivity {
      *  prefix for it (core.DxvkNvapi); both are read by setupXEnvironment on the same launch thread. */
     private String unrealHdrMode = com.winhub.hernandez.core.UnrealHdr.OFF;
     private com.winhub.hernandez.core.DxvkNvapi.Result nvapiSync;
+
+    // ── Game settings > Mods > Start programs (trainers, Cheat Engine, ...) ──────────────────────────────
+
+    private java.util.concurrent.ScheduledExecutorService startProgramsExecutor;
+
+    /** Wine sessions: starts the programs this game lists in its Mods tab, in that order. The first waits
+     *  from winhandler.exe being up (it starts the game), each next one from the start of the one before.
+     *  Off the main thread, as starting one writes a batch file. */
+    private void scheduleStartPrograms() {
+        if (shortcut == null) return;
+        final List<com.winhub.hernandez.core.StartPrograms.Entry> programs =
+                com.winhub.hernandez.core.StartPrograms.parse(shortcut.getExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, ""));
+        if (programs.isEmpty()) return;
+        startProgramsExecutor = Executors.newSingleThreadScheduledExecutor();
+        long at = 0;
+        for (com.winhub.hernandez.core.StartPrograms.Entry program : programs) {
+            at += program.delaySec * 1000L;
+            startProgramsExecutor.schedule(() -> startProgram(program), at, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void startProgram(com.winhub.hernandez.core.StartPrograms.Entry program) {
+        try {
+            if (winHandler == null) return;
+            boolean ok = winHandler.execInFolder(program.path, "");
+            logSessionLine("mods", "Start program: " + program.path
+                    + (ok ? "" : " (not started: the batch file could not be written)"));
+        } catch (RuntimeException e) {
+            Log.w("XServerDisplayActivity", "start program failed: " + program.path, e);
+            logSessionLine("mods", "Start program failed: " + program.path + " (" + e.getMessage() + ")");
+        }
+    }
+
+    /** The prefix's C: drive (the container's .wine/drive_c), or null without a container. */
+    public File getWineDriveC() {
+        if (container != null) return new File(container.getRootDir(), ".wine/drive_c");
+        return imageFs != null && imageFs.wineprefix != null ? new File(imageFs.wineprefix, "drive_c") : null;
+    }
 
     /** One line for this session's log under {@code area}: the Wine debug log when the Log Manager
      *  has it open; logcat always. */
@@ -7708,6 +7750,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
         // Start the WinHandler (writes events to the file)
         winHandler.start();
+        scheduleStartPrograms();
         // Steam Controller support (no-op unless the setting is on) — after WinHandler so pads that
         // are already paired seat straight into its slots.
         runOnUiThread(this::startSteamControllerSupport);

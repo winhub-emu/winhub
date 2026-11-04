@@ -8647,6 +8647,8 @@ internal fun DeckShortcutSettingsScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
+    // Mods tab: programs started with the game, in order, with a wait each.
+    val startPrograms = remember { StartProgramsState(shortcut.getExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, "")) }
     var tvLaunch by remember { mutableStateOf(com.winhub.hernandez.display.ExternalDisplay.launchOnTv(shortcut)) }
     val tvLaunchStored = remember { com.winhub.hernandez.display.ExternalDisplay.launchOnTv(shortcut) }
     var tvModeId by remember { mutableStateOf(com.winhub.hernandez.display.ExternalDisplay.modeId(shortcut)) }
@@ -8798,6 +8800,7 @@ internal fun DeckShortcutSettingsScreen(
         val numCtrl = (numControllersEntries.indexOf(selectedNumControllers) + 1).coerceAtLeast(1)
 
         with(shortcut) {
+            putExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, startPrograms.encoded())
             putExtra("execArgs", execArgs.ifEmpty { null })
             if (isEpicShortcut) putExtra("epicEos", if (epicEosEnabled) "1" else "0")
             if (isEpicShortcut) putExtra("epicOvtForce", if (epicOvtForce) "1" else "0")
@@ -8887,13 +8890,13 @@ internal fun DeckShortcutSettingsScreen(
 
     val tvTabVisible = tvDisplay != null || tvLaunchStored || tvLaunch
     val tabIndices = remember(tvTabVisible) {
-        listOf(0, 6, 1, 2, 3, 4) + (if (tvTabVisible) listOf(5) else emptyList())
+        listOf(0, 6, 1, 2, 3, 4, 7) + (if (tvTabVisible) listOf(5) else emptyList())
     }
     val tabTitles = remember(tabIndices) {
         tabIndices.map {
             when (it) {
                 0 -> "General"; 1 -> "Win Components"; 2 -> "Env Vars"
-                3 -> "Advanced"; 4 -> "Controller"; 6 -> "Graphics"; else -> "TV"
+                3 -> "Advanced"; 4 -> "Controller"; 6 -> "Graphics"; 7 -> "Mods"; else -> "TV"
             }
         }
     }
@@ -9611,6 +9614,7 @@ internal fun DeckShortcutSettingsScreen(
                             onShowBox64DownloadSheet = { showBox64DownloadSheet = true },
                             onShowFexCoreDownloadSheet = { showFexCoreDownloadSheet = true },
                         )
+                        7 -> DeckStartProgramsTab(startPrograms)
                         5 -> DeckTvTab(
                             display = tvDisplay,
                             gameScreenSize = if (selectedScreenSize == "Custom") "${customWidth}x${customHeight}"
@@ -9800,6 +9804,7 @@ private fun shortcutTabIcon(title: String): ImageVector = when (title) {
     "Advanced" -> Icons.Filled.Tune
     "Controller" -> Icons.Filled.SportsEsports
     "TV" -> Icons.Filled.Tv
+    "Mods" -> Icons.Filled.Apps
     else -> Icons.Filled.Settings
 }
 

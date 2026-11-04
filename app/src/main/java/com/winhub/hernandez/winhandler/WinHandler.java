@@ -454,6 +454,14 @@ public class WinHandler {
             }
         }
 
+        // winhandler.exe takes at most EXEC_RAW_MAX bytes per EXEC; a longer command (a program in a game
+        // folder) would not fit the packet, so it goes through a batch file instead.
+        if (filename.getBytes().length + parameters.getBytes().length > EXEC_RAW_MAX) {
+            if (!execInFolder(filename, parameters))
+                Log.w("WinHandler", "exec: command too long and the batch file could not be written: " + filename);
+            return;
+        }
+
         addAction(() -> {
             byte[] filenameBytes = filename.getBytes();
             byte[] parametersBytes = parameters.getBytes();
@@ -494,6 +502,36 @@ public class WinHandler {
             sendPacket(CLIENT_PORT);
         });
         return true;
+    }
+
+    private final java.util.concurrent.atomic.AtomicInteger batchSlot = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * Starts a program from any path, in its own folder: winhandler.exe takes at most {@link #EXEC_RAW_MAX}
+     * bytes per EXEC and starts programs in its own folder, so the command goes into a short batch file in
+     * C:\windows (blrun0.bat .. blrun9.bat, in turn) that changes to the program's folder and starts it.
+     * {@code filename} is a Windows path. False when the batch file could not be written or sent.
+     */
+    public boolean execInFolder(String filename, String parameters) {
+        java.io.File driveC = activity.getWineDriveC();
+        if (driveC == null || filename == null || filename.trim().isEmpty()) return false;
+        filename = filename.trim();
+        String name = "blrun" + Math.floorMod(batchSlot.getAndIncrement(), 10) + ".bat";
+        int slash = filename.lastIndexOf('\\');
+        StringBuilder bat = new StringBuilder("@echo off\r\n");
+        if (slash > 0) bat.append("cd /d \"").append(filename, 0, slash).append("\"\r\n");
+        bat.append("start \"\" \"").append(filename).append('"');
+        if (parameters != null && !parameters.trim().isEmpty()) bat.append(' ').append(parameters.trim());
+        bat.append("\r\n");
+        java.nio.charset.Charset cs = java.nio.charset.Charset.isSupported("windows-1252")
+                ? java.nio.charset.Charset.forName("windows-1252") : java.nio.charset.StandardCharsets.ISO_8859_1;
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(driveC, "windows/" + name))) {
+            out.write(bat.toString().getBytes(cs));
+        } catch (java.io.IOException e) {
+            Log.w("WinHandler", "execInFolder: " + name + " not written", e);
+            return false;
+        }
+        return execRaw("C:\\windows\\" + name, "");
     }
 
     public void killProcess(final String processName) {
