@@ -2020,6 +2020,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
         state.onPauseResume            = () -> setPausedState(!isPaused);
         state.onPipMode                = () -> enterPictureInPictureMode();
         state.onActiveWindows          = () -> showActiveWindowsDialog();
+        state.onModMenu                = this::toggleModMenu;
         state.onTaskManager            = () -> {
             XServerDrawerState.INSTANCE.selectTab(com.winhub.hernandez.ui.TabType.TASK_MANAGER);
             XServerDialogState.INSTANCE.setTmProcesses(new ArrayList<>());
@@ -6550,6 +6551,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
             inGameControlsEditor.dispose();
             inGameControlsEditor = null;
         }
+        modKeyHandler.removeCallbacksAndMessages(null);
         if (startProgramsExecutor != null) {
             startProgramsExecutor.shutdownNow();
             startProgramsExecutor = null;
@@ -7002,6 +7004,165 @@ public class XServerDisplayActivity extends AppCompatActivity {
      *  prefix for it (core.DxvkNvapi); both are read by setupXEnvironment on the same launch thread. */
     private String unrealHdrMode = com.winhub.hernandez.core.UnrealHdr.OFF;
     private com.winhub.hernandez.core.DxvkNvapi.Result nvapiSync;
+
+    // ── Game mods (core.GameMods: REFramework, Special K) ────────────────────────────────────────────────
+
+    private final Handler modKeyHandler = new Handler(Looper.getMainLooper());
+    private static final String START_PROGRAM_ID = "startprog:";
+
+    /** Game mods (launch worker thread, after the user's env vars are merged; Wine sessions): every mod
+     *  switched on for this game (game settings > Mods) and available for its EXE is downloaded from its
+     *  release when this device does not have it yet, placed next to the EXE, and gets its
+     *  WINEDLLOVERRIDES entry (a user's own entry for that DLL is kept); REFramework's menu is set to start
+     *  closed. A mod switched off has only the file we placed removed. One "mods" line per mod in the
+     *  session log; the drawer's Mods tab gets one card per mod this EXE can take (on, off or not loaded),
+     *  then one per program the game starts. */
+    private void applyGameModsEnv(EnvVars envVars) {
+        java.util.List<com.winhub.hernandez.ui.DrawerMod> cards = new ArrayList<>();
+        try {
+            if (shortcut == null) return;
+            java.util.List<File> dirs = gameExeFolders();
+            File exe = gameExeFile();
+            int machine = com.winhub.hernandez.core.GameMods.peMachine(exe);
+            java.util.Set<String> imports = null;
+            String bits = machine == com.winhub.hernandez.core.GameMods.MACHINE_X86 ? "32-bit" : "64-bit";
+            for (com.winhub.hernandez.core.GameMods.Mod mod : com.winhub.hernandez.core.GameMods.ALL) {
+                boolean on = "1".equals(shortcut.getExtra(mod.extra));
+                boolean available = com.winhub.hernandez.core.GameMods.supports(mod, shortcut.path, machine);
+                if (available && !on) cards.add(new com.winhub.hernandez.ui.DrawerMod(mod.id, mod.name, false, false, "", "", bits));
+                if (!on || !available) {
+                    for (File dir : dirs) {
+                        String note = com.winhub.hernandez.core.GameMods.remove(dir, mod);
+                        if (note != null) logSessionLine("mods", mod.name + " off: " + note);
+                    }
+                    if (on) logSessionLine("mods", mod.name + " on, but not available for this EXE"
+                            + (machine == 0 ? " (EXE not readable)" : "") + ": not loaded");
+                    continue;
+                }
+                if (dirs.isEmpty()) {
+                    logSessionLine("mods", mod.name + " on, but the game's folder could not be found: not loaded");
+                    cards.add(new com.winhub.hernandez.ui.DrawerMod(mod.id, mod.name, true, false, "", "", bits));
+                    continue;
+                }
+                File dir = dirs.get(0);
+                com.winhub.hernandez.core.GameMods.Asset asset = com.winhub.hernandez.core.GameMods.asset(mod, machine);
+                if (imports == null) imports = com.winhub.hernandez.core.GameMods.peImports(exe);
+                String dll = com.winhub.hernandez.core.GameMods.targetDll(mod,
+                        shortcut.getExtra(com.winhub.hernandez.core.GameMods.EXTRA_SPECIALK_DLL), imports, machine);
+                StringBuilder line = new StringBuilder(mod.name).append(" on (").append(bits).append("): ");
+                File source = null;
+                if (!com.winhub.hernandez.core.GameMods.inPlace(dir, dll, asset.sha256)) {
+                    try {
+                        boolean had = com.winhub.hernandez.core.GameModCache.cached(getFilesDir(), asset) != null;
+                        source = com.winhub.hernandez.core.GameModCache.get(getFilesDir(), asset, null);
+                        if (!had) line.append("downloaded; ");
+                    } catch (Throwable t) {
+                        line.append("download failed (").append(t.getMessage()).append("); ");
+                    }
+                }
+                com.winhub.hernandez.core.GameMods.Result r =
+                        com.winhub.hernandez.core.GameMods.install(dir, mod, dll, source, asset.sha256);
+                line.append(r.note);
+                if (r.present) {
+                    String before = envVars.has("WINEDLLOVERRIDES") ? envVars.get("WINEDLLOVERRIDES") : "";
+                    String after = com.winhub.hernandez.core.GameMods.overrides(before, dll);
+                    if (!after.equals(before)) envVars.put("WINEDLLOVERRIDES", after);
+                    line.append("; WINEDLLOVERRIDES=").append(after);
+                    if (after.equals(before)) line.append(" (yours kept)");
+                }
+                if (mod == com.winhub.hernandez.core.GameMods.REFRAMEWORK && r.ours) {
+                    try {
+                        if (com.winhub.hernandez.core.ReFramework.applyMenuStartsClosed(dir)) line.append("; menu starts closed");
+                    } catch (Throwable t) {
+                        line.append("; menu state not set (").append(t.getMessage()).append(")");
+                    }
+                }
+                logSessionLine("mods", line.toString());
+                cards.add(new com.winhub.hernandez.ui.DrawerMod(mod.id, mod.name, true, r.present,
+                        r.ours ? asset.tag() : "", r.present ? dll : "", bits));
+            }
+        } catch (Throwable t) {
+            Log.w("XServerDisplayActivity", "game mods setup failed", t);
+            logSessionLine("mods", "setup failed: " + t.getMessage());
+        } finally {
+            if (shortcut != null) {
+                List<com.winhub.hernandez.core.StartPrograms.Entry> programs =
+                        com.winhub.hernandez.core.StartPrograms.parse(shortcut.getExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, ""));
+                for (int i = 0; i < programs.size(); i++) {
+                    String path = programs.get(i).path;
+                    cards.add(new com.winhub.hernandez.ui.DrawerMod(START_PROGRAM_ID + i,
+                            "Start program " + (i + 1), true, true, "", path.substring(path.lastIndexOf('\\') + 1), "", "Start"));
+                }
+            }
+            final java.util.List<com.winhub.hernandez.ui.DrawerMod> list = cards;
+            runOnUiThread(() -> XServerDrawerState.INSTANCE.setMods(list));
+        }
+    }
+
+    /** Drawer > Mods: for a mod, shows or hides its in-game menu by sending its menu key after the drawer
+     *  has closed, as a press and a release 150 ms later (our REFramework build reads the key's state once
+     *  per frame when the game blocks key messages, so the press has to outlast a frame). REFramework:
+     *  Insert; Special K: Ctrl + Shift + Backspace. For a program card, starts that program again. */
+    private void toggleModMenu(String id) {
+        if (id.startsWith(START_PROGRAM_ID)) {
+            try {
+                int index = Integer.parseInt(id.substring(START_PROGRAM_ID.length()));
+                List<com.winhub.hernandez.core.StartPrograms.Entry> programs = shortcut == null ? null
+                        : com.winhub.hernandez.core.StartPrograms.parse(shortcut.getExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, ""));
+                if (programs != null && index >= 0 && index < programs.size() && startProgramsExecutor != null) {
+                    final com.winhub.hernandez.core.StartPrograms.Entry program = programs.get(index);
+                    startProgramsExecutor.execute(() -> startProgram(program));
+                }
+            } catch (NumberFormatException e) {
+                Log.w("XServerDisplayActivity", "bad program card id: " + id, e);
+            }
+            return;
+        }
+        final XKeycode[] keys = com.winhub.hernandez.core.GameMods.SPECIAL_K.id.equals(id)
+                ? new XKeycode[]{XKeycode.KEY_CTRL_L, XKeycode.KEY_SHIFT_L, XKeycode.KEY_BKSP}
+                : new XKeycode[]{XKeycode.KEY_INSERT};
+        modKeyHandler.postDelayed(() -> {
+            if (xServer == null) return;
+            try {
+                for (XKeycode k : keys) xServer.injectKeyPress(k);
+            } catch (Throwable t) {
+                Log.w("XServerDisplayActivity", "mod menu key", t);
+                return;
+            }
+            modKeyHandler.postDelayed(() -> {
+                try {
+                    if (xServer != null) for (int i = keys.length - 1; i >= 0; i--) xServer.injectKeyRelease(keys[i]);
+                } catch (Throwable t) {
+                    Log.w("XServerDisplayActivity", "mod menu key release", t);
+                }
+            }, 150);
+        }, 200);
+    }
+
+    /** The game EXE on the Android side, or null for a desktop launch, a .lnk or an unmapped drive. */
+    private File gameExeFile() {
+        try {
+            if (shortcut == null || container == null || shortcut.path == null || shortcut.path.endsWith(".lnk")) return null;
+            File f = com.winhub.hernandez.core.WinePath.INSTANCE.resolveAndroidPath(container, shortcut.path);
+            return f != null && f.isFile() ? f : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** The game EXE's folder on the Android side (also its working directory), or none for a desktop
+     *  launch, a .lnk or an unmapped drive. */
+    private java.util.List<File> gameExeFolders() {
+        java.util.List<File> dirs = new ArrayList<>();
+        try {
+            if (shortcut == null || container == null || shortcut.path == null || shortcut.path.endsWith(".lnk")) return dirs;
+            File dir = com.winhub.hernandez.core.WinePath.INSTANCE.resolveAndroidPath(container, FileUtils.getDirname(shortcut.path));
+            if (dir != null && dir.isDirectory()) dirs.add(dir);
+        } catch (Throwable t) {
+            Log.w("XServerDisplayActivity", "game folder for the mods", t);
+        }
+        return dirs;
+    }
 
     // ── Game settings > Mods > Start programs (trainers, Cheat Engine, ...) ──────────────────────────────
 
@@ -7472,6 +7633,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
             // WINEDLLOVERRIDES / DXVK_CONFIG entry of the user's wins and the log line can say
             // whether DXVK_HDR is on.
             applyUnrealHdrEnv(envVars);
+            applyGameModsEnv(envVars);
 
             // Keep the lsfg-vk Vulkan layer INERT unless lsfg-vk is actually the engine.
             // Placed AFTER both user env merges (container above, shortcut just here) so

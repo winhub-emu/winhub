@@ -240,7 +240,12 @@ private fun XServerDrawerContent() {
         else if (exitTried) runCatching { exitFocus.requestFocus() }
     }
 
-    val stripTabs = remember(friendsSource.tabVisible, tvConnected, castSupported) {
+    val mods by state.mods.collectAsState()
+    val hasMods = mods.isNotEmpty()
+    LaunchedEffect(hasMods, selectedTab) {
+        if (!hasMods && selectedTab == TabType.MODS) state.selectTab(TabType.QUICK)
+    }
+    val stripTabs = remember(friendsSource.tabVisible, tvConnected, castSupported, hasMods) {
         buildList {
             add(TabType.QUICK)
             add(TabType.GRAPHICS)
@@ -249,6 +254,7 @@ private fun XServerDrawerContent() {
             add(TabType.CONTROLS)
             add(TabType.AUDIO)
             add(TabType.ADVANCED)
+            if (hasMods) add(TabType.MODS)
             if (friendsSource.tabVisible) add(TabType.FRIENDS)
             if (com.winhub.hernandez.FeatureFlags.TV_OUTPUT_ENABLED && (tvConnected || castSupported)) add(TabType.TV)
             add(TabType.TASK_MANAGER)
@@ -415,6 +421,7 @@ private fun XServerDrawerContent() {
                             TabType.TV -> TvContent(state)
                             TabType.AUDIO -> AudioContent(state)
                             TabType.FRIENDS -> FriendsContent(state)
+                            TabType.MODS -> ModsContent(state, mods)
                         }
                     }
                 }
@@ -435,6 +442,7 @@ private fun tabLabel(tab: TabType): String = when (tab) {
     TabType.ADVANCED -> "Advanced"
     TabType.FRIENDS -> "Friends"
     TabType.TV -> "TV"
+    TabType.MODS -> "Mods"
     TabType.TASK_MANAGER -> "Tasks"
 }
 
@@ -4513,3 +4521,77 @@ private fun prettyRenderer(raw: String): String = when (raw.trim().lowercase()) 
 /** Tidy the device line: "8 cores" -> "8c" so it fits the narrow value column without wrapping to a
  *  dangling separator. */
 private fun tidyDevice(raw: String): String = raw.replace(" cores", "c")
+
+// ───── Mods tab ─────
+
+/** Mods tab: one card per mod this game's EXE can take (core.GameMods), then one per program the game
+ *  starts. A loaded mod shows its release, the DLL it loads as and a button that shows or hides its
+ *  in-game menu; an off or not-loaded one is dimmed. */
+@Composable
+private fun ModsContent(state: XServerDrawerState, mods: List<DrawerMod>) {
+    SectionHeader("Mods")
+    for (mod in mods) {
+        ModCard(mod) {
+            state.onClose?.run()
+            state.onModMenu?.accept(mod.id)
+        }
+    }
+}
+
+@Composable
+private fun ModCard(mod: DrawerMod, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .then(if (mod.loaded) Modifier else Modifier.alpha(0.45f)),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = DeckPalette.surface),
+        border = BorderStroke(1.dp, DeckPalette.line),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    mod.name,
+                    color = DeckPalette.onBackground,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                val tag = when {
+                    mod.loaded -> mod.version
+                    !mod.on -> "Off"
+                    else -> "Not loaded"
+                }
+                if (tag.isNotEmpty()) ModTag(tag)
+            }
+            if (mod.loaded) {
+                Text(
+                    if (mod.bits.isEmpty()) mod.file else "${mod.file} \u00b7 ${mod.bits}",
+                    color = DeckPalette.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                AccentButton(mod.button, onClick = onClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModTag(text: String) {
+    Text(
+        text,
+        color = DeckPalette.onBackground.copy(alpha = 0.85f),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier
+            .padding(start = 8.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(DeckPalette.surfaceVariant.copy(alpha = 0.6f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}

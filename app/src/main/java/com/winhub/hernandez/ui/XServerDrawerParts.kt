@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Refresh
@@ -238,6 +239,7 @@ internal fun drawerTabIcon(tab: TabType): ImageVector = when (tab) {
     TabType.ADVANCED -> Icons.Filled.Settings
     TabType.FRIENDS -> Icons.Filled.People
     TabType.TV -> Icons.Filled.Tv
+    TabType.MODS -> Icons.Filled.Extension
     TabType.TASK_MANAGER -> Icons.Filled.Memory
 }
 

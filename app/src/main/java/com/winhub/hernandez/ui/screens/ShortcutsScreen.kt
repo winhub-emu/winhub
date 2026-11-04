@@ -8649,6 +8649,7 @@ internal fun DeckShortcutSettingsScreen(
 
     // Mods tab: programs started with the game, in order, with a wait each.
     val startPrograms = remember { StartProgramsState(shortcut.getExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, "")) }
+    val gameMods = rememberGameModsSetting(shortcut)
     var tvLaunch by remember { mutableStateOf(com.winhub.hernandez.display.ExternalDisplay.launchOnTv(shortcut)) }
     val tvLaunchStored = remember { com.winhub.hernandez.display.ExternalDisplay.launchOnTv(shortcut) }
     var tvModeId by remember { mutableStateOf(com.winhub.hernandez.display.ExternalDisplay.modeId(shortcut)) }
@@ -8801,6 +8802,7 @@ internal fun DeckShortcutSettingsScreen(
 
         with(shortcut) {
             putExtra(com.winhub.hernandez.core.StartPrograms.EXTRA, startPrograms.encoded())
+            gameMods.write { key, value -> putExtra(key, value) }
             putExtra("execArgs", execArgs.ifEmpty { null })
             if (isEpicShortcut) putExtra("epicEos", if (epicEosEnabled) "1" else "0")
             if (isEpicShortcut) putExtra("epicOvtForce", if (epicOvtForce) "1" else "0")
@@ -9614,7 +9616,7 @@ internal fun DeckShortcutSettingsScreen(
                             onShowBox64DownloadSheet = { showBox64DownloadSheet = true },
                             onShowFexCoreDownloadSheet = { showFexCoreDownloadSheet = true },
                         )
-                        7 -> DeckStartProgramsTab(startPrograms)
+                        7 -> DeckModsTab(gameMods, startPrograms)
                         5 -> DeckTvTab(
                             display = tvDisplay,
                             gameScreenSize = if (selectedScreenSize == "Custom") "${customWidth}x${customHeight}"

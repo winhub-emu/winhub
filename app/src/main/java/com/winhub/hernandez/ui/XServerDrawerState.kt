@@ -17,8 +17,28 @@ enum class TabType {
     GRAPHICS, HUD, RESHADE, CONTROLS, ADVANCED, TASK_MANAGER, TV, AUDIO,
     // Steam friends + chat while playing. Only in the rail while InGameFriendsSource says a live
     // source exists (see ui/XServerFriendsTab.kt).
-    FRIENDS
+    FRIENDS,
+    // Game mods (core.GameMods) and programs started with the game. Only in the strip while this
+    // session has cards for it (mods non-empty).
+    MODS
 }
+
+/**
+ * One card in the drawer's Mods tab, built at launch (XServerDisplayActivity.applyGameModsEnv) for each
+ * mod this game's EXE can take. [loaded]: its DLL is in place for this session; [version] is the release
+ * tag of our file ("" for a file the game already had); [file] the DLL name it loads as; [bits] "64-bit"
+ * or "32-bit" ("" for none); [button] the card's button.
+ */
+data class DrawerMod @JvmOverloads constructor(
+    val id: String,
+    val name: String,
+    val on: Boolean,
+    val loaded: Boolean,
+    val version: String,
+    val file: String,
+    val bits: String,
+    val button: String = "Show / hide menu",
+)
 
 object XServerDrawerState {
 
@@ -29,6 +49,11 @@ object XServerDrawerState {
     private val _gameTitle = MutableStateFlow("")
     val gameTitle: StateFlow<String> = _gameTitle
     fun setGameTitle(v: String) { _gameTitle.value = v }
+
+    // Mods this session's game can take, on or off, plus its start programs (Mods tab).
+    private val _mods = MutableStateFlow<List<DrawerMod>>(emptyList())
+    val mods: StateFlow<List<DrawerMod>> = _mods
+    fun setMods(list: List<DrawerMod>) { _mods.value = list }
 
     fun selectTab(tab: TabType) { _selectedTab.value = tab }
 
@@ -386,6 +411,8 @@ object XServerDrawerState {
     // @JvmField exposes these as public fields so Java can assign them directly.
     // Runnable avoids the kotlin.Unit return-type mismatch for Java void lambdas.
     @JvmField var onClose:                  Runnable? = null
+    // Mods tab: shows / hides the in-game menu of the mod with this id, or starts the program card with it.
+    @JvmField var onModMenu:                java.util.function.Consumer<String>? = null
     @JvmField var onKeyboard:               Runnable? = null
     @JvmField var onInputControls:          Runnable? = null
     @JvmField var onGraphicEngine:          Runnable? = null
@@ -657,6 +684,8 @@ object XServerDrawerState {
         _rootReadouts.value = emptyMap()
         onRootToggleChange = null; onFreeMemory = null; onDeepClean = null; onRootReadoutPoll = null
         onResetPerfKey = null; onResetAllPerf = null
+        _mods.value = emptyList()
+        onModMenu = null
         onClose = null; onKeyboard = null; onInputControls = null
         onGraphicEngine = null; onVibration = null
         onToggleFullscreen = null; onSetFullscreenMode = null; onSetScreenAlignment = null; onPauseResume = null; onPipMode = null
