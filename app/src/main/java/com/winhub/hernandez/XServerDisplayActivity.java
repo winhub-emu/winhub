@@ -9434,6 +9434,10 @@ public class XServerDisplayActivity extends AppCompatActivity {
         envVars.put("MESA_VK_WSI_PRESENT_MODE", presentMode);
     }
 
+    // PANVK_* driver variables (Mali GPUs only; returns at once elsewhere).
+    String maliApplied = com.winhub.hernandez.core.MaliPanvk.applyToLaunchEnv(envVars, graphicsDriverConfig);
+    if (maliApplied != null && wineDebugWriter != null) wineDebugWriter.println("XServerVulkan: " + maliApplied);
+
     String resourceType = graphicsDriverConfig.get("resourceType");
     if (resourceType != null) envVars.put("WRAPPER_RESOURCE_TYPE", resourceType);
 

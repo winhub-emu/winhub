@@ -2618,6 +2618,13 @@ internal fun GraphicsDriverConfigDialog(
     // stored key on every GPU so OK keeps it; the row itself is shown only on a Mali GPU.
     val isMaliGpu = remember { com.winhub.hernandez.core.MaliPanvk.isMaliGpu() }
     var bcnLayerFast      by remember { mutableStateOf(com.winhub.hernandez.core.BcnFastLayer.isPicked(cfg)) }
+    // PanVK driver variables (MaliPanvk), Mali only. Seeded from the stored keys on every GPU so OK keeps
+    // them; blank = unset = not exported.
+    var panvkHeap         by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_HEAP] ?: "") }
+    var panvkTilerHeap    by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_TILER_HEAP] ?: "") }
+    var panvkPolyHeap     by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_POLY_HEAP] ?: "") }
+    var panvkAtomStride   by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_ATOM_STRIDE] ?: "") }
+    var panvkTrace        by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_TRACE] == "1") }
     // compat_layer: emulate D3D12 tiled/sparse resources (COMPAT_EMULATE_SPARSE_BINDING). Opt-in,
     // only honored by the "Wrapper + compat + bcn" driver on a Valhall Mali. Default OFF.
     var bcnCompatSparse   by remember { mutableStateOf(cfg["bcnCompatSparse"] == "1") }
@@ -2954,6 +2961,40 @@ internal fun GraphicsDriverConfigDialog(
                         }
                     }
                 }
+                if (isMaliGpu) {
+                    Text("Mali (PanVK) driver", style = MaterialTheme.typography.titleSmall)
+                    @Composable
+                    fun MbField(label: String, value: String, min: Int, max: Int, hint: String, onChange: (String) -> Unit) {
+                        val bad = value.isNotBlank() && com.winhub.hernandez.core.MaliPanvk.validMb(value, min, max) == null
+                        OutlinedTextField(
+                            value = value,
+                            onValueChange = { onChange(it.filter { ch -> ch.isDigit() }.take(5)) },
+                            label = { Text(label) },
+                            supportingText = { Text(if (bad) "Out of range ($min to $max): not used." else hint) },
+                            isError = bad,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    MbField("PANVK_HEAP_MB", panvkHeap, com.winhub.hernandez.core.MaliPanvk.HEAP_MIN,
+                        com.winhub.hernandez.core.MaliPanvk.HEAP_MAX, "Default: a quarter of RAM, 1024 to 3072 MB.") { panvkHeap = it }
+                    MbField("PANVK_TILER_HEAP_MB", panvkTilerHeap, com.winhub.hernandez.core.MaliPanvk.TILER_HEAP_MIN,
+                        com.winhub.hernandez.core.MaliPanvk.TILER_HEAP_MAX, "Default: 512 MB.") { panvkTilerHeap = it }
+                    MbField("PANVK_POLY_HEAP_MB", panvkPolyHeap, com.winhub.hernandez.core.MaliPanvk.POLY_HEAP_MIN,
+                        com.winhub.hernandez.core.MaliPanvk.POLY_HEAP_MAX, "Default: 16 MB.") { panvkPolyHeap = it }
+                    LabeledDropdown(
+                        "PANVK_ATOM_STRIDE",
+                        listOf("Auto") + com.winhub.hernandez.core.MaliPanvk.ATOM_STRIDES,
+                        panvkAtomStride.ifEmpty { "Auto" },
+                        { panvkAtomStride = if (it == "Auto") "" else it }
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = panvkTrace, onCheckedChange = { panvkTrace = it })
+                        Text("PANVK_TRACE (driver tracing)", modifier = Modifier.weight(1f))
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = syncFrame, onCheckedChange = { syncFrame = it })
                     Text(stringResource(R.string.graphics_driver_sync_frame), modifier = Modifier.weight(1f))
@@ -3282,6 +3323,14 @@ internal fun GraphicsDriverConfigDialog(
                     "bcnCompatSparse=${if (bcnCompatSparse) "1" else "0"};" +
                     "compatUseGamenative=${if (compatUseGamenative) "1" else "0"};" +
                     (if (bcnLayerFast) "${com.winhub.hernandez.core.BcnFastLayer.KEY}=${com.winhub.hernandez.core.BcnFastLayer.FAST};" else "") +
+                    // Stored only when set (Mali), so other GPUs' configs stay as they were.
+                    listOf(
+                        com.winhub.hernandez.core.MaliPanvk.KEY_HEAP to panvkHeap.trim(),
+                        com.winhub.hernandez.core.MaliPanvk.KEY_TILER_HEAP to panvkTilerHeap.trim(),
+                        com.winhub.hernandez.core.MaliPanvk.KEY_POLY_HEAP to panvkPolyHeap.trim(),
+                        com.winhub.hernandez.core.MaliPanvk.KEY_ATOM_STRIDE to panvkAtomStride,
+                        com.winhub.hernandez.core.MaliPanvk.KEY_TRACE to (if (panvkTrace) "1" else ""),
+                    ).filter { it.second.isNotEmpty() }.joinToString("") { "${it.first}=${it.second};" } +
                     "gpuName=$gpuName" +
                     ";fdDevFeatures=${if (fdDevFeatures) "1" else "0"}" +
                     ";turnipGmem=$turnipGmem" +
