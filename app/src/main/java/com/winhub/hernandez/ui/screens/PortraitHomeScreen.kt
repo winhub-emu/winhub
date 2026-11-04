@@ -178,7 +178,6 @@ internal fun PortraitHome(
 @Composable
 private fun PortraitContinueBanner(entry: HubEntry, onOpen: () -> Unit, onPlay: () -> Unit) {
     val context = LocalContext.current
-    val hue = remember(entry.title) { hueOf(entry.title) * 360f }
     val bitmap = remember(entry.bitmap) { entry.bitmap?.asImageBitmap() }
     val hours = remember(entry.title) { hubPlaytimeLabel(context, entry.title) }
     val shape = RoundedCornerShape(24.dp)
@@ -194,7 +193,7 @@ private fun PortraitContinueBanner(entry: HubEntry, onOpen: () -> Unit, onPlay: 
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Brush.linearGradient(listOf(Color.hsv(hue, 0.55f, 0.55f).copy(alpha = 0.5f), Color.Transparent))),
+                .background(Brush.linearGradient(listOf(Deck.primary.copy(alpha = 0.35f), Color.Transparent))),
         )
         if (bitmap != null) {
             Image(
