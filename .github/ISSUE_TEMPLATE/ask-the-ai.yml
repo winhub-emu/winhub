@@ -1,5 +1,5 @@
 name: "🤖 Ask the AI"
-description: "Ask any question about Bannerlator — how it works, where a feature lives, what a setting does, or why something behaves a certain way. The AI searches the actual codebase and answers with file paths and line numbers."
+description: "Ask any question about WinHub — how it works, where a feature lives, what a setting does, or why something behaves a certain way. The AI searches the actual codebase and answers with file paths and line numbers."
 title: "Q: "
 # NOTE: deliberately labels `ama-request`, NOT `question`. The answer workflow
 # triggers only on the `question` label, which a maintainer applies after a quick
@@ -10,7 +10,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Ask anything about Bannerlator. Every answer is verified against the
+        Ask anything about WinHub. Every answer is verified against the
         source code, docs, and configs of this repo.
 
         A maintainer will review your question and the AI will reply in a

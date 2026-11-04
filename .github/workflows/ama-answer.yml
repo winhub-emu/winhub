@@ -92,8 +92,8 @@ jobs:
 
           if (!proceed) {
             const body = reason === 'monthly-cap'
-              ? "## 🤖 Bannerlator AI\n\n⚠️ The AI has reached its question limit for this month. Please try again next month."
-              : `## 🤖 Bannerlator AI\n\n⚠️ You've reached the limit of ${PER_USER_PER_DAY} questions per day. Please try again tomorrow.`;
+              ? "## 🤖 WinHub AI\n\n⚠️ The AI has reached its question limit for this month. Please try again next month."
+              : `## 🤖 WinHub AI\n\n⚠️ You've reached the limit of ${PER_USER_PER_DAY} questions per day. Please try again tomorrow.`;
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
 
@@ -136,7 +136,7 @@ jobs:
         else
           CHANGED="(unknown — could not compare against the release tag)"
         fi
-        QUESTION=$(printf 'Context: the current Bannerlator release users can install is %s. The code you are reading is the development branch, which may be newer than that release. App files changed since the %s release (these changes are NOT in any release yet):\n%s\n\nIssue from a user:\n%s' "${VER:-unknown}" "${VER:-unknown}" "$CHANGED" "$QUESTION")
+        QUESTION=$(printf 'Context: the current WinHub release users can install is %s. The code you are reading is the development branch, which may be newer than that release. App files changed since the %s release (these changes are NOT in any release yet):\n%s\n\nIssue from a user:\n%s' "${VER:-unknown}" "${VER:-unknown}" "$CHANGED" "$QUESTION")
         {
           echo "q<<__Q_EOF__"
           printf '%s\n' "$QUESTION"
@@ -243,7 +243,7 @@ jobs:
             await github.rest.issues.createComment({
               owner, repo, issue_number,
               body: [
-                '## 🤖 Bannerlator AI',
+                '## 🤖 WinHub AI',
                 '',
                 "⚠️ The **OPENCODE_AUTH** secret hasn't been configured yet.",
                 '',
@@ -263,7 +263,7 @@ jobs:
           const NOTICE = [
             '> ℹ️ **Please read — about this project**',
             '>',
-            '> **Bannerlator is a personal build** — made by me (The412Banner), for my own device, my own needs, and my own use.',
+            '> **WinHub is a personal build** — made by me (The412Banner), for my own device, my own needs, and my own use.',
             '>',
             "> It's a personal continuation of the Winlator Star Bionic project (`star-emu/star`) after it was discontinued and archived. None of the original developers are involved except me; it stands on their work plus cherry-picked commits from across the community — all credited in the repo.",
             '>',
@@ -278,14 +278,14 @@ jobs:
           await github.rest.issues.createComment({
             owner, repo, issue_number,
             body: [
-              '## 🤖 Bannerlator AI',
+              '## 🤖 WinHub AI',
               '',
               answer,
               '',
               '---',
               NOTICE,
               '',
-              `_Cited from the [Bannerlator codebase](https://github.com/${owner}/${repo}). For a follow-up, open a new question._`,
+              `_Cited from the [WinHub codebase](https://github.com/${owner}/${repo}). For a follow-up, open a new question._`,
             ].join('\n'),
           });
 

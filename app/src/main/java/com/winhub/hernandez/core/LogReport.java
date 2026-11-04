@@ -40,7 +40,7 @@ import java.util.zip.ZipOutputStream;
 public final class LogReport {
 
     private static final String TAG = "LogReport";
-    private static final String REPO = "The412Banner/Bannerlator";
+    private static final String REPO = "winhub-emu/winhub";
     /**
      * Per-file cap. A {@code +seh} Wine log runs to tens of MB, but it is also extremely uniform,
      * so it compresses at roughly 140:1 in the zip — 8 MB of it lands as tens of KB. Being stingy

@@ -535,12 +535,12 @@ private fun HelpSupportDialog(onDismiss: () -> Unit, onOpenUrl: (String) -> Unit
                 )
                 SupportLink(
                     label = "GitHub Repository",
-                    url = "https://github.com/The412Banner/Bannerlator",
+                    url = "https://github.com/winhub-emu/winhub",
                     onOpenUrl = onOpenUrl
                 )
                 SupportLink(
                     label = "Report an Issue",
-                    url = "https://github.com/The412Banner/Bannerlator/issues",
+                    url = "https://github.com/winhub-emu/winhub/issues",
                     onOpenUrl = onOpenUrl
                 )
                 SupportLink(

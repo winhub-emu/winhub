@@ -77,7 +77,7 @@ jobs:
           test -f "$RUNNER_TEMP/SPIRV-Headers/include/spirv/unified1/spirv.hpp"
           echo "SPIRV_HEADERS_INC=$RUNNER_TEMP/SPIRV-Headers/include" >> $GITHUB_ENV
 
-      - name: Apply Bannerlator ReShade live-reload patch to vkBasalt
+      - name: Apply WinHub ReShade live-reload patch to vkBasalt
         run: |
           # Patch the pinned submodule (kept at upstream @4f97f09). This is the
           # change we carry: Part A = config-file mtime watch in the present hook

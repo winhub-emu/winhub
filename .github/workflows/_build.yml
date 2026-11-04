@@ -566,12 +566,12 @@ jobs:
         N="${{ inputs.release_number }}"
         F="${{ matrix.flavor.id }}"
         mv app/build/outputs/apk/${F}/release/app-${F}-release.apk \
-           app/build/outputs/apk/${F}/release/Bannerlator-${N}-${F}.apk
+           app/build/outputs/apk/${F}/release/WinHub-${N}-${F}.apk
 
     - name: Upload ${{ matrix.flavor.id }} APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Bannerlator-${{ inputs.release_number }}-${{ matrix.flavor.id }}
-        path: app/build/outputs/apk/${{ matrix.flavor.id }}/release/Bannerlator-${{ inputs.release_number }}-${{ matrix.flavor.id }}.apk
+        name: WinHub-${{ inputs.release_number }}-${{ matrix.flavor.id }}
+        path: app/build/outputs/apk/${{ matrix.flavor.id }}/release/WinHub-${{ inputs.release_number }}-${{ matrix.flavor.id }}.apk
         if-no-files-found: error
         retention-days: 7
