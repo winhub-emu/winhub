@@ -22,6 +22,12 @@ public final class MaliPanvk {
     public static final String KEY_POLY_HEAP = "panvkPolyHeapMb";
     public static final String KEY_ATOM_STRIDE = "panvkAtomStride";
     public static final String KEY_TRACE = "panvkTrace";
+    /** "1" = hide the extensions PanVK handles badly (see {@link #HIDDEN_EXTENSIONS}). Opt-in. */
+    public static final String KEY_HIDE_EXTS = "maliHideExts";
+
+    private static final String[] HIDDEN_EXTENSIONS = {
+        "VK_KHR_present_id", "VK_KHR_present_wait", "VK_KHR_dynamic_rendering"
+    };
 
     // Ranges (MB) the PanVK driver accepts; empty or out-of-range = unset = not exported.
     public static final int HEAP_MIN = 256, HEAP_MAX = 16384;
@@ -66,6 +72,18 @@ public final class MaliPanvk {
     public static String applyToLaunchEnv(EnvVars envVars, Map<String, String> cfg) {
         if (!isMaliGpu()) return null;
         List<String> applied = new ArrayList<>();
+        if ("1".equals(cfg.get(KEY_HIDE_EXTS))) {
+            // Added to whatever the user already blacklisted, so their list is kept.
+            List<String> hidden = new ArrayList<>();
+            String current = envVars.get("WRAPPER_EXTENSION_BLACKLIST");
+            if (current != null) {
+                for (String e : current.split(",")) if (!e.trim().isEmpty()) hidden.add(e.trim());
+            }
+            for (String e : HIDDEN_EXTENSIONS) if (!hidden.contains(e)) hidden.add(e);
+            envVars.put("WRAPPER_EXTENSION_BLACKLIST", String.join(",", hidden));
+            envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", "1");
+            applied.add("hidden extensions (present_id, present_wait, dynamic_rendering)");
+        }
         String heap = validMb(cfg.get(KEY_HEAP), HEAP_MIN, HEAP_MAX);
         if (heap != null) { envVars.put("PANVK_HEAP_MB", heap); applied.add("PANVK_HEAP_MB=" + heap); }
         String tiler = validMb(cfg.get(KEY_TILER_HEAP), TILER_HEAP_MIN, TILER_HEAP_MAX);

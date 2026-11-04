@@ -2625,6 +2625,7 @@ internal fun GraphicsDriverConfigDialog(
     var panvkPolyHeap     by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_POLY_HEAP] ?: "") }
     var panvkAtomStride   by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_ATOM_STRIDE] ?: "") }
     var panvkTrace        by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_TRACE] == "1") }
+    var maliHideExts      by remember { mutableStateOf(cfg[com.winhub.hernandez.core.MaliPanvk.KEY_HIDE_EXTS] == "1") }
     // compat_layer: emulate D3D12 tiled/sparse resources (COMPAT_EMULATE_SPARSE_BINDING). Opt-in,
     // only honored by the "Wrapper + compat + bcn" driver on a Valhall Mali. Default OFF.
     var bcnCompatSparse   by remember { mutableStateOf(cfg["bcnCompatSparse"] == "1") }
@@ -2963,6 +2964,15 @@ internal fun GraphicsDriverConfigDialog(
                 }
                 if (isMaliGpu) {
                     Text("Mali (PanVK) driver", style = MaterialTheme.typography.titleSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = maliHideExts, onCheckedChange = { maliHideExts = it })
+                        Text("Hide present-wait / dynamic-rendering extensions", modifier = Modifier.weight(1f))
+                    }
+                    Text(
+                        "Hides present_id, present_wait and dynamic_rendering from the game and turns on Disable present wait. Try it if a game freezes or shows a black screen on PanVK.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     @Composable
                     fun MbField(label: String, value: String, min: Int, max: Int, hint: String, onChange: (String) -> Unit) {
                         val bad = value.isNotBlank() && com.winhub.hernandez.core.MaliPanvk.validMb(value, min, max) == null
@@ -3330,6 +3340,7 @@ internal fun GraphicsDriverConfigDialog(
                         com.winhub.hernandez.core.MaliPanvk.KEY_POLY_HEAP to panvkPolyHeap.trim(),
                         com.winhub.hernandez.core.MaliPanvk.KEY_ATOM_STRIDE to panvkAtomStride,
                         com.winhub.hernandez.core.MaliPanvk.KEY_TRACE to (if (panvkTrace) "1" else ""),
+                        com.winhub.hernandez.core.MaliPanvk.KEY_HIDE_EXTS to (if (maliHideExts) "1" else ""),
                     ).filter { it.second.isNotEmpty() }.joinToString("") { "${it.first}=${it.second};" } +
                     "gpuName=$gpuName" +
                     ";fdDevFeatures=${if (fdDevFeatures) "1" else "0"}" +

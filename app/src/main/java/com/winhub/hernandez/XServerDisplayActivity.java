@@ -9434,10 +9434,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
         envVars.put("MESA_VK_WSI_PRESENT_MODE", presentMode);
     }
 
-    // PANVK_* driver variables (Mali GPUs only; returns at once elsewhere).
-    String maliApplied = com.winhub.hernandez.core.MaliPanvk.applyToLaunchEnv(envVars, graphicsDriverConfig);
-    if (maliApplied != null && wineDebugWriter != null) wineDebugWriter.println("XServerVulkan: " + maliApplied);
-
     String resourceType = graphicsDriverConfig.get("resourceType");
     if (resourceType != null) envVars.put("WRAPPER_RESOURCE_TYPE", resourceType);
 
@@ -9447,6 +9443,11 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
     String disablePresentWait = graphicsDriverConfig.get("disablePresentWait");
     if (disablePresentWait != null) envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
+
+    // Mali only: hidden extensions + PANVK_* driver variables. After the two settings above so the
+    // extension hide builds on the user's blacklist and present-wait choice (returns at once elsewhere).
+    String maliApplied = com.winhub.hernandez.core.MaliPanvk.applyToLaunchEnv(envVars, graphicsDriverConfig);
+    if (maliApplied != null && wineDebugWriter != null) wineDebugWriter.println("XServerVulkan: " + maliApplied);
 
     // Wrapper + bcn_layer: leegao's bcn_layer implicit Vulkan layer OWNS the shared
     // ENABLE_BCN_COMPUTE / BCN_COMPUTE_AUTO vars when this driver is selected. Its env block
