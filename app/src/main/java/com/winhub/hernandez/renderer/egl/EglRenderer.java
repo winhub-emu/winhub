@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.function.IntConsumer;
 
 /**
- * OpenGL ES host renderer (ported from Winlator-Ludashi). The scene lives in native code: this class only
+ * OpenGL ES host renderer. The scene lives in native code: this class only
  * mirrors the X server's windows, cursors and pointer into it and forwards the surface lifecycle.
  *
  * <p>Window contents are backed by AHardwareBuffers so the native side can sample them without a copy.

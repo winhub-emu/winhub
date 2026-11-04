@@ -959,8 +959,10 @@ private fun TopLevelFields(
             IconButton(onClick = { helpRes = R.string.help_renderer }) {
                 Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
             }
-            IconButton(onClick = onShowVulkanConfig) {
-                Icon(Icons.Default.Settings, contentDescription = null)
+            if (viewModel.selectedRenderer == "Vulkan") {
+                IconButton(onClick = onShowVulkanConfig) {
+                    Icon(Icons.Default.Settings, contentDescription = null)
+                }
             }
         }
         Spacer(Modifier.height(8.dp))

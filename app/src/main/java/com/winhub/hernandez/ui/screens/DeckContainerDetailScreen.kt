@@ -420,28 +420,45 @@ internal fun DeckContainerDetailScreen(
                             selected = viewModel.selectedRenderer,
                             onPick = { viewModel.selectedRenderer = it },
                         )
-                        DeckConfigSection(
-                            label = "Renderer Config",
-                            hint = "Native render / present mode / colours",
-                            title = "Renderer Config",
-                            sectionKey = "renderer",
-                            style = configEditorStyle,
-                            openSection = openSection,
-                            onOpen = { openSection = it },
-                        ) {
-                            DeckVulkanConfigEditor(
-                                initialConfig = "native=${viewModel.rendererNative}" +
-                                    ";presentMode=${viewModel.rendererPresentMode}" +
-                                    ";driverId=${viewModel.rendererDriverId}" +
-                                    ";filterMode=${viewModel.rendererFilterMode}" +
-                                    ";swapRB=${viewModel.rendererSwapRB}",
-                                frameGenSelected = viewModel.frameGenEngine != "off",
-                                onConfirm = { newConfig ->
-                                    applyRendererConfig(newConfig)
-                                    openSection = null
-                                },
-                                onChange = applyRendererConfig,
-                            )
+                        // EGL has nothing to configure; Vulkan and SurfaceDirect each bring their own settings.
+                        if (viewModel.selectedRenderer == "Vulkan") {
+                            DeckConfigSection(
+                                label = "Renderer Config",
+                                hint = "Native render / present mode / colours",
+                                title = "Renderer Config",
+                                sectionKey = "renderer",
+                                style = configEditorStyle,
+                                openSection = openSection,
+                                onOpen = { openSection = it },
+                            ) {
+                                DeckVulkanConfigEditor(
+                                    initialConfig = "native=${viewModel.rendererNative}" +
+                                        ";presentMode=${viewModel.rendererPresentMode}" +
+                                        ";driverId=${viewModel.rendererDriverId}" +
+                                        ";filterMode=${viewModel.rendererFilterMode}" +
+                                        ";swapRB=${viewModel.rendererSwapRB}",
+                                    frameGenSelected = viewModel.frameGenEngine != "off",
+                                    onConfirm = { newConfig ->
+                                        applyRendererConfig(newConfig)
+                                        openSection = null
+                                    },
+                                    onChange = applyRendererConfig,
+                                )
+                            }
+                        }
+                        if (viewModel.selectedRenderer == "SurfaceDirect") {
+                            DeckRow(label = "Performance mode", hint = "Hints the CPU governor while presenting") {
+                                DeckToggle(viewModel.surfaceDirectPerformanceMode) { viewModel.surfaceDirectPerformanceMode = it }
+                            }
+                            DeckRow(label = "Present at refresh rate", hint = "Submit once per display refresh") {
+                                DeckToggle(viewModel.surfaceDirectPresentAtRefreshRate) { viewModel.surfaceDirectPresentAtRefreshRate = it }
+                            }
+                            DeckRow(label = "Submit every buffer", hint = "Back-pressure: never drop a frame") {
+                                DeckToggle(viewModel.surfaceDirectBackPressure) { viewModel.surfaceDirectBackPressure = it }
+                            }
+                            DeckRow(label = "Precise presentation", hint = "Align frames to the display vsync timeline") {
+                                DeckToggle(viewModel.surfaceDirectPrecisePresentation) { viewModel.surfaceDirectPrecisePresentation = it }
+                            }
                         }
                         }
                         DeckGroup("Display") {

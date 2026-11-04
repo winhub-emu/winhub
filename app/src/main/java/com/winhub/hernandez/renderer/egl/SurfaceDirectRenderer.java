@@ -4,7 +4,7 @@ import com.winhub.hernandez.widget.XServerView;
 import com.winhub.hernandez.xserver.XServer;
 
 /**
- * SurfaceDirect host renderer (ported from Winlator-Ludashi). Windows are not drawn at all: each one becomes a
+ * SurfaceDirect host renderer. Windows are not drawn at all: each one becomes a
  * SurfaceFlinger layer showing its AHardwareBuffer, so presentation costs no GPU composition pass.
  *
  * <p>It shares the window mirroring of {@link EglRenderer}; only the native back end differs. Needs Android 10 or

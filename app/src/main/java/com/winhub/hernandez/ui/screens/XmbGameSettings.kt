@@ -126,6 +126,7 @@ private fun XmbScope.set(p: XmbPrefs, key: String, value: String?) { p.put(key, 
 private val GFX_KEYS = setOf(
     "hGfx", "gfxDriver", "gfxConfig", "wrappers", com.winhub.hernandez.core.UnrealHdr.EXTRA, "unrealHdrNvidia",
     "dxWrapper", "dxConfig", "renderer", "vkNative", "vkColors", "vkPresent", "vkDriver", "renderScale",
+    "sdPerf", "sdRefresh", "sdBackPressure", "sdPrecise",
 )
 private val TV_KEYS = setOf("hTv", "tvDisplay", "tvLaunch", "tvModeId", "tvMatchRes", "tvHdr", "tvNoteUnplug", "tvNoteTouch")
 
@@ -403,6 +404,21 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
         val rd = p.ex("rendererDriverId", c.getRendererDriverId())
         rows += XmbRow.Choice("vkDriver", "Renderer driver", Icons.Filled.Memory, drivers, if (rd in drivers) rd else "system",
             subtitle = "The driver the compositor runs on") { v -> xmb.set(p, "rendererDriverId", v) }
+    }
+    if (rend == "SurfaceDirect") {
+        fun sdFlag(key: String, def: Boolean) = p.ex(key, if (def) "true" else "false") == "true"
+        rows += XmbRow.Toggle("sdPerf", "Performance mode", Icons.Filled.Speed, sdFlag("surfaceDirectPerformanceMode", c.isSurfaceDirectPerformanceMode())) {
+            xmb.set(p, "surfaceDirectPerformanceMode", if (it) "true" else "false")
+        }
+        rows += XmbRow.Toggle("sdRefresh", "Present at refresh rate", Icons.Filled.Speed, sdFlag("surfaceDirectPresentAtRefreshRate", c.isSurfaceDirectPresentAtRefreshRate())) {
+            xmb.set(p, "surfaceDirectPresentAtRefreshRate", if (it) "true" else "false")
+        }
+        rows += XmbRow.Toggle("sdBackPressure", "Submit every buffer", Icons.Filled.Speed, sdFlag("surfaceDirectBackPressure", c.isSurfaceDirectBackPressure())) {
+            xmb.set(p, "surfaceDirectBackPressure", if (it) "true" else "false")
+        }
+        rows += XmbRow.Toggle("sdPrecise", "Precise presentation", Icons.Filled.Speed, sdFlag("surfaceDirectPrecisePresentation", c.isSurfaceDirectPrecisePresentation())) {
+            xmb.set(p, "surfaceDirectPrecisePresentation", if (it) "true" else "false")
+        }
     }
     val fgEngines = listOf("off", "lsfg-native")
     val fgLabels = listOf(p.str(R.string.frame_generation_off), p.str(R.string.frame_generation_lsfg_native))
