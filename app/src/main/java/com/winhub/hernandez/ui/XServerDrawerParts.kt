@@ -8,17 +8,20 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -58,7 +61,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.ui.screens.DeckPalette
@@ -88,6 +93,69 @@ internal fun Modifier.consoleFocus(shape: Shape, lift: Float = 1f, onFocus: (Boo
         .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, shape) else Modifier)
 }
 
+/** The one rounded outline every control in the menu sits in: transparent, a hairline edge, nothing grey behind it. */
+internal val ControlShape = RoundedCornerShape(12.dp)
+private val SegmentShape = RoundedCornerShape(9.dp)
+
+/** Several options held in ONE transparent rounded rectangle. Fill it with [SegmentCell]s. */
+@Composable
+internal fun SegmentedFrame(
+    modifier: Modifier = Modifier,
+    scroll: Boolean = false,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(ControlShape)
+            .border(1.dp, DeckPalette.line, ControlShape)
+            .padding(3.dp)
+            .then(if (scroll) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/**
+ * One option inside a [SegmentedFrame]. Transparent; the picked one gets an accent outline and accent
+ * text. [weighted] = false for a scrolling frame, where the cells size to their label.
+ */
+@Composable
+internal fun RowScope.SegmentCell(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    fontSize: TextUnit = 13.sp,
+    weighted: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = (if (weighted) Modifier.weight(1f) else Modifier)
+            .then(modifier)
+            .then(if (enabled) Modifier.consoleFocus(SegmentShape, 1.04f) else Modifier)
+            .clip(SegmentShape)
+            .then(if (selected) Modifier.border(1.5.dp, DeckPalette.primary, SegmentShape) else Modifier)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 12.dp),
+    ) {
+        Text(
+            label,
+            color = when {
+                !enabled -> DeckPalette.onBackground.copy(alpha = 0.4f)
+                selected -> DeckPalette.primary
+                else -> DeckPalette.onBackground
+            },
+            fontSize = fontSize,
+            lineHeight = fontSize * 1.15f,
+            textAlign = TextAlign.Center,
+            fontWeight = if (selected && enabled) FontWeight.SemiBold else FontWeight.Medium,
+        )
+    }
+}
+
 /** The menu panel: translucent graphite with a soft accent glow at the top and a hairline edge. */
 internal fun Modifier.drawerGlass(shape: Shape): Modifier = this
     .clip(shape)
@@ -112,7 +180,6 @@ internal fun DrawerTile(
             .size(48.dp)
             .consoleFocus(shape, 1.1f, onFocus)
             .clip(shape)
-            .background(DeckPalette.surface)
             .border(1.dp, DeckPalette.line, shape)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
@@ -228,7 +295,7 @@ private fun QuickCardView(card: QuickCard, modifier: Modifier, onClick: () -> Un
         modifier = modifier
             .consoleFocus(shape, 1.04f)
             .clip(shape)
-            .background(if (card.on) DeckPalette.primary.copy(alpha = 0.14f) else DeckPalette.surface)
+            .background(if (card.on) DeckPalette.primary.copy(alpha = 0.10f) else Color.Transparent)
             .border(1.dp, if (card.on) DeckPalette.primary else DeckPalette.line, shape)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .padding(14.dp),
@@ -270,7 +337,7 @@ private fun DrawerHint(key: String, label: String) {
             modifier = Modifier
                 .height(22.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(DeckPalette.surfaceVariant)
+                .border(1.dp, DeckPalette.line, RoundedCornerShape(11.dp))
                 .padding(horizontal = 8.dp),
         ) {
             Text(key, color = DeckPalette.onBackground, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -296,8 +363,7 @@ internal fun DrawerPill(
             .height(48.dp)
             .consoleFocus(shape, 1.06f)
             .clip(shape)
-            .background(if (danger) DeckPalette.error.copy(alpha = 0.16f) else DeckPalette.surface)
-            .border(1.dp, if (danger) DeckPalette.error else DeckPalette.line, shape)
+                        .border(1.dp, if (danger) DeckPalette.error else DeckPalette.line, shape)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .padding(horizontal = 18.dp),

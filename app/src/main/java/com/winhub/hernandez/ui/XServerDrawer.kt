@@ -776,7 +776,7 @@ private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, 
             .fillMaxWidth()
             .then(if (enabled) Modifier.consoleFocus(shape) else Modifier)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, DeckPalette.line, shape)
             .then(if (enabled) Modifier.clickable { onCheckedChange(!checked) } else Modifier.alpha(0.4f))
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
@@ -794,8 +794,10 @@ private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, 
             colors = SwitchDefaults.colors(
                 checkedThumbColor = accent,
                 checkedTrackColor = accentDim,
+                checkedBorderColor = accent,
                 uncheckedThumbColor = ToggleThumbOff,
-                uncheckedTrackColor = ToggleTrackOff,
+                uncheckedTrackColor = Color.Transparent,
+                uncheckedBorderColor = DeckPalette.line2,
             )
         )
     }
@@ -821,7 +823,7 @@ private fun LabeledSlider(
             .padding(vertical = 3.dp)
             .then(if (enabled) Modifier.consoleFocus(shape) else Modifier.alpha(0.4f))
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, DeckPalette.line, shape)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Row(
@@ -1608,34 +1610,8 @@ private fun FgModelButtons(selected: Int, onSelect: (Int) -> Unit) {
     // stored values 0-2 map to the standard flow (model 3), matching the layer's clamp.
     val options = listOf(3 to "Optical flow", 4 to "Bidirectional")
     val sel = if (selected < 3) 3 else selected
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        options.forEach { (model, label) ->
-            val isSel = sel == model
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSel) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                    .border(
-                        width = if (isSel) 1.5.dp else 1.dp,
-                        color = if (isSel) DeckPalette.primary else DeckPalette.line,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .clickable { onSelect(model) }
-                    .padding(vertical = 9.dp)
-            ) {
-                Text(
-                    label,
-                    color = if (isSel) DeckPalette.primary else DeckPalette.onBackground,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
+    SegmentedFrame {
+        options.forEach { (model, label) -> SegmentCell(label, sel == model) { onSelect(model) } }
     }
 }
 
@@ -1662,77 +1638,29 @@ private fun FgCaptureChips(selected: String, panelHeight: Int, onSelect: (String
     val options = listOf(Container.FG_CAPTURE_PANEL to "Panel", Container.FG_CAPTURE_GAME to "Game") +
         heights.map { it.toString() to "${it}p" }
     val selectedHeight = Container.fgCaptureHeightFor(selected)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+    SegmentedFrame(scroll = true) {
         options.forEach { (value, label) ->
             val isSel = when (value) {
                 Container.FG_CAPTURE_PANEL, Container.FG_CAPTURE_GAME -> selected == value
                 else -> selected != Container.FG_CAPTURE_PANEL && selected != Container.FG_CAPTURE_GAME
                     && selectedHeight == value.toInt()
             }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSel) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                    .border(if (isSel) 1.5.dp else 1.dp, if (isSel) DeckPalette.primary else DeckPalette.line, RoundedCornerShape(8.dp))
-                    .clickable { onSelect(value) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    label,
-                    color = if (isSel) DeckPalette.primary else DeckPalette.onBackground,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Medium
-                )
-            }
+            SegmentCell(label, isSel, weighted = false) { onSelect(value) }
         }
     }
 }
 
 @Composable
 private fun FgMultiplierButtons(selected: Int, engine: String, enabled: Boolean = true, onSelect: (Int) -> Unit) {
-    val dimmed = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
     // win-fg is a simple Off / On toggle for now (On = 2×); selecting On reveals the
     // model + flow-scale controls (gated on multiplier > 0). lsfg-vk keeps 2×/3×/4×.
+    // Disabled (the engine can't run here): all dimmed, nothing clickable.
     val options = if (engine == "bionic")
         listOf(0 to "Off", 2 to "On")
     else
         listOf(0 to "Off", 2 to "2×", 3 to "3×", 4 to "4×")
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        options.forEach { (mult, label) ->
-            val isSel = selected == mult && enabled
-            // Unselected: graphite tile + hairline outline. Selected: translucent blue + blue stroke.
-            // Disabled (the engine can't run here): all dimmed, nothing clickable.
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSel) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                    .border(
-                        width = if (isSel) 1.5.dp else 1.dp,
-                        color = if (isSel) DeckPalette.primary else if (enabled) DeckPalette.line else dimmed,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .clickable(enabled = enabled) { onSelect(mult) }
-                    .padding(vertical = 9.dp)
-            ) {
-                Text(
-                    label,
-                    color = if (isSel) DeckPalette.primary else if (enabled) DeckPalette.onBackground else dimmed,
-                    fontSize = 13.sp,
-                    fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Medium
-                )
-            }
-        }
+    SegmentedFrame {
+        options.forEach { (mult, label) -> SegmentCell(label, selected == mult && enabled, enabled = enabled) { onSelect(mult) } }
     }
 }
 
@@ -1906,29 +1834,9 @@ private fun ReshadeSection() {
 // Solo/Stack mode switch — two pills. Solo = one effect active (A/B); Stack = layered subset.
 @Composable
 private fun ReshadeModeSelector(mode: String, onChange: (String) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    SegmentedFrame(Modifier.padding(vertical = 6.dp)) {
         listOf(ReshadeLoadout.MODE_SOLO to "Solo", ReshadeLoadout.MODE_STACK to "Stack").forEach { (value, label) ->
-            val selected = mode == value
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (selected) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                    .border(if (selected) 1.5.dp else 1.dp, if (selected) DeckPalette.primary else DeckPalette.line, RoundedCornerShape(8.dp))
-                    .clickable { onChange(value) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    label,
-                    color = if (selected) DeckPalette.primary else DeckPalette.onBackground,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            SegmentCell(label, mode == value) { onChange(value) }
         }
     }
     Text(
@@ -2005,7 +1913,7 @@ private fun ReshadeDropdown(label: String, options: List<String>, selected: Int,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, DeckPalette.line, RoundedCornerShape(10.dp))
                     .clickable { expanded = true }
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
@@ -2255,36 +2163,8 @@ private fun FullscreenModeButtons(selected: Int, onSelect: (Int) -> Unit) {
     )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         options.chunked(3).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                row.forEach { (mode, label) ->
-                    val isSel = selected == mode
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSel) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                            .border(
-                                width = if (isSel) 1.5.dp else 1.dp,
-                                color = if (isSel) DeckPalette.primary else DeckPalette.line,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable { onSelect(mode) }
-                            .padding(vertical = 9.dp)
-                    ) {
-                        Text(
-                            label,
-                            color = if (isSel) DeckPalette.primary else DeckPalette.onBackground,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Medium
-                        )
-                    }
-                }
-                // Pad the short (2-chip) row so its buttons keep the same width as the 3-chip row.
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            SegmentedFrame {
+                row.forEach { (mode, label) -> SegmentCell(label, selected == mode) { onSelect(mode) } }
             }
         }
     }
@@ -2300,38 +2180,8 @@ private fun ScreenAlignmentButtons(selected: Int, enabled: Boolean = true, onSel
         1 to stringResource(R.string.screen_alignment_top_short),
         2 to stringResource(R.string.screen_alignment_bottom_short)
     )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        options.forEach { (align, label) ->
-            val isSel = selected == align
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSel && enabled) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                    .border(
-                        width = if (isSel && enabled) 1.5.dp else 1.dp,
-                        color = if (isSel && enabled) DeckPalette.primary else DeckPalette.line,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .clickable(enabled = enabled) { onSelect(align) }
-                    .padding(vertical = 9.dp)
-            ) {
-                Text(
-                    label,
-                    color = when {
-                        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                        isSel    -> DeckPalette.primary
-                        else     -> DeckPalette.onBackground
-                    },
-                    fontSize = 12.sp,
-                    fontWeight = if (isSel && enabled) FontWeight.SemiBold else FontWeight.Medium
-                )
-            }
-        }
+    SegmentedFrame {
+        options.forEach { (align, label) -> SegmentCell(label, selected == align, enabled = enabled) { onSelect(align) } }
     }
 }
 
@@ -2358,38 +2208,8 @@ private fun UpscalerModeButtons(selected: Int, enabled: Boolean, onSelect: (Int)
     )
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         options.chunked(3).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                row.forEach { (mode, label) ->
-                    val isSel = selected == mode
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSel && enabled) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                            .border(
-                                width = if (isSel && enabled) 1.5.dp else 1.dp,
-                                color = if (isSel && enabled) DeckPalette.primary else DeckPalette.line,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable(enabled = enabled) { onSelect(mode) }
-                            .padding(vertical = 9.dp)
-                    ) {
-                        Text(
-                            label,
-                            color = when {
-                                !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                                isSel    -> DeckPalette.primary
-                                else     -> DeckPalette.onBackground
-                            },
-                            fontSize = 12.sp,
-                            fontWeight = if (isSel && enabled) FontWeight.SemiBold else FontWeight.Medium
-                        )
-                    }
-                }
+            SegmentedFrame {
+                row.forEach { (mode, label) -> SegmentCell(label, selected == mode, enabled = enabled) { onSelect(mode) } }
             }
         }
     }
@@ -2402,38 +2222,8 @@ private fun UpscalerModeButtons(selected: Int, enabled: Boolean, onSelect: (Int)
 @Composable
 private fun VibrationModeButtons(selected: Int, enabled: Boolean = true, onSelect: (Int) -> Unit) {
     val options = listOf(0 to "Off", 1 to "Controller", 2 to "Device", 3 to "Both")
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        options.forEach { (mode, label) ->
-            val isSel = selected == mode
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSel && enabled) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                    .border(
-                        width = if (isSel && enabled) 1.5.dp else 1.dp,
-                        color = if (isSel && enabled) DeckPalette.primary else DeckPalette.line,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .clickable(enabled = enabled) { onSelect(mode) }
-                    .padding(vertical = 9.dp)
-            ) {
-                Text(
-                    label,
-                    color = when {
-                        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                        isSel    -> DeckPalette.primary
-                        else     -> DeckPalette.onBackground
-                    },
-                    fontSize = 11.sp,
-                    fontWeight = if (isSel && enabled) FontWeight.SemiBold else FontWeight.Medium
-                )
-            }
-        }
+    SegmentedFrame {
+        options.forEach { (mode, label) -> SegmentCell(label, selected == mode, enabled = enabled, fontSize = 12.sp) { onSelect(mode) } }
     }
 }
 
@@ -2452,42 +2242,12 @@ private fun ModeChipGrid(items: List<Triple<String, Boolean, () -> Unit>>, perRo
                          enabled: Boolean = true, disabledIndices: Set<Int> = emptySet()) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.withIndex().chunked(perRow).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            SegmentedFrame {
                 row.forEach { (index, item) ->
                     val (label, isOn, onTap) = item
                     val chipEnabled = enabled && index !in disabledIndices
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .then(if (chipEnabled) Modifier.consoleFocus(RoundedCornerShape(8.dp), 1.04f) else Modifier)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isOn && chipEnabled) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                            .border(
-                                width = if (isOn && chipEnabled) 1.5.dp else 1.dp,
-                                color = if (isOn && chipEnabled) DeckPalette.primary else DeckPalette.line,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable(enabled = chipEnabled) { onTap() }
-                            .padding(vertical = 13.dp)
-                    ) {
-                        Text(
-                            label,
-                            color = when {
-                                !chipEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                                isOn         -> DeckPalette.primary
-                                else         -> DeckPalette.onBackground
-                            },
-                            fontSize = 13.sp,
-                            fontWeight = if (isOn && chipEnabled) FontWeight.SemiBold else FontWeight.Medium
-                        )
-                    }
+                    SegmentCell(label, isOn && chipEnabled, enabled = chipEnabled) { onTap() }
                 }
-                // Pad short final rows so every chip keeps the same width (grid stays aligned).
-                repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -2512,47 +2272,13 @@ private fun ToggleChipGrid(items: List<ToggleChipItem>, perRow: Int = 3) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.chunked(perRow).forEach { row ->
             // IntrinsicSize.Min + fillMaxHeight keeps a row level when one label wraps to two lines.
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Split the padding for a short final row across both sides so it sits CENTRED,
-                // and every chip in the grid keeps the identical width (no odd-sized leftovers).
-                val missing = perRow - row.size
-                val leading = missing / 2
-                repeat(leading) { Spacer(Modifier.weight(1f)) }
+            SegmentedFrame(Modifier.height(IntrinsicSize.Min)) {
                 row.forEach { item ->
-                    val isOn = item.checked && item.enabled
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .then(if (item.enabled) Modifier.consoleFocus(RoundedCornerShape(8.dp), 1.04f) else Modifier)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isOn) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                            .border(
-                                width = if (isOn) 1.5.dp else 1.dp,
-                                color = if (isOn) DeckPalette.primary else DeckPalette.line,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .then(
-                                if (item.enabled) Modifier.clickable { item.onToggle(!item.checked) }
-                                else Modifier.alpha(0.4f)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 13.dp)
-                    ) {
-                        Text(
-                            item.label,
-                            color = if (isOn) DeckPalette.primary else DeckPalette.onBackground,
-                            fontSize = 13.sp,
-                            lineHeight = 15.sp,
-                            textAlign = TextAlign.Center,
-                            fontWeight = if (isOn) FontWeight.SemiBold else FontWeight.Medium
-                        )
-                    }
+                    SegmentCell(
+                        item.label, item.checked && item.enabled,
+                        modifier = Modifier.fillMaxHeight(), enabled = item.enabled,
+                    ) { item.onToggle(!item.checked) }
                 }
-                repeat(missing - leading) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -3207,29 +2933,8 @@ private fun HudChipRow(label: String, options: List<String>, selected: Int, onSe
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(4.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            options.forEachIndexed { idx, opt ->
-                val sel = idx == selected
-                // Selected = translucent blue fill + blue stroke, matching every Deck chip row.
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = if (idx < options.lastIndex) 6.dp else 0.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (sel) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                        .border(if (sel) 1.5.dp else 1.dp, if (sel) DeckPalette.primary else DeckPalette.line, RoundedCornerShape(10.dp))
-                        .clickable { onSelect(idx) }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        opt,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (sel) DeckPalette.primary else DeckPalette.onBackground,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
+        SegmentedFrame {
+            options.forEachIndexed { idx, opt -> SegmentCell(opt, idx == selected) { onSelect(idx) } }
         }
     }
 }
@@ -4162,7 +3867,7 @@ private fun AdvancedActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, DeckPalette.line, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
