@@ -41,6 +41,15 @@ class BannerlatorApp : Application() {
             Log.w("BannerlatorApp", "crash reporter not installed", t)
         }
 
+        // "Force Mali mode" (Settings > General): read once here so every Mali-only path sees it from the start.
+        try {
+            com.winhub.hernandez.core.MaliPanvk.setForced(
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(com.winhub.hernandez.core.MaliPanvk.PREF_FORCE, false))
+        } catch (t: Throwable) {
+            Log.w("BannerlatorApp", "force-Mali setting not read", t)
+        }
+
         // Exit-reason auto-save (opt-in, off by default): if the previous process died — including a
         // NATIVE crash that never reached logcat or the Java crash reporter — file a report now while
         // the system still has the record. Off the main thread; a failure here must never block start.

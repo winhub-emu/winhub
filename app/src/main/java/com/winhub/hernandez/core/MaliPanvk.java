@@ -36,12 +36,22 @@ public final class MaliPanvk {
     /** Atom strides PANVK_ATOM_STRIDE takes besides auto (auto = unset). */
     public static final List<String> ATOM_STRIDES = Arrays.asList("56", "64");
 
+    /** App setting (Settings > General): treat this device as Mali even if the probe says otherwise. */
+    public static final String PREF_FORCE = "force_mali_mode";
+
     private static volatile Integer vendorId;
+    private static volatile boolean forced;
 
     private MaliPanvk() {}
 
-    /** True on an Arm Mali GPU. The probe runs once per process. */
+    /** Set from the saved setting at startup and whenever the user flips it. */
+    public static void setForced(boolean force) {
+        forced = force;
+    }
+
+    /** True on an Arm Mali GPU, or when the user forced Mali mode. The probe runs once per process. */
     public static boolean isMaliGpu() {
+        if (forced) return true;
         Integer v = vendorId;
         if (v == null) {
             try {

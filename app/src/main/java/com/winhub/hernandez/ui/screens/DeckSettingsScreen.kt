@@ -139,6 +139,7 @@ internal fun DeckSettingsScreen() {
     // always using their top strip. Off by default so the classic Deck tabs stay untouched.
     var universalLayout by remember { mutableStateOf(prefs.getBoolean("deck_universal_layout", false)) }
     var settingsTab by remember { mutableStateOf(0) }
+    var forceMali by remember { mutableStateOf(prefs.getBoolean(com.winhub.hernandez.core.MaliPanvk.PREF_FORCE, false)) }
     // The categories are this page's sub-tabs: L2/R2 step them, like Contents and Storage.
     val subTabs = LocalDeckTabs.current
     LaunchedEffect(subTabs) { subTabs.bind(6) }
@@ -526,6 +527,20 @@ internal fun DeckSettingsScreen() {
                             }
                         } else AppUtils.showToast(context, R.string.cannot_remove_default_sound_font)
                     }
+                }
+            }
+        }
+
+        // ── Mali ──
+        DeckGroup(title = "Mali") {
+            DeckRow(
+                label = "Force Mali mode",
+                hint = "Use this if the app doesn't detect a non Adreno GPU.",
+            ) {
+                DeckToggle(forceMali) {
+                    forceMali = it
+                    prefs.edit().putBoolean(com.winhub.hernandez.core.MaliPanvk.PREF_FORCE, it).apply()
+                    com.winhub.hernandez.core.MaliPanvk.setForced(it)
                 }
             }
         }
