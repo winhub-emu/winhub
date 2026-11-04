@@ -1,6 +1,8 @@
 package com.winhub.hernandez.renderer.egl;
 
 import android.content.Context;
+import android.hardware.display.DisplayManager;
+import android.view.Display;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.Surface;
@@ -33,6 +35,8 @@ import java.util.function.IntConsumer;
  *
  * <p>Window contents are backed by AHardwareBuffers so the native side can sample them without a copy.
  * Anything that cannot get such a buffer is simply not drawn, it never reads memory the renderer does not own.</p>
+ *
+ * <p>{@link SurfaceDirectRenderer} reuses all of this but hands the buffers to SurfaceFlinger instead of drawing them.</p>
  */
 public class EglRenderer implements HostRenderer, WindowManager.OnWindowModificationListener,
         Pointer.OnPointerMotionListener, XResourceManager.OnResourceLifecycleListener {
@@ -66,9 +70,26 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     private FrameRating classicHudRef = null;
     private IntConsumer hudFrameTick = null;
 
+    // Only meaningful for SurfaceDirect, which the subclass configures.
+    private final boolean surfaceDirect;
+    private final boolean performanceMode;
+    private final boolean presentAtRefreshRate;
+    private final boolean backPressure;
+    private final boolean precisePresentation;
+
     public EglRenderer(XServerView xServerView, XServer xServer) {
+        this(xServerView, xServer, false, false, false, false, false);
+    }
+
+    EglRenderer(XServerView xServerView, XServer xServer, boolean surfaceDirect, boolean performanceMode,
+                boolean presentAtRefreshRate, boolean backPressure, boolean precisePresentation) {
         this.xServerView = xServerView;
         this.xServer = xServer;
+        this.surfaceDirect = surfaceDirect;
+        this.performanceMode = performanceMode;
+        this.presentAtRefreshRate = presentAtRefreshRate;
+        this.backPressure = backPressure;
+        this.precisePresentation = precisePresentation;
     }
 
     /**
@@ -77,9 +98,12 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
      */
     public boolean start() {
         Context context = xServerView.getContext().getApplicationContext();
+        // SurfaceDirect shows the root window's buffer too, so give it one before the native side looks.
+        if (surfaceDirect) attachGpuImage(xServer.windowManager.rootWindow.getContent());
         boolean ok;
         try {
-            ok = nativeInit(context, xServer, FILTER_LINEAR);
+            ok = nativeInit(context, xServer, FILTER_LINEAR, surfaceDirect, performanceMode, presentAtRefreshRate,
+                    backPressure, precisePresentation, getRefreshRate(context));
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "native EGL renderer is not available", e);
             return false;
@@ -95,6 +119,13 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
         xServer.cursorManager.addOnResourceLifecycleListener(this);
         xServer.pointer.addOnPointerMotionListener(this);
         return true;
+    }
+
+    private static float getRefreshRate(Context context) {
+        DisplayManager displays = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+        Display display = displays != null ? displays.getDisplay(Display.DEFAULT_DISPLAY) : null;
+        float rate = display != null ? display.getRefreshRate() : 60.0f;
+        return rate > 0 ? rate : 60.0f;
     }
 
     private void shutdown() {
@@ -242,6 +273,17 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     public void onPointerMove(short x, short y) {
         if (destroyed) return;
         nativePointerMove(x, y);
+    }
+
+    /**
+     * Called from the native guest-connection thread for every frame a guest presents over the SurfaceDirect
+     * socket. Those frames never touch the X server, so the HUD has to be ticked from here.
+     */
+    public void onGuestPresent(Window window) {
+        if (destroyed || window == null) return;
+        if (hudFrameTick != null) hudFrameTick.accept(window.id);
+        if (window.id == fpsWindowId && classicHudRef != null && classicHudRef.isAttachedToWindow())
+            classicHudRef.post(classicHudRef);
     }
 
     // ---- Direct (zero copy) presentation, used by the Present extension ----
@@ -417,7 +459,8 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
 
     @Override
     public void setFilterMode(int mode) {
-        if (!destroyed && started) nativeSetTextureFilter(mode == 2 ? FILTER_NEAREST : FILTER_LINEAR);
+        // SurfaceFlinger does the sampling for SurfaceDirect, there is no filter to set.
+        if (!destroyed && started && !surfaceDirect) nativeSetTextureFilter(mode == 2 ? FILTER_NEAREST : FILTER_LINEAR);
     }
 
     @Override
@@ -516,7 +559,9 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
 
     // ---- Native (renderer_jni.cpp) ----
 
-    private native boolean nativeInit(Context context, XServer xServer, int textureFilter);
+    private native boolean nativeInit(Context context, XServer xServer, int textureFilter, boolean surfaceDirect,
+                                      boolean performanceMode, boolean presentAtRefreshRate, boolean backPressure,
+                                      boolean precisePresentation, float refreshRate);
     private native void nativeCreateSurface(Surface surface);
     private native void nativeDestroySurface();
     private native void nativeChangeSurface(int width, int height);

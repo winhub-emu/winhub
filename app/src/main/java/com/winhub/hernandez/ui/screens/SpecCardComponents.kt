@@ -52,6 +52,7 @@ internal fun parseDxwrapperConfig(cfg: String): Pair<String, String> {
 internal fun rendererLabelOf(renderer: String): String = when (renderer.lowercase()) {
     "vulkan", "opengl", "gl" -> "Vulkan (X11)"
     "egl" -> "EGL (X11)"
+    "surfacedirect" -> "SurfaceDirect (X11)"
     else -> ""
 }
 

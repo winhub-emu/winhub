@@ -7,6 +7,7 @@
 #include <android/asset_manager_jni.h>
 #include <android/hardware_buffer.h>
 #include <android/log.h>
+#include <android/surface_control.h>
 
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
@@ -16,6 +17,9 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_android.h>
+
 #define HAL_PIXEL_FORMAT_BGRA_8888 5
 
 class JNIXServer {
@@ -23,6 +27,9 @@ class JNIXServer {
         jobject windowManager = nullptr;
         jobject inputDeviceManager = nullptr;
         jobject xserver = nullptr;
+        // The EglRenderer instance, called back for frames that arrive over the guest connection.
+        jobject renderer = nullptr;
+        float refreshRate = 60.0f;
 };
 
 class JNICache {
@@ -65,6 +72,9 @@ class JNICache {
         jfieldID drawableWidth;
         jfieldID drawableHeight;
         jmethodID drawableGetBackingAHB;
+
+        jclass rendererClass;
+        jmethodID onGuestPresent;
 
         JNICache() {}
 
@@ -115,6 +125,7 @@ class JNICache {
             inputDeviceManagerClass = cls("com/winhub/hernandez/xserver/InputDeviceManager");
             drawableClass = cls("com/winhub/hernandez/xserver/Drawable");
             cursorClass = cls("com/winhub/hernandez/xserver/Cursor");
+            rendererClass = cls("com/winhub/hernandez/renderer/egl/EglRenderer");
 
             inputDeviceManager = field(xserverClass, "inputDeviceManager", "Lcom/winhub/hernandez/xserver/InputDeviceManager;");
             getPointWindow = method(inputDeviceManagerClass, "getPointWindow", "()Lcom/winhub/hernandez/xserver/Window;");
@@ -136,6 +147,8 @@ class JNICache {
             drawableWidth = field(drawableClass, "width", "S");
             drawableHeight = field(drawableClass, "height", "S");
             drawableGetBackingAHB = method(drawableClass, "getBackingAHB", "()J");
+
+            onGuestPresent = method(rendererClass, "onGuestPresent", "(Lcom/winhub/hernandez/xserver/Window;)V");
 
             cursorIsVisible = method(cursorClass, "isVisible", "()Z");
             cursorID = field(cursorClass, "id", "I");

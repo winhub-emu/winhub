@@ -6292,7 +6292,11 @@ internal fun ShortcutSettingsDialogScreen(
     // Renderer (host): Vulkan or EGL. Anything else (legacy ids) is Vulkan.
     var selectedRenderer by remember {
         val id = shortcut.getExtra("renderer", shortcut.container.renderer)
-        mutableStateOf(if (id.equals("egl", ignoreCase = true)) "EGL" else "Vulkan")
+        mutableStateOf(when (id.lowercase()) {
+            "egl" -> "EGL"
+            "surfacedirect" -> "SurfaceDirect"
+            else -> "Vulkan"
+        })
     }
 
 
@@ -7130,7 +7134,7 @@ internal fun ShortcutSettingsDialogScreen(
                         DpDrop(
                             dp, "renderer",
                             label = stringResource(R.string.renderer),
-                            options = listOf("Vulkan", "EGL"),
+                            options = listOf("Vulkan", "EGL", "SurfaceDirect"),
                             selected = selectedRenderer,
                             onSelect = { selectedRenderer = it },
                             modifier = Modifier.weight(1f)
@@ -8427,7 +8431,11 @@ internal fun DeckShortcutSettingsScreen(
 
     var selectedRenderer by remember {
         val id = shortcut.getExtra("renderer", shortcut.container.renderer)
-        mutableStateOf(if (id.equals("egl", ignoreCase = true)) "EGL" else "Vulkan")
+        mutableStateOf(when (id.lowercase()) {
+            "egl" -> "EGL"
+            "surfacedirect" -> "SurfaceDirect"
+            else -> "Vulkan"
+        })
     }
     var unrealHdrOverride by remember { mutableStateOf(com.winhub.hernandez.core.UnrealHdr.shortcutChoice(shortcut)) }
 

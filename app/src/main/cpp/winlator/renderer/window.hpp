@@ -28,6 +28,7 @@ struct Window {
     std::vector<Window *> children;
     jobject attributes;
     jobject windowObj;
+    ASurfaceControl *control = nullptr;
     std::unordered_map<int, std::unique_ptr<struct Drawable>> directContents;
     Drawable *externalContent;
     bool backPressureEnabled;
