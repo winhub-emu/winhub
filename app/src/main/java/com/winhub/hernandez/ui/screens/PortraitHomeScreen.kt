@@ -1,6 +1,12 @@
 package com.winhub.hernandez.ui.screens
 
 import android.content.Context
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -106,9 +112,13 @@ internal fun PortraitHome(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .height(48.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (on) Deck.primary.copy(alpha = 0.18f) else Deck.surface)
-                            .border(1.5.dp, if (on) Deck.primary else Deck.line, RoundedCornerShape(24.dp))
+                            .then(
+                                if (on) Modifier
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Deck.primary.copy(alpha = 0.18f))
+                                    .border(1.5.dp, Deck.primary, RoundedCornerShape(24.dp))
+                                else Modifier.glassCard(RoundedCornerShape(24.dp))
+                            )
                             .clickable { onShelf(i) }
                             .padding(horizontal = 18.dp),
                     ) {
@@ -142,9 +152,7 @@ internal fun PortraitHome(
                 verticalArrangement = Arrangement.Center,
                 modifier = Modifier
                     .aspectRatio(0.66f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Deck.surface)
-                    .border(1.5.dp, Deck.line, RoundedCornerShape(14.dp))
+                    .glassCard(RoundedCornerShape(14.dp))
                     .clickable { onAdd() },
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add game", tint = Deck.primary, modifier = Modifier.size(32.dp))
@@ -181,13 +189,19 @@ private fun PortraitContinueBanner(entry: HubEntry, onOpen: () -> Unit, onPlay: 
     val bitmap = remember(entry.bitmap) { entry.bitmap?.asImageBitmap() }
     val hours = remember(entry.title) { hubPlaytimeLabel(context, entry.title) }
     val shape = RoundedCornerShape(24.dp)
+    // A slow float, drawn in the layer so it never recomposes or re-lays-out the banner.
+    val bob by rememberInfiniteTransition(label = "bannerBob").animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(3500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bannerBobY",
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            .clip(shape)
-            .background(Deck.surface)
-            .border(1.5.dp, deckAccentBrush(), shape)
+            .graphicsLayer { translationY = bob.dp.toPx() }
+            .glassCard(shape)
             .clickable { onOpen() },
     ) {
         Box(

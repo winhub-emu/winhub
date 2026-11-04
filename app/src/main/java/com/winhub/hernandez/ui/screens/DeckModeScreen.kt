@@ -182,6 +182,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
@@ -445,6 +446,8 @@ internal fun DeckModeScreen() {
                 .background(Deck.background)
                 // Behind the bar too, so a see-through top bar shows the page glow.
                 .drawBehind { drawDeckCornerGlow(Deck.primary) }
+                // Portrait Home: drifting glows and waves behind the page and the bottom bar.
+                .then(if (portrait && section == "home") Modifier.liquidBackdrop() else Modifier)
                 .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->
@@ -1081,38 +1084,41 @@ private fun DeckHome(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Deck.background)
+                // Portrait lets the shell's liquid backdrop show through.
+                .then(if (portrait) Modifier else Modifier.background(Deck.background))
                 .clipToBounds(),
         ) {
             if (!portrait) DeckCapsuleWall(
                 covers = wallCovers,
                 driftMs = if (covers.isEmpty()) 75_000 else 40_000,
             )
-            // The backdrop follows the focused game: its cover, blurred, crossfading as the selection moves.
-            Crossfade(targetState = current?.bitmap, animationSpec = tween(600), label = "homeBackdrop") { bmp ->
-                if (bmp != null) {
-                    Image(
-                        bitmap = remember(bmp) { bmp.asImageBitmap() },
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().blur(18.dp).alpha(0.34f),
-                    )
+            if (!portrait) {
+                // The backdrop follows the focused game: its cover, blurred, crossfading as the selection moves.
+                Crossfade(targetState = current?.bitmap, animationSpec = tween(600), label = "homeBackdrop") { bmp ->
+                    if (bmp != null) {
+                        Image(
+                            bitmap = remember(bmp) { bmp.asImageBitmap() },
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().blur(18.dp).alpha(0.34f),
+                        )
+                    }
                 }
+                val coverTint = remember(current?.bitmap) {
+                    current?.bitmap?.let { b -> Color(Bitmap.createScaledBitmap(b, 1, 1, true).getPixel(0, 0)) }
+                }
+                val tint by animateColorAsState(coverTint ?: Deck.primary, tween(600), label = "homeTint")
+                Box(
+                    Modifier.fillMaxSize().drawBehind {
+                        val c = Offset(size.width * 0.2f, size.height * 0.3f)
+                        drawCircle(
+                            Brush.radialGradient(listOf(tint.copy(alpha = 0.32f), Color.Transparent), c, size.width * 0.7f),
+                            size.width * 0.7f,
+                            c,
+                        )
+                    },
+                )
             }
-            val coverTint = remember(current?.bitmap) {
-                current?.bitmap?.let { b -> Color(Bitmap.createScaledBitmap(b, 1, 1, true).getPixel(0, 0)) }
-            }
-            val tint by animateColorAsState(coverTint ?: Deck.primary, tween(600), label = "homeTint")
-            Box(
-                Modifier.fillMaxSize().drawBehind {
-                    val c = Offset(size.width * 0.2f, size.height * 0.3f)
-                    drawCircle(
-                        Brush.radialGradient(listOf(tint.copy(alpha = 0.32f), Color.Transparent), c, size.width * 0.7f),
-                        size.width * 0.7f,
-                        c,
-                    )
-                },
-            )
             if (!portrait) DeckWallFade()
 
             if (portrait) PortraitHome(
@@ -1815,50 +1821,58 @@ private fun DeckBottomTabs(
     selected: String,
     onSelect: (String) -> Unit,
 ) {
-    val barOpacity by AppThemeState.topBarOpacity.collectAsState()
     val density = LocalDensity.current
     val scroll = rememberScrollState()
     val itemWidth = 72.dp
     val index = sections.indexOfFirst { it.key == selected }.coerceAtLeast(0)
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth().background(Deck.surface.copy(alpha = barOpacity))) {
-        val viewportPx = with(density) { maxWidth.toPx() }
+    val pill = RoundedCornerShape(36.dp)
+    val itemShape = RoundedCornerShape(30.dp)
+    // Floating pill with side and bottom margins; solid, not glass, so it stays readable over any page.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        val viewportPx = with(density) { (maxWidth - 12.dp).toPx() }
         val itemPx = with(density) { itemWidth.toPx() }
         LaunchedEffect(index, viewportPx) {
             scroll.animateScrollTo((index * itemPx - (viewportPx - itemPx) / 2f).toInt().coerceAtLeast(0))
         }
-        Column {
-            PortraitTabDivider()
-            val accent = deckAccentBrush()
-            Row(modifier = Modifier.horizontalScroll(scroll).padding(horizontal = 4.dp, vertical = 4.dp)) {
-                sections.forEach { item ->
-                    val current = selected == item.key
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .width(itemWidth)
-                            .height(60.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (current) Deck.primary.copy(alpha = 0.14f) else Color.Transparent)
-                            .then(if (current) Modifier.border(1.5.dp, accent, RoundedCornerShape(12.dp)) else Modifier)
-                            .focusProperties { canFocus = false }
-                            .clickable { onSelect(item.key) },
-                    ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = null,
-                            tint = if (current) Deck.primary else Deck.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp),
-                        )
-                        Text(
-                            text = item.label,
-                            color = if (current) Deck.primary else Deck.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            fontWeight = if (current) FontWeight.SemiBold else FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+        val accent = deckAccentBrush()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(10.dp, pill)
+                .clip(pill)
+                .background(Deck.surface)
+                .border(1.dp, Deck.line, pill)
+                .horizontalScroll(scroll)
+                .padding(6.dp),
+        ) {
+            sections.forEach { item ->
+                val current = selected == item.key
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .width(itemWidth)
+                        .height(60.dp)
+                        .clip(itemShape)
+                        .background(if (current) Deck.primary.copy(alpha = 0.14f) else Color.Transparent)
+                        .then(if (current) Modifier.border(1.5.dp, accent, itemShape) else Modifier)
+                        .focusProperties { canFocus = false }
+                        .clickable { onSelect(item.key) },
+                ) {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = null,
+                        tint = if (current) Deck.primary else Deck.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Text(
+                        text = item.label,
+                        color = if (current) Deck.primary else Deck.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        fontWeight = if (current) FontWeight.SemiBold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
