@@ -123,6 +123,11 @@ public class Container {
     private String rendererDriverId = "system";
     private int rendererFilterMode = 0;
     private boolean rendererSwapRB = false;
+    // SurfaceDirect (SurfaceFlinger presentation) options; the defaults match the renderer's own.
+    private boolean surfaceDirectPerformanceMode = true;
+    private boolean surfaceDirectPresentAtRefreshRate = true;
+    private boolean surfaceDirectBackPressure = false;
+    private boolean surfaceDirectPrecisePresentation = false;
     // Fullscreen aspect-ratio mode (issue #71). Replaces the old fullscreenStretched boolean.
     public static final int FULLSCREEN_OFF = 0;      // windowed, letterboxed (preserve aspect)
     public static final int FULLSCREEN_FIT = 1;      // fullscreen-immersive, letterboxed (preserve aspect)
@@ -1168,6 +1173,14 @@ public class Container {
     public void setRendererFilterMode(int v) { this.rendererFilterMode = v; }
     public boolean getRendererSwapRB() { return rendererSwapRB; }
     public void setRendererSwapRB(boolean v) { this.rendererSwapRB = v; }
+    public boolean isSurfaceDirectPerformanceMode() { return surfaceDirectPerformanceMode; }
+    public void setSurfaceDirectPerformanceMode(boolean v) { this.surfaceDirectPerformanceMode = v; }
+    public boolean isSurfaceDirectPresentAtRefreshRate() { return surfaceDirectPresentAtRefreshRate; }
+    public void setSurfaceDirectPresentAtRefreshRate(boolean v) { this.surfaceDirectPresentAtRefreshRate = v; }
+    public boolean isSurfaceDirectBackPressure() { return surfaceDirectBackPressure; }
+    public void setSurfaceDirectBackPressure(boolean v) { this.surfaceDirectBackPressure = v; }
+    public boolean isSurfaceDirectPrecisePresentation() { return surfaceDirectPrecisePresentation; }
+    public void setSurfaceDirectPrecisePresentation(boolean v) { this.surfaceDirectPrecisePresentation = v; }
 
     public static String getDefaultVulkanConfig() {
         return "native=false;presentMode=fifo;driverId=system;filterMode=0;swapRB=false";
@@ -1261,6 +1274,11 @@ public class Container {
             if (!rendererDriverId.isEmpty()) data.put("rendererDriverId", rendererDriverId);
             if (rendererFilterMode != 0) data.put("rendererFilterMode", rendererFilterMode);
             if (rendererSwapRB) data.put("rendererSwapRB", true);
+            // Only written when changed, so existing containers keep an identical file.
+            if (!surfaceDirectPerformanceMode) data.put("surfaceDirectPerformanceMode", false);
+            if (!surfaceDirectPresentAtRefreshRate) data.put("surfaceDirectPresentAtRefreshRate", false);
+            if (surfaceDirectBackPressure) data.put("surfaceDirectBackPressure", true);
+            if (surfaceDirectPrecisePresentation) data.put("surfaceDirectPrecisePresentation", true);
             if (!WineInfo.isMainWineVersion(wineVersion)) data.put("wineVersion", wineVersion);
             if (!getBasePrefix().isEmpty()) data.put("basePrefix", basePrefix);
         }
@@ -1407,6 +1425,18 @@ public class Container {
                     break;
                 case "rendererSwapRB":
                     rendererSwapRB = data.getBoolean(key);
+                    break;
+                case "surfaceDirectPerformanceMode":
+                    surfaceDirectPerformanceMode = data.getBoolean(key);
+                    break;
+                case "surfaceDirectPresentAtRefreshRate":
+                    surfaceDirectPresentAtRefreshRate = data.getBoolean(key);
+                    break;
+                case "surfaceDirectBackPressure":
+                    surfaceDirectBackPressure = data.getBoolean(key);
+                    break;
+                case "surfaceDirectPrecisePresentation":
+                    surfaceDirectPrecisePresentation = data.getBoolean(key);
                     break;
             }
         }

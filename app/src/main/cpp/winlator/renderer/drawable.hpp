@@ -11,6 +11,26 @@ struct GLTexture {
     bool sizeChanged;
 };
 
+struct ComposerTexture {
+    bool sizeChanged;
+    AHardwareBuffer *srcBuffer;
+    VkImage srcImage;
+    VkImageView srcImageView;
+    VkDeviceMemory srcMemory;
+    VkSampler srcSampler;
+    AHardwareBuffer *dstBuffer;
+    VkImage dstImage;
+    VkImageView dstImageView;
+    VkDeviceMemory dstMemory;
+    VkImageLayout srcImageLayout;
+    VkPipelineStageFlagBits srcPipelineStage;
+    VkAccessFlagBits srcAccessFlags;
+    VkImageLayout dstImageLayout;
+    VkPipelineStageFlagBits dstPipelineStage;
+    VkAccessFlagBits dstAccessFlags;
+    VkDescriptorSet vkDescriptorSet;
+};
+
 struct Drawable {
     int id = 0;
     int width = 0;
@@ -18,7 +38,9 @@ struct Drawable {
     int height = 0;
     int stride = 0;
     std::unique_ptr<GLTexture> glTexture;
+    std::unique_ptr<ComposerTexture> composerTexture;
     bool isDirectContent = false;
+    bool isSurfaceDirect = false;
     void *data = nullptr;
     jobject drawableObj = nullptr;
     // Always owns one reference of its own, so the buffer outlives the Java GPUImage that created it.

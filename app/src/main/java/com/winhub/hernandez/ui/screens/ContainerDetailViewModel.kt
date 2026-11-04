@@ -182,6 +182,10 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     var rendererDriverId    by mutableStateOf("system")
     var rendererFilterMode  by mutableStateOf(0)
     var rendererSwapRB      by mutableStateOf(false)
+    var surfaceDirectPerformanceMode       by mutableStateOf(true)
+    var surfaceDirectPresentAtRefreshRate  by mutableStateOf(true)
+    var surfaceDirectBackPressure          by mutableStateOf(false)
+    var surfaceDirectPrecisePresentation   by mutableStateOf(false)
 
     // Display backend: always X11.
     var displayBackend by mutableStateOf(Container.DISPLAY_BACKEND_X11)
@@ -492,7 +496,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         audioDriverEntries = res.getStringArray(R.array.audio_driver_entries).toList()
         emulatorEntries   = res.getStringArray(R.array.emulator_entries).toList()
         vulkanSupported = GPUInformation.isVulkanSupported(context)
-        rendererEntries = if (vulkanSupported) listOf("Vulkan", "EGL") else listOf("EGL")
+        rendererEntries = if (vulkanSupported) listOf("Vulkan", "EGL", "SurfaceDirect") else listOf("EGL", "SurfaceDirect")
         lcAllEntries      = res.getStringArray(R.array.some_lc_all).toList()
         startupSelectionEntries = res.getStringArray(R.array.startup_selection_entries).toList()
         mouseWarpEntries  = listOf(
@@ -603,6 +607,10 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         rendererDriverId         = seed?.getRendererDriverId() ?: "system"
         rendererFilterMode       = seed?.getRendererFilterMode() ?: 0
         rendererSwapRB           = seed?.getRendererSwapRB() ?: false
+        surfaceDirectPerformanceMode      = seed?.isSurfaceDirectPerformanceMode() ?: true
+        surfaceDirectPresentAtRefreshRate = seed?.isSurfaceDirectPresentAtRefreshRate() ?: true
+        surfaceDirectBackPressure         = seed?.isSurfaceDirectBackPressure() ?: false
+        surfaceDirectPrecisePresentation  = seed?.isSurfaceDirectPrecisePresentation() ?: false
         displayBackend           = Container.DISPLAY_BACKEND_X11
         unrealHdr                = seed?.getUnrealHdr() ?: com.winhub.hernandez.core.UnrealHdr.OFF
         renderScale              = seed?.getExtra("renderScale", "1.0") ?: "1.0"
@@ -1144,6 +1152,10 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setRendererDriverId(rendererDriverId)
         c.setRendererFilterMode(rendererFilterMode)
         c.setRendererSwapRB(rendererSwapRB)
+        c.setSurfaceDirectPerformanceMode(surfaceDirectPerformanceMode)
+        c.setSurfaceDirectPresentAtRefreshRate(surfaceDirectPresentAtRefreshRate)
+        c.setSurfaceDirectBackPressure(surfaceDirectBackPressure)
+        c.setSurfaceDirectPrecisePresentation(surfaceDirectPrecisePresentation)
         c.setDisplayBackend(Container.DISPLAY_BACKEND_X11)
         c.setUnrealHdr(unrealHdr)                   // off clears the extra
         c.putExtra("renderScale", if (renderScale == "1.0") null else renderScale)

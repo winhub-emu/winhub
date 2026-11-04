@@ -987,6 +987,15 @@ private fun TopLevelFields(
                 }
             }
         }
+
+        // SurfaceDirect hands each window's buffer to SurfaceFlinger; these tune how it submits them.
+        if (viewModel.selectedRenderer == "SurfaceDirect") {
+            Spacer(Modifier.height(8.dp))
+            HudToggleRow("SurfaceDirect: performance mode", viewModel.surfaceDirectPerformanceMode) { viewModel.surfaceDirectPerformanceMode = it }
+            HudToggleRow("SurfaceDirect: present at refresh rate", viewModel.surfaceDirectPresentAtRefreshRate) { viewModel.surfaceDirectPresentAtRefreshRate = it }
+            HudToggleRow("SurfaceDirect: submit every buffer", viewModel.surfaceDirectBackPressure) { viewModel.surfaceDirectBackPressure = it }
+            HudToggleRow("SurfaceDirect: precise presentation", viewModel.surfaceDirectPrecisePresentation) { viewModel.surfaceDirectPrecisePresentation = it }
+        }
         }  // end GRAPHICS block
         if (tab == "GENERAL") {
         Spacer(Modifier.height(8.dp))

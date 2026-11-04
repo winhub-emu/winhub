@@ -12,6 +12,7 @@ import android.widget.FrameLayout;
 
 import com.winhub.hernandez.renderer.HostRenderer;
 import com.winhub.hernandez.renderer.egl.EglRenderer;
+import com.winhub.hernandez.renderer.egl.SurfaceDirectRenderer;
 import com.winhub.hernandez.renderer.vulkan.VulkanRenderer;
 import com.winhub.hernandez.xserver.XServer;
 
@@ -43,15 +44,21 @@ public class XServerView extends FrameLayout {
     }
 
     public void initRenderer(String rendererType) {
+        initRenderer(rendererType, new SurfaceDirectRenderer.Options());
+    }
+
+    public void initRenderer(String rendererType, SurfaceDirectRenderer.Options surfaceDirectOptions) {
         vulkanSurfaceView = new SurfaceView(getContext());
         vulkanSurfaceView.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         addView(vulkanSurfaceView);
-        if ("egl".equalsIgnoreCase(rendererType)) {
-            EglRenderer egl = new EglRenderer(this, xServer);
+        if ("egl".equalsIgnoreCase(rendererType) || "surfacedirect".equalsIgnoreCase(rendererType)) {
+            EglRenderer native3d = "egl".equalsIgnoreCase(rendererType)
+                    ? new EglRenderer(this, xServer)
+                    : new SurfaceDirectRenderer(this, xServer, surfaceDirectOptions);
             // The native side can refuse to start on a device; Vulkan is the safe fallback.
-            if (egl.start()) renderer = egl;
-            else Log.w("XServerView", "EGL renderer unavailable, falling back to Vulkan");
+            if (native3d.start()) renderer = native3d;
+            else Log.w("XServerView", rendererType + " renderer unavailable, falling back to Vulkan");
         }
         if (renderer == null) renderer = new VulkanRenderer(this, xServer);
         final VulkanRenderer vulkan = renderer instanceof VulkanRenderer ? (VulkanRenderer) renderer : null;

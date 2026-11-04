@@ -37,6 +37,7 @@ class CursorManager {
         
     public: 
         Pointer pointer{0, 0};
+        ASurfaceControl *control = nullptr;
         CursorLock cursorLock;
         
         void setRootCursor(std::unique_ptr<struct Cursor> cursor);

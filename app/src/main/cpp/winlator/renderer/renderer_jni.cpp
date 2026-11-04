@@ -1,4 +1,6 @@
 #include "egl.hpp"
+#include "surfacedirect.hpp"
+#include "effect_composer.hpp"
 #include <cstdint>
 #include <cstring>
 
@@ -16,6 +18,15 @@ JNIXServer xserver;
 WindowManager windowManager;
 CursorManager cursorManager;
 EGLRenderer renderer;
+EffectComposer effectComposer;
+SurfaceDirect surfaceDirect;
+bool useSurfaceDirect = false;
+
+// Work that touches the scene runs on whichever thread owns it: the GL thread, or SurfaceDirect's event thread.
+void postToRenderer(std::function<void()> func) {
+    if (useSurfaceDirect) surfaceDirect.queueEvent(std::move(func));
+    else renderer.queueEvent(std::move(func));
+}
 
 // Fills the native drawable from the Java Drawable. The AHB is only present when the Java side backed the
 // drawable with a GPUImage; otherwise the texture stays empty instead of reading memory we do not own.
@@ -126,10 +137,17 @@ void destroyWindowOnRenderThread(int id) {
             renderer.destroyTexture(w->drawable->glTexture.get());
         for (auto &content : w->directContents)
             if (content.second->glTexture != nullptr) renderer.destroyTexture(content.second->glTexture.get());
+
+        if (useSurfaceDirect) {
+            if (w->inputOutput && w->drawable && w->drawable->composerTexture != nullptr)
+                effectComposer.destroyComposerTexture(w->drawable.get());
+            surfaceDirect.purgeWindow(w);
+            surfaceDirect.destroyWindowControl(w);
+        }
     }
 
     windowManager.deleteWindow(env, window);
-    renderer.updateScene();
+    if (!useSurfaceDirect) renderer.updateScene();
 }
 
 void releaseSession(JNIEnv *env) {
@@ -138,6 +156,8 @@ void releaseSession(JNIEnv *env) {
     if (xserver.windowManager != nullptr) env->DeleteGlobalRef(xserver.windowManager);
     if (xserver.inputDeviceManager != nullptr) env->DeleteGlobalRef(xserver.inputDeviceManager);
     if (xserver.xserver != nullptr) env->DeleteGlobalRef(xserver.xserver);
+    if (xserver.renderer != nullptr) env->DeleteGlobalRef(xserver.renderer);
+    xserver.renderer = nullptr;
     xserver.windowManager = nullptr;
     xserver.inputDeviceManager = nullptr;
     xserver.xserver = nullptr;
@@ -146,7 +166,8 @@ void releaseSession(JNIEnv *env) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeInit(JNIEnv *env, jobject thiz, jobject context, jobject xServer, jint textureFilter) {
+Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeInit(JNIEnv *env, jobject thiz, jobject context, jobject xServer, jint textureFilter,
+        jboolean surfaceDirectMode, jboolean performanceMode, jboolean presentAtRefreshRate, jboolean backPressure, jboolean precisePresentation, jfloat refreshRate) {
     if (!cache.init(env)) {
         printf("Failed to resolve the Java classes the EGL renderer needs");
         return JNI_FALSE;
@@ -155,7 +176,10 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeInit(JNIEnv *env, jobje
     // A previous session may have left state behind in this process.
     renderer.stop();
     renderer.join();
+    surfaceDirect.stop();
+    surfaceDirect.join();
     releaseSession(env);
+    useSurfaceDirect = surfaceDirectMode;
 
     jobject windowManagerObj = env->GetObjectField(xServer, cache.windowManager);
     jobject inputDeviceManagerObj = env->GetObjectField(xServer, cache.inputDeviceManager);
@@ -206,14 +230,44 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeInit(JNIEnv *env, jobje
     xserver.windowManager = env->NewGlobalRef(windowManagerObj);
     xserver.inputDeviceManager = env->NewGlobalRef(inputDeviceManagerObj);
     xserver.xserver = env->NewGlobalRef(xServer);
+    xserver.renderer = env->NewGlobalRef(thiz);
+    xserver.refreshRate = refreshRate;
 
     env->DeleteLocalRef(windowManagerObj);
     env->DeleteLocalRef(inputDeviceManagerObj);
+
+    // Colour swapping only matters for X11 content kept in an RGBA buffer, which needs a Vulkan device.
+    if (useSurfaceDirect) {
+        auto root = windowManager.getRootWindow();
+        if (root && root->drawable && root->drawable->format == AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM) {
+            effectComposer.init();
+            effectComposer.setColorSwapEnabled(true);
+        }
+    }
 
     renderer.windowManager = &windowManager;
     renderer.cursorManager = &cursorManager;
     renderer.cache = &cache;
     renderer.xServer = &xserver;
+
+    if (useSurfaceDirect) {
+        surfaceDirect.windowManager = &windowManager;
+        surfaceDirect.cursorManager = &cursorManager;
+        surfaceDirect.cache = &cache;
+        surfaceDirect.xServer = &xserver;
+        surfaceDirect.effectComposer = &effectComposer;
+        surfaceDirect.setPerformanceMode(performanceMode);
+        surfaceDirect.setPresentRR(presentAtRefreshRate);
+        surfaceDirect.setBackPressure(backPressure);
+        surfaceDirect.setPrecisePresentation(precisePresentation);
+        if (!surfaceDirect.start()) {
+            printf("SurfaceDirect cannot start on this device");
+            releaseSession(env);
+            return JNI_FALSE;
+        }
+        return JNI_TRUE;
+    }
+
     renderer.setTextureFilter(textureFilter);
     renderer.start();
     return JNI_TRUE;
@@ -266,6 +320,13 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeCreateWindow(JNIEnv *en
 
     int windowId = window->id;
     windowManager.addWindow(windowId, std::move(window));
+
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([windowId] {
+            auto w = windowManager.getWindow(windowId);
+            if (w) surfaceDirect.createWindowControl(w);
+        });
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -274,8 +335,16 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeMapWindow(JNIEnv *env, 
     if (!window) return;
 
     window->mapped = true;
-    renderer.queueEvent([]{ renderer.updateScene(); });
-    renderer.requestRenderer();
+
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([id] {
+            auto w = windowManager.getWindow(id);
+            if (w) surfaceDirect.mapWindow(w);
+        });
+    } else {
+        renderer.queueEvent([]{ renderer.updateScene(); });
+        renderer.requestRenderer();
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -284,15 +353,23 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeUnmapWindow(JNIEnv *env
     if (!window) return;
 
     window->mapped = false;
-    renderer.queueEvent([]{ renderer.updateScene(); });
-    renderer.requestRenderer();
+
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([id] {
+            auto w = windowManager.getWindow(id);
+            if (w) surfaceDirect.unmapWindow(w);
+        });
+    } else {
+        renderer.queueEvent([]{ renderer.updateScene(); });
+        renderer.requestRenderer();
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeDestroyWindow(JNIEnv *env, jobject thiz, jint id) {
-    // Looked up again on the render thread: the window may already be gone when the event runs.
-    renderer.queueEvent([id] { destroyWindowOnRenderThread(id); });
-    renderer.requestRenderer();
+    // Looked up again on the owning thread: the window may already be gone when the event runs.
+    postToRenderer([id] { destroyWindowOnRenderThread(id); });
+    if (!useSurfaceDirect) renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -326,7 +403,7 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeCreateCursor(JNIEnv *en
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeFreeCursor(JNIEnv *env, jobject thiz, jint id) {
-    renderer.queueEvent([id] {
+    postToRenderer([id] {
         auto cursor = cursorManager.getCursor(id);
         if (!cursor) return;
 
@@ -341,9 +418,10 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeFreeCursor(JNIEnv *env,
                 if (entry.second->cursor == cursor) entry.second->cursor = nullptr;
         }
 
+        if (useSurfaceDirect) surfaceDirect.updateCursor(nullptr);
         cursorManager.removeCursor(env, cursor);
     });
-    renderer.requestRenderer();
+    if (!useSurfaceDirect) renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -359,14 +437,23 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeBindCursor(JNIEnv *env,
     for (auto &child : window->children)
         child->cursor = cursor;
 
-    renderer.requestRenderer();
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([windowId] {
+            auto w = windowManager.getWindow(windowId);
+            if (w) surfaceDirect.updateCursor(w->cursor);
+        });
+    } else {
+        renderer.requestRenderer();
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativePointerMove(JNIEnv *env, jobject thiz, jint posX, jint posY) {
     cursorManager.pointer.posX = posX;
     cursorManager.pointer.posY = posY;
-    renderer.requestRenderer();
+
+    if (useSurfaceDirect) surfaceDirect.requestCursorUpdate();
+    else renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -378,8 +465,15 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeChangeWindowZOrder(JNIE
 
     windowManager.changeZOrder(stackMode, window, sibling);
 
-    renderer.queueEvent([]{ renderer.updateScene(); });
-    renderer.requestRenderer();
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([id] {
+            auto w = windowManager.getWindow(id);
+            if (w) surfaceDirect.changeZOrder(w);
+        });
+    } else {
+        renderer.queueEvent([]{ renderer.updateScene(); });
+        renderer.requestRenderer();
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -401,7 +495,7 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeUpdateWindowGeometry(JN
             env->DeleteLocalRef(drawableObj);
 
             // The render thread owns the drawable's buffer and texture, so the swap happens there.
-            renderer.queueEvent([id, width, height, newDrawableObj, newAhb] {
+            postToRenderer([id, width, height, newDrawableObj, newAhb] {
                 JNIEnv *env = cache.getEnv();
                 auto w = windowManager.getWindow(id);
                 if (!w || !w->drawable) {
@@ -417,8 +511,17 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeUpdateWindowGeometry(JN
                 w->drawable->height = height;
                 w->drawable->adoptAhb(newAhb);
                 if (w->drawable->glTexture != nullptr) w->drawable->glTexture->sizeChanged = true;
+                if (w->drawable->composerTexture != nullptr) w->drawable->composerTexture->sizeChanged = true;
             });
         }
+    }
+
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([id, resized] {
+            auto w = windowManager.getWindow(id);
+            if (w) surfaceDirect.changeGeometry(w, resized);
+        });
+        return;
     }
 
     if (resized) {
@@ -439,7 +542,9 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeUpdateWindowContent(JNI
     if (!window) return;
 
     window->hasContent = true;
-    renderer.requestRenderer();
+
+    if (useSurfaceDirect) surfaceDirect.requestWindowUpdate(window);
+    else renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -454,6 +559,15 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeReparentWindow(JNIEnv *
 
     windowManager.reparentWindow(window, parent);
 
+    if (useSurfaceDirect) {
+        surfaceDirect.queueEvent([id, parentId] {
+            auto w = windowManager.getWindow(id);
+            auto p = windowManager.getWindow(parentId);
+            if (w && p) surfaceDirect.reparentWindow(w, p);
+        });
+        return;
+    }
+
     renderer.queueEvent([id]{
         auto w = windowManager.getWindow(id);
         if (w) renderer.updateWindowPosition(w);
@@ -465,7 +579,9 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeReparentWindow(JNIEnv *
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeToggleFullscreen(JNIEnv *env, jobject thiz) {
     renderer.toggleFullscreen = true;
-    renderer.requestRenderer();
+
+    if (useSurfaceDirect) surfaceDirect.queueEvent([] { surfaceDirect.toggleFullscreen(); });
+    else renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -476,19 +592,22 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeSetTextureFilter(JNIEnv
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeSetCursorVisible(JNIEnv *env, jobject thiz, jboolean visible) {
     renderer.cursorVisible = visible;
-    renderer.requestRenderer();
+    surfaceDirect.cursorVisible = visible;
+
+    if (useSurfaceDirect) surfaceDirect.queueEvent([] { surfaceDirect.showCursor(); });
+    else renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeSetScreenOffsetYRelativeToCursor(JNIEnv *env, jobject thiz, jboolean cond) {
     renderer.screenOffsetYRelativeToCursor = cond;
-    renderer.requestRenderer();
+    if (!useSurfaceDirect) renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeSetMagnifierZoom(JNIEnv *env, jobject thiz, jfloat magnifierZoom) {
     renderer.magnifierZoom = magnifierZoom;
-    renderer.requestRenderer();
+    if (!useSurfaceDirect) renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -520,32 +639,39 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeCreateSurface(JNIEnv *env, jobject thiz, jobject surface) {
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
     if (window == nullptr) return;
-    renderer.createSurface(window);
+
+    if (useSurfaceDirect) surfaceDirect.createSurface(window);
+    else renderer.createSurface(window);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeDestroySurface(JNIEnv *env, jobject thiz) {
-    renderer.destroySurface();
+    if (useSurfaceDirect) surfaceDirect.destroySurface();
+    else renderer.destroySurface();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeChangeSurface(JNIEnv *env, jobject thiz, jint width, jint height) {
-    renderer.changeSurface(width, height);
+    if (useSurfaceDirect) surfaceDirect.changeSurface(width, height);
+    else renderer.changeSurface(width, height);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativePause(JNIEnv *env, jobject thiz) {
-    renderer.pause();
+    if (useSurfaceDirect) surfaceDirect.pause();
+    else renderer.pause();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeResume(JNIEnv *env, jobject thiz) {
-    renderer.resume();
+    if (useSurfaceDirect) surfaceDirect.resume();
+    else renderer.resume();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeStop(JNIEnv *env, jobject thiz) {
-    renderer.stop();
+    if (useSurfaceDirect) surfaceDirect.stop();
+    else renderer.stop();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -580,13 +706,15 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeUpdateDirectContent(JNI
     if (it == window->directContents.end()) return;
 
     window->externalContent = it->second.get();
-    renderer.requestRenderer();
+
+    if (useSurfaceDirect) surfaceDirect.requestWindowUpdate(window);
+    else renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeRemoveDirectContent(JNIEnv *env, jobject thiz, jint windowId, jint drawableId) {
     // The render thread may be sampling this content right now, so it is retired there.
-    renderer.queueEvent([windowId, drawableId] {
+    postToRenderer([windowId, drawableId] {
         auto window = windowManager.getWindow(windowId);
         if (!window) return;
 
@@ -598,9 +726,10 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeRemoveDirectContent(JNI
         if (window->externalContent == content) window->externalContent = nullptr;
         if (content->glTexture != nullptr) renderer.destroyTexture(content->glTexture.get());
         if (content->drawableObj != nullptr) env->DeleteGlobalRef(content->drawableObj);
+        if (useSurfaceDirect) surfaceDirect.purgeWindow(window);
         window->directContents.erase(it);
     });
-    renderer.requestRenderer();
+    if (!useSurfaceDirect) renderer.requestRenderer();
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -640,8 +769,18 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeCompositeRedirect(JNIEn
             zOrderChanged = true;
         }
 
-        if (positionChanged || zOrderChanged) {
-            int siblingId = sibling->id;
+        int siblingId = sibling->id;
+        if (useSurfaceDirect) {
+            if (positionChanged) surfaceDirect.queueEvent([siblingId] {
+                auto w = windowManager.getWindow(siblingId);
+                if (w) surfaceDirect.changeGeometry(w, false);
+            });
+            if (zOrderChanged) surfaceDirect.queueEvent([siblingId] {
+                auto w = windowManager.getWindow(siblingId);
+                if (w) surfaceDirect.changeZOrder(w);
+            });
+        }
+        else if (positionChanged || zOrderChanged) {
             renderer.queueEvent([siblingId]{
                 auto w = windowManager.getWindow(siblingId);
                 if (w) renderer.updateWindowPosition(w);

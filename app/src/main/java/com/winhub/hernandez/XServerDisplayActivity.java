@@ -1291,7 +1291,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
         String hudStyle = fpsConfig.get("hudStyle", "fusion");
 
         // Host renderer: Vulkan, or EGL when the container/game picked it.
-        String rendererMode = "egl".equals(resolvedRenderer()) ? "EGL" : "Vulkan";
+        String resolvedHostRenderer = resolvedRenderer();
+        String rendererMode = "egl".equals(resolvedHostRenderer) ? "EGL"
+            : "surfacedirect".equals(resolvedHostRenderer) ? "SurfaceDirect" : "Vulkan";
         // The configured wrapper NAMES what a D3D game would load here — it is not evidence that THIS
         // game loads one: a native OpenGL or Vulkan title never touches DXVK. It stays the tag for a
         // D3D API the resolvers actually prove (startDxApiDetection's fallback arg) and the
@@ -7738,7 +7740,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
         xServerView = new XServerView(this, xServer);
         // Vulkan unless the container/game picked EGL; any legacy/unknown id degrades to Vulkan, and
         // initRenderer itself falls back to Vulkan if the EGL renderer cannot start on this device.
-        xServerView.initRenderer(resolvedRenderer());
+        xServerView.initRenderer(resolvedRenderer(), resolvedSurfaceDirectOptions());
         final HostRenderer renderer = xServerView.getRenderer();
         // Gate the drawer's live Present Mode selector: it only exists on the Vulkan host renderer.
         XServerDrawerState.INSTANCE.setRendererIsVulkan(
@@ -10474,12 +10476,31 @@ return true;
                 + " (gmemMode=" + gmemMode + ")");
     }
 
-    // Host renderer for this session: the shortcut's pick wins, then the container's. EGL is opt-in; any
-    // other id (including the removed legacy ones) runs on Vulkan.
+    // Host renderer for this session: the shortcut's pick wins, then the container's. EGL and SurfaceDirect are
+    // opt-in; any other id (including the removed legacy ones) runs on Vulkan.
     private String resolvedRenderer() {
         if (container == null) return "vulkan";
         String id = shortcut != null ? shortcut.getExtra("renderer", container.getRenderer()) : container.getRenderer();
-        return "egl".equalsIgnoreCase(id) ? "egl" : "vulkan";
+        if ("egl".equalsIgnoreCase(id)) return "egl";
+        if ("surfacedirect".equalsIgnoreCase(id)) return "surfacedirect";
+        return "vulkan";
+    }
+
+    // SurfaceDirect tuning: a shortcut extra wins, the container is the fallback (read-only, never written back).
+    private com.winhub.hernandez.renderer.egl.SurfaceDirectRenderer.Options resolvedSurfaceDirectOptions() {
+        com.winhub.hernandez.renderer.egl.SurfaceDirectRenderer.Options options =
+            new com.winhub.hernandez.renderer.egl.SurfaceDirectRenderer.Options();
+        if (container == null) return options;
+        options.performanceMode = resolvedSurfaceDirectFlag("surfaceDirectPerformanceMode", container.isSurfaceDirectPerformanceMode());
+        options.presentAtRefreshRate = resolvedSurfaceDirectFlag("surfaceDirectPresentAtRefreshRate", container.isSurfaceDirectPresentAtRefreshRate());
+        options.backPressure = resolvedSurfaceDirectFlag("surfaceDirectBackPressure", container.isSurfaceDirectBackPressure());
+        options.precisePresentation = resolvedSurfaceDirectFlag("surfaceDirectPrecisePresentation", container.isSurfaceDirectPrecisePresentation());
+        return options;
+    }
+
+    private boolean resolvedSurfaceDirectFlag(String key, boolean containerValue) {
+        if (shortcut == null) return containerValue;
+        return shortcut.getExtra(key, containerValue ? "true" : "false").equals("true");
     }
 
     // Per-game overrides for the Vulkan-settings block (native / Colors=swapRB / present mode).
