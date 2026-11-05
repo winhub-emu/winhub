@@ -117,7 +117,11 @@ internal fun SocialContent() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            // The Deck shell paints its own background; the Material one showed as a gray patch on it.
+            .then(
+                if (com.winhub.hernandez.ui.screens.LocalDeckMode.current) Modifier
+                else Modifier.background(MaterialTheme.colorScheme.background)
+            ),
     ) {
         // Header: title + "?" help, with refresh + identity + sign-out when signed in.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
