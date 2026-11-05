@@ -38,9 +38,9 @@ permissions:
   actions: read     # read the build run and download its artifacts
 
 env:
-  # The release is published here, not in the repo this workflow runs in. Creating it needs a token
-  # with write access to that repo: the secret WINHUB_RELEASE_TOKEN (the built-in GITHUB_TOKEN only
-  # reaches the repo the workflow runs in).
+  # The release is published here. Run from this repo, the built-in token is enough. Run from any other
+  # repo it needs the secret WINHUB_RELEASE_TOKEN (write access to this one), as GITHUB_TOKEN only
+  # reaches the repo the workflow runs in.
   RELEASE_REPO: winhub-emu/winhub
 
 jobs:
@@ -276,10 +276,11 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         repository: ${{ env.RELEASE_REPO }}
-        token: ${{ secrets.WINHUB_RELEASE_TOKEN }}
+        token: ${{ secrets.WINHUB_RELEASE_TOKEN || github.token }}
         tag_name: ${{ inputs.release_tag }}
-        # No target_commitish: the build's commit does not exist in the release repo, so the tag is
-        # created on that repo's default branch.
+        # The tag points at the commit the APKs were built from. That commit only exists in the release
+        # repo when the workflow runs there; from another repo the tag is created on its default branch.
+        target_commitish: ${{ github.repository == env.RELEASE_REPO && needs.pick.outputs.sha || '' }}
         name: ${{ inputs.release_title }}
         # Body = the assembled house-layout description (docs/releases/<number>.md +
         # the change list since the previous stable). It already opens with the centered
