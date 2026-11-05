@@ -10035,7 +10035,7 @@ private fun DeckAdvancedTab(
                     onPick = { onStartupChange(startupSelectionEntries.getOrElse(it.toIntOrNull() ?: 0) { startupSelectionEntries.first() }) },
                 )
                 if (startupSelectionEntries.indexOf(selectedStartupSelection) == Container.STARTUP_SELECTION_CUSTOM.toInt()) {
-                    StartupServicesToggleList(
+                    DeckStartupServiceRows(
                         enabled = startupServicesEnabled,
                         onToggle = onStartupServiceToggle,
                     )

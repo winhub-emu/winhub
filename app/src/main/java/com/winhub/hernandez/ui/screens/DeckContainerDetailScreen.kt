@@ -653,6 +653,17 @@ internal fun DeckContainerDetailScreen(
                             selected = viewModel.selectedStartupSelection.toString(),
                             onPick = { viewModel.selectedStartupSelection = it.toInt() },
                         )
+                        // Custom: pick the services to start.
+                        if (viewModel.selectedStartupSelection == Container.STARTUP_SELECTION_CUSTOM.toInt()) {
+                            DeckStartupServiceRows(
+                                enabled = viewModel.startupServicesEnabled,
+                                onToggle = { raw, on ->
+                                    viewModel.startupServicesEnabled =
+                                        if (on) viewModel.startupServicesEnabled + raw
+                                        else viewModel.startupServicesEnabled - raw
+                                },
+                            )
+                        }
                         }
                     }
 

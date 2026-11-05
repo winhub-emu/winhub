@@ -68,6 +68,7 @@ import com.winhub.hernandez.MainActivity
 import com.winhub.hernandez.util.InAppFilePicker
 import com.winhub.hernandez.contentdialog.ContentDialog
 import com.winhub.hernandez.core.AppUtils
+import com.winhub.hernandez.core.PresetScope
 import com.winhub.hernandez.core.PreloaderDialog
 import com.winhub.hernandez.midi.MidiManager
 
@@ -553,6 +554,20 @@ internal fun DeckSettingsScreen() {
                 selected = box64,
                 onPick = { box64 = it; saved = false },
             )
+            PresetEditorRow(
+                kind = PresetKind.BOX64,
+                selectedPresetId = box64,
+                scope = PresetScope.GLOBAL,
+                container = null,
+                shortcut = null,
+                onSelect = { box64 = it; saved = false },
+                onListChanged = {
+                    box64Presets = Box64PresetManager.getPresets("box64", context)
+                    // The selected custom preset may be the one just deleted.
+                    if (box64Presets.none { it.id == box64 }) { box64 = "COMPATIBILITY"; saved = false }
+                },
+                onValuesChanged = {},
+            )
         }
 
         // ── FEXCore Config ──
@@ -562,6 +577,19 @@ internal fun DeckSettingsScreen() {
                 options = fexPresets.map { it.id to it.name },
                 selected = fex,
                 onPick = { fex = it; saved = false },
+            )
+            PresetEditorRow(
+                kind = PresetKind.FEXCORE,
+                selectedPresetId = fex,
+                scope = PresetScope.GLOBAL,
+                container = null,
+                shortcut = null,
+                onSelect = { fex = it; saved = false },
+                onListChanged = {
+                    fexPresets = FEXCorePresetManager.getPresets(context)
+                    if (fexPresets.none { it.id == fex }) { fex = "COMPATIBILITY"; saved = false }
+                },
+                onValuesChanged = {},
             )
         }
 
