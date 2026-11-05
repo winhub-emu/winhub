@@ -37,6 +37,12 @@ permissions:
   contents: write
   actions: read     # read the build run and download its artifacts
 
+env:
+  # The release is published here, not in the repo this workflow runs in. Creating it needs a token
+  # with write access to that repo: the secret WINHUB_RELEASE_TOKEN (the built-in GITHUB_TOKEN only
+  # reaches the repo the workflow runs in).
+  RELEASE_REPO: winhub-emu/winhub
+
 jobs:
   # Phase 0 — the release description, checked BEFORE the ~20 min build so a bad notes
   # file fails in seconds. Every release page uses the house layout: the full notes from
@@ -138,13 +144,13 @@ jobs:
         [ -n "$NEW" ] || { echo "::error::no ${F} APK in the build"; exit 1; }
         mkdir -p patches old
         echo '{}' > "patches/patches-${F}.json"
-        gh release list -R "$GITHUB_REPOSITORY" --limit 40 --json tagName -q '.[].tagName' | grep -vxF "$TAG" > tags.txt || true
+        gh release list -R "$RELEASE_REPO" --limit 40 --json tagName -q '.[].tagName' | grep -vxF "$TAG" > tags.txt || true
         made=0
         while read -r T && [ "$made" -lt "$PATCH_FROM" ]; do
-          A=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${T}" \
+          A=$(gh api "repos/${RELEASE_REPO}/releases/tags/${T}" \
                 -q "[.assets[] | select(.name | test(\"^WinHub-.*-${F}\\\\.apk$\")) | .name] | first // empty")
           [ -n "$A" ] || continue
-          gh release download "$T" -R "$GITHUB_REPOSITORY" -p "$A" -D old --clobber
+          gh release download "$T" -R "$RELEASE_REPO" -p "$A" -D old --clobber
           P="WinHub-${N}-${F}-from-${T}.wh"
           echo "== $T ($A)"
           python3 -I scripts/apk_delta.py make "old/$A" "$NEW" "patches/$P"
@@ -241,7 +247,7 @@ jobs:
         N="${{ inputs.release_number }}"
         NOTES="$(cat notes/short-notes.txt)"
         [ -z "$NOTES" ] && NOTES="$RELEASE_TITLE"
-        BASE="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${{ inputs.release_tag }}"
+        BASE="${GITHUB_SERVER_URL}/${RELEASE_REPO}/releases/download/${{ inputs.release_tag }}"
         size() { stat -c %s "dist/WinHub-${N}-$1.apk"; }
         sha() { sha256sum "dist/WinHub-${N}-$1.apk" | cut -d' ' -f1; }
         mkdir -p patches
@@ -269,9 +275,11 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
+        repository: ${{ env.RELEASE_REPO }}
+        token: ${{ secrets.WINHUB_RELEASE_TOKEN }}
         tag_name: ${{ inputs.release_tag }}
-        # The tag points at the commit the APKs were built from, not at this workflow's branch tip.
-        target_commitish: ${{ needs.pick.outputs.sha }}
+        # No target_commitish: the build's commit does not exist in the release repo, so the tag is
+        # created on that repo's default branch.
         name: ${{ inputs.release_title }}
         # Body = the assembled house-layout description (docs/releases/<number>.md +
         # the change list since the previous stable). It already opens with the centered
