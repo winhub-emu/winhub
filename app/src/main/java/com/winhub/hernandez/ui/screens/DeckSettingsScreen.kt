@@ -376,7 +376,7 @@ internal fun DeckSettingsScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeckPalette.background),
+            .deckPageBackground(),
     ) {
         // ── Header ──
         Column(modifier = Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 10.dp)) {

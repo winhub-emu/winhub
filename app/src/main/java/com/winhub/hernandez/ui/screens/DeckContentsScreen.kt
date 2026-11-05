@@ -206,7 +206,7 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
         if (pagesCategoryOpen) pagesCategoryOpen = false else browseRepo = null
     }
 
-    Box(Modifier.fillMaxSize().background(DeckPalette.background)) {
+    Box(Modifier.fillMaxSize().deckPageBackground()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {

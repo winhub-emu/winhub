@@ -28,6 +28,19 @@ import kotlin.math.sin
 
 private val TWO_PI = (2.0 * PI).toFloat()
 
+/** The basic tabs that get the liquid backdrop in portrait (not Stores, and not editors; see DeckModeScreen). */
+internal val liquidSections = setOf(
+    "home", "containers", "file_manager", "input_controls", "contents", "saves", "social_hub", "settings",
+)
+
+/**
+ * A tab's own page background. In portrait the shell draws the backdrop (liquid or plain), so the page
+ * stays transparent there and the waves show through; elsewhere it paints [color].
+ */
+@Composable
+internal fun Modifier.deckPageBackground(color: Color = DeckPalette.background): Modifier =
+    if (LocalDeckPortrait.current) this else this.background(color)
+
 /**
  * True while portrait Home has a game page open over the grid. The page paints its own background, so
  * the shell stops drawing the liquid backdrop (it would otherwise show under the bottom bar).

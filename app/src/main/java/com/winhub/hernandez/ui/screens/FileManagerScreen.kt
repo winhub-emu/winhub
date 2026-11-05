@@ -1108,7 +1108,11 @@ fun FileManagerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (deckMode) DeckPalette.background else MaterialTheme.colorScheme.background),
+            // The picker has no shell behind it, so it keeps its own background in portrait too.
+            .then(
+                if (deckMode && !pickMode && LocalDeckPortrait.current) Modifier
+                else Modifier.background(if (deckMode) DeckPalette.background else MaterialTheme.colorScheme.background)
+            ),
     ) {
         if (deckMode && !pickMode) PortraitScreenTitle("Files")
         // ── Pick-mode title ──

@@ -108,7 +108,7 @@ fun SavesScreen(vm: SavesViewModel = viewModel()) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .deckPageBackground(MaterialTheme.colorScheme.background),
     ) {
         if (saves.isEmpty() && !isLoading) {
             Text(

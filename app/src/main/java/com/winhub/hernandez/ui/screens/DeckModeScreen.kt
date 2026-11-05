@@ -446,8 +446,11 @@ internal fun DeckModeScreen() {
                 .background(Deck.background)
                 // Behind the bar too, so a see-through top bar shows the page glow.
                 .drawBehind { drawDeckCornerGlow(Deck.primary) }
-                // Portrait Home: drifting glows and waves behind the page and the bottom bar.
-                .then(if (portrait && section == "home" && !PortraitPageState.open) Modifier.liquidBackdrop() else Modifier)
+                // Portrait basic tabs: drifting glows and waves behind the page and the bottom bar.
+                .then(
+                    if (portrait && section in liquidSections && !PortraitPageState.open &&
+                        !(section == "containers" && deckDetail != null)) Modifier.liquidBackdrop() else Modifier
+                )
                 .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->

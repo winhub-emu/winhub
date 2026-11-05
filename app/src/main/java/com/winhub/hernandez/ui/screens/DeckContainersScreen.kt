@@ -154,7 +154,7 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeckPalette.background),
+            .deckPageBackground(),
     ) {
         Column(
             modifier = Modifier
