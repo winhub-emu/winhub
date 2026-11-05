@@ -6930,6 +6930,70 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 + (envVars.has("WINENTSYNC") ? " WINENTSYNC=" + envVars.get("WINENTSYNC") : ""));
     }
 
+    /**
+     * Resolve "Fast OpenGL" for this launch (core.FastOpenGL.decideX11) and, when on, export X11Egl's
+     * env for the route: WINHUB_X11_EGL=0 (off), WINHUB_X11_GLX=1 (GLX route) and WINHUB_X11_EGL=1
+     * (EGL route) in the environment win outright; else the shortcut's override, else the container's
+     * choice (default on), on only when the driver is a Turnip and the APK carries the GL set. The
+     * layer picks the route: EGL when its aarch64-unix win32u knows WINE_USE_EGL, else GLX, which also
+     * turns on the X server's server-side GLX + DRI3/Present 1.2 for this session. Runs on the launch
+     * worker before XServerComponent opens the socket, so no client ever sees the extension list
+     * change; EGL route or off leaves the X server as it always was. Then the two plain switches beside
+     * it (Show OpenGL FPS, OpenGL vsync off). One log line for all three.
+     */
+    private void applyFastOpenGLEnv() {
+        if (container == null) return;
+        String game = shortcut != null
+                ? com.winhub.hernandez.core.FastOpenGL.normalize(shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA))
+                : null;
+        boolean requested = game != null ? game.equals("1") : container.isFastOpenGL();
+        String driverId = graphicsDriverConfig != null ? graphicsDriverConfig.get("version") : null;
+        com.winhub.hernandez.core.FastOpenGL.X11Decision decision = com.winhub.hernandez.core.FastOpenGL.decideX11(
+                requested, game != null ? "game" : "container",
+                com.winhub.hernandez.core.X11Egl.envOverride(envVars),
+                com.winhub.hernandez.core.X11Egl.glxForced(envVars),
+                com.winhub.hernandez.core.FastOpenGL.unavailableReason(this, driverId),
+                com.winhub.hernandez.core.FastOpenGL.layerHasEgl(wineInfo != null ? wineInfo.path : null));
+        String detail = null;
+        String glxLine = null;
+        if (decision.getOn()) {
+            boolean egl = decision.route == com.winhub.hernandez.core.FastOpenGL.Route.EGL;
+            detail = com.winhub.hernandez.core.X11Egl.apply(this, envVars, imageFs.getRootDir().getPath() + "/usr/lib", egl);
+            if (detail == null) {
+                decision = new com.winhub.hernandez.core.FastOpenGL.X11Decision(null,
+                        "unsupported: the bundled GL libraries could not be installed");
+            } else if (!egl) {
+                xServer.enableServerGlx();
+                glxLine = "x11 glx: server GLX + DRI3/Present 1.2 on (" + decision.why + ")";
+            }
+        }
+        String line = decision
+                + " | fps hud: " + applyGlLaunchSwitch(com.winhub.hernandez.core.FastOpenGL.FPS_HUD)
+                + " | vsync off: " + applyGlLaunchSwitch(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF);
+        Log.i("XServerDisplayActivity", line + (detail != null ? " - " + detail : ""));
+        if (glxLine != null) Log.i("XServerDisplayActivity", glxLine);
+        if (wineDebugWriter != null) {
+            wineDebugWriter.println(line);
+            if (detail != null) wineDebugWriter.println(detail);
+            if (glxLine != null) wineDebugWriter.println(glxLine);
+        }
+    }
+
+    /**
+     * Resolve one plain OpenGL switch (shortcut override, else container) and export its variable when
+     * on, unless the environment variables already set it. Returns its part of the log line.
+     */
+    private String applyGlLaunchSwitch(com.winhub.hernandez.core.GlLaunchSwitch sw) {
+        String game = shortcut != null ? com.winhub.hernandez.core.FastOpenGL.normalize(shortcut.getExtra(sw.extra)) : null;
+        boolean on = sw.requested(container.getExtra(sw.extra), shortcut != null ? shortcut.getExtra(sw.extra) : null);
+        String why = game != null ? "game" : "container";
+        if (!on) return "off (" + why + ")";
+        if (envVars.has(sw.envName))
+            return "on (" + why + ", " + sw.envName + "=" + envVars.get(sw.envName) + " is yours, kept)";
+        envVars.put(sw.envName, sw.envValue);
+        return "on (" + why + ", " + sw.envName + "=" + sw.envValue + ")";
+    }
+
     /** The effective env (container first, shortcut second, so the shortcut wins), or null. */
     private EnvVars effectiveUserEnv() {
         if (container == null) return null;
@@ -7702,6 +7766,13 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // Sync selector: the ONE writer of WINEESYNC / WINENTSYNC (and the remover of WINEFSYNC). After
         // every env merge so a stale value in the container/shortcut env string can't fight it.
         applySyncModeEnv();
+
+        // Fast OpenGL (the bundled Mesa through Wine's EGL backend or winex11's GLX on the X server's
+        // server-side GLX, so Zink presents through a Vulkan swapchain instead of XMesa's finish +
+        // readback + XPutImage per frame; core.FastOpenGL / X11Egl), plus "Show OpenGL FPS" and
+        // "OpenGL vsync off". After every env merge so a value the user typed wins, and before the X
+        // server's socket opens (the GLX route turns server GLX on).
+        applyFastOpenGLEnv();
 
         // Create our overall XEnvironment with various components
         preloaderDialog.step(3, "Building environment…");

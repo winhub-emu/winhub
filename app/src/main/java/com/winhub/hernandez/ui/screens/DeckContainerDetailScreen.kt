@@ -461,6 +461,40 @@ internal fun DeckContainerDetailScreen(
                             }
                         }
                         }
+                        // OpenGL (core.FastOpenGL). Fast needs a Turnip driver and the bundled X11 GL set;
+                        // Show FPS / Vsync off reach Mesa on GLX and EGL alike, so they are never locked.
+                        DeckGroup("OpenGL") {
+                            val fastGlDriverVersion = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
+                                .getVersion(viewModel.graphicsDriverConfig) ?: ""
+                            val fastGlDriverOk = remember(fastGlDriverVersion) {
+                                com.winhub.hernandez.core.FastOpenGL.driverUsable(context, fastGlDriverVersion)
+                            }
+                            val fastGlBundled = remember { com.winhub.hernandez.core.X11Egl.isBundled(context) }
+                            val fastGlReason = com.winhub.hernandez.core.FastOpenGL.unavailableReason(fastGlDriverOk, fastGlBundled)
+                            DeckRow(
+                                label = com.winhub.hernandez.core.FastOpenGL.TITLE,
+                                hint = com.winhub.hernandez.ui.components.openGLFastNote(fastGlReason)
+                                    ?.replaceFirstChar { it.uppercase() }
+                                    ?: com.winhub.hernandez.core.FastOpenGL.HINT,
+                                control = {
+                                    if (fastGlReason == null) {
+                                        DeckToggle(viewModel.fastOpenGL) { viewModel.fastOpenGL = it }
+                                    } else {
+                                        Text("Off", color = DeckPalette.onSurfaceVariant)
+                                    }
+                                },
+                            )
+                            DeckRow(
+                                label = com.winhub.hernandez.core.FastOpenGL.FPS_HUD.title,
+                                hint = com.winhub.hernandez.core.FastOpenGL.FPS_HUD.hint,
+                                control = { DeckToggle(viewModel.glFpsHud) { viewModel.glFpsHud = it } },
+                            )
+                            DeckRow(
+                                label = com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.title,
+                                hint = com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.hint,
+                                control = { DeckToggle(viewModel.glVsyncOff) { viewModel.glVsyncOff = it } },
+                            )
+                        }
                         DeckGroup("Display") {
                         DeckChoiceRow(
                             label = "Fullscreen",

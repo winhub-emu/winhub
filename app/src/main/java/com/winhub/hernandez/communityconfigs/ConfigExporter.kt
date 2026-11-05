@@ -47,6 +47,11 @@ object ConfigExporter {
         "fexcorePreset", "cpuList", "startupSelection", "inputType", "exclusiveXInput", "disableXinput",
         "simTouchScreen", "numControllers", "controlsProfile", "wincomponents", "midiSoundFont",
         "lc_all", "autoCloseOnExit",
+        // Fast OpenGL ("1" / "0"); an importer whose driver can't do it stays on the old path at
+        // launch (core.FastOpenGL).
+        "fastOpenGL",
+        // Show OpenGL FPS / OpenGL vsync off ("1" / "0"; GALLIUM_HUD=fps / vblank_mode=0 at launch).
+        "glFpsHud", "glVsyncOff",
         // Community-config coverage pass (2026-07): per-game HUD blob + motion/refresh/frame-gen/
         // vibration/upscaler overrides that were previously dropped. Each round-trips as a scalar the
         // import write loop applies verbatim; the launch path in XServerDisplayActivity honors every one

@@ -23,6 +23,7 @@ public class Window extends XResource {
     public enum MapState {UNMAPPED, UNVIEWABLE, VIEWABLE}
     public enum WMHints {FLAGS, INPUT, INITIAL_STATE, ICON_PIXMAP, ICON_WINDOW, ICON_X, ICON_Y, ICON_MASK, WINDOW_GROUP}
     private Drawable content;
+    private boolean compositeRedirected = false;
     private short x;
     private short y;
     private short width;
@@ -111,6 +112,16 @@ public class Window extends XResource {
 
     public Drawable getContent() {
         return content;
+    }
+
+    // XComposite bookkeeping. Our host compositor already draws every window, so this flag is
+    // advisory only (tracks REDIRECT/UNREDIRECT state so the extension can honour BadAccess/BadValue).
+    public boolean isCompositeRedirected() {
+        return compositeRedirected;
+    }
+
+    public void setCompositeRedirected(boolean compositeRedirected) {
+        this.compositeRedirected = compositeRedirected;
     }
 
     public void setContent(Drawable content) {

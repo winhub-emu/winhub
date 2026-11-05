@@ -159,6 +159,12 @@ internal object KnownEnvVars {
         // Wine extras
         KnownEnvVar("WINE_DISABLE_FULLSCREEN_HACK", EnvVarType.CHECKBOX, listOf("0", "1")),
         KnownEnvVar("WINE_X11FORCEGLX", EnvVarType.CHECKBOX, listOf("0", "1")),
+        // Power-user overrides of the "Fast OpenGL" setting (core.FastOpenGL / X11Egl):
+        // WINHUB_X11_EGL=0 off, =1 EGL route; WINHUB_X11_GLX=1 GLX route (server-side GLX).
+        KnownEnvVar("WINHUB_X11_EGL", EnvVarType.CHECKBOX, listOf("0", "1")),
+        KnownEnvVar("WINHUB_X11_GLX", EnvVarType.CHECKBOX, listOf("0", "1")),
+        // Mesa's GL vsync; the "OpenGL vsync off" setting writes vblank_mode=0 unless this is typed.
+        KnownEnvVar("vblank_mode", EnvVarType.SELECT, listOf("0", "1", "2", "3")),
         KnownEnvVar("WINE_GST_NO_GL", EnvVarType.CHECKBOX, listOf("0", "1")),
         // Mali BCn decode layer (leegao / Fcharan libbcn_layer.so). On Adreno the app keeps these
         // OFF automatically (native BCn); setting them here only matters on Mali/non-Qualcomm GPUs.

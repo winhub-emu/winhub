@@ -89,6 +89,16 @@ object ShortcutExporter {
         put(effective, "numControllers", shortcut.getExtra("numControllers"))
         put(effective, "controlsProfile", shortcut.getExtra("controlsProfile"))
         put(effective, "autoCloseOnExit", shortcut.getExtra("autoCloseOnExit"))
+        // Fast OpenGL: effective = this game's override, else the container's switch (default on).
+        put(effective, com.winhub.hernandez.core.FastOpenGL.EXTRA,
+            if (com.winhub.hernandez.core.FastOpenGL.requested(
+                    container?.getExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA),
+                    shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA))) "1" else "0")
+        // Show OpenGL FPS / OpenGL vsync off: the same effective resolve (default off).
+        for (sw in listOf(com.winhub.hernandez.core.FastOpenGL.FPS_HUD, com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF)) {
+            put(effective, sw.extra,
+                if (sw.requested(container?.getExtra(sw.extra), shortcut.getExtra(sw.extra))) "1" else "0")
+        }
 
         // Community-config coverage pass (2026-07). Container-level settings resolve EFFECTIVE exactly
         // as dxwrapperConfig/screenSize above do — shortcut override via orDefault, else the container

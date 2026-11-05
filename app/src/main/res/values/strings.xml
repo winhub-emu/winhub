@@ -537,6 +537,15 @@
         Game settings follow the container unless you pick something else for that game.<br /><br />
         <i>Sets at launch: esync → WINEESYNC=1 · ntsync → WINENTSYNC=1 + WINEESYNC=1 · wineserver → WINEESYNC=0. Any of these typed into Environment Variables is replaced by this setting.</i>
     ]]></string>
+    <string name="help_opengl_settings"><![CDATA[
+        <b>OpenGL settings</b><br /><br />
+        <b>Fast</b> — sends an OpenGL game\'s frames straight to the screen through Vulkan (the route DXVK games take) instead of copying every frame back first. Several times faster, and it also speeds up DirectDraw and older Direct3D games through WineD3D. It works with any Wine layer: layers with Wine\'s EGL backend go through EGL, everything else (older Wine, and every x86-64 layer) through GLX. It needs a Turnip graphics driver; without one it is greyed and games use the old path. On by default; turn it off for a game that shows a black screen, crashes or draws wrongly.<br /><br />
+        <b>Show FPS</b> — Mesa\'s frames-per-second counter in the top-left corner of OpenGL games. DXVK games don\'t show it. Off by default.<br /><br />
+        <b>Vsync off</b> — lets OpenGL games run above the screen\'s refresh rate instead of waiting for each refresh. You may see tearing. Off by default.<br /><br />
+        None of these speed up game time: a very old game that ties its speed to the frame rate can run too fast — cap it with the FPS limiter.<br /><br />
+        <b>Auto</b> (game settings) — follows the container\'s setting; On or Off applies to that game only. Changes take effect the next time the game starts.<br /><br />
+        <i>Sets at launch: Fast → the bundled OpenGL libraries with Zink, plus WINE_USE_EGL=1 on the EGL route or the X server\'s GLX on the GLX route (WINHUB_X11_EGL=0 turns it off, WINHUB_X11_EGL=1 forces EGL, WINHUB_X11_GLX=1 forces GLX) · Show FPS → GALLIUM_HUD=fps · Vsync off → vblank_mode=0. A GALLIUM_HUD or vblank_mode you typed into Environment Variables is kept.</i>
+    ]]></string>
     <string name="help_graphics_driver"><![CDATA[
         <b>Graphics driver (wrapper)</b><br /><br />
         The Vulkan driver the container uses to talk to your GPU. Different wrappers suit different GPUs — <i><b>Adreno</b></i> (Snapdragon) has the best support; <i><b>Mali</b></i> phones may need a specific wrapper to handle compressed textures. Stick with the default unless you\'re troubleshooting.
@@ -2241,6 +2250,27 @@ CPU decoding is slower but far more reliable under emulation.
 <b>1</b> : New pipeline.<br /><br />
 <b>When to change:</b> try the other setting when cutscenes are black, silent, stuttering or hang
 the game. Which one works varies by title.
+        ]]></string>
+    <string name="env_var_help__vblank_mode"><![CDATA[
+        Mesa\'s OpenGL vsync control.<br /><br />
+<b>0</b> : Never wait for the screen refresh (vsync off).<br /><br />
+<b>When to change:</b> use Vsync off in the OpenGL card in the container or game settings
+instead; it sets vblank_mode=0. A value typed here is kept and wins over the switch.
+        ]]></string>
+    <string name="env_var_help__winhub_x11_egl"><![CDATA[
+        Overrides the Fast OpenGL setting.<br /><br />
+<b>1</b> : On through Wine\'s EGL backend, even where the setting is off or greyed (still needs the
+libraries bundled with the app, and a layer whose Wine has the EGL backend).<br />
+<b>0</b> : Off, whatever the setting says (also beats WINHUB_X11_GLX).<br /><br />
+<b>When to change:</b> almost never — use Fast in the OpenGL card in the container or game settings,
+which picks EGL or GLX by layer. This is for testing a layer or driver the switch does not offer it on.
+        ]]></string>
+    <string name="env_var_help__winhub_x11_glx"><![CDATA[
+        Forces Fast OpenGL through GLX: the X server turns on its own GLX support (and DRI3/Present
+1.2) for the session, and Wine\'s GLX loads the bundled OpenGL library with Zink.<br /><br />
+<b>1</b> : GLX route on, whatever the layer.<br /><br />
+<b>When to change:</b> to try the GLX route on a layer that would otherwise use EGL.
+Older Wine and x86-64 layers already take this route. WINHUB_X11_EGL=0 still turns Fast OpenGL off.
         ]]></string>
     <string name="env_var_help__wine_x11forceglx"><![CDATA[
         Forces the X11 driver down the GLX path rather than its newer default.<br /><br />

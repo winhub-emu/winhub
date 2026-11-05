@@ -464,6 +464,37 @@ public class Container {
         catch (JSONException e) {}
     }
 
+    // --- Fast OpenGL (per-container), stored in extraData. ---
+    // OpenGL through Wine's EGL backend (or winex11's GLX) + Zink instead of XMesa's readback per
+    // frame (core.FastOpenGL, core.X11Egl). Default ON; the launch still checks the layer and driver
+    // can do it. A shortcut may override per game with the same-named extra.
+    public boolean isFastOpenGL() {
+        return com.winhub.hernandez.core.FastOpenGL.containerOn(getExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA));
+    }
+
+    public void setFastOpenGL(boolean enabled) {
+        putExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA, enabled ? "1" : "0");
+    }
+
+    // --- Show OpenGL FPS / OpenGL vsync off (per-container), stored in extraData. ---
+    // GALLIUM_HUD=fps and vblank_mode=0 at launch (core.FastOpenGL.FPS_HUD / VSYNC_OFF). Default OFF.
+    // A shortcut may override per game with the same-named extra.
+    public boolean isGlFpsHud() {
+        return com.winhub.hernandez.core.FastOpenGL.FPS_HUD.containerOn(getExtra(com.winhub.hernandez.core.FastOpenGL.FPS_HUD.extra));
+    }
+
+    public void setGlFpsHud(boolean enabled) {
+        putExtra(com.winhub.hernandez.core.FastOpenGL.FPS_HUD.extra, enabled ? "1" : "0");
+    }
+
+    public boolean isGlVsyncOff() {
+        return com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.containerOn(getExtra(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.extra));
+    }
+
+    public void setGlVsyncOff(boolean enabled) {
+        putExtra(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.extra, enabled ? "1" : "0");
+    }
+
     // --- Display backend (per-container), stored in extraData ---
     // "x11" (default) = the Java X server + libwinlator compositor (winex11.drv).
     public static final String DISPLAY_BACKEND_X11 = "x11";

@@ -6650,6 +6650,30 @@ internal fun ShortcutSettingsDialogScreen(
         if (syncCaps?.isAvailable(m) != false && com.winhub.hernandez.core.SyncMode.normalize(m) != null)
             syncOverride = if (m == containerSyncEffective) null else m
     }
+    // Fast OpenGL per-game override (extra "fastOpenGL"; core.FastOpenGL): "" = follow the container,
+    // "1" / "0" = this game only. Locked with one reason when the game's driver isn't a Turnip or the
+    // APK has no X11 GL set. Any layer works: the launch picks the EGL or GLX route.
+    var fastGlOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.FastOpenGL.normalize(
+            shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA)) ?: "")
+    }
+    val fastGlDriverVersion = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
+        .getVersion(graphicsDriverConfig) ?: ""
+    val fastGlDriverOk = remember(fastGlDriverVersion) {
+        com.winhub.hernandez.core.FastOpenGL.driverUsable(context, fastGlDriverVersion)
+    }
+    val fastGlBundled = remember { com.winhub.hernandez.core.X11Egl.isBundled(context) }
+    val fastGlLocked = com.winhub.hernandez.core.FastOpenGL.unavailableReason(fastGlDriverOk, fastGlBundled)
+    // Show OpenGL FPS / OpenGL vsync off per-game overrides (extras "glFpsHud" / "glVsyncOff"): same
+    // "" / "1" / "0" as Fast OpenGL, never locked.
+    var glFpsHudOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.FastOpenGL.normalize(
+            shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.FPS_HUD.extra)) ?: "")
+    }
+    var glVsyncOffOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.FastOpenGL.normalize(
+            shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.extra)) ?: "")
+    }
     // The sync variables left the env string for the Sync selector (read into syncOverride above),
     // so they're dropped here and on save.
     var envVarsStr by remember {
@@ -6944,6 +6968,11 @@ internal fun ShortcutSettingsDialogScreen(
             // extra = follow the container). A pick the layer can't run saves as what it resolves to.
             putExtra(com.winhub.hernandez.core.SyncMode.EXTRA,
                 syncOverride?.let { o -> syncCaps?.resolve(o) ?: o }?.takeIf { it != containerSyncEffective })
+            // OpenGL overrides: "" clears the extra (follow the container). Kept as picked while Fast is
+            // locked, so a later driver change brings the choice back.
+            putExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA, fastGlOverride.ifEmpty { null })
+            putExtra(com.winhub.hernandez.core.FastOpenGL.FPS_HUD.extra, glFpsHudOverride.ifEmpty { null })
+            putExtra(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.extra, glVsyncOffOverride.ifEmpty { null })
             putExtra("cpuList", cpuList)
             saveData()
         }
@@ -6997,6 +7026,7 @@ internal fun ShortcutSettingsDialogScreen(
                     add("dxWrapper"); add("dxConfig"); add("renderer")
                     if (selectedRenderer == "Vulkan") { add("vkNative"); add("vkColors"); add("vkPresent"); add("vkDriver") }
                     add("renderScale")
+                    add("openglHelp"); add("fastOpenGL"); add("glFpsHud"); add("glVsyncOff")
                 }
             }
             4 -> { // Controller
@@ -7273,6 +7303,73 @@ internal fun ShortcutSettingsDialogScreen(
                             selected = renderScaleLabels[rsIdx],
                             onSelect = { renderScale = renderScaleValues[renderScaleLabels.indexOf(it)] }
                         )
+                    }
+
+                    // OpenGL card (per-game): Fast / Show FPS / Vsync off, each `Auto | On | Off` (Auto =
+                    // follow the container), under one "?" and a summary of what the game will get. Fast
+                    // is locked to Auto with a short reason. D-pad: the "?" and each row are stops;
+                    // Left/Right step the pills, A goes back to Auto. Launch-only (EGL vs GLX is fixed
+                    // when the game starts), so there is no drawer twin.
+                    run {
+                        val glOptions = com.winhub.hernandez.ui.components.OPENGL_OVERRIDES
+                        val fpsSw = com.winhub.hernandez.core.FastOpenGL.FPS_HUD
+                        val vsyncSw = com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF
+                        val pickFastGl: (String) -> Unit = { v -> if (fastGlLocked == null || v.isEmpty()) fastGlOverride = v }
+                        val pickFps: (String) -> Unit = { v -> glFpsHudOverride = v }
+                        val pickVsync: (String) -> Unit = { v -> glVsyncOffOverride = v }
+                        val stepActions = { value: String, pick: (String) -> Unit ->
+                            ControlActions(
+                                activate = { pick("") },
+                                onLeft = { glOptions.getOrNull(glOptions.indexOf(value) - 1)?.let(pick) },
+                                onRight = { glOptions.getOrNull(glOptions.indexOf(value) + 1)?.let(pick) },
+                            )
+                        }
+                        SideEffect {
+                            dp.actions["openglHelp"] = ControlActions(activate = { helpRes = R.string.help_opengl_settings })
+                            dp.actions["fastOpenGL"] = stepActions(fastGlOverride, pickFastGl)
+                            dp.actions["glFpsHud"] = stepActions(glFpsHudOverride, pickFps)
+                            dp.actions["glVsyncOff"] = stepActions(glVsyncOffOverride, pickVsync)
+                        }
+                        val containerFast = shortcut.container.isFastOpenGL()
+                        val containerFps = fpsSw.containerOn(shortcut.container.getExtra(fpsSw.extra))
+                        val containerVsync = vsyncSw.containerOn(shortcut.container.getExtra(vsyncSw.extra))
+                        val fastEffective = fastGlLocked == null &&
+                            com.winhub.hernandez.core.FastOpenGL.requested(if (containerFast) "1" else "0", fastGlOverride)
+                        com.winhub.hernandez.ui.components.OpenGLCard(
+                            onHelp = { helpRes = R.string.help_opengl_settings },
+                            summary = com.winhub.hernandez.ui.components.openGLSummary(
+                                fastEffective,
+                                fpsSw.requested(if (containerFps) "1" else "0", glFpsHudOverride),
+                                vsyncSw.requested(if (containerVsync) "1" else "0", glVsyncOffOverride)),
+                            helpFocused = dp.isFocused("openglHelp"),
+                            modifier = Modifier.dpadBringIntoView(dp, "openglHelp"),
+                        ) {
+                            com.winhub.hernandez.ui.components.OpenGLCardRow(
+                                com.winhub.hernandez.ui.components.OPENGL_FAST_ICON, "Fast",
+                                com.winhub.hernandez.ui.components.openGLFastNote(fastGlLocked),
+                                focused = dp.isFocused("fastOpenGL"),
+                                modifier = Modifier.dpadBringIntoView(dp, "fastOpenGL"),
+                            ) {
+                                com.winhub.hernandez.ui.components.OpenGLPills(fastGlOverride,
+                                    autoOn = containerFast, locked = fastGlLocked != null, onPick = pickFastGl)
+                            }
+                            com.winhub.hernandez.ui.components.OpenGLCardRow(
+                                com.winhub.hernandez.ui.components.OPENGL_FPS_ICON, "Show FPS", null,
+                                focused = dp.isFocused("glFpsHud"),
+                                modifier = Modifier.dpadBringIntoView(dp, "glFpsHud"),
+                            ) {
+                                com.winhub.hernandez.ui.components.OpenGLPills(glFpsHudOverride,
+                                    autoOn = containerFps, locked = false, onPick = pickFps)
+                            }
+                            com.winhub.hernandez.ui.components.OpenGLCardRow(
+                                com.winhub.hernandez.ui.components.OPENGL_VSYNC_ICON, "Vsync off", null,
+                                focused = dp.isFocused("glVsyncOff"),
+                                modifier = Modifier.dpadBringIntoView(dp, "glVsyncOff"),
+                            ) {
+                                com.winhub.hernandez.ui.components.OpenGLPills(glVsyncOffOverride,
+                                    autoOn = containerVsync, locked = false, onPick = pickVsync)
+                            }
+                        }
                     }
                     }
                             }
@@ -8714,6 +8811,30 @@ internal fun DeckShortcutSettingsScreen(
         if (syncCaps?.isAvailable(m) != false && com.winhub.hernandez.core.SyncMode.normalize(m) != null)
             syncOverride = if (m == containerSyncEffective) null else m
     }
+    // Fast OpenGL per-game override (extra "fastOpenGL"; core.FastOpenGL): "" = follow the container,
+    // "1" / "0" = this game only. Locked with one reason when the game's driver isn't a Turnip or the
+    // APK has no X11 GL set. Any layer works: the launch picks the EGL or GLX route.
+    var fastGlOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.FastOpenGL.normalize(
+            shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA)) ?: "")
+    }
+    val fastGlDriverVersion = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
+        .getVersion(graphicsDriverConfig) ?: ""
+    val fastGlDriverOk = remember(fastGlDriverVersion) {
+        com.winhub.hernandez.core.FastOpenGL.driverUsable(context, fastGlDriverVersion)
+    }
+    val fastGlBundled = remember { com.winhub.hernandez.core.X11Egl.isBundled(context) }
+    val fastGlLocked = com.winhub.hernandez.core.FastOpenGL.unavailableReason(fastGlDriverOk, fastGlBundled)
+    // Show OpenGL FPS / OpenGL vsync off per-game overrides (extras "glFpsHud" / "glVsyncOff"): same
+    // "" / "1" / "0" as Fast OpenGL, never locked.
+    var glFpsHudOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.FastOpenGL.normalize(
+            shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.FPS_HUD.extra)) ?: "")
+    }
+    var glVsyncOffOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.FastOpenGL.normalize(
+            shortcut.getExtra(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.extra)) ?: "")
+    }
     // The sync variables left the env string for the Sync selector (read into syncOverride above),
     // so they're dropped here and on save.
     var envVarsStr by remember {
@@ -8985,6 +9106,11 @@ internal fun DeckShortcutSettingsScreen(
             // extra = follow the container). A pick the layer can't run saves as what it resolves to.
             putExtra(com.winhub.hernandez.core.SyncMode.EXTRA,
                 syncOverride?.let { o -> syncCaps?.resolve(o) ?: o }?.takeIf { it != containerSyncEffective })
+            // OpenGL overrides: "" clears the extra (follow the container). Kept as picked while Fast is
+            // locked, so a later driver change brings the choice back.
+            putExtra(com.winhub.hernandez.core.FastOpenGL.EXTRA, fastGlOverride.ifEmpty { null })
+            putExtra(com.winhub.hernandez.core.FastOpenGL.FPS_HUD.extra, glFpsHudOverride.ifEmpty { null })
+            putExtra(com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF.extra, glVsyncOffOverride.ifEmpty { null })
             putExtra("cpuList", cpuList)
             saveData()
         }
@@ -9548,6 +9674,42 @@ internal fun DeckShortcutSettingsScreen(
                                             onPick = { renderScale = it },
                                         )
                                     }
+                                }
+                            }
+                            if (!isLinuxEntry) {
+                                // OpenGL (per-game): each `Auto | On | Off`, Auto = follow the container.
+                                // Fast is locked to Auto with a short reason when it can't run.
+                                DeckGroup("OpenGL") {
+                                    val fpsSw = com.winhub.hernandez.core.FastOpenGL.FPS_HUD
+                                    val vsyncSw = com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF
+                                    val containerFast = shortcut.container.isFastOpenGL()
+                                    val containerFps = fpsSw.containerOn(shortcut.container.getExtra(fpsSw.extra))
+                                    val containerVsync = vsyncSw.containerOn(shortcut.container.getExtra(vsyncSw.extra))
+                                    fun glOptions(autoOn: Boolean) = listOf(
+                                        "" to "Auto (" + (if (autoOn) "On" else "Off") + ")", "1" to "On", "0" to "Off")
+                                    DeckChoiceRow(
+                                        label = com.winhub.hernandez.core.FastOpenGL.TITLE,
+                                        hint = com.winhub.hernandez.ui.components.openGLFastNote(fastGlLocked)
+                                            ?.replaceFirstChar { it.uppercase() }
+                                            ?: com.winhub.hernandez.core.FastOpenGL.HINT,
+                                        options = if (fastGlLocked != null) glOptions(false).take(1) else glOptions(containerFast),
+                                        selected = if (fastGlLocked != null) "" else fastGlOverride,
+                                        onPick = { if (fastGlLocked == null) fastGlOverride = it },
+                                    )
+                                    DeckChoiceRow(
+                                        label = fpsSw.title,
+                                        hint = fpsSw.hint,
+                                        options = glOptions(containerFps),
+                                        selected = glFpsHudOverride,
+                                        onPick = { glFpsHudOverride = it },
+                                    )
+                                    DeckChoiceRow(
+                                        label = vsyncSw.title,
+                                        hint = vsyncSw.hint,
+                                        options = glOptions(containerVsync),
+                                        selected = glVsyncOffOverride,
+                                        onPick = { glVsyncOffOverride = it },
+                                    )
                                 }
                             }
                         }

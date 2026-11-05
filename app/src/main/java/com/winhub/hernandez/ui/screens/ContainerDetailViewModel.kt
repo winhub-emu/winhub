@@ -241,6 +241,14 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     // Unreal Engine HDR (extra "unrealHdr": off | dx12 | dx11, absent = off).
     // See core.UnrealHdr.
     var unrealHdr by mutableStateOf(com.winhub.hernandez.core.UnrealHdr.OFF)
+    // Fast OpenGL (extra "fastOpenGL": "1" / "0", absent = on; core.FastOpenGL). fastOpenGL is the
+    // stored switch. Any layer can use it (the launch picks the EGL or GLX route), so availability is
+    // judged in the screen from the picked driver alone.
+    var fastOpenGL by mutableStateOf(true)
+    // Show OpenGL FPS / OpenGL vsync off (extras "glFpsHud" / "glVsyncOff", absent = off): plain
+    // launch switches beside Fast OpenGL, never greyed.
+    var glFpsHud by mutableStateOf(false)
+    var glVsyncOff by mutableStateOf(false)
     // Render scale (supersampling) — stored via the "renderScale" extra (no DB field). "1.0" = Off.
     var renderScale         by mutableStateOf("1.0")
     var autoCloseOnExit     by mutableStateOf(true)
@@ -662,6 +670,9 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         surfaceDirectPrecisePresentation  = seed?.isSurfaceDirectPrecisePresentation() ?: false
         displayBackend           = Container.DISPLAY_BACKEND_X11
         unrealHdr                = seed?.getUnrealHdr() ?: com.winhub.hernandez.core.UnrealHdr.OFF
+        fastOpenGL               = seed?.isFastOpenGL() ?: true
+        glFpsHud                 = seed?.isGlFpsHud() ?: false
+        glVsyncOff               = seed?.isGlVsyncOff() ?: false
         renderScale              = seed?.getExtra("renderScale", "1.0") ?: "1.0"
         autoCloseOnExit          = (seed?.getExtra("autoCloseOnExit", "1") ?: "1") == "1"
         selectedDXWrapper        = identifierToDisplay(seed?.getDXWrapper() ?: Container.DEFAULT_DXWRAPPER, dxWrapperEntries)
@@ -1226,6 +1237,9 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setSurfaceDirectPrecisePresentation(surfaceDirectPrecisePresentation)
         c.setDisplayBackend(Container.DISPLAY_BACKEND_X11)
         c.setUnrealHdr(unrealHdr)                   // off clears the extra
+        c.setFastOpenGL(fastOpenGL)                 // kept as chosen, also while the driver makes it unavailable
+        c.setGlFpsHud(glFpsHud)
+        c.setGlVsyncOff(glVsyncOff)
         c.putExtra("renderScale", if (renderScale == "1.0") null else renderScale)
         c.putExtra("autoCloseOnExit", if (autoCloseOnExit) null else "0")  // default ON
         c.setInputType(inputType)

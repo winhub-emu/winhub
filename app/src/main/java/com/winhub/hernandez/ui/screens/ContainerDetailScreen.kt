@@ -1010,6 +1010,41 @@ private fun TopLevelFields(
             HudToggleRow("SurfaceDirect: submit every buffer", viewModel.surfaceDirectBackPressure) { viewModel.surfaceDirectBackPressure = it }
             HudToggleRow("SurfaceDirect: precise presentation", viewModel.surfaceDirectPrecisePresentation) { viewModel.surfaceDirectPrecisePresentation = it }
         }
+        // OpenGL card (core.FastOpenGL): Fast / Show FPS / Vsync off as three compact switch rows under
+        // one "?". Fast greys with one short reason when the driver isn't a Turnip or the APK has no
+        // X11 GL set. Show FPS / Vsync off reach Mesa on GLX and EGL alike, so they are never greyed.
+        run {
+            Spacer(Modifier.height(8.dp))
+            val fastGlDriverVersion = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
+                .getVersion(viewModel.graphicsDriverConfig) ?: ""
+            val fastGlDriverOk = remember(fastGlDriverVersion) {
+                com.winhub.hernandez.core.FastOpenGL.driverUsable(context, fastGlDriverVersion)
+            }
+            val fastGlBundled = remember { com.winhub.hernandez.core.X11Egl.isBundled(context) }
+            val fastGlReason = com.winhub.hernandez.core.FastOpenGL.unavailableReason(fastGlDriverOk, fastGlBundled)
+            com.winhub.hernandez.ui.components.OpenGLCard(onHelp = { helpRes = R.string.help_opengl_settings }) {
+                com.winhub.hernandez.ui.components.OpenGLCardRow(
+                    com.winhub.hernandez.ui.components.OPENGL_FAST_ICON, "Fast",
+                    com.winhub.hernandez.ui.components.openGLFastNote(fastGlReason)
+                ) {
+                    Switch(
+                        enabled = fastGlReason == null,
+                        checked = viewModel.fastOpenGL && fastGlReason == null,
+                        onCheckedChange = { viewModel.fastOpenGL = it }
+                    )
+                }
+                com.winhub.hernandez.ui.components.OpenGLCardRow(
+                    com.winhub.hernandez.ui.components.OPENGL_FPS_ICON, "Show FPS", null
+                ) {
+                    Switch(checked = viewModel.glFpsHud, onCheckedChange = { viewModel.glFpsHud = it })
+                }
+                com.winhub.hernandez.ui.components.OpenGLCardRow(
+                    com.winhub.hernandez.ui.components.OPENGL_VSYNC_ICON, "Vsync off", null
+                ) {
+                    Switch(checked = viewModel.glVsyncOff, onCheckedChange = { viewModel.glVsyncOff = it })
+                }
+            }
+        }
         }  // end GRAPHICS block
         if (tab == "GENERAL") {
         Spacer(Modifier.height(8.dp))

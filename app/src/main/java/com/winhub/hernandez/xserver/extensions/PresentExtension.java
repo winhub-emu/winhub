@@ -237,7 +237,7 @@ public class PresentExtension implements Extension {
             outputStream.writeShort(client.getSequenceNumber());
             outputStream.writeInt(0);
             outputStream.writeInt(1);
-            outputStream.writeInt(0);
+            outputStream.writeInt(client.xServer.isServerGlxEnabled() ? 2 : 0); // Present 1.2 only with the opt-in server GLX
             outputStream.writePad(16);
         }
     }

@@ -271,6 +271,9 @@ public class ContentsManager {
                     // but the files never landed -> "downloaded but not usable")
         }
 
+        // A newly installed layer may differ in what it supports: drop the cached verdicts.
+        com.winhub.hernandez.core.SyncSupport.invalidate();
+        com.winhub.hernandez.core.FastOpenGL.invalidate();
         callback.onSucceed(profile);
     }
 
@@ -431,6 +434,8 @@ public class ContentsManager {
         FileUtils.delete(getInstallDir(context, match));
         list.remove(match);
         syncContents();
+        com.winhub.hernandez.core.SyncSupport.invalidate();
+        com.winhub.hernandez.core.FastOpenGL.invalidate();
     }
 
     public static String getEntryName(ContentProfile profile) {
