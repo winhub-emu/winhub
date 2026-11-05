@@ -83,6 +83,7 @@ import com.winhub.hernandez.ui.screens.DeckEditorCategoryRow
 import com.winhub.hernandez.ui.screens.DeckPalette
 import com.winhub.hernandez.ui.screens.DeckDragFrame
 import com.winhub.hernandez.ui.screens.deckDragItem
+import com.winhub.hernandez.ui.screens.deckPageBackground
 import com.winhub.hernandez.ui.screens.DeckRow
 import com.winhub.hernandez.ui.screens.DeckStretchyTabs
 import com.winhub.hernandez.ui.screens.LocalDeckTabs
@@ -445,7 +446,7 @@ internal fun SaveManagerScreen(
     // Root Box so the status bar can float as an overlay over whichever tab is showing (matches how
     // the store screens place UninstallResultBar at their outermost container).
     Box(modifier = Modifier.fillMaxSize()) {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().deckPageBackground(MaterialTheme.colorScheme.background)) {
         // Header bar — mirrors the Steam Library header idiom (back + title). Deck Mode already
         // sits inside the shell's rail, so it skips this header and uses the pill strip below.
         if (!deckMode) Row(

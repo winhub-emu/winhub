@@ -28,9 +28,9 @@ import kotlin.math.sin
 
 private val TWO_PI = (2.0 * PI).toFloat()
 
-/** The basic tabs that get the liquid backdrop in portrait (not Stores, and not editors; see DeckModeScreen). */
+/** The tabs that get the liquid backdrop in portrait (not editors; see DeckModeScreen). */
 internal val liquidSections = setOf(
-    "home", "containers", "file_manager", "input_controls", "contents", "saves", "social_hub", "settings",
+    "home", "containers", "stores", "file_manager", "input_controls", "contents", "saves", "social_hub", "settings",
 )
 
 /**
