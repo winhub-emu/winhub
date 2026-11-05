@@ -1,56 +1,81 @@
 package com.winhub.hernandez.widget.fusionhud
 
+import java.util.Locale
+
 /**
- * Size modes for the Fusion HUD (the 4th selectable in-game overlay style). One shared color-coded
- * visual language, four amounts of detail — see the approved mockup. The config value is the lower-case
- * token stored under the `hudSize` key; the label is the user-facing string.
+ * Detail levels of the Fusion HUD, modelled on the Steam Deck's performance overlay: one visual
+ * language, four amounts of detail. The config value is the token stored under the `hudSize` key.
+ *
+ *  1. [FPS]        the FPS number and the engine tag
+ *  2. [GRAPH]      adds the frametime graph, the frametime in ms and battery watts
+ *  3. [STATS]      adds GPU, CPU, VRAM, RAM, temperatures, clocks and battery
+ *  4. [EVERYTHING] adds per-core load, the lows, GPU model, API/wrapper/Proton, resolution, network, swap
+ *                  and session time
+ *
+ * Configs saved before the levels existed carry `minimal`, `pill`, `tiles`, `full` or `mega`; [from]
+ * maps them onto the nearest level, so nobody's HUD changes meaning.
  */
 enum class FusionSize(val token: String, val label: String) {
-    FULL("full", "Full"),
-    TILES("tiles", "Tiles"),
-    PILL("pill", "Pill"),
-    MINIMAL("minimal", "Minimal"),
-    MEGA("mega", "Mega");
+    FPS("1", "1 · FPS"),
+    GRAPH("2", "2 · Graph"),
+    STATS("3", "3 · Stats"),
+    EVERYTHING("4", "4 · Everything");
 
-    /** Next size in the tap-cycle: Full → Tiles → Pill → Minimal → Mega → Full. */
+    /** 1 to 4. */
+    val level: Int get() = ordinal + 1
+
+    /** Next level in the tap-cycle: 1 → 2 → 3 → 4 → 1. */
     fun next(): FusionSize {
         val all = values()
         return all[(ordinal + 1) % all.size]
     }
 
     /**
-     * The metric toggle chips this size actually renders — the SINGLE source of truth queried by BOTH
-     * config surfaces ({@code FpsCounterConfigDialog} + in-game {@code XServerDrawer} HudContent) so the
-     * chip list can't drift from what the view draws. Chip ids are the chip LABELS used in the UI.
-     * (Hiding a chip is purely UI; buildConfig() still emits every key — strip-invariant.)
+     * The metric toggle chips this level actually renders: the SINGLE source of truth queried by BOTH
+     * config surfaces (the Deck HUD editor and the in-game drawer) so the chip list can't drift from what
+     * the view draws. Chip ids are the chip LABELS used in the UI. (Hiding a chip is purely UI;
+     * buildConfig() still emits every key.)
      */
     fun supportedChips(): Set<String> = when (this) {
-        MINIMAL -> MINIMAL_CHIPS
-        PILL -> PILL_CHIPS
-        FULL, TILES -> STANDARD_CHIPS
-        MEGA -> MEGA_CHIPS
+        FPS -> FPS_CHIPS
+        GRAPH -> GRAPH_CHIPS
+        STATS -> STATS_CHIPS
+        EVERYTHING -> EVERYTHING_CHIPS
     }
 
     companion object {
-        fun from(token: String?): FusionSize =
-            values().firstOrNull { it.token.equals(token, ignoreCase = true) } ?: FULL
+        /** A stored token to a level: "1".."4", or any size name from before the levels. */
+        fun from(token: String?): FusionSize = when (token?.trim()?.lowercase(Locale.US)) {
+            "1", "minimal" -> FPS
+            "2", "pill" -> GRAPH
+            "3", "tiles", "full" -> STATS
+            "4", "mega" -> EVERYTHING
+            else -> STATS
+        }
 
         // Chip-label ids (must match the labels the config UIs build). "Clock" is a small subtle
-        // corner readout available in EVERY size, so it's in all sets.
-        // The API/engine label ("Engine" chip) shows on the FPS row in EVERY size, so it's in all sets.
-        // "Wrapper" and "DX ver" are Mega-only: the wrapper appears solely below Mega's frametime graph,
-        // and "DX ver" gates the DX-version suffix on Mega's FPS-row engine label.
-        val MINIMAL_CHIPS = setOf("FPS", "FPS graph", "0.01% low", "FPS .1", "Engine", "Clock")
-        val PILL_CHIPS = setOf("FPS", "FPS graph", "GPU", "CPU", "VRAM", "RAM", "Battery", "GPU model", "FPS .1", "Engine", "Clock")
-        val STANDARD_CHIPS = setOf(
-            "FPS", "FPS graph", "GPU", "GPU temp", "CPU", "VRAM", "RAM", "Power", "Temp",
-            "Battery", "GPU model", "Engine", "0.01% low", "FPS .1", "Clock",
+        // readout available at every level, so it is in all sets.
+        val FPS_CHIPS = setOf("FPS", "FPS .1", "Engine", "Clock")
+        val GRAPH_CHIPS = FPS_CHIPS + setOf("FPS graph", "Power", "Battery")
+        val STATS_CHIPS = GRAPH_CHIPS + setOf("GPU", "GPU temp", "CPU", "Temp", "VRAM", "RAM")
+        val EVERYTHING_ONLY = setOf(
+            "GPU model", "0.01% low", "Per-core", "Swap", "Network", "Resolution", "Proton", "Wrapper",
+            "DX ver", "Session",
         )
-        val MEGA_ONLY = setOf(
-            "Per-core", "Swap", "Network", "Resolution", "Proton", "Wrapper", "DX ver", "Session",
-        )
-        val MEGA_CHIPS = STANDARD_CHIPS + MEGA_ONLY
+        val EVERYTHING_CHIPS = STATS_CHIPS + EVERYTHING_ONLY
     }
+}
+
+/**
+ * The HUD outline strength, 0..100. Older configs stored "off", "soft" or "strong"; those map to 0, 40
+ * and 70, and a number parses directly.
+ */
+internal fun parseHudOutline(v: String?): Int = when (v?.trim()?.lowercase(Locale.US)) {
+    null -> 40
+    "off" -> 0
+    "soft" -> 40
+    "strong" -> 70
+    else -> v.trim().toIntOrNull()?.coerceIn(0, 100) ?: 40
 }
 
 /**

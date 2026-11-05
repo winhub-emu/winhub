@@ -10,7 +10,6 @@ import android.view.Surface;
 import com.winhub.hernandez.container.Container;
 import com.winhub.hernandez.renderer.GPUImage;
 import com.winhub.hernandez.renderer.HostRenderer;
-import com.winhub.hernandez.widget.FrameRating;
 import com.winhub.hernandez.widget.XServerView;
 import com.winhub.hernandez.xserver.Bitmask;
 import com.winhub.hernandez.xserver.Cursor;
@@ -67,7 +66,6 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     private int surfaceWidth = 0;
     private int surfaceHeight = 0;
     private String unviewableWMClass = null;
-    private FrameRating classicHudRef = null;
     private IntConsumer hudFrameTick = null;
 
     // Only meaningful for SurfaceDirect, which the subclass configures.
@@ -282,8 +280,6 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     public void onGuestPresent(Window window) {
         if (destroyed || window == null) return;
         if (hudFrameTick != null) hudFrameTick.accept(window.id);
-        if (window.id == fpsWindowId && classicHudRef != null && classicHudRef.isAttachedToWindow())
-            classicHudRef.post(classicHudRef);
     }
 
     // ---- Direct (zero copy) presentation, used by the Present extension ----
@@ -300,8 +296,6 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     public void onUpdateWindowContentDirect(Window window, Drawable pixmap, short xOff, short yOff) {
         if (destroyed) return;
         if (hudFrameTick != null) hudFrameTick.accept(window.id);
-        if (window.id == fpsWindowId && classicHudRef != null && classicHudRef.isAttachedToWindow())
-            classicHudRef.post(classicHudRef);
 
         long key = directKey(window.id, pixmap.id);
         boolean added;
@@ -525,11 +519,6 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     @Override
     public void setFpsWindowId(int id) {
         fpsWindowId = id;
-    }
-
-    @Override
-    public void setFrameRating(Object fr) {
-        classicHudRef = fr instanceof FrameRating ? (FrameRating) fr : null;
     }
 
     /** Ticks the performance HUD for frames that bypass the CPU copy path. */

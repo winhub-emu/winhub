@@ -130,7 +130,7 @@ import com.winhub.hernandez.ui.screens.WatchdogSection
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
 import com.winhub.hernandez.ui.theme.LocalAccentDim
 import com.winhub.hernandez.ui.theme.WinlatorTheme
-import com.winhub.hernandez.widget.perfhud.parseHudOutline
+import com.winhub.hernandez.widget.fusionhud.parseHudOutline
 import com.winhub.hernandez.widget.exportHudDiagnostics
 
 // Accent colors route to the live MaterialTheme.colorScheme (primary/surface) so the drawer
@@ -2440,20 +2440,15 @@ private fun HudContent(state: XServerDrawerState) {
     // window is bound (see XServerDisplayActivity.hudCounterEnabled). The HUD group below hides.
     var hudEnabled by remember(cfg) { mutableStateOf(b("hudEnabled", "hudEnabled", "1")) }
 
-    // 4-way HUD style: classic | gamehub | gamenative | fusion.
-    val styles = listOf("classic", "gamehub", "gamenative", "fusion")
-    var hudStyle by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudStyle", "fusion")) }
-    val gameHub = hudStyle == "gamehub"
-    val gameNative = hudStyle == "gamenative"
-    val fusion = hudStyle == "fusion"
-    val rich = gameHub || gameNative || fusion   // opacity + FPS graph + GPU model + color/outline
-    // Fusion size mode (also live-cycled by tapping the Fusion HUD in-game).
-    val fusionSizes = listOf("full", "tiles", "pill", "minimal", "mega")
-    var fusionSize by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudSize", "pill")) }
-    // Chips the selected Fusion size actually renders (single source of truth in FusionSize).
+    // Fusion is the only HUD; a config saved with another hudStyle is rewritten as fusion on the next apply.
+    val hudStyle = "fusion"
+    // Detail level 1..4 (also stepped by tapping the HUD in-game). Older size names map across.
+    val fusionLevels = com.winhub.hernandez.widget.fusionhud.FusionSize.values().toList()
+    var fusionSize by remember(cfg) {
+        mutableStateOf(com.winhub.hernandez.widget.fusionhud.FusionSize.from(cfg.getOrDefault("hudSize", "3")).token)
+    }
+    // Chips the selected level actually renders (single source of truth in FusionSize).
     val fusionChips = com.winhub.hernandez.widget.fusionhud.FusionSize.from(fusionSize).supportedChips()
-    val gpuModelDefault = if (cfg.getOrDefault("hudStyle", "fusion") == "fusion") "1" else "0"
-    val clockDefault = if (cfg.getOrDefault("hudStyle", "fusion") == "fusion") "1" else "0"
     var showFPS by remember(cfg) { mutableStateOf(b("showFPS", "showFPS", "1")) }
     var showGraph by remember(cfg) { mutableStateOf(b("showFPSGraph", "showFPSGraph", "0")) }
     var showCPU by remember(cfg) { mutableStateOf(b("showCPUUsage", "showCPULoad", "1")) }
@@ -2462,21 +2457,17 @@ private fun HudContent(state: XServerDrawerState) {
     var showPower by remember(cfg) { mutableStateOf(b("showPower", "showPower", "1")) }
     var showTemp by remember(cfg) { mutableStateOf(b("showTemp", "showBatteryTemp", "1")) }
     var showEngine by remember(cfg) { mutableStateOf(b("showEngine", "showRenderer", "1")) }
-    var showGpuModel by remember(cfg) { mutableStateOf(b("showGpuModel", "showGpuModel", gpuModelDefault)) }
-    var dualBattery by remember(cfg) { mutableStateOf(b("hudDualBattery", "hudDualBattery", "0")) }
-    // GameNative-only extra metrics (absent = off is the intended default).
+    var showGpuModel by remember(cfg) { mutableStateOf(b("showGpuModel", "showGpuModel", "1")) }
+    // Extra metrics (absent = off is the intended default).
     var showGpuTemp by remember(cfg) { mutableStateOf(b("showGpuTemp", "showGpuTemp", "0")) }
     var showBattery by remember(cfg) { mutableStateOf(b("showBattery", "showBattery", "0")) }
-    var showRuntime by remember(cfg) { mutableStateOf(b("showRuntime", "showRuntime", "0")) }
-    var showClock by remember(cfg) { mutableStateOf(b("showClock", "showClock", clockDefault)) }
-    var showCpuGraph by remember(cfg) { mutableStateOf(b("showCPUGraph", "showCPUGraph", "0")) }
-    var showGpuGraph by remember(cfg) { mutableStateOf(b("showGPUGraph", "showGPUGraph", "0")) }
-    // Fusion extra metrics + global lock (defaults match Container.DEFAULT_FPS_COUNTER_CONFIG).
+    var showClock by remember(cfg) { mutableStateOf(b("showClock", "showClock", "1")) }
+    // Extra metrics + global lock (defaults match Container.DEFAULT_FPS_COUNTER_CONFIG).
     var showVram by remember(cfg) { mutableStateOf(b("showVram", "showVram", "1")) }
     var showLow001 by remember(cfg) { mutableStateOf(b("showLow001", "showLow001", "1")) }
     var fpsDecimal by remember(cfg) { mutableStateOf(b("fpsDecimal", "fpsDecimal", "1")) }
     var hudLocked by remember(cfg) { mutableStateOf(b("hudLocked", "hudLocked", "0")) }
-    // Fusion Mega-only metrics.
+    // Level 4 metrics.
     var showPerCore by remember(cfg) { mutableStateOf(b("showPerCore", "showPerCore", "1")) }
     var showSwap by remember(cfg) { mutableStateOf(b("showSwap", "showSwap", "1")) }
     var showNet by remember(cfg) { mutableStateOf(b("showNet", "showNet", "1")) }
@@ -2497,11 +2488,8 @@ private fun HudContent(state: XServerDrawerState) {
 
     var scaleValue by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("hudScale", Container.DEFAULT_HUD_SCALE.toString()).toFloatOrNull() ?: Container.DEFAULT_HUD_SCALE.toFloat()) }
     var opacityValue by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("hudOpacity", "80").toFloatOrNull() ?: 80f) }
-    var transValue by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("hudTransparency", "0").toFloatOrNull() ?: 0f) }
 
-    val skins = listOf("classic", "neon", "mono")
     val colors = listOf("soft", "mid", "vivid")
-    var skin by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudSkin", "classic")) }
     var color by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
     // hudOutline is a 0..100 intensity (legacy off/soft/strong strings map via parseHudOutline).
     var outlineValue by remember(cfg) { mutableFloatStateOf(parseHudOutline(cfg.getOrDefault("hudOutline", "40")).toFloat()) }
@@ -2539,26 +2527,20 @@ private fun HudContent(state: XServerDrawerState) {
         "showEngine=${i(showEngine)}",
         "showRenderer=${i(showEngine)}",
         "showGpuModel=${i(showGpuModel)}",
-        "hudDualBattery=${i(dualBattery)}",
         "showGpuTemp=${i(showGpuTemp)}",
         "showBattery=${i(showBattery)}",
-        "showRuntime=${i(showRuntime)}",
         "showClock=${i(showClock)}",
-        "showCPUGraph=${i(showCpuGraph)}",
-        "showGPUGraph=${i(showGpuGraph)}",
         "tempUnit=${if (tempUnitF) "f" else "c"}",
         "tempBands=${i(tempBands)}",
         "tempAuto=${i(tempAuto)}",
         "tempRedCpu=${tempRedCpu.toInt()}",
         "tempRedGpu=${tempRedGpu.toInt()}",
         "tempRedBat=${tempRedBat.toInt()}",
-        "hudSkin=$skin",
         "hudColor=$color",
         "hudOutline=${outlineValue.toInt()}",
         "hudOutlineAccent=${if (outlineAccent) 1 else 0}",
         "hudScale=${scaleValue.toInt()}",
         "hudOpacity=${opacityValue.toInt()}",
-        "hudTransparency=${transValue.toInt()}",
     ).joinToString(",")
 
     fun apply() { state.onFpsConfigApply?.invoke(buildConfig()) }
@@ -2686,60 +2668,46 @@ private fun HudContent(state: XServerDrawerState) {
     if (hudEnabled) {
         HudGroupLabel("HUD")
 
-        CollapsibleSection("Style & Size") {
-            HudChipRow("HUD style", listOf("Classic", "GameHub", "GameNative", "Fusion"), styles.indexOf(hudStyle).coerceAtLeast(0)) { hudStyle = styles[it]; apply() }
+        CollapsibleSection("Detail level") {
+            HudChipRow("Level", fusionLevels.map { it.label }, fusionLevels.indexOfFirst { it.token == fusionSize }.coerceAtLeast(0)) {
+                fusionSize = fusionLevels[it].token; apply()
+            }
             Text(
-                when (hudStyle) {
-                    "gamehub" -> "Rich overlay: skins, colored fields, live FPS graph. Style change applies on next launch."
-                    "gamenative" -> "GameNative-style overlay: compact pill or stacked list with live graphs. Style change applies on next launch."
-                    "fusion" -> "Fusion overlay: one color-coded look in 5 sizes with percentile lows, VRAM + a Mega everything-view. Tap the HUD to cycle size."
-                    else -> "Classic WinHub overlay."
-                },
+                "Four levels, like the Steam Deck overlay: 1 FPS, 2 adds the frametime graph, 3 adds GPU, CPU and memory, 4 shows everything. Tap the HUD in game to step through them.",
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 11.sp,
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 4.dp)
             )
-            if (fusion) {
-                HudChipRow("Size", listOf("Full", "Tiles", "Pill", "Minimal", "Mega"), fusionSizes.indexOf(fusionSize).coerceAtLeast(0)) { fusionSize = fusionSizes[it]; apply() }
-            }
         }
 
-        // Build the currently-VISIBLE chips first (respecting per-style gating), then chunk into an
-        // aligned 3-wide grid — so hidden chips never leave holes. Each stays an independent toggle.
-        // For Fusion, show only the chips the SELECTED SIZE draws (FusionSize.supportedChips() — the same
-        // single source of truth the view uses). Other styles keep their existing gating. Hiding a chip is
-        // UI-only; buildConfig() still emits every key (strip-invariant), so toggles keep their state.
-        fun show(label: String, styleOk: Boolean): Boolean = if (fusion) label in fusionChips else styleOk
+        // Build the chips the SELECTED LEVEL draws (FusionSize.supportedChips(), the same single source of
+        // truth the view uses), then chunk into an aligned 3-wide grid so hidden chips never leave holes.
+        // Hiding a chip is UI-only; buildConfig() still emits every key, so toggles keep their state.
+        fun show(label: String): Boolean = label in fusionChips
         val metricChips = buildList<Triple<String, Boolean, () -> Unit>> {
-            if (show("FPS", true)) add(Triple("FPS", showFPS) { showFPS = !showFPS; apply() })
-            if (show("FPS graph", rich)) add(Triple("FPS graph", showGraph) { showGraph = !showGraph; apply() })
-            if (show("CPU", true)) add(Triple("CPU", showCPU) { showCPU = !showCPU; apply() })
-            if (!fusion && gameNative) add(Triple("CPU graph", showCpuGraph) { showCpuGraph = !showCpuGraph; apply() })
-            if (show("GPU", true)) add(Triple("GPU", showGPU) { showGPU = !showGPU; apply() })
-            if (!fusion && gameNative) add(Triple("GPU graph", showGpuGraph) { showGpuGraph = !showGpuGraph; apply() })
-            if (show("VRAM", false)) add(Triple("VRAM", showVram) { showVram = !showVram; apply() })
-            if (show("RAM", true)) add(Triple("RAM", showRAM) { showRAM = !showRAM; apply() })
-            if (show("Power", true)) add(Triple("Power", showPower) { showPower = !showPower; apply() })
-            if (show("Temp", true)) add(Triple("Temp", showTemp) { showTemp = !showTemp; apply() })
-            if (show("GPU temp", gameNative)) add(Triple("GPU temp", showGpuTemp) { showGpuTemp = !showGpuTemp; apply() })
-            if (show("Battery", gameNative)) add(Triple("Battery", showBattery) { showBattery = !showBattery; apply() })
-            if (!fusion && gameNative) add(Triple("Runtime", showRuntime) { showRuntime = !showRuntime; apply() })
-            if (show("0.01% low", false)) add(Triple("0.01% low", showLow001) { showLow001 = !showLow001; apply() })
-            if (show("FPS .1", false)) add(Triple("FPS .1", fpsDecimal) { fpsDecimal = !fpsDecimal; apply() })
-            // Fusion Mega-only metrics
-            if (show("Per-core", false)) add(Triple("Per-core", showPerCore) { showPerCore = !showPerCore; apply() })
-            if (show("Swap", false)) add(Triple("Swap", showSwap) { showSwap = !showSwap; apply() })
-            if (show("Network", false)) add(Triple("Network", showNet) { showNet = !showNet; apply() })
-            if (show("Resolution", false)) add(Triple("Resolution", showResolution) { showResolution = !showResolution; apply() })
-            if (show("Proton", false)) add(Triple("Proton", showProton) { showProton = !showProton; apply() })
-            if (show("Wrapper", false)) add(Triple("Wrapper", showWrapper) { showWrapper = !showWrapper; apply() })
-            if (show("DX ver", false)) add(Triple("DX ver", showDxVer) { showDxVer = !showDxVer; apply() })
-            if (show("Session", false)) add(Triple("Session", showSession) { showSession = !showSession; apply() })
-            // Clock: gamenative's own chip, and every Fusion size (subtle corner readout)
-            if (show("Clock", gameNative)) add(Triple("Clock", showClock) { showClock = !showClock; apply() })
-            if (show("Engine", true)) add(Triple("Engine", showEngine) { showEngine = !showEngine; apply() })
-            if (show("GPU model", rich)) add(Triple("GPU model", showGpuModel) { showGpuModel = !showGpuModel; apply() })
-            if (!fusion && gameHub) add(Triple("Dual battery", dualBattery) { dualBattery = !dualBattery; apply() })
-            // Global appearance control, shown for every style/size.
+            if (show("FPS")) add(Triple("FPS", showFPS) { showFPS = !showFPS; apply() })
+            if (show("FPS graph")) add(Triple("FPS graph", showGraph) { showGraph = !showGraph; apply() })
+            if (show("CPU")) add(Triple("CPU", showCPU) { showCPU = !showCPU; apply() })
+            if (show("GPU")) add(Triple("GPU", showGPU) { showGPU = !showGPU; apply() })
+            if (show("VRAM")) add(Triple("VRAM", showVram) { showVram = !showVram; apply() })
+            if (show("RAM")) add(Triple("RAM", showRAM) { showRAM = !showRAM; apply() })
+            if (show("Power")) add(Triple("Power", showPower) { showPower = !showPower; apply() })
+            if (show("Temp")) add(Triple("Temp", showTemp) { showTemp = !showTemp; apply() })
+            if (show("GPU temp")) add(Triple("GPU temp", showGpuTemp) { showGpuTemp = !showGpuTemp; apply() })
+            if (show("Battery")) add(Triple("Battery", showBattery) { showBattery = !showBattery; apply() })
+            if (show("0.01% low")) add(Triple("0.01% low", showLow001) { showLow001 = !showLow001; apply() })
+            if (show("FPS .1")) add(Triple("FPS .1", fpsDecimal) { fpsDecimal = !fpsDecimal; apply() })
+            if (show("Per-core")) add(Triple("Per-core", showPerCore) { showPerCore = !showPerCore; apply() })
+            if (show("Swap")) add(Triple("Swap", showSwap) { showSwap = !showSwap; apply() })
+            if (show("Network")) add(Triple("Network", showNet) { showNet = !showNet; apply() })
+            if (show("Resolution")) add(Triple("Resolution", showResolution) { showResolution = !showResolution; apply() })
+            if (show("Proton")) add(Triple("Proton", showProton) { showProton = !showProton; apply() })
+            if (show("Wrapper")) add(Triple("Wrapper", showWrapper) { showWrapper = !showWrapper; apply() })
+            if (show("DX ver")) add(Triple("DX ver", showDxVer) { showDxVer = !showDxVer; apply() })
+            if (show("Session")) add(Triple("Session", showSession) { showSession = !showSession; apply() })
+            if (show("Clock")) add(Triple("Clock", showClock) { showClock = !showClock; apply() })
+            if (show("Engine")) add(Triple("Engine", showEngine) { showEngine = !showEngine; apply() })
+            if (show("GPU model")) add(Triple("GPU model", showGpuModel) { showGpuModel = !showGpuModel; apply() })
+            // Global appearance control, shown at every level.
             add(Triple("Lock in place", hudLocked) { hudLocked = !hudLocked; apply() })
         }
 
@@ -2749,22 +2717,14 @@ private fun HudContent(state: XServerDrawerState) {
 
         CollapsibleSection("Appearance") {
             LabeledSlider("HUD Scale", scaleValue, 50f..150f, { scaleValue = it }, { apply() }, format = { "${it.toInt()}%" })
-            if (rich) LabeledSlider("HUD Opacity", opacityValue, 0f..100f, { opacityValue = it }, { apply() }, format = { "${it.toInt()}%" })
-            else LabeledSlider("HUD Transparency", transValue, 0f..50f, { transValue = it }, { apply() }, format = { "${it.toInt()}" })
-            if (gameHub) {
-                HudChipRow("HUD skin", listOf("Classic", "Neon", "Mono"), skins.indexOf(skin)) { skin = skins[it]; apply() }
-                HudChipRow("HUD color", listOf("Soft", "Mid", "Vivid"), colors.indexOf(color)) { color = colors[it]; apply() }
-                LabeledSlider("HUD outline", outlineValue, 0f..100f, { outlineValue = it }, { apply() }, format = { "${it.toInt()}" })
-                HudChipRow("Outline color", listOf("Gray", "Accent"), if (outlineAccent) 1 else 0) { outlineAccent = it == 1; apply() }
-            } else if (gameNative || fusion) {
-                HudChipRow("HUD color", listOf("Soft", "Mid", "Vivid"), colors.indexOf(color)) { color = colors[it]; apply() }
-                LabeledSlider("HUD outline", outlineValue, 0f..100f, { outlineValue = it }, { apply() }, format = { "${it.toInt()}" })
-                HudChipRow("Outline color", listOf("Gray", "Accent"), if (outlineAccent) 1 else 0) { outlineAccent = it == 1; apply() }
-            }
+            LabeledSlider("HUD Opacity", opacityValue, 0f..100f, { opacityValue = it }, { apply() }, format = { "${it.toInt()}%" })
+            HudChipRow("HUD color", listOf("Soft", "Mid", "Vivid"), colors.indexOf(color)) { color = colors[it]; apply() }
+            LabeledSlider("HUD outline", outlineValue, 0f..100f, { outlineValue = it }, { apply() }, format = { "${it.toInt()}" })
+            HudChipRow("Outline color", listOf("Gray", "Accent"), if (outlineAccent) 1 else 0) { outlineAccent = it == 1; apply() }
         }
 
         // ── Temperature display ── only worth a section when a temperature is actually on screen.
-        if (showTemp || ((gameNative || fusion) && (showGpuTemp || showBattery))) {
+        if (showTemp || showGpuTemp || showBattery) {
             CollapsibleSection("Alerts & Temp") {
                 HudChipRow("Temp unit", listOf("°C", "°F"), if (tempUnitF) 1 else 0) {
                     tempUnitF = it == 1; apply()
@@ -2788,7 +2748,7 @@ private fun HudContent(state: XServerDrawerState) {
                     // Only the red point is exposed; amber is derived. Nobody knows their preferred amber
                     // in the abstract, and three sliders beat six. Values are always °C.
                     LabeledSlider("CPU red at", tempRedCpu, 50f..110f, { tempRedCpu = it }, { apply() }, format = { "${it.toInt()}°C" })
-                    if ((gameNative || fusion) && showGpuTemp)
+                    if (showGpuTemp)
                         LabeledSlider("GPU red at", tempRedGpu, 50f..110f, { tempRedGpu = it }, { apply() }, format = { "${it.toInt()}°C" })
                     LabeledSlider("Battery red at", tempRedBat, 35f..60f, { tempRedBat = it }, { apply() }, format = { "${it.toInt()}°C" })
                 }

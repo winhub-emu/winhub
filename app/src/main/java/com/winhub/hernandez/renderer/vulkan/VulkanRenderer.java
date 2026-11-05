@@ -11,7 +11,6 @@ import com.winhub.hernandez.container.Container;
 import com.winhub.hernandez.renderer.GPUImage;
 import com.winhub.hernandez.renderer.HostRenderer;
 import com.winhub.hernandez.renderer.ViewTransformation;
-import com.winhub.hernandez.widget.FrameRating;
 import com.winhub.hernandez.widget.XServerView;
 import com.winhub.hernandez.xserver.Bitmask;
 import com.winhub.hernandez.xserver.Cursor;
@@ -544,9 +543,6 @@ public class VulkanRenderer implements WindowManager.OnWindowModificationListene
 
     public void onUpdateWindowContentDirect(Window window, Drawable pixmap, short xOff, short yOff) {
     if (hudFrameTick != null) hudFrameTick.accept(window.id);
-    if (!nativeMode && window.id == fpsWindowId) {
-        if (classicHudRef != null && classicHudRef.isAttachedToWindow()) classicHudRef.post(classicHudRef);
-    }
     synchronized (lock) {
             if (nativeHandle == 0 || pixmap == null) return;
             int rx = window.getRootX() + xOff, ry = window.getRootY() + yOff;
@@ -619,7 +615,6 @@ public class VulkanRenderer implements WindowManager.OnWindowModificationListene
                             // FLIP/scanout present bypasses onUpdateWindowContentDirect, so tick the
                             // active (horizontal) HUD here too or it freezes in Native Rendering mode.
                             if (hudFrameTick != null) hudFrameTick.accept(window.id);
-                            if (classicHudRef != null && classicHudRef.isAttachedToWindow()) classicHudRef.post(classicHudRef);
                         } else if (!scanoutNow) {
                             nativeUpdateWindowContentAHB(nativeHandle, did(drawable), ahbPtr,
                                 drawable.width, drawable.height, rx, ry);
@@ -771,7 +766,6 @@ public class VulkanRenderer implements WindowManager.OnWindowModificationListene
                 releaseScanoutSurfaces();
             });
         }
-        if (classicHudRef != null && classicHudRef.isAttachedToWindow()) classicHudRef.post(classicHudRef);
         xServerView.queueEvent(this::updateScene);
         final String msg = mode ? "Native Rendering+ Enabled" : "Native Rendering+ Disabled";
         // Use the app's styled toast (white text on a custom background); a raw Toast.makeText here
@@ -1029,7 +1023,6 @@ public class VulkanRenderer implements WindowManager.OnWindowModificationListene
     public void setNativeColorFormat(int format) {}
     public int getNativeColorFormat() { return 0; }
 
-    private FrameRating classicHudRef = null;
     private int fpsWindowId = -1;
 
     public void setFpsWindowId(int id) { fpsWindowId = id; }
@@ -1037,13 +1030,9 @@ public class VulkanRenderer implements WindowManager.OnWindowModificationListene
     // The FPS/perf HUD is normally ticked from copyArea's onDrawListener, but the Vulkan AHB
     // present path bypasses copyArea, so the HUD froze (no values) on the Vulkan renderer. The
     // activity sets this to tick the HUD per present; it passes window.id so the activity can gate
-    // on its FPS window. Decoupled from classicHudRef so it works for both HUD variants.
+    // on its FPS window.
     private java.util.function.IntConsumer hudFrameTick = null;
     public void setHudFrameTick(java.util.function.IntConsumer c) { hudFrameTick = c; }
-
-    public void setFrameRating(Object fr) {
-        if (fr instanceof FrameRating) classicHudRef = (FrameRating) fr;
-    }
 
     public boolean isFullscreen() { return fullscreenMode != Container.FULLSCREEN_OFF; }
     public int getFullscreenMode() { return fullscreenMode; }

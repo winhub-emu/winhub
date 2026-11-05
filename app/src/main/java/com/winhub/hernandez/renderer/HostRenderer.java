@@ -26,7 +26,6 @@ public interface HostRenderer {
     void setScreenOffsetYRelativeToCursor(boolean b);
     boolean isScreenOffsetYRelativeToCursor();
     void setFpsWindowId(int id);
-    void setFrameRating(Object fr);
     int getFpsLimit();
     void setFpsLimit(int limit);
     int getSurfaceWidth();

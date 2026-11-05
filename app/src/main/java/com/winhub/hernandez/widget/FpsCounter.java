@@ -16,10 +16,8 @@ import java.util.concurrent.Executors;
  * Single authoritative FPS source shared by every in-game HUD overlay.
  *
  * <p>{@link #tick()} is invoked once per presented frame from the X-server epoll thread, so it is
- * counter math ONLY — no view access. Every overlay (classic {@code FrameRating}/
- * {@code FrameRatingHorizontal}, the GameHub-style {@code PerfHudView}, and the GameNative-style
- * {@code PerformanceHudView}) reads {@link #getCurrentFPS()} for the number it draws, which
- * guarantees they all show the identical value and there is one place per renderer to feed.
+ * counter math ONLY — no view access. The Fusion HUD reads {@link #getCurrentFPS()} for the number it draws,
+ * so there is one place per renderer to feed.
  *
  * <p>FPS math mirrors the historical per-overlay counters (500 ms compute window). Session
  * avg/min/max + length are ported from GameNative's {@code FrameRating}. Thread-safe: {@code tick()}

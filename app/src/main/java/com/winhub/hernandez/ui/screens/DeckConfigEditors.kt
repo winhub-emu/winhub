@@ -1076,17 +1076,13 @@ internal fun DeckFpsConfigEditor(
 
     var hudEnabled by remember { mutableStateOf(bool("hudEnabled", "hudEnabled", "1")) }
     val hudMode = remember { cfg.getOrDefault("hudMode", "vertical") }
-    val styles = listOf("classic", "gamehub", "gamenative", "fusion")
-    var hudStyle by remember { mutableStateOf(cfg.getOrDefault("hudStyle", "fusion")) }
-    val gameHub = hudStyle == "gamehub"
-    val gameNative = hudStyle == "gamenative"
-    val fusion = hudStyle == "fusion"
-    val rich = gameHub || gameNative || fusion
-    val fusionSizes = listOf("full", "tiles", "pill", "minimal", "mega")
-    var fusionSize by remember { mutableStateOf(cfg.getOrDefault("hudSize", "pill")) }
+    // Fusion is the only HUD; a config saved with another hudStyle is rewritten as fusion on save.
+    val hudStyle = "fusion"
+    val fusionLevels = com.winhub.hernandez.widget.fusionhud.FusionSize.values().toList()
+    var fusionSize by remember {
+        mutableStateOf(com.winhub.hernandez.widget.fusionhud.FusionSize.from(cfg.getOrDefault("hudSize", "3")).token)
+    }
     val fusionChips = com.winhub.hernandez.widget.fusionhud.FusionSize.from(fusionSize).supportedChips()
-    val gpuModelDefault = if (cfg.getOrDefault("hudStyle", "fusion") == "fusion") "1" else "0"
-    val clockDefault = if (cfg.getOrDefault("hudStyle", "fusion") == "fusion") "1" else "0"
 
     var showFPS by remember { mutableStateOf(bool("showFPS", "showFPS", "1")) }
     var showGraph by remember { mutableStateOf(bool("showFPSGraph", "showFPSGraph", "0")) }
@@ -1096,14 +1092,10 @@ internal fun DeckFpsConfigEditor(
     var showPower by remember { mutableStateOf(bool("showPower", "showPower", "1")) }
     var showTemp by remember { mutableStateOf(bool("showTemp", "showBatteryTemp", "1")) }
     var showEngine by remember { mutableStateOf(bool("showEngine", "showRenderer", "1")) }
-    var showGpuModel by remember { mutableStateOf(bool("showGpuModel", "showGpuModel", gpuModelDefault)) }
-    var dualBattery by remember { mutableStateOf(bool("hudDualBattery", "hudDualBattery", "0")) }
+    var showGpuModel by remember { mutableStateOf(bool("showGpuModel", "showGpuModel", "1")) }
     var showGpuTemp by remember { mutableStateOf(bool("showGpuTemp", "showGpuTemp", "0")) }
     var showBattery by remember { mutableStateOf(bool("showBattery", "showBattery", "0")) }
-    var showRuntime by remember { mutableStateOf(bool("showRuntime", "showRuntime", "0")) }
-    var showClock by remember { mutableStateOf(bool("showClock", "showClock", clockDefault)) }
-    var showCpuGraph by remember { mutableStateOf(bool("showCPUGraph", "showCPUGraph", "0")) }
-    var showGpuGraph by remember { mutableStateOf(bool("showGPUGraph", "showGPUGraph", "0")) }
+    var showClock by remember { mutableStateOf(bool("showClock", "showClock", "1")) }
     var showVram by remember { mutableStateOf(bool("showVram", "showVram", "1")) }
     var showLow001 by remember { mutableStateOf(bool("showLow001", "showLow001", "1")) }
     var fpsDecimal by remember { mutableStateOf(bool("fpsDecimal", "fpsDecimal", "1")) }
@@ -1124,12 +1116,9 @@ internal fun DeckFpsConfigEditor(
     var tempRedBat by remember { mutableStateOf(cfg.getOrDefault("tempRedBat", "48").toIntOrNull() ?: 48) }
     var hudScale by remember { mutableStateOf(cfg.getOrDefault("hudScale", com.winhub.hernandez.container.Container.DEFAULT_HUD_SCALE.toString()).toIntOrNull() ?: com.winhub.hernandez.container.Container.DEFAULT_HUD_SCALE) }
     var hudOpacity by remember { mutableStateOf(cfg.getOrDefault("hudOpacity", "80").toIntOrNull() ?: 80) }
-    var hudTransparency by remember { mutableStateOf(cfg.getOrDefault("hudTransparency", "0").toIntOrNull() ?: 0) }
-    val skins = listOf("classic", "neon", "mono")
     val colors = listOf("soft", "mid", "vivid")
-    var skin by remember { mutableStateOf(cfg.getOrDefault("hudSkin", "classic")) }
     var color by remember { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
-    var outlineValue by remember { mutableStateOf(com.winhub.hernandez.widget.perfhud.parseHudOutline(cfg.getOrDefault("hudOutline", "40"))) }
+    var outlineValue by remember { mutableStateOf(com.winhub.hernandez.widget.fusionhud.parseHudOutline(cfg.getOrDefault("hudOutline", "40"))) }
     var outlineAccent by remember { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "1") == "1") }
 
     fun i(v: Boolean) = if (v) "1" else "0"
@@ -1142,71 +1131,56 @@ internal fun DeckFpsConfigEditor(
         "showFPS=${i(showFPS)}", "showFPSGraph=${i(showGraph)}", "showCPUUsage=${i(showCPU)}", "showCPULoad=${i(showCPU)}",
         "showGPULoad=${i(showGPU)}", "showRAM=${i(showRAM)}", "showPower=${i(showPower)}",
         "showTemp=${i(showTemp)}", "showBatteryTemp=${i(showTemp)}", "showEngine=${i(showEngine)}",
-        "showRenderer=${i(showEngine)}", "showGpuModel=${i(showGpuModel)}", "hudDualBattery=${i(dualBattery)}",
-        "showGpuTemp=${i(showGpuTemp)}", "showBattery=${i(showBattery)}", "showRuntime=${i(showRuntime)}",
-        "showClock=${i(showClock)}", "showCPUGraph=${i(showCpuGraph)}", "showGPUGraph=${i(showGpuGraph)}",
+        "showRenderer=${i(showEngine)}", "showGpuModel=${i(showGpuModel)}",
+        "showGpuTemp=${i(showGpuTemp)}", "showBattery=${i(showBattery)}", "showClock=${i(showClock)}",
         "tempUnit=${if (tempUnitF) "f" else "c"}", "tempBands=${i(tempBands)}", "tempAuto=${i(tempAuto)}",
         "tempRedCpu=$tempRedCpu", "tempRedGpu=$tempRedGpu", "tempRedBat=$tempRedBat",
-        "hudSkin=$skin", "hudColor=$color", "hudOutline=$outlineValue", "hudOutlineAccent=${if (outlineAccent) 1 else 0}",
-        "hudScale=$hudScale", "hudOpacity=$hudOpacity", "hudTransparency=$hudTransparency",
+        "hudColor=$color", "hudOutline=$outlineValue", "hudOutlineAccent=${if (outlineAccent) 1 else 0}",
+        "hudScale=$hudScale", "hudOpacity=$hudOpacity",
     ).joinToString(",")
 
     DeckConfigPanel("HUD") {
         DeckRow(label = "Show HUD", control = { DeckToggle(hudEnabled) { hudEnabled = it } })
         DeckChoiceRow(
-            label = "HUD style",
-            options = listOf(
-                "classic" to "Classic", "gamehub" to "GameHub",
-                "gamenative" to "GameNative", "fusion" to "Fusion",
-            ),
-            selected = hudStyle,
-            onPick = { hudStyle = it },
+            label = "Detail level",
+            hint = "1 FPS, 2 adds the frametime graph, 3 adds GPU, CPU and memory, 4 shows everything.",
+            options = fusionLevels.map { it.token to it.label },
+            selected = fusionSize,
+            onPick = { fusionSize = it },
         )
-        if (fusion) {
-            DeckChoiceRow(
-                label = "HUD size",
-                options = fusionSizes.map { DeckPalette.titleCase(it) to it },
-                selected = fusionSize,
-                onPick = { fusionSize = it },
-            )
-        }
-        DeckConfigNote("Tip: tap the HUD in-game to switch vertical/horizontal layout.")
+        DeckConfigNote("Tip: tap the HUD in-game to step through the levels.")
 
         val metricChips = buildList<Triple<String, Boolean, () -> Unit>> {
-            fun via(label: String, styleOk: Boolean): Boolean = if (fusion) label in fusionChips else styleOk
-            if (via("FPS", true)) add(Triple("FPS", showFPS, { showFPS = !showFPS }))
-            if (via("FPS graph", rich)) add(Triple("FPS graph", showGraph, { showGraph = !showGraph }))
-            if (via("CPU", true)) add(Triple("CPU", showCPU, { showCPU = !showCPU }))
-            if (!fusion && gameNative) add(Triple("CPU graph", showCpuGraph, { showCpuGraph = !showCpuGraph }))
-            if (via("GPU", true)) add(Triple("GPU", showGPU, { showGPU = !showGPU }))
-            if (!fusion && gameNative) add(Triple("GPU graph", showGpuGraph, { showGpuGraph = !showGpuGraph }))
-            if (via("VRAM", false)) add(Triple("VRAM", showVram, { showVram = !showVram }))
-            if (via("RAM", true)) add(Triple("RAM", showRAM, { showRAM = !showRAM }))
-            if (via("Power", true)) add(Triple("Power", showPower, { showPower = !showPower }))
-            if (via("Temp", true)) add(Triple("Temp", showTemp, { showTemp = !showTemp }))
-            if (via("GPU temp", gameNative)) add(Triple("GPU temp", showGpuTemp, { showGpuTemp = !showGpuTemp }))
-            if (via("Battery", gameNative)) add(Triple("Battery", showBattery, { showBattery = !showBattery }))
-            if (!fusion && gameNative) add(Triple("Runtime", showRuntime, { showRuntime = !showRuntime }))
-            if (via("0.01% low", false)) add(Triple("0.01% low", showLow001, { showLow001 = !showLow001 }))
-            if (via("FPS .1", false)) add(Triple("FPS .1", fpsDecimal, { fpsDecimal = !fpsDecimal }))
-            if (via("Per-core", false)) add(Triple("Per-core", showPerCore, { showPerCore = !showPerCore }))
-            if (via("Swap", false)) add(Triple("Swap", showSwap, { showSwap = !showSwap }))
-            if (via("Network", false)) add(Triple("Network", showNet, { showNet = !showNet }))
-            if (via("Resolution", false)) add(Triple("Resolution", showResolution, { showResolution = !showResolution }))
-            if (via("Proton", false)) add(Triple("Proton", showProton, { showProton = !showProton }))
-            if (via("Wrapper", false)) add(Triple("Wrapper", showWrapper, { showWrapper = !showWrapper }))
-            if (via("DX ver", false)) add(Triple("DX ver", showDxVer, { showDxVer = !showDxVer }))
-            if (via("Session", false)) add(Triple("Session", showSession, { showSession = !showSession }))
-            if (via("Clock", gameNative)) add(Triple("Clock", showClock, { showClock = !showClock }))
-            if (via("Engine", true)) add(Triple("Engine", showEngine, { showEngine = !showEngine }))
-            if (via("GPU model", rich)) add(Triple("GPU model", showGpuModel, { showGpuModel = !showGpuModel }))
-            if (!fusion && gameHub) add(Triple("Dual battery", dualBattery, { dualBattery = !dualBattery }))
+            fun via(label: String): Boolean = label in fusionChips
+            if (via("FPS")) add(Triple("FPS", showFPS, { showFPS = !showFPS }))
+            if (via("FPS graph")) add(Triple("FPS graph", showGraph, { showGraph = !showGraph }))
+            if (via("CPU")) add(Triple("CPU", showCPU, { showCPU = !showCPU }))
+            if (via("GPU")) add(Triple("GPU", showGPU, { showGPU = !showGPU }))
+            if (via("VRAM")) add(Triple("VRAM", showVram, { showVram = !showVram }))
+            if (via("RAM")) add(Triple("RAM", showRAM, { showRAM = !showRAM }))
+            if (via("Power")) add(Triple("Power", showPower, { showPower = !showPower }))
+            if (via("Temp")) add(Triple("Temp", showTemp, { showTemp = !showTemp }))
+            if (via("GPU temp")) add(Triple("GPU temp", showGpuTemp, { showGpuTemp = !showGpuTemp }))
+            if (via("Battery")) add(Triple("Battery", showBattery, { showBattery = !showBattery }))
+            if (via("0.01% low")) add(Triple("0.01% low", showLow001, { showLow001 = !showLow001 }))
+            if (via("FPS .1")) add(Triple("FPS .1", fpsDecimal, { fpsDecimal = !fpsDecimal }))
+            if (via("Per-core")) add(Triple("Per-core", showPerCore, { showPerCore = !showPerCore }))
+            if (via("Swap")) add(Triple("Swap", showSwap, { showSwap = !showSwap }))
+            if (via("Network")) add(Triple("Network", showNet, { showNet = !showNet }))
+            if (via("Resolution")) add(Triple("Resolution", showResolution, { showResolution = !showResolution }))
+            if (via("Proton")) add(Triple("Proton", showProton, { showProton = !showProton }))
+            if (via("Wrapper")) add(Triple("Wrapper", showWrapper, { showWrapper = !showWrapper }))
+            if (via("DX ver")) add(Triple("DX ver", showDxVer, { showDxVer = !showDxVer }))
+            if (via("Session")) add(Triple("Session", showSession, { showSession = !showSession }))
+            if (via("Clock")) add(Triple("Clock", showClock, { showClock = !showClock }))
+            if (via("Engine")) add(Triple("Engine", showEngine, { showEngine = !showEngine }))
+            if (via("GPU model")) add(Triple("GPU model", showGpuModel, { showGpuModel = !showGpuModel }))
             add(Triple("Lock in place", hudLocked, { hudLocked = !hudLocked }))
         }
         DeckConfigChipGrid("Metrics", metricChips)
     }
 
-    if (showTemp || ((gameNative || fusion) && (showGpuTemp || showBattery))) {
+    if (showTemp || showGpuTemp || showBattery) {
         DeckConfigPanel("Temperature Display") {
             val bandMode = if (!tempBands) 0 else if (tempAuto) 1 else 2
             DeckChoiceRow(
@@ -1227,7 +1201,7 @@ internal fun DeckFpsConfigEditor(
             )
             if (bandMode == 2) {
                 DeckSliderRow("CPU red point", null, tempRedCpu.toFloat(), 50f..110f, { "${it.toInt()}\u00B0C" }) { tempRedCpu = it.toInt() }
-                if ((gameNative || fusion) && showGpuTemp) {
+                if (showGpuTemp) {
                     DeckSliderRow("GPU red point", null, tempRedGpu.toFloat(), 50f..110f, { "${it.toInt()}\u00B0C" }) { tempRedGpu = it.toInt() }
                 }
                 DeckSliderRow("Battery red point", null, tempRedBat.toFloat(), 35f..60f, { "${it.toInt()}\u00B0C" }) { tempRedBat = it.toInt() }
@@ -1237,31 +1211,19 @@ internal fun DeckFpsConfigEditor(
 
     DeckConfigPanel("Appearance") {
         DeckSliderRow("HUD Scale", null, hudScale.toFloat(), 50f..150f, { "${it.toInt()}%" }) { hudScale = it.toInt().coerceAtLeast(50) }
-        if (rich) {
-            DeckSliderRow("HUD Opacity", null, hudOpacity.toFloat(), 0f..100f, { "${it.toInt()}%" }) { hudOpacity = it.toInt() }
-            if (gameHub) {
-                DeckChoiceRow(
-                    label = "HUD skin",
-                    options = listOf("classic" to "Classic", "neon" to "Neon", "mono" to "Mono"),
-                    selected = skin,
-                    onPick = { skin = it },
-                )
-            }
-            DeckChoiceRow(
-                label = "HUD color",
-                options = listOf("soft" to "Soft", "mid" to "Mid", "vivid" to "Vivid"),
-                selected = color,
-                onPick = { color = it },
-            )
-            DeckSliderRow("HUD outline", null, outlineValue.toFloat(), 0f..100f, { it.toInt().toString() }) { outlineValue = it.toInt() }
-            DeckRow(
-                label = "Outline color",
-                hint = if (outlineAccent) "Accent" else "Gray",
-                control = { DeckToggle(outlineAccent) { outlineAccent = it } },
-            )
-        } else {
-            DeckSliderRow("HUD Transparency", null, hudTransparency.toFloat(), 0f..50f, { it.toInt().toString() }) { hudTransparency = it.toInt() }
-        }
+        DeckSliderRow("HUD Opacity", null, hudOpacity.toFloat(), 0f..100f, { "${it.toInt()}%" }) { hudOpacity = it.toInt() }
+        DeckChoiceRow(
+            label = "HUD color",
+            options = listOf("soft" to "Soft", "mid" to "Mid", "vivid" to "Vivid"),
+            selected = color,
+            onPick = { color = it },
+        )
+        DeckSliderRow("HUD outline", null, outlineValue.toFloat(), 0f..100f, { it.toInt().toString() }) { outlineValue = it.toInt() }
+        DeckRow(
+            label = "Outline color",
+            hint = if (outlineAccent) "Accent" else "Gray",
+            control = { DeckToggle(outlineAccent) { outlineAccent = it } },
+        )
     }
 
     // Live commit: every change reaches the host immediately, so the screen's own Save button is
