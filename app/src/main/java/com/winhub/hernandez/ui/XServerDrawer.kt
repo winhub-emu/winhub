@@ -2487,13 +2487,13 @@ private fun HudContent(state: XServerDrawerState) {
     var tempRedBat by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("tempRedBat", "48").toFloatOrNull() ?: 48f) }
 
     var scaleValue by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("hudScale", Container.DEFAULT_HUD_SCALE.toString()).toFloatOrNull() ?: Container.DEFAULT_HUD_SCALE.toFloat()) }
-    var opacityValue by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("hudOpacity", "80").toFloatOrNull() ?: 80f) }
+    var opacityValue by remember(cfg) { mutableFloatStateOf(cfg.getOrDefault("hudOpacity", "62").toFloatOrNull() ?: 62f) }
 
     val colors = listOf("soft", "mid", "vivid")
     var color by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
     // hudOutline is a 0..100 intensity (legacy off/soft/strong strings map via parseHudOutline).
     var outlineValue by remember(cfg) { mutableFloatStateOf(parseHudOutline(cfg.getOrDefault("hudOutline", "40")).toFloat()) }
-    var outlineAccent by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "1") == "1") }
+    var outlineAccent by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "0") == "1") }
 
     fun i(v: Boolean) = if (v) "1" else "0"
     // Identical key set to ContainerDetailScreen.FpsCounterConfigDialog.buildConfig(),

@@ -53,14 +53,13 @@ enum class FusionSize(val token: String, val label: String) {
             else -> STATS
         }
 
-        // Chip-label ids (must match the labels the config UIs build). "Clock" is a small subtle
-        // readout available at every level, so it is in all sets.
-        val FPS_CHIPS = setOf("FPS", "FPS .1", "Engine", "Clock")
+        // Chip-label ids (must match the labels the config UIs build). "Clock" sits on the level 4 TIME row.
+        val FPS_CHIPS = setOf("FPS", "FPS .1", "Engine")
         val GRAPH_CHIPS = FPS_CHIPS + setOf("FPS graph", "Power", "Battery")
         val STATS_CHIPS = GRAPH_CHIPS + setOf("GPU", "GPU temp", "CPU", "Temp", "VRAM", "RAM")
         val EVERYTHING_ONLY = setOf(
             "GPU model", "0.01% low", "Per-core", "Swap", "Network", "Resolution", "Proton", "Wrapper",
-            "DX ver", "Session",
+            "DX ver", "Session", "Clock",
         )
         val EVERYTHING_CHIPS = STATS_CHIPS + EVERYTHING_ONLY
     }

@@ -5268,13 +5268,13 @@ internal fun FpsCounterConfigDialog(
     var tempRedBat by remember { mutableStateOf(cfg.getOrDefault("tempRedBat", "48").toIntOrNull() ?: 48) }
 
     var hudScale by remember { mutableStateOf(cfg.getOrDefault("hudScale", Container.DEFAULT_HUD_SCALE.toString()).toIntOrNull() ?: Container.DEFAULT_HUD_SCALE) }
-    var hudOpacity by remember { mutableStateOf(cfg.getOrDefault("hudOpacity", "80").toIntOrNull() ?: 80) }
+    var hudOpacity by remember { mutableStateOf(cfg.getOrDefault("hudOpacity", "62").toIntOrNull() ?: 62) }
 
     val colors = listOf("soft", "mid", "vivid")
     var color by remember { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
     // hudOutline is a 0..100 intensity (legacy off/soft/strong strings map via parseHudOutline).
     var outlineValue by remember { mutableStateOf(parseHudOutline(cfg.getOrDefault("hudOutline", "40"))) }
-    var outlineAccent by remember { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "1") == "1") }
+    var outlineAccent by remember { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "0") == "1") }
 
     fun i(v: Boolean) = if (v) "1" else "0"
     fun buildConfig(): String = listOf(
