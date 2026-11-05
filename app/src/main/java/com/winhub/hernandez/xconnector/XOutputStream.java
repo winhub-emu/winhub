@@ -46,6 +46,12 @@ public class XOutputStream {
         buffer.putInt(value);
     }
 
+    // GLX fbconfig/attribute lists are (tag,value) int pairs. Added for GLXExtension.
+    public void writeIntPair(int a, int b) {
+        writeInt(a);
+        writeInt(b);
+    }
+
     public void writeLong(long value) {
         ensureSpaceIsAvailable(8);
         buffer.putLong(value);
