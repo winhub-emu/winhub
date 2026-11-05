@@ -72,7 +72,7 @@ android {
         // NB: do NOT write the camel-case build-code token in these comments — release.yml greps
         //     for it and takes head -1; a comment match feeds jq an empty value and the job dies.
         versionCode 89
-        versionName "3.1.3-pre3"
+        versionName "0.1-beta"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         externalNativeBuild {
