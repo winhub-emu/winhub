@@ -50,12 +50,12 @@ internal object PortraitPageState {
 }
 
 /**
- * Portrait Home backdrop: three theme-coloured glows drifting slowly, with three layers of
- * waves along the bottom. Pure drawing from one looping phase (read in the draw phase, so it
- * redraws without recomposing); the colours come from the active theme.
+ * Portrait backdrop: three layers of waves along the bottom and, when [glows] is on (Home), three
+ * theme-coloured glows drifting slowly behind them. Pure drawing from one looping phase (read in the
+ * draw phase, so it redraws without recomposing); the colours come from the active theme.
  */
 @Composable
-internal fun Modifier.liquidBackdrop(): Modifier {
+internal fun Modifier.liquidBackdrop(glows: Boolean = true): Modifier {
     val transition = rememberInfiniteTransition(label = "liquid")
     val phase by transition.animateFloat(
         initialValue = 0f,
@@ -71,9 +71,11 @@ internal fun Modifier.liquidBackdrop(): Modifier {
         val t = phase * TWO_PI
         val w = size.width
         val h = size.height
-        drawGlow(primary, w * (0.15f + 0.30f * sin(t)), h * (0.10f + 0.12f * cos(t)), w * 0.8f, 0.42f)
-        drawGlow(secondary, w * (0.90f - 0.30f * cos(t)), h * (0.50f + 0.12f * sin(t)), w * 0.75f, 0.28f)
-        drawGlow(tertiary, w * (0.25f + 0.25f * cos(t)), h * (0.92f - 0.08f * sin(t)), w * 0.8f, 0.24f)
+        if (glows) {
+            drawGlow(primary, w * (0.15f + 0.30f * sin(t)), h * (0.10f + 0.12f * cos(t)), w * 0.8f, 0.42f)
+            drawGlow(secondary, w * (0.90f - 0.30f * cos(t)), h * (0.50f + 0.12f * sin(t)), w * 0.75f, 0.28f)
+            drawGlow(tertiary, w * (0.25f + 0.25f * cos(t)), h * (0.92f - 0.08f * sin(t)), w * 0.8f, 0.24f)
+        }
         drawWave(wave, primary.copy(alpha = 0.14f), h * 0.88f, h * 0.012f, 1.2f, t)
         drawWave(wave, secondary.copy(alpha = 0.12f), h * 0.91f, h * 0.014f, 1.7f, -2f * t)
         drawWave(wave, tertiary.copy(alpha = 0.10f), h * 0.94f, h * 0.016f, 2.3f, 3f * t)
