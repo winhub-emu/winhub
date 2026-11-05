@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +27,14 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 private val TWO_PI = (2.0 * PI).toFloat()
+
+/**
+ * True while portrait Home has a game page open over the grid. The page paints its own background, so
+ * the shell stops drawing the liquid backdrop (it would otherwise show under the bottom bar).
+ */
+internal object PortraitPageState {
+    var open by mutableStateOf(false)
+}
 
 /**
  * Portrait Home backdrop: three theme-coloured glows drifting slowly, with three layers of

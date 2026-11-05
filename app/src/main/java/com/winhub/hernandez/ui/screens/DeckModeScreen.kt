@@ -447,7 +447,7 @@ internal fun DeckModeScreen() {
                 // Behind the bar too, so a see-through top bar shows the page glow.
                 .drawBehind { drawDeckCornerGlow(Deck.primary) }
                 // Portrait Home: drifting glows and waves behind the page and the bottom bar.
-                .then(if (portrait && section == "home") Modifier.liquidBackdrop() else Modifier)
+                .then(if (portrait && section == "home" && !PortraitPageState.open) Modifier.liquidBackdrop() else Modifier)
                 .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->
@@ -665,6 +665,9 @@ private fun DeckHome(
     var classicMenu by remember { mutableStateOf(false) }
     // Portrait: tapping a cover opens its game page over the grid.
     var portraitPageOpen by remember { mutableStateOf(false) }
+    // The shell hides its liquid backdrop while the page is up (and when Home itself goes away).
+    LaunchedEffect(portraitPageOpen) { PortraitPageState.open = portraitPageOpen }
+    DisposableEffect(Unit) { onDispose { PortraitPageState.open = false } }
     // Game details / Search covers / Clone / Copy to Drive C / Change executable (classic + portrait menus).
     var gameTool by remember { mutableStateOf<HubToolRequest?>(null) }
     var portraitOptions by remember { mutableStateOf(false) }
