@@ -12075,6 +12075,13 @@ return true;
         if (hudEngineShort != null) fusionHud.setEngineLabel(hudEngineShort);
         if (hudGpuName != null) fusionHud.setGpuModel(hudGpuName);
         fusionHud.setDisplayServer(hudDisplayServerLabel());
+        // SurfaceDirect only: present latency / skipped frames for the level 4 PRES row. The renderer is
+        // looked up on every read, so a renderer that is swapped later is followed.
+        fusionHud.setPresentStatsProvider(() -> {
+            com.winhub.hernandez.renderer.HostRenderer r = xServerView != null ? xServerView.getRenderer() : null;
+            return r instanceof com.winhub.hernandez.renderer.egl.EglRenderer
+                    ? ((com.winhub.hernandez.renderer.egl.EglRenderer) r).readPresentStats() : null;
+        });
         // Level 4 stack-layer versions: Proton/Wine, the graphics-driver wrapper package, and DX wrapper.
         if (wineInfo != null) fusionHud.setWineVersion(wineInfo.toString());
         fusionHud.setGraphicsWrapper(friendlyGraphicsWrapper());

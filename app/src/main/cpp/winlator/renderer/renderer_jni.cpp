@@ -790,3 +790,16 @@ Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeCompositeRedirect(JNIEn
         }
     }
 }
+
+// SurfaceDirect present statistics for the HUD: see SurfaceDirect::takePresentStats. False when the
+// SurfaceDirect renderer is not the one running.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_winhub_hernandez_renderer_egl_EglRenderer_nativeGetPresentStats(JNIEnv *env, jobject thiz, jlongArray out) {
+    if (!useSurfaceDirect || out == nullptr || env->GetArrayLength(out) < 3) return JNI_FALSE;
+
+    int64_t stats[3];
+    surfaceDirect.takePresentStats(stats);
+    jlong values[3] = {stats[0], stats[1], stats[2]};
+    env->SetLongArrayRegion(out, 0, 3, values);
+    return JNI_TRUE;
+}

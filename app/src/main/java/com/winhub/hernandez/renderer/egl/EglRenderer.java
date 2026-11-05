@@ -91,6 +91,21 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
     }
 
     /**
+     * SurfaceDirect only: {average time SurfaceFlinger took to latch a frame in microseconds since the last
+     * call (-1 = no sample), game frames skipped so far, frames presented so far}. Null on any other
+     * renderer, before start or after teardown. One reader: the latency average resets on every call.
+     */
+    public long[] readPresentStats() {
+        if (!surfaceDirect || !started || destroyed) return null;
+        long[] out = new long[3];
+        try {
+            return nativeGetPresentStats(out) ? out : null;
+        } catch (UnsatisfiedLinkError e) {
+            return null;
+        }
+    }
+
+    /**
      * Starts the native renderer. Returns false (and leaves nothing registered) when the native side cannot
      * run here, so the caller can fall back to another renderer.
      */
@@ -548,6 +563,7 @@ public class EglRenderer implements HostRenderer, WindowManager.OnWindowModifica
 
     // ---- Native (renderer_jni.cpp) ----
 
+    private native boolean nativeGetPresentStats(long[] out);
     private native boolean nativeInit(Context context, XServer xServer, int textureFilter, boolean surfaceDirect,
                                       boolean performanceMode, boolean presentAtRefreshRate, boolean backPressure,
                                       boolean precisePresentation, float refreshRate);

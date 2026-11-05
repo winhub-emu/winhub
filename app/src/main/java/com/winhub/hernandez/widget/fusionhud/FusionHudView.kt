@@ -66,6 +66,15 @@ class FusionHudView(
     private var presentedFps = 0f
     fun setPresentedFps(fps: Float) { presentedFps = fps }
 
+    // SurfaceDirect present statistics: {average latch latency in µs since the last read (-1 = no
+    // sample), game frames skipped so far, frames presented so far}. The host supplies the provider
+    // only while that renderer runs; level 4 shows one PRES row once frames have been presented.
+    private var presentStatsProvider: (() -> LongArray?)? = null
+    fun setPresentStatsProvider(provider: (() -> LongArray?)?) { presentStatsProvider = provider }
+    private var presentLatencyUs = -1L
+    private var presentSkipped = 0L
+    private var presentFrames = 0L
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var updateJob: Job? = null
     private val metrics = HudMetrics(context)
@@ -294,6 +303,9 @@ class FusionHudView(
                 lows = collected.second
                 fpsAvg = collected.third
                 fpsNow = fps
+                presentStatsProvider?.invoke()?.takeIf { it.size >= 3 }?.let {
+                    presentLatencyUs = it[0]; presentSkipped = it[1]; presentFrames = it[2]
+                }
                 appendGraphSample(1000f / max(fps, 1f))
                 rebuildAndInvalidate()
                 delay(1000)
@@ -659,6 +671,12 @@ class FusionHudView(
                 rows.add(HudRow(Span("GPU", colGpu, rowPx), gpuModelSpans(rowPx, colValue)))
             if (displayServer.isNotBlank())
                 rows.add(HudRow(Span("DISP", colDisp, rowPx), listOf(Span(displayServer, colValue, rowPx))))
+            if (presentFrames > 0) {
+                val latency = if (presentLatencyUs >= 0) fmt1(presentLatencyUs / 1000f) else "—"
+                val skippedPct = presentSkipped * 100f / (presentSkipped + presentFrames)
+                rows.add(HudRow(Span("PRES", colDisp, rowPx),
+                    listOf(Span("$latency ms · ${fmt1(skippedPct)}% skipped", colValue, rowPx))))
+            }
             if (hdrState != FusionHdr.NONE)
                 rows.add(HudRow(Span("HDR", colHdr, rowPx), hdrValue(rowPx)))
             val dxLine = dxVersionLabeled()

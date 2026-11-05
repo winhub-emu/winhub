@@ -32,6 +32,7 @@ using PFNASURFACETRANSACTIONSETVISIBILITY = void (*)(ASurfaceTransaction*, ASurf
 using PFNASURFACETRANSACTIONSETBUFFERTRANSPARENCY = void (*)(ASurfaceTransaction*, ASurfaceControl*, enum ASurfaceTransactionTransparency);
 using PFNASURFACETRANSACTIONSETBUFFERALPHA = void (*)(ASurfaceTransaction*, ASurfaceControl*, float);
 using PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD = int (*)(ASurfaceTransactionStats*);
+using PFNASURFACETRANSACTIONSTATSGETLATCHTIME = int64_t (*)(ASurfaceTransactionStats*);
 using PFNASURFACETRANSACTIONREPARENT = void (*)(ASurfaceTransaction*, ASurfaceControl*, ASurfaceControl*);
 using PFNASURFACETRANSACTIONSETONCOMPLETE = void (*)(ASurfaceTransaction*, void*, ASurfaceTransaction_OnComplete);
 using PFNASURFACETRANSACTIONSETONCOMMIT = void (*)(ASurfaceTransaction*, void*, ASurfaceTransaction_OnCommit);
@@ -71,6 +72,7 @@ static PFNASURFACETRANSACTIONSETONCOMPLETE pfnASurfaceTransactionSetOnComplete =
 static PFNASURFACETRANSACTIONSETONCOMMIT pfnASurfaceTransactionSetOnCommit = nullptr;
 static PFNASURFACETRANSACTIONSETENABLEBACKPRESSURE pfnASurfaceTransactionSetEnableBackPressure = nullptr;
 static PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD pfnASurfaceTransactionStatsGetPresentFenceFd = nullptr;
+static PFNASURFACETRANSACTIONSTATSGETLATCHTIME pfnASurfaceTransactionStatsGetLatchTime = nullptr;
 static PFNASURFACETRANSACTIONSETFRAMETIMELINE pfnASurfaceTransactionSetFrameTimeline = nullptr;
 static PFNASURFACETRANSACTIONCREATE pfnASurfaceTransactionCreate = nullptr;
 static PFNASURFACETRANSACTIONDELETE pfnASurfaceTransactionDelete = nullptr;
@@ -387,7 +389,8 @@ void SurfaceDirect::networkThreadLoop() {
                     presentRequest->window = window;
                     presentRequest->swapchainId = id;
                     
-                    presentRequests.push(std::move(presentRequest));
+                    // Only the game's own frames count as skipped; window-update re-pushes just coalesce.
+                    if (!presentRequests.push(std::move(presentRequest))) statSkipped++;
                     if (cache->onGuestPresent != nullptr && xServer->renderer != nullptr) {
                         env->CallVoidMethod(xServer->renderer, cache->onGuestPresent, window->windowObj);
                         if (env->ExceptionCheck()) env->ExceptionClear();
@@ -546,6 +549,19 @@ void SurfaceDirect::onCommitCallback(void *context, ASurfaceTransactionStats *st
 void SurfaceDirect::onCompleteCallback(void *context, ASurfaceTransactionStats *stats) {
     std::unique_ptr<OnCompleteContext> completeContext(static_cast<OnCompleteContext *>(context));
     
+    if (SurfaceDirect *self = completeContext->owner) {
+        // Latch time is on the same monotonic clock as getCurrentTimeNanos(), so the difference is how
+        // long SurfaceFlinger took to pick the frame up. Older Android has no such call: no sample then.
+        if (pfnASurfaceTransactionStatsGetLatchTime && completeContext->appliedNs > 0) {
+            int64_t latency = pfnASurfaceTransactionStatsGetLatchTime(stats) - completeContext->appliedNs;
+            if (latency >= 0 && latency < 1000000000LL) {
+                self->statLatencyNs += latency;
+                self->statLatencyFrames++;
+            }
+        }
+        self->statPresented += static_cast<int64_t>(completeContext->requests.size());
+    }
+    
     for (auto &request : completeContext->requests) {
         if (request->clientFd < 0) continue;
 
@@ -637,7 +653,11 @@ void SurfaceDirect::presentThreadLoop() {
         }
         
         if (perfMode && pfnASurfaceTransactionSetOnCommit) pfnASurfaceTransactionSetOnCommit(presentTransaction, this, SurfaceDirect::onCommitCallback);
-        if (!completeContext->requests.empty()) pfnASurfaceTransactionSetOnComplete(presentTransaction, completeContext.release(), SurfaceDirect::onCompleteCallback);
+        if (!completeContext->requests.empty()) {
+            completeContext->owner = this;
+            completeContext->appliedNs = getCurrentTimeNanos();
+            pfnASurfaceTransactionSetOnComplete(presentTransaction, completeContext.release(), SurfaceDirect::onCompleteCallback);
+        }
         pfnASurfaceTransactionApply(presentTransaction);
     }
     
@@ -663,6 +683,7 @@ bool SurfaceDirect::start() {
     pfnASurfaceTransactionSetBufferAlpha = reinterpret_cast<PFNASURFACETRANSACTIONSETBUFFERALPHA>(dlsym(handle, "ASurfaceTransaction_setBufferAlpha"));
     pfnASurfaceTransactionSetBufferTransparency = reinterpret_cast<PFNASURFACETRANSACTIONSETBUFFERTRANSPARENCY>(dlsym(handle, "ASurfaceTransaction_setBufferTransparency"));
     pfnASurfaceTransactionStatsGetPresentFenceFd = reinterpret_cast<PFNASURFACETRANSACTIONSTATSGETPRESENTFENCEFD>(dlsym(handle, "ASurfaceTransactionStats_getPresentFenceFd"));
+    pfnASurfaceTransactionStatsGetLatchTime = reinterpret_cast<PFNASURFACETRANSACTIONSTATSGETLATCHTIME>(dlsym(handle, "ASurfaceTransactionStats_getLatchTime"));
     pfnASurfaceTransactionSetFrameTimeline = reinterpret_cast<PFNASURFACETRANSACTIONSETFRAMETIMELINE>(dlsym(handle, "ASurfaceTransaction_setFrameTimeline"));
 
     pfnASurfaceTransactionCreate = reinterpret_cast<PFNASURFACETRANSACTIONCREATE>(dlsym(handle,"ASurfaceTransaction_create"));
@@ -706,6 +727,10 @@ bool SurfaceDirect::start() {
     cursorUpdate = false;
     requestUpdate = false;
     fullscreen = false;
+    statLatencyNs = 0;
+    statLatencyFrames = 0;
+    statSkipped = 0;
+    statPresented = 0;
     vsyncId = -1;
     previousReportedWorkTime = 0;
     windowTransaction = nullptr;
@@ -1225,6 +1250,14 @@ void SurfaceDirect::setPresentRR(bool presentRR) {
 
 void SurfaceDirect::setBackPressure(bool backPressure) {
     this->backPressure = backPressure;
+}
+
+void SurfaceDirect::takePresentStats(int64_t *out) {
+    int64_t latencyNs = statLatencyNs.exchange(0);
+    int64_t frames = statLatencyFrames.exchange(0);
+    out[0] = frames > 0 ? latencyNs / frames / 1000 : -1;
+    out[1] = statSkipped.load();
+    out[2] = statPresented.load();
 }
 
 void SurfaceDirect::setPrecisePresentation(bool precisePresentation) {

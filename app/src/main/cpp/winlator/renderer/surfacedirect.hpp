@@ -69,19 +69,21 @@ class SurfaceDirect {
                 std::unordered_set<Window *> mSet;
 
             public:
-                void push(std::unique_ptr<PresentRequest> request) {
+                // False when the frame was dropped because its window already has one waiting.
+                bool push(std::unique_ptr<PresentRequest> request) {
                     if (!request || !request->window)
-                        return;
+                        return true;
                         
                     if (mSet.count(request->window)) {
                         if (request->sync_fence >= 0)
                             close(request->sync_fence);
                             
-                        return;
+                        return false;
                     }        
                     
                     mSet.insert(request->window);     
                     mQueue.push(std::move(request));
+                    return true;
                 }
 
                 std::unique_ptr<PresentRequest> pop() {
@@ -123,6 +125,8 @@ class SurfaceDirect {
         
         struct OnCompleteContext {
             std::vector<std::unique_ptr<PresentRequest>> requests;
+            SurfaceDirect *owner = nullptr;
+            int64_t appliedNs = 0;
         };
         
         JNIEnv *env;
@@ -157,6 +161,12 @@ class SurfaceDirect {
         std::atomic_bool presentRR{true};
         std::atomic_bool backPressure{false};
         std::atomic_bool precisePresentation{false};
+
+        // Present statistics, read (and the latency part reset) by takePresentStats().
+        std::atomic<int64_t> statLatencyNs{0};     // summed apply -> latch time of the frames counted below
+        std::atomic<int64_t> statLatencyFrames{0};
+        std::atomic<int64_t> statSkipped{0};       // frames replaced by a newer one before they were shown
+        std::atomic<int64_t> statPresented{0};     // frames SurfaceFlinger reported as shown
         
         bool requestUpdate = false;
         
@@ -226,4 +236,8 @@ class SurfaceDirect {
         void setPresentRR(bool presentRR);
         void setBackPressure(bool backPressure);
         void setPrecisePresentation(bool precisePresentation);
+
+        // out[0] = average apply -> latch time in microseconds since the last call (-1 = no sample),
+        // out[1] = frames skipped so far, out[2] = frames presented so far.
+        void takePresentStats(int64_t *out);
 };
