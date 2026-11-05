@@ -152,7 +152,7 @@ private val deckStores = listOf(
 )
 
 /** Each store's logo and the brand colours it sits on in the picker tiles. */
-private fun deckStoreLogo(screen: Screen): Int = when (screen) {
+internal fun deckStoreLogo(screen: Screen): Int = when (screen) {
     Screen.Steam -> R.drawable.store_logo_steam
     Screen.Epic -> R.drawable.store_logo_epic
     Screen.Gog -> R.drawable.store_logo_gog
@@ -160,7 +160,7 @@ private fun deckStoreLogo(screen: Screen): Int = when (screen) {
     else -> R.drawable.store_logo_amazon
 }
 
-private fun deckStoreBrand(screen: Screen): List<Color> = when (screen) {
+internal fun deckStoreBrand(screen: Screen): List<Color> = when (screen) {
     Screen.Steam -> listOf(Color(0xFF1B2838), Color(0xFF171A21))
     Screen.Epic -> listOf(Color(0xFF202020), Color(0xFF121212))
     Screen.Gog -> listOf(Color(0xFF5C2D91), Color(0xFF3B1C60))
