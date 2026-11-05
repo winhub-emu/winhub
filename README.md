@@ -49,7 +49,7 @@
 
 **WinHub** runs Windows applications and games on Android using Wine, Box64 and FEXCore, with DXVK, VKD3D-Proton and Vulkan drivers (Turnip and others) for graphics. It wraps all of that in a **console-style interface** that works fully with a gamepad and with touch, in landscape and in portrait.
 
-WinHub is an unofficial community project. It continues the Winlator line (Winlator → cmod → Bionic → Star Bionic → Bannerlator) and stands on the work of everyone listed in the [Credits](#-credits).
+WinHub is an unofficial community project. It continues the Winlator line (Winlator → cmod → Bionic → Star Bionic → Bannerlator → WinHub) and stands on the work of everyone listed in the [Credits](#-credits).
 
 > 🤖 Code in this project is written with the assistance of [Claude](https://www.anthropic.com/claude) by Anthropic.
 
