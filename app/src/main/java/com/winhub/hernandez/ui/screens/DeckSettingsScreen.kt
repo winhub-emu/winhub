@@ -171,6 +171,33 @@ internal fun DeckSettingsScreen() {
     // ── ImageFS backup/restore — same as SettingsScreen's ImageFS section. ──
     val activity = context as? Activity
     val mainActivity = context as? MainActivity
+
+    // ── Music Player: takes effect straight away, no Save needed. ──
+    var musicName by remember { mutableStateOf(com.winhub.hernandez.core.MusicPlayer.trackName()) }
+    var musicOn by remember { mutableStateOf(com.winhub.hernandez.core.MusicPlayer.isEnabled()) }
+    var musicInGame by remember { mutableStateOf(com.winhub.hernandez.core.MusicPlayer.playsInGame()) }
+    val musicLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val uri = if (result.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedUri(result.data) else null
+        if (uri != null) {
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Music"
+            val appContext = context.applicationContext
+            // Copies the file, so it runs off the main thread.
+            Thread {
+                val ok = com.winhub.hernandez.core.MusicPlayer.importTrack(appContext, uri, name)
+                activity?.runOnUiThread {
+                    if (ok) {
+                        com.winhub.hernandez.core.MusicPlayer.reload()
+                        musicName = com.winhub.hernandez.core.MusicPlayer.trackName()
+                        musicOn = true
+                    } else {
+                        AppUtils.showToast(context, "Could not load that file")
+                    }
+                }
+            }.start()
+        }
+    }
     var showBackupDialog by remember { mutableStateOf(false) }
     var isBackingUp by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
@@ -527,6 +554,47 @@ internal fun DeckSettingsScreen() {
                                 } else AppUtils.showToast(context, R.string.sound_font_removed_failed)
                             }
                         } else AppUtils.showToast(context, R.string.cannot_remove_default_sound_font)
+                    }
+                }
+            }
+        }
+
+        // ── Music Player ──
+        DeckGroup(title = "Music Player") {
+            DeckRow(
+                label = "Music file",
+                hint = musicName ?: "No file chosen. Pick an MP3 to play while you use WinHub.",
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DeckButton("Choose") {
+                        musicLauncher.launch(
+                            InAppFilePicker.buildIntent(
+                                context, arrayOf("mp3", "m4a", "ogg", "wav", "flac", "aac"), "Choose music",
+                            ),
+                        )
+                    }
+                    if (musicName != null) {
+                        DeckButton("Clear", primary = false) {
+                            com.winhub.hernandez.core.MusicPlayer.clear(context)
+                            musicName = null
+                        }
+                    }
+                }
+            }
+            if (musicName != null) {
+                DeckRow(label = "Play music", hint = "Loops while WinHub is open.") {
+                    DeckToggle(musicOn) {
+                        musicOn = it
+                        com.winhub.hernandez.core.MusicPlayer.setEnabled(it)
+                    }
+                }
+                DeckRow(
+                    label = "Play in games",
+                    hint = "Off by default. The music plays under the game's own sound.",
+                ) {
+                    DeckToggle(musicInGame) {
+                        musicInGame = it
+                        com.winhub.hernandez.core.MusicPlayer.setPlayInGame(it)
                     }
                 }
             }

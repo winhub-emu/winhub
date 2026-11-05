@@ -439,6 +439,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.winhub.hernandez.core.MusicPlayer.setInGame(false)
         controllerTestPaused = false
         // A game may still be playing on the TV. Tapping the launcher brings THIS task forward — the
         // companion screen is in a task of its own, deliberately, so the system has no reason to prefer

@@ -2894,6 +2894,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
+        com.winhub.hernandez.core.MusicPlayer.INSTANCE.setInGame(true);
 
         // A TV session that was paused but never stopped is in front again, so the teardown onPause
         // handed to onStop is moot — and there is nothing for the restore below to undo, because
@@ -6475,6 +6476,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
             inGameControlsEditor = null;
         }
         modKeyHandler.removeCallbacksAndMessages(null);
+        com.winhub.hernandez.core.MusicPlayer.INSTANCE.setInGame(false);
         if (startProgramsExecutor != null) {
             startProgramsExecutor.shutdownNow();
             startProgramsExecutor = null;

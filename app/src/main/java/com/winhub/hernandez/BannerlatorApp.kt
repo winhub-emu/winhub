@@ -41,6 +41,13 @@ class BannerlatorApp : Application() {
             Log.w("BannerlatorApp", "crash reporter not installed", t)
         }
 
+        // Music Player (Settings > General): follows the app's foreground state.
+        try {
+            com.winhub.hernandez.core.MusicPlayer.install(this)
+        } catch (t: Throwable) {
+            Log.w("BannerlatorApp", "music player not installed", t)
+        }
+
         // "Force Mali mode" (Settings > General): read once here so every Mali-only path sees it from the start.
         try {
             com.winhub.hernandez.core.MaliPanvk.setForced(
