@@ -28,6 +28,13 @@ import sys
 
 REPO_URL = "%s/%s" % (os.environ.get("GITHUB_SERVER_URL", "https://github.com"),
                       os.environ.get("GITHUB_REPOSITORY", "The412Banner/Bannerlator"))
+# Every release page opens with this logo, centered. A notes file may carry its own older logo header: it
+# is swapped for this one, so a page never shows two.
+LOGO_URL = "https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/logo.png"
+LOGO_BLOCK = ('<p align="center">\n<img src="%s" width="1500" height="500" alt="WinHub" />\n</p>\n\n'
+              % LOGO_URL)
+OLD_LOGO = re.compile(r'<p align="center">\s*<img src="[^"]*logo\.(?:jpg|png)[^"]*"[^>]*>\s*</p>\s*',
+                      re.I)
 STABLE_TAG = re.compile(r"^\d+\.\d+(\.\d+)?$")
 PLACEHOLDER = "TODO(notes)"
 # The two standing sections every stable page carries, collapsed behind a tap-to-expand summary.
@@ -160,6 +167,15 @@ def short_notes(body, fallback, title):
     return title
 
 
+def with_logo(body):
+    """Body with the WinHub logo centered at the very top."""
+    if LOGO_URL in body:
+        return body
+    if OLD_LOGO.search(body):
+        return OLD_LOGO.sub(lambda m: LOGO_BLOCK, body, count=1)
+    return LOGO_BLOCK + body
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("release_number")
@@ -205,6 +221,7 @@ def main():
             print("stable %s: layout OK, %d changes since %s appended" % (ver, len(items), prev))
 
     short = short_notes(body, a.fallback, title)
+    body = with_logo(body)
     with open(a.out_body, "w", encoding="utf-8") as f:
         f.write(body if body.endswith("\n") else body + "\n")
     with open(a.out_short, "w", encoding="utf-8") as f:
