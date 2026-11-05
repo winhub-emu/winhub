@@ -880,6 +880,18 @@ private fun TopLevelFields(
                     Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
                 }
             }
+            // Sync (esync / ntsync / fsync / wineserver) belongs to the layer, so it sits right under
+            // it. The view-model re-probes the layer on every change and falls a now-unavailable pick
+            // back to the layer default (syncNotice says so). Not in defaults mode: no layer to judge.
+            Spacer(Modifier.height(8.dp))
+            com.winhub.hernandez.ui.components.SyncModeSelector(
+                selected = viewModel.syncMode,
+                caps = viewModel.syncCaps,
+                helper = viewModel.syncNotice ?: com.winhub.hernandez.ui.components.containerSyncHelper(
+                    viewModel.syncMode, viewModel.syncCaps, viewModel.selectedWineVersion),
+                onPick = { viewModel.onSyncModePicked(it) },
+                onHelp = { helpRes = R.string.help_sync_mode },
+            )
         }
         Spacer(Modifier.height(8.dp))
 

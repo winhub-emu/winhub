@@ -527,6 +527,16 @@
         <b>Wine version</b><br /><br />
         The compatibility layer that runs the Windows game — it translates Windows into Android without a real Windows install. <i><b>Proton</b></i> is a gaming-tuned build of Wine. Newer builds fix more games; leave it on the default unless a game needs a specific one.
     ]]></string>
+    <string name="help_sync_mode"><![CDATA[
+        <b>Sync</b><br /><br />
+        Windows games constantly tell their threads to wait for each other (“wait until this is loaded”, “signal when the frame is ready”). Wine has several ways to handle that; the faster ones mean less stutter and CPU overhead. This setting picks which one the game uses. Options the selected compatibility layer can\'t do are greyed out.<br /><br />
+        <b>esync</b> — the default. Wine handles most waits with Linux event files instead of asking its background server each time. Fast and well tested.<br /><br />
+        <b>ntsync</b> — copies how Windows itself does it, so it is the most accurate and also fast. Only on layers built with it. New: try it per game. If it can\'t start, the game falls back to esync automatically.<br /><br />
+        <b>fsync</b> — a faster method used on Linux PCs (Steam Deck), built on a Linux feature Android blocks for apps. Always greyed out here; it cannot work on Android.<br /><br />
+        <b>wineserver</b> — no shortcut at all: every wait goes through Wine\'s background server. Slowest and heaviest on the CPU, but the most compatible — use it when a game hangs, stutters or misbehaves on the others.<br /><br />
+        Game settings follow the container unless you pick something else for that game.<br /><br />
+        <i>Sets at launch: esync → WINEESYNC=1 · ntsync → WINENTSYNC=1 + WINEESYNC=1 · wineserver → WINEESYNC=0. Any of these typed into Environment Variables is replaced by this setting.</i>
+    ]]></string>
     <string name="help_graphics_driver"><![CDATA[
         <b>Graphics driver (wrapper)</b><br /><br />
         The Vulkan driver the container uses to talk to your GPU. Different wrappers suit different GPUs — <i><b>Adreno</b></i> (Snapdragon) has the best support; <i><b>Mali</b></i> phones may need a specific wrapper to handle compressed textures. Stick with the default unless you\'re troubleshooting.

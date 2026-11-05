@@ -6907,6 +6907,29 @@ public class XServerDisplayActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Resolve the "Sync" setting for this launch and write its env (core.SyncSupport): the shortcut's
+     * own choice, else the container's, else the layer default; a choice the layer can't run (ntsync
+     * off a layer without it, esync on a layer without it) falls back to the layer default. Runs on
+     * the launch worker thread (the layer probe reads ntdll.so once, then it is cached).
+     */
+    private void applySyncModeEnv() {
+        if (container == null) return;
+        String requested = com.winhub.hernandez.core.SyncSupport.requestedMode(
+                container.getExtra(com.winhub.hernandez.core.SyncMode.EXTRA),
+                container.getEnvVars(),
+                shortcut != null ? shortcut.getExtra(com.winhub.hernandez.core.SyncMode.EXTRA) : null,
+                shortcut != null ? shortcut.getExtra("envVars") : null);
+        com.winhub.hernandez.core.SyncCaps caps = com.winhub.hernandez.core.SyncSupport.capsForLayerPath(
+                wineInfo != null ? wineInfo.path : null);
+        String mode = caps.resolve(requested);
+        com.winhub.hernandez.core.SyncSupport.applyToEnv(envVars, mode);
+        Log.i("XServerDisplayActivity", "sync: requested=" + (requested != null ? requested : "(layer default)")
+                + " -> " + mode + " [layer esync=" + caps.getEsync() + " ntsync=" + caps.getNtsync() + "]"
+                + " WINEESYNC=" + envVars.get("WINEESYNC")
+                + (envVars.has("WINENTSYNC") ? " WINENTSYNC=" + envVars.get("WINENTSYNC") : ""));
+    }
+
     /** The effective env (container first, shortcut second, so the shortcut wins), or null. */
     private EnvVars effectiveUserEnv() {
         if (container == null) return null;
@@ -7627,9 +7650,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 } catch (Throwable ignored) {}
             }
 
-            if (!envVars.has("WINEESYNC")) {
-                envVars.put("WINEESYNC", "1");
-            }
+            // Sync (esync / ntsync / wineserver) is no longer defaulted here: applySyncModeEnv() below
+            // writes it after every env source (overrideEnvVars included) is merged.
 
             ArrayList<String> bindingPaths = new ArrayList<>();
             for (String[] drive : container.drivesIterator()) {
@@ -7676,6 +7698,10 @@ public class XServerDisplayActivity extends AppCompatActivity {
             envVars.putAll(overrideEnvVars);
             overrideEnvVars.clear(); // Clear overrideEnvVars as per smali logic
         }
+
+        // Sync selector: the ONE writer of WINEESYNC / WINENTSYNC (and the remover of WINEFSYNC). After
+        // every env merge so a stale value in the container/shortcut env string can't fight it.
+        applySyncModeEnv();
 
         // Create our overall XEnvironment with various components
         preloaderDialog.step(3, "Building environment…");

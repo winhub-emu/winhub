@@ -6621,7 +6621,40 @@ internal fun ShortcutSettingsDialogScreen(
 
     // Env vars live in dialog-level state (not in the tab) so switching tabs can't drop
     // in-progress edits; written back to the shortcut's extras in save() below.
-    var envVarsStr by remember { mutableStateOf(shortcut.getExtra("envVars")) }
+    // Sync per-game override (extra "syncMode"; core.SyncSupport). null = follow the container. The
+    // stored value is the extra, else what this game's own env string said before the selector
+    // existed (WINEESYNC=0 → wineserver, WINENTSYNC=1 → ntsync, WINEESYNC=1 → esync). Greyed against
+    // the layer the game runs on — the container's (a shortcut has no layer of its own); the probe
+    // reads ntdll.so off-main and is cached per layer, so it's keyed on the wine version.
+    val syncLayer = shortcut.container.wineVersion ?: ""
+    val containerSyncStored = remember(shortcut.container) {
+        com.winhub.hernandez.core.SyncSupport.storedMode(
+            shortcut.container.getExtra(com.winhub.hernandez.core.SyncMode.EXTRA, ""), shortcut.container.envVars)
+    }
+    var syncCaps by remember(syncLayer) { mutableStateOf(com.winhub.hernandez.core.SyncSupport.peek(syncLayer)) }
+    LaunchedEffect(syncLayer) {
+        syncCaps = withContext(Dispatchers.IO) {
+            com.winhub.hernandez.core.SyncSupport.capsFor(context, null, syncLayer)
+        }
+    }
+    var syncOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.SyncSupport.storedMode(
+            shortcut.getExtra(com.winhub.hernandez.core.SyncMode.EXTRA, ""), shortcut.getExtra("envVars")))
+    }
+    val containerSyncEffective = syncCaps?.resolve(containerSyncStored)
+        ?: containerSyncStored ?: com.winhub.hernandez.core.SyncMode.ESYNC
+    val syncEffective = syncOverride?.let { o -> syncCaps?.resolve(o) ?: o } ?: containerSyncEffective
+    val syncOverriding = syncOverride != null && syncEffective != containerSyncEffective
+    val syncOverrideUnavailable = syncOverride != null && syncCaps?.isAvailable(syncOverride!!) == false
+    val pickSync: (String) -> Unit = { m ->
+        if (syncCaps?.isAvailable(m) != false && com.winhub.hernandez.core.SyncMode.normalize(m) != null)
+            syncOverride = if (m == containerSyncEffective) null else m
+    }
+    // The sync variables left the env string for the Sync selector (read into syncOverride above),
+    // so they're dropped here and on save.
+    var envVarsStr by remember {
+        mutableStateOf(com.winhub.hernandez.core.SyncSupport.stripSyncVars(shortcut.getExtra("envVars")))
+    }
     var showScAudioSettings by remember { mutableStateOf(false) }
     // The game's folder on the Android side, derived from the shortcut's Exec= path, so the
     // editor can look for DLLs the game ships. Null when the drive letter isn't mapped.
@@ -6794,7 +6827,7 @@ internal fun ShortcutSettingsDialogScreen(
         if (enableDInput) finalInputType = finalInputType or WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()
 
         val wincomps = winComponents.joinToString(",") { "${it.key}=${it.selectedIndex}" }
-        val envVars = envVarsStr
+        val envVars = com.winhub.hernandez.core.SyncSupport.stripSyncVars(envVarsStr)
         val cpuList = cpuListViewRef.value?.getCheckedCPUListAsString() ?: shortcut.getExtra("cpuList", shortcut.container.getCPUList(true))
 
         val b64PresetId = box64Presets.getOrElse(selectedBox64PresetIndex) { null }?.id ?: Box64Preset.COMPATIBILITY
@@ -6907,6 +6940,10 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("reshadeEffect", reshadeLoadout.firstEffectName())
             putExtra("wincomponents", wincomps)
             putExtra("envVars", envVars.ifEmpty { null })
+            // Sync override: only a pick that differs from the container's is stored (null clears the
+            // extra = follow the container). A pick the layer can't run saves as what it resolves to.
+            putExtra(com.winhub.hernandez.core.SyncMode.EXTRA,
+                syncOverride?.let { o -> syncCaps?.resolve(o) ?: o }?.takeIf { it != containerSyncEffective })
             putExtra("cpuList", cpuList)
             saveData()
         }
@@ -6947,6 +6984,7 @@ internal fun ShortcutSettingsDialogScreen(
                     add("emulator")
                     if (midiList.isNotEmpty()) add("midi")
                     add("lcAll")
+                    add("syncMode")
                 }
                 add("fullscreen")
                 if (!isLinuxEntry) add("autoClose")
@@ -7802,6 +7840,37 @@ internal fun ShortcutSettingsDialogScreen(
                     )
                     } // end of the Wine launcher rows (Emulator / MIDI / LC_ALL)
 
+                    // Sync (esync / ntsync / fsync / wineserver) — follows the container unless this game
+                    // picks otherwise. D-pad: Left/Right step through the runnable modes, A goes back
+                    // to the container's.
+                    if (!isLinuxEntry) {
+                        val runnable = com.winhub.hernandez.core.SyncMode.ALL.filter {
+                            syncCaps?.isAvailable(it) ?: (it != com.winhub.hernandez.core.SyncMode.FSYNC && it != com.winhub.hernandez.core.SyncMode.NTSYNC)
+                        }
+                        SideEffect {
+                            dp.actions["syncMode"] = ControlActions(
+                                activate = { syncOverride = null },
+                                onLeft = { runnable.getOrNull(runnable.indexOf(syncEffective) - 1)?.let(pickSync) },
+                                onRight = { runnable.getOrNull(runnable.indexOf(syncEffective) + 1)?.let(pickSync) },
+                            )
+                        }
+                        com.winhub.hernandez.ui.components.SyncModeSelector(
+                            selected = syncEffective,
+                            caps = syncCaps,
+                            helper = when {
+                                syncOverrideUnavailable && syncCaps != null ->
+                                    com.winhub.hernandez.ui.components.syncSwitchedBackNotice(syncOverride!!, syncLayer, syncCaps!!)
+                                syncOverriding -> "$syncEffective for this game only (container: $containerSyncEffective)."
+                                else -> "Following the container: $containerSyncEffective."
+                            },
+                            onPick = pickSync,
+                            focused = dp.isFocused("syncMode"),
+                            onUseContainer = if (syncOverriding) ({ syncOverride = null }) else null,
+                            onHelp = { helpRes = R.string.help_sync_mode },
+                            modifier = Modifier.dpadBringIntoView(dp, "syncMode"),
+                        )
+                    }
+
                     // Fullscreen aspect-ratio mode (#71) — per-game override. Index 0 = use the
                     // container default; indices 1..5 map to Container.FULLSCREEN_OFF/FIT/STRETCH/FILL/INTEGER.
                     val fsOverrideLabels = listOf(
@@ -8616,7 +8685,40 @@ internal fun DeckShortcutSettingsScreen(
         }
     }
 
-    var envVarsStr by remember { mutableStateOf(shortcut.getExtra("envVars")) }
+    // Sync per-game override (extra "syncMode"; core.SyncSupport). null = follow the container. The
+    // stored value is the extra, else what this game's own env string said before the selector
+    // existed (WINEESYNC=0 → wineserver, WINENTSYNC=1 → ntsync, WINEESYNC=1 → esync). Greyed against
+    // the layer the game runs on — the container's (a shortcut has no layer of its own); the probe
+    // reads ntdll.so off-main and is cached per layer, so it's keyed on the wine version.
+    val syncLayer = shortcut.container.wineVersion ?: ""
+    val containerSyncStored = remember(shortcut.container) {
+        com.winhub.hernandez.core.SyncSupport.storedMode(
+            shortcut.container.getExtra(com.winhub.hernandez.core.SyncMode.EXTRA, ""), shortcut.container.envVars)
+    }
+    var syncCaps by remember(syncLayer) { mutableStateOf(com.winhub.hernandez.core.SyncSupport.peek(syncLayer)) }
+    LaunchedEffect(syncLayer) {
+        syncCaps = withContext(Dispatchers.IO) {
+            com.winhub.hernandez.core.SyncSupport.capsFor(context, null, syncLayer)
+        }
+    }
+    var syncOverride by remember {
+        mutableStateOf(com.winhub.hernandez.core.SyncSupport.storedMode(
+            shortcut.getExtra(com.winhub.hernandez.core.SyncMode.EXTRA, ""), shortcut.getExtra("envVars")))
+    }
+    val containerSyncEffective = syncCaps?.resolve(containerSyncStored)
+        ?: containerSyncStored ?: com.winhub.hernandez.core.SyncMode.ESYNC
+    val syncEffective = syncOverride?.let { o -> syncCaps?.resolve(o) ?: o } ?: containerSyncEffective
+    val syncOverriding = syncOverride != null && syncEffective != containerSyncEffective
+    val syncOverrideUnavailable = syncOverride != null && syncCaps?.isAvailable(syncOverride!!) == false
+    val pickSync: (String) -> Unit = { m ->
+        if (syncCaps?.isAvailable(m) != false && com.winhub.hernandez.core.SyncMode.normalize(m) != null)
+            syncOverride = if (m == containerSyncEffective) null else m
+    }
+    // The sync variables left the env string for the Sync selector (read into syncOverride above),
+    // so they're dropped here and on save.
+    var envVarsStr by remember {
+        mutableStateOf(com.winhub.hernandez.core.SyncSupport.stripSyncVars(shortcut.getExtra("envVars")))
+    }
     var showScAudioSettings by remember { mutableStateOf(false) }
     val gameDir = remember(shortcut) {
         runCatching { WinePath.resolveAndroidPath(shortcut.container, shortcut.path)?.parentFile }.getOrNull()
@@ -8788,7 +8890,7 @@ internal fun DeckShortcutSettingsScreen(
         if (enableDInput) finalInputType = finalInputType or WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()
 
         val wincomps = winComponents.joinToString(",") { "${it.key}=${it.selectedIndex}" }
-        val envVars = envVarsStr
+        val envVars = com.winhub.hernandez.core.SyncSupport.stripSyncVars(envVarsStr)
         val cpuList = cpuListViewRef.value?.getCheckedCPUListAsString() ?: shortcut.getExtra("cpuList", shortcut.container.getCPUList(true))
 
         val b64PresetId = box64Presets.getOrElse(selectedBox64PresetIndex) { null }?.id ?: Box64Preset.COMPATIBILITY
@@ -8879,6 +8981,10 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("reshadeEffect", reshadeLoadout.firstEffectName())
             putExtra("wincomponents", wincomps)
             putExtra("envVars", envVars.ifEmpty { null })
+            // Sync override: only a pick that differs from the container's is stored (null clears the
+            // extra = follow the container). A pick the layer can't run saves as what it resolves to.
+            putExtra(com.winhub.hernandez.core.SyncMode.EXTRA,
+                syncOverride?.let { o -> syncCaps?.resolve(o) ?: o }?.takeIf { it != containerSyncEffective })
             putExtra("cpuList", cpuList)
             saveData()
         }
@@ -9261,6 +9367,26 @@ internal fun DeckShortcutSettingsScreen(
                                         )
                                     }
                                     DeckTextRow("LC_ALL", value = lcAll, onValueChange = { lcAll = it })
+                                    // Sync: follows the container unless this game picks otherwise. Only
+                                    // modes the layer can run are listed (fsync never is on Android).
+                                    DeckChoiceRow(
+                                        label = "Sync",
+                                        hint = when {
+                                            syncOverrideUnavailable && syncCaps != null ->
+                                                com.winhub.hernandez.ui.components.syncSwitchedBackNotice(syncOverride!!, syncLayer, syncCaps!!)
+                                            syncOverriding -> "$syncEffective for this game only (container: $containerSyncEffective)."
+                                            else -> "Following the container: $containerSyncEffective."
+                                        },
+                                        options = listOf("" to "Container default ($containerSyncEffective)") +
+                                            com.winhub.hernandez.core.SyncMode.ALL
+                                                .filter {
+                                                    it != com.winhub.hernandez.core.SyncMode.FSYNC &&
+                                                        (syncCaps?.isAvailable(it) ?: (it != com.winhub.hernandez.core.SyncMode.NTSYNC))
+                                                }
+                                                .map { it to it },
+                                        selected = if (syncOverriding) syncEffective else "",
+                                        onPick = { if (it.isEmpty()) syncOverride = null else pickSync(it) },
+                                    )
                                 }
                             }
                         }

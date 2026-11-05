@@ -27,6 +27,9 @@ import com.winhub.hernandez.core.NewContainerDefaults
 import com.winhub.hernandez.core.PreloaderState
 import com.winhub.hernandez.core.StorageRoots
 import com.winhub.hernandez.core.StringUtils
+import com.winhub.hernandez.core.SyncCaps
+import com.winhub.hernandez.core.SyncMode
+import com.winhub.hernandez.core.SyncSupport
 import com.winhub.hernandez.core.WineInfo
 import com.winhub.hernandez.core.WinePath
 import com.winhub.hernandez.core.WineRegistryEditor
@@ -40,6 +43,7 @@ import com.winhub.hernandez.midi.MidiManager
 import com.winhub.hernandez.winhandler.WinHandler
 import com.winhub.hernandez.xserver.XKeycode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -142,6 +146,51 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
 
     var wineVersionEntries by mutableStateOf(emptyList<String>()); private set
     var selectedWineVersion by mutableStateOf("")
+
+    // Sync (extra "syncMode": esync | ntsync | wineserver; core.SyncSupport). syncMode is the pick the
+    // editor shows; syncCaps what the selected layer can run (null while the off-main ntdll.so probe
+    // runs); syncNotice the "switched back" line after a layer change made the pick unavailable.
+    // syncFollowsLayer: nothing was chosen yet (new container, or an old one whose env never said),
+    // so the pick tracks the layer default quietly instead of claiming a choice.
+    var syncMode by mutableStateOf(SyncMode.ESYNC); private set
+    var syncCaps by mutableStateOf<SyncCaps?>(null); private set
+    var syncNotice by mutableStateOf<String?>(null); private set
+    private var syncFollowsLayer = true
+    private var syncProbeJob: Job? = null
+
+    fun onSyncModePicked(mode: String) {
+        if (syncCaps?.isAvailable(mode) == false || SyncMode.normalize(mode) == null) return
+        syncMode = mode
+        syncFollowsLayer = false
+        syncNotice = null
+    }
+
+    // Re-probe the selected layer (cached per layer dir) and re-check the pick against it. The cached
+    // answer, if any, applies at once so the greying never lags a layer switch.
+    private fun refreshSyncCaps(layer: String) {
+        syncProbeJob?.cancel()
+        syncNotice = null
+        if (defaultsMode || layer.isEmpty()) { syncCaps = null; return }
+        val known = SyncSupport.peek(layer)
+        if (known != null) applySyncCaps(layer, known) else syncCaps = null
+        syncProbeJob = viewModelScope.launch(Dispatchers.Main) {
+            val caps = withContext(Dispatchers.IO) {
+                SyncSupport.capsFor(context, if (::contentsManager.isInitialized) contentsManager else null, layer)
+            }
+            if (selectedWineVersion == layer) applySyncCaps(layer, caps)
+        }
+    }
+
+    private fun applySyncCaps(layer: String, caps: SyncCaps) {
+        syncCaps = caps
+        when {
+            syncFollowsLayer -> syncMode = caps.defaultMode
+            !caps.isAvailable(syncMode) -> {
+                syncNotice = com.winhub.hernandez.ui.components.syncSwitchedBackNotice(syncMode, layer, caps)
+                syncMode = caps.defaultMode
+            }
+        }
+    }
 
     // Whether the given wine/Proton layer has xrandr compiled in — i.e. can actually deliver the
     // in-game refresh unlock. The editor uses this to warn under the "In-game refresh rate" control
@@ -739,8 +788,19 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         // Win Components
         loadWinComponents(seed?.winComponents ?: Container.DEFAULT_WINCOMPONENTS)
 
-        // Env vars
-        envVarsStr = seed?.envVars ?: Container.DEFAULT_ENV_VARS
+        // Env vars. Outside defaults mode the sync variables move to the Sync selector: its stored
+        // extra wins, else what the env string said (WINEESYNC=0 → wineserver, WINENTSYNC=1 → ntsync,
+        // WINEESYNC=1 → esync), else the layer default; then they leave the env string.
+        val rawEnv = seed?.envVars ?: Container.DEFAULT_ENV_VARS
+        if (defaultsMode) {
+            envVarsStr = rawEnv
+        } else {
+            val stored = SyncSupport.storedMode(seed?.getExtra(SyncMode.EXTRA, ""), rawEnv)
+            syncFollowsLayer = stored == null
+            syncMode = stored ?: SyncMode.ESYNC
+            envVarsStr = SyncSupport.stripSyncVars(rawEnv)
+            refreshSyncCaps(selectedWineVersion)
+        }
 
         // Drives
         drives.clear()
@@ -882,6 +942,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         selectedWineVersion = version
         coerceAudioDriverForWine()      // a switch to an unsupported layer drops a stale DirectAudio pick
         refreshWineDependent(version)   // updates isArm64EC + swaps the box64/wowbox64 list
+        refreshSyncCaps(version)        // re-grey the Sync options; an unavailable pick falls back
 
         // CREATE mode only: a wine change can FLIP the architecture. applyArch() swapped the box64 list
         // and reset its selection but did NOT re-seed the arch-dependent fields, so without this they'd
@@ -1084,7 +1145,14 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
 
         c.name               = containerName
         c.screenSize         = buildScreenSize()
-        c.envVars            = envVarsIn
+        // Sync: the selector's pick is stored and the env string no longer carries sync variables
+        // (defaults mode has no layer to judge against, so it leaves both as they were).
+        if (defaultsMode) {
+            c.envVars        = envVarsIn
+        } else {
+            c.envVars        = SyncSupport.stripSyncVars(envVarsIn)
+            c.putExtra(SyncMode.EXTRA, syncCaps?.resolve(syncMode) ?: syncMode)
+        }
         c.setCPUList(cpuListIn)
         c.setCPUListWoW64(cpuListWoW64In)
         c.graphicsDriver     = StringUtils.parseIdentifier(selectedGraphicsDriver)

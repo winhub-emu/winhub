@@ -684,6 +684,29 @@ internal fun DeckContainerDetailScreen(
                                     onPick = { viewModel.onWineVersionChanged(it) },
                                 )
                             }
+                            // Sync follows the layer picked above (no layer to judge in defaults mode).
+                            // Only modes the layer can run are listed; fsync never is on Android.
+                            if (!viewModel.defaultsMode) {
+                                val syncCaps = viewModel.syncCaps
+                                DeckChoiceRow(
+                                    label = "Sync",
+                                    hint = viewModel.syncNotice ?: if (syncCaps == null) {
+                                        "Checking what ${viewModel.selectedWineVersion} supports…"
+                                    } else {
+                                        com.winhub.hernandez.ui.components.syncModeBlurb(viewModel.syncMode, syncCaps) +
+                                            "  ·  Unavailable: " + com.winhub.hernandez.ui.components
+                                                .syncGreyedReasons(syncCaps, viewModel.selectedWineVersion).joinToString("; ") + "."
+                                    },
+                                    options = com.winhub.hernandez.core.SyncMode.ALL
+                                        .filter { m ->
+                                            m == viewModel.syncMode || (m != com.winhub.hernandez.core.SyncMode.FSYNC &&
+                                                (syncCaps?.isAvailable(m) ?: (m != com.winhub.hernandez.core.SyncMode.NTSYNC)))
+                                        }
+                                        .map { it to it },
+                                    selected = viewModel.syncMode,
+                                    onPick = { viewModel.onSyncModePicked(it) },
+                                )
+                            }
                             DeckChoiceRow(
                                 label = "Audio Driver",
                                 options = viewModel.audioDriverEntries.map { it to it },
