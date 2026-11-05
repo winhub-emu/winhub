@@ -7,10 +7,12 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,7 +55,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +87,8 @@ internal fun PortraitHome(
     onSelect: (Int) -> Unit,
     onPlay: (Int) -> Unit,
     onAdd: () -> Unit,
+    // Holding a cover opens that game's menu.
+    onMenu: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state = rememberLazyGridState()
@@ -177,6 +183,7 @@ internal fun PortraitHome(
                 isSelected = i == selected,
                 favourite = entries[i].game?.shortcutPath in favs,
                 onClick = { onSelect(i) },
+                onLongClick = { onMenu(i) },
             )
         }
     }
@@ -269,7 +276,9 @@ private fun PortraitContinueBanner(entry: HubEntry, onOpen: () -> Unit, onPlay: 
 }
 
 @Composable
-private fun PortraitCover(entry: HubEntry, isSelected: Boolean, favourite: Boolean, onClick: () -> Unit) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun PortraitCover(entry: HubEntry, isSelected: Boolean, favourite: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
     val hue = remember(entry.title) { hueOf(entry.title) * 360f }
     val bitmap = remember(entry.bitmap) { entry.bitmap?.asImageBitmap() }
     val shape = RoundedCornerShape(14.dp)
@@ -279,7 +288,13 @@ private fun PortraitCover(entry: HubEntry, isSelected: Boolean, favourite: Boole
             .clip(shape)
             .background(Brush.linearGradient(listOf(Color.hsv(hue, 0.55f, 0.55f), Color.hsv((hue + 40f) % 360f, 0.6f, 0.25f))))
             .border(if (isSelected) 2.5.dp else 1.5.dp, deckAccentBrush(), shape)
-            .clickable { onClick() },
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
+                },
+            ),
     ) {
         if (bitmap != null) {
             Image(bitmap = bitmap, contentDescription = entry.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())

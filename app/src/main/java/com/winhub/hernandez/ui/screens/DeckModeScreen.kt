@@ -1131,6 +1131,7 @@ private fun DeckHome(
                 onSelect = { selected = it; portraitPageOpen = true },
                 onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
+                onMenu = { i -> selected = i; classicMenu = true },
             ) else DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {
                     // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
