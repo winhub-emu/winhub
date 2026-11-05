@@ -39,3 +39,6 @@ art*/
 /app/src/main/assets/xbox/
 /app/src/main/jniLibs/arm64-v8a/libxodus_cli.so
 /app/src/main/jniLibs/arm64-v8a/libxodus_service.so
+
+# Python bytecode (the release scripts)
+__pycache__/
