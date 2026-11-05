@@ -19,15 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.NavigationRailItemDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -47,8 +44,8 @@ import com.winhub.hernandez.ui.theme.LocalAccentDim
  * ([SteamStorefrontHost]) re-cut so GOG and Epic get the same chrome without touching the Steam
  * code path.
  *
- * - **Portrait / compact** → a title row (store name + status slot + action icons) over a top
- *   [TabRow], content beneath.
+ * - **Portrait / compact** → a title row (store name + status slot + action icons) over the Deck tab
+ *   strip ([DeckTabBar]), content beneath.
  * - **Landscape at Medium width or wider** → a left [androidx.compose.material3.NavigationRail]
  *   of EXACT [RAIL_WIDTH] (see [SteamMainActivity]'s note on why a bounded Column and not a bare
  *   NavigationRail — a `fillMaxWidth()` descendant would otherwise inflate it to the whole screen),
@@ -161,35 +158,12 @@ private fun SectionTabRow(
     counts: Map<String, Int>,
     onSelect: (Int) -> Unit,
 ) {
-    TabRow(
-        selectedTabIndex = selected.coerceIn(0, (tabs.size - 1).coerceAtLeast(0)),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.primary,
-    ) {
-        tabs.forEachIndexed { index, t ->
-            Tab(
-                selected = selected == index,
-                onClick = { onSelect(index) },
-                modifier = Modifier.steamFocusRing(RoundedCornerShape(0.dp)),
-                selectedContentColor = MaterialTheme.colorScheme.primary,
-                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(t.label, fontWeight = FontWeight.Bold, maxLines = 1)
-                        counts[t.key]?.takeIf { it > 0 }?.let {
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = "($it)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                },
-            )
-        }
-    }
+    // The same Deck tab strip Steam uses, so every store's Store / Library / Profile tabs look alike.
+    DeckTabBar(
+        tabs = tabs.map { DeckTabSpec(it.label, counts[it.key] ?: 0) },
+        selected = selected.coerceIn(0, (tabs.size - 1).coerceAtLeast(0)),
+        onSelect = onSelect,
+    )
 }
 
 @Composable
