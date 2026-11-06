@@ -22,11 +22,15 @@ import com.winhub.hernandez.container.Shortcut;
 import com.winhub.hernandez.contents.ContentProfile;
 import com.winhub.hernandez.contents.ContentsManager;
 import com.winhub.hernandez.core.Callback;
+import com.winhub.hernandez.core.ControllerIdentity;
+import com.winhub.hernandez.core.DInputVibration;
 import com.winhub.hernandez.core.EnvVars;
 import com.winhub.hernandez.core.FileUtils;
 import com.winhub.hernandez.core.GPUInformation;
+import com.winhub.hernandez.core.HermesSessionControl;
 import com.winhub.hernandez.core.KeyValueSet;
 import com.winhub.hernandez.core.ProcessHelper;
+import com.winhub.hernandez.core.StickPacing;
 import com.winhub.hernandez.store.SteamLogRedactor;
 import com.winhub.hernandez.core.TarCompressorUtils;
 import com.winhub.hernandez.core.WineInfo;
@@ -34,7 +38,7 @@ import com.winhub.hernandez.core.WinebusRumblePatcher;
 import com.winhub.hernandez.fexcore.FEXCoreManager;
 import com.winhub.hernandez.fexcore.FEXCorePreset;
 import com.winhub.hernandez.fexcore.FEXCorePresetManager;
-import com.winhub.hernandez.inputcontrols.FakeInputWriter;
+import com.winhub.hernandez.inputcontrols.HermesWriter;
 import com.winhub.hernandez.xconnector.UnixSocketConfig;
 import com.winhub.hernandez.xenvironment.EnvironmentComponent;
 import com.winhub.hernandez.xenvironment.ImageFs;
@@ -49,6 +53,7 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
@@ -66,6 +71,16 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
     private final ContentProfile wineProfile;
     private Container container;
     private final Shortcut shortcut;
+
+    // Direct XInput's control-block values for this launch (HermesXInput.launchControlMode), set by
+    // the activity before start; 0/0 = no Direct XInput (the DLLs read "unset").
+    private int hermesXInputMode = 0;
+    private int hermesXInputFlags = 0;
+
+    public void setHermesLaunchControl(int xinputMode, int xinputFlags) {
+        this.hermesXInputMode = xinputMode;
+        this.hermesXInputFlags = xinputFlags;
+    }
 
     public void setWineInfo(WineInfo wineInfo) {
         this.wineInfo = wineInfo;
@@ -493,7 +508,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         try {
             if (fakeinputSrc.exists()) {
                 // Refresh every launch so the guest reader can never skew from the
-                // app-side ring writer (a same-size rebuild defeats length checks).
+                // app-side writer (a same-size rebuild defeats length checks).
                 // Do NOT reintroduce a `!fakeinputDest.exists()` guard here.
                 FileUtils.copy(fakeinputSrc, fakeinputDest);
                 Log.d("GuestLauncher", "Copied libfakeinput.so to imagefs");
@@ -513,21 +528,47 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
         File devInputDir = new File(imageFs.getRootDir(), "dev/input");
         devInputDir.mkdirs();
-        File event0 = new File(devInputDir, "event0");
-        if (!event0.exists()) {
-                try { event0.createNewFile(); } catch (Exception e) {}
-        }
 
         envVars.put("FAKE_EVDEV_DIR", devInputDir.getAbsolutePath());
         envVars.put("FAKE_EVDEV_VIBRATION", "1");
 
-        // Fake-input transport is a fixed-size mmap ring per slot (see FakeInputWriter).
-        // Prepare all 4 slot rings and hand the native reader their canonical paths so
-        // an open() of /dev/input/eventN maps the matching ring. The static rings are
+        // Controller identity (core.ControllerIdentity): FAKE_EVDEV_IDENTITY for the evdev layer, plus
+        // the SDL hints, hidraw opt-out and SDL mapping that identity needs. Generic adds nothing, as
+        // before. Put here, ahead of the container's and the game's own env vars merged below, so an
+        // explicit value there still wins; the hidraw list and the SDL mapping list are combined with
+        // an explicit value instead of being replaced by it.
+        String padIdentity = ControllerIdentity.effective(container, shortcut);
+        Map<String, String> identityEnv = ControllerIdentity.launchEnv(padIdentity);
+        for (Map.Entry<String, String> entry : identityEnv.entrySet()) {
+            String name = entry.getKey();
+            if (this.envVars != null && this.envVars.has(name) && ControllerIdentity.isMergedEnv(name)) {
+                this.envVars.put(name, ControllerIdentity.mergeEnv(name, entry.getValue(), this.envVars.get(name)));
+            } else {
+                envVars.put(name, entry.getValue());
+            }
+        }
+
+        // Controller input reaches the guest through HERMES: one fixed-size state file per slot
+        // (see HermesWriter). Prepare all 4 and hand the native reader their paths, so an open()
+        // of /dev/input/eventN attaches to the matching slot. The slot state is process-wide and
         // shared with the WinHandler writers created later in this same process.
-        String ringPaths = FakeInputWriter.getRingEnv(devInputDir);
-        if (ringPaths != null && !ringPaths.isEmpty()) {
-            envVars.put("FAKE_EVDEV_MEMFD_PATHS", ringPaths);
+        // No discovery node is created here: event<N> exists only while a controller holds slot N
+        // (WinHandler's slot writers create and remove them).
+        String padPaths = HermesWriter.getRingEnv(devInputDir);
+        if (padPaths != null && !padPaths.isEmpty()) {
+            envVars.put("FAKE_EVDEV_MEMFD_PATHS", padPaths);
+        }
+        // HERMES control block, written before the guest starts: every slot's identity (the evdev
+        // layer reads it when a reader attaches, ahead of FAKE_EVDEV_IDENTITY, so a reconnect presents a
+        // changed one), the session control (stick pacing; Direct XInput's mode and flags) and
+        // DirectInput vibration (read when a reader attaches; HERMES_DINPUT_FF in the env vars wins).
+        HermesSessionControl.writeSlotIdentities(padIdentity);
+        HermesSessionControl.writeSessionControl(StickPacing.forGame(container, shortcut),
+                hermesXInputMode, hermesXInputFlags, StickPacing.envOverrides(container, shortcut));
+        HermesSessionControl.writeFfMode(DInputVibration.forGame(container, shortcut));
+        if (DInputVibration.envOverride(container, shortcut) != null) {
+            Log.i("GuestLauncher", "DirectInput vibration: " + DInputVibration.ENV + " in the env vars decides ("
+                    + (DInputVibration.effective(container, shortcut) ? "on" : "off") + ")");
         }
 
         Log.d("GuestLauncher", "Final LD_PRELOAD: " + ld_preload);
@@ -553,6 +594,21 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         // Merge any additional environment variables from external sources
         if (this.envVars != null) {
             envVars.putAll(this.envVars);
+        }
+
+        // One line per launch with the identity the pads actually present (after the merge, so an
+        // explicit FAKE_EVDEV_IDENTITY shows up as what it is) and the identity env that went with it.
+        {
+            String presented = envVars.has(ControllerIdentity.ENV) ? envVars.get(ControllerIdentity.ENV) : "";
+            StringBuilder extra = new StringBuilder();
+            for (String name : identityEnv.keySet()) {
+                if (name.equals(ControllerIdentity.ENV) || !envVars.has(name)) continue;
+                extra.append(extra.length() == 0 ? "; env " : ", ").append(name);
+                if (!name.equals("SDL_GAMECONTROLLERCONFIG")) extra.append('=').append(envVars.get(name));
+            }
+            Log.i("GuestLauncher", "Controller identity: " + ControllerIdentity.describe(presented)
+                    + " (FAKE_EVDEV_IDENTITY=" + (presented.isEmpty() ? "unset" : presented)
+                    + ", from " + ControllerIdentity.source(container, shortcut) + ")" + extra);
         }
 
         ContainerOverlay.applyLaunchEnv(context, container, envVars);

@@ -87,10 +87,28 @@ add_library(fakeinput SHARED
 
 target_compile_options(fakeinput PRIVATE -Wall -Wextra -fvisibility=hidden)
 
+# HERMES, the controller-input transport reader (Rust, hermes/): a static library with a plain
+# C ABI (hermes/include/hermes.h), built by CI before Gradle runs (hermes/ci/build.sh from
+# .github/workflows/_build.yml). It depends on libc/libdl/pthread only and is linked with
+# --exclude-libs so none of its symbols is exported from the preloaded library.
+set(HERMES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hermes)
+set(HERMES_GUEST_LIB ${HERMES_DIR}/target/aarch64-linux-android/release/libhermes_guest.a)
+if(NOT EXISTS ${HERMES_GUEST_LIB})
+    message(FATAL_ERROR "hermes: ${HERMES_GUEST_LIB} is missing. Build it first: "
+            "NDK_BIN=<ndk>/toolchains/llvm/prebuilt/linux-x86_64/bin hermes/ci/build.sh android")
+endif()
+add_library(hermes_guest STATIC IMPORTED)
+set_target_properties(hermes_guest PROPERTIES
+        IMPORTED_LOCATION ${HERMES_GUEST_LIB}
+        INTERFACE_INCLUDE_DIRECTORIES ${HERMES_DIR}/include
+)
+
 target_link_libraries(fakeinput
         log
         dl
+        hermes_guest
 )
+target_link_options(fakeinput PRIVATE "-Wl,--exclude-libs,libhermes_guest.a")
 
 add_library(vulkan_renderer SHARED
         winlator/vulkan_jni.cpp

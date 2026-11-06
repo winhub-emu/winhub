@@ -9,7 +9,6 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 #include <dirent.h>
 #include <dlfcn.h>
@@ -24,7 +23,6 @@
 #include <string.h>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -35,6 +33,13 @@
 #include <sys/uio.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+#include "../hermes/include/hermes.h"
+
+// Force feedback (EVIOCSFF / EVIOCRMFF / EV_FF writes) goes to HERMES's effect engine (API 3).
+#if HERMES_API_VERSION < 3
+#error "fakeinput.cpp needs the HERMES force-feedback API (hermes.h API version 3)"
+#endif
 
 #define EXPORT __attribute__((visibility("default"))) extern "C"
 
@@ -57,106 +62,88 @@ static constexpr const char *GAMEPAD_NAME_TEMPLATE = "Generic HID Gamepad %d";
 // SDL and Steam key their controller mapping database on a GUID built from bus+vendor+product.
 // The generic identity above is in no such database.
 // So a client has to guess the layout, or ask the user to configure the pad by hand.
-// 045E:028E is the Xbox 360 pad, the most widely mapped GUID there is.
-// Clients apply its standard layout with no configuration.
-// Titles that hardcode Xbox glyphs also stop mislabelling buttons.
-// This is opt-in rather than a new default, because the generic identity is what every already-working Windows title under Wine currently sees.
-// The Linux runtime session sets it, and the Wine path keeps the generic identity until it is proven on device.
-static constexpr uint16_t X360_VENDOR_ID = 0x045E;
-static constexpr uint16_t X360_PRODUCT_ID = 0x028E;
-static constexpr const char *X360_NAME_TEMPLATE = "Xbox 360 Controller (%d)";
-static bool xbox360_identity = false;
+// FAKE_EVDEV_IDENTITY picks another identity from the table below; unset, empty or unknown keeps
+// the generic one, which is what every already-working Windows title under Wine currently sees.
+// An identity changes only what the pad says it is (EVIOCGID vendor/product, EVIOCGNAME and
+// JSIOCGNAME); buttons, axes and force feedback are the same for every entry.
+// Vendor/product are not offset per slot: a real pad reports the same ids on every port, and an
+// offset id would be a GUID no mapping database knows.
+// The app sets the variable from the container's "Controller identity" and mirrors this table in
+// core/ControllerIdentity.java (DirectInput registry names, SDL mappings, launch log), so the two
+// change together.
+struct PadIdentity {
+  const char *value;
+  uint16_t vendor;
+  uint16_t product;
+  const char *name_template;
+};
+static constexpr PadIdentity PAD_IDENTITIES[] = {
+    {"xbox360", 0x045E, 0x028E, "Xbox 360 Controller (%d)"},
+    {"xboxone", 0x045E, 0x02EA, "Xbox One S Controller (%d)"},
+    {"xboxseries", 0x045E, 0x0B12, "Xbox Series X Controller (%d)"},
+    // The Steam Input virtual gamepad, as the Linux runtime presents it (fakeinput_steam.cpp).
+    {"steamvirtual", 0x28DE, 0x11FF, "Microsoft X-Box 360 pad %d"},
+    // pid.codes' shared test id: claimed by no vendor, SDL mapping or winebus list, so the pad
+    // stays a plain DirectInput joystick.
+    {"dinputpad", 0x1209, 0x0001, "USB Gamepad (%d)"},
+    {"ds4", 0x054C, 0x09CC, "Wireless Controller (%d)"},
+    {"dualsense", 0x054C, 0x0CE6, "DualSense Wireless Controller (%d)"},
+    {"switchpro", 0x057E, 0x2009, "Pro Controller (%d)"},
+    // 057E:2008 is the combined pair joycond creates; SDL types it as a Joy-Con pair.
+    {"joyconpair", 0x057E, 0x2008, "Nintendo Switch Combined Joy-Cons (%d)"},
+    {"steamdeck", 0x28DE, 0x1205, "Steam Deck Controller (%d)"},
+};
+static const PadIdentity *pad_identity = nullptr; // null = the generic identity
+
+static const PadIdentity *find_pad_identity(const char *value) {
+  if (!value || !*value)
+    return nullptr;
+  for (const PadIdentity &entry : PAD_IDENTITIES)
+    if (!strcmp(entry.value, value))
+      return &entry;
+  return nullptr;
+}
+
+// The slot's identity from HERMES's control block. The app sets it for every slot and can change
+// it in-game; the pad then reconnects and the new attach takes the new identity. False when the slot
+// file carries none (-ENODATA, an older app): FAKE_EVDEV_IDENTITY / the generic identity apply.
+static bool live_pad_identity(hermes_handle handle, struct hermes_identity *out) {
+  return handle && hermes_identity(handle, out, sizeof(*out)) == 0;
+}
+
+// The live identity's name into an EVIOCGNAME / JSIOCGNAME buffer (copied as text, never as a format).
+static void copy_live_name(fakeinput_ioctl_request_t op, void *argp, const struct hermes_identity &live) {
+  size_t size = _IOC_SIZE(op);
+  if (!argp || size == 0)
+    return;
+  snprintf(static_cast<char *>(argp), size, "%.*s", static_cast<int>(sizeof(live.name)), live.name);
+}
 static constexpr const char *GAMEPAD_PHYS_TEMPLATE = "usb-fakeinput/input%d";
 static constexpr const char *GAMEPAD_UNIQ_TEMPLATE = "0000000000%02d";
 static constexpr uint8_t GAMEPAD_AXIS_COUNT = 8;
 static constexpr uint8_t GAMEPAD_BUTTON_COUNT = 11;
-static constexpr uint32_t FAKE_INPUT_RING_MAGIC = 0x46494252;
-static constexpr uint32_t FAKE_INPUT_RING_VERSION = 2;
-static constexpr uint32_t FAKE_INPUT_EVENT_SIZE = sizeof(struct input_event);
-static constexpr uint32_t FAKE_INPUT_RING_CAPACITY = 4096;
 static constexpr unsigned int FAKE_INPUT_MAJOR = 13;
 static constexpr unsigned int FAKE_INPUT_EVENT_MINOR_BASE = 64;
 static constexpr unsigned int FAKE_INPUT_JS_MINOR_BASE = 0;
 
-struct FakeInputRingHeader {
-  uint32_t magic;             // 0
-  uint32_t version;           // 4
-  uint32_t event_size;        // 8
-  uint32_t capacity;          // 12
-  uint64_t write_seq;         // 16
-  uint64_t generation;        // 24
-  // Authoritative absolute-state snapshot, published by the writer under a
-  // seqlock (odd snapshot_seq = write in progress). The reader replays it as a
-  // full keyframe whenever the delta stream could have desynced (open, ring
-  // overflow) so dropped events can recover without periodic duplicate input.
-  uint64_t snapshot_seq;      // 32
-  uint32_t snapshot_buttons;  // 40  bit i -> kSnapshotButtons[i] pressed
-  int16_t snapshot_axes[8];   // 44  values in kSnapshotAxisCodes order
-  uint8_t reserved[4];        // 60
-};
+static_assert(sizeof(struct input_event) == HERMES_EVENT_SIZE,
+              "hermes writes the platform's struct input_event");
 
-static_assert(sizeof(FakeInputRingHeader) == 64,
-              "fake input ring header must stay ABI-stable");
-
-static constexpr size_t FAKE_INPUT_RING_HEADER_SIZE =
-    sizeof(FakeInputRingHeader);
-static constexpr size_t FAKE_INPUT_RING_SIZE =
-    FAKE_INPUT_RING_HEADER_SIZE +
-    (FAKE_INPUT_RING_CAPACITY * FAKE_INPUT_EVENT_SIZE);
-
+// One open pad fd. The fd itself belongs to hermes (a real kernel fd whose readiness hermes
+// keeps current), so poll/select/epoll on it need no help from this library.
 struct FakeController {
   char *event = nullptr;
   int slot = -1;
-  FakeInputRingHeader *ring = nullptr;
-  uint64_t read_seq = 0;
-  uint64_t generation = 0;
-  size_t mapping_size = 0;
-  // Pending keyframe (full absolute-state baseline) currently streaming to the
-  // guest. The axis/button values are captured from the snapshot when the
-  // keyframe starts so the frame stays consistent across multi-read delivery.
-  size_t keyframe_remaining = 0;
-  int32_t keyframe_axes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  uint32_t keyframe_buttons = 0;
+  hermes_handle handle = 0;
 };
 
-struct NeutralEventSpec {
-  uint16_t type;
-  uint16_t code;
-};
-
-// Event template for a full keyframe: every button, every axis/hat, then a
-// SYN_REPORT, in this fixed order. The value carried by each event is filled
-// from the authoritative snapshot (see keyframe_value); an all-zero snapshot
-// yields the neutral baseline. Replayed on open and ring overflow so dropped
-// events cannot leave a guest stuck.
-static const NeutralEventSpec kNeutralEvents[] = {
-    {EV_KEY, BTN_A},      {EV_KEY, BTN_B},      {EV_KEY, BTN_X},
-    {EV_KEY, BTN_Y},      {EV_KEY, BTN_TL},     {EV_KEY, BTN_TR},
-    {EV_KEY, BTN_SELECT}, {EV_KEY, BTN_START},  {EV_KEY, BTN_MODE},
-    {EV_KEY, BTN_THUMBL}, {EV_KEY, BTN_THUMBR}, {EV_ABS, ABS_X},
-    {EV_ABS, ABS_Y},      {EV_ABS, ABS_RX},     {EV_ABS, ABS_RY},
-    {EV_ABS, ABS_GAS},    {EV_ABS, ABS_BRAKE},  {EV_ABS, ABS_HAT0X},
-    {EV_ABS, ABS_HAT0Y},  {EV_SYN, SYN_REPORT},
-};
-static constexpr size_t kNeutralEventCount =
-    sizeof(kNeutralEvents) / sizeof(kNeutralEvents[0]);
-
-// Axis layout of FakeInputRingHeader::snapshot_axes (mirrors the Java writer).
-static const uint16_t kSnapshotAxisCodes[8] = {
-    ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_GAS, ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y};
-// Bit i of FakeInputRingHeader::snapshot_buttons maps to this button code.
-static const uint16_t kSnapshotButtons[10] = {
-    BTN_A,  BTN_B,      BTN_X,     BTN_Y,      BTN_TL,
-    BTN_TR, BTN_SELECT, BTN_START, BTN_THUMBL, BTN_THUMBR};
+// hermes's canonical button and axis order (index -> evdev code).
+static const uint16_t kPadButtonCodes[HERMES_BUTTONS] = HERMES_BUTTON_CODES;
+static const uint16_t kPadAxisCodes[HERMES_AXES] = HERMES_AXIS_CODES;
 
 static std::unordered_map<int, FakeController> controller_map;
-static std::unordered_map<int, std::string> ring_paths;
-static bool ring_paths_loaded = false;
-static bool initialized = false;
 static const char *hook_dir = nullptr;
 static const char *udev_data_dir = nullptr;
-static bool vibration_enabled = true;
-volatile sig_atomic_t stop_flag = 0;
 
 static int (*my_open)(const char *, int, ...) = nullptr;
 static int (*my_openat)(int, const char *, int, ...) = nullptr;
@@ -176,9 +163,6 @@ static int (*my_ppoll)(struct pollfd *, nfds_t, const struct timespec *,
 static int (*my_select)(int, fd_set *, fd_set *, fd_set *,
                         struct timeval *) = nullptr;
 static ssize_t (*my_write)(int, const void *, size_t) = nullptr;
-
-static std::unordered_map<int, struct ff_effect> ff_effects;
-static int next_ff_id = 0;
 
 namespace Logger {
 int log_enabled;
@@ -200,16 +184,17 @@ void log(const char *message, ...) {
 }
 } // namespace Logger
 
-void handle_sigint(int sig) {
-  (void)sig;
-  stop_flag = 1;
-}
-
-void setup_signal_handler() {
-  if (!initialized) {
-    signal(SIGINT, handle_sigint);
-    initialized = true;
-  }
+// hermes's diagnostics, under FAKE_EVDEV_LOG. Written with one raw write(2): hermes may call
+// this from its own helper thread, which must never wait on stdio's lock or re-enter a hook.
+static void hermes_log_line(int level, const char *line) {
+  char out[512];
+  int n = snprintf(out, sizeof(out), "fakeinput%s: %s\n", level ? " (warning)" : "",
+                   line ? line : "");
+  if (n <= 0)
+    return;
+  if (n >= static_cast<int>(sizeof(out)))
+    n = sizeof(out) - 1;
+  syscall(SYS_write, STDERR_FILENO, out, static_cast<size_t>(n));
 }
 
 __attribute__((constructor)) static void library_init() {
@@ -218,66 +203,149 @@ __attribute__((constructor)) static void library_init() {
                    ? getenv("FAKE_EVDEV_DIR")
                    : "/data/data/com.termux/files/home/fake-input";
   udev_data_dir = getenv("FAKE_UDEV_DATA_DIR");
-  vibration_enabled =
-      getenv("FAKE_EVDEV_VIBRATION") && atoi(getenv("FAKE_EVDEV_VIBRATION"));
 
-  const char *identity = getenv("FAKE_EVDEV_IDENTITY");
-  xbox360_identity = identity && !strcmp(identity, "xbox360");
+  pad_identity = find_pad_identity(getenv("FAKE_EVDEV_IDENTITY"));
 
   Logger::init();
+  if (Logger::log_enabled)
+    hermes_set_logger(hermes_log_line);
+  hermes_init();
 }
 
-__attribute__((visibility("hidden"))) static void
-send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
-  if (!vibration_enabled)
-    return;
+// Force feedback. Every pad fd is a HERMES handle, and HERMES's effect engine owns its effects:
+// it answers which effect types the pad supports, keeps each handle's uploaded effects (as the kernel
+// keeps them per open file), plays them, mixes them into the two rumble motors and sends those to the
+// app. Here the evdev calls are only translated: EVIOCSFF / EVIOCRMFF / EVIOCGEFFECTS and the EV_FF
+// events a program writes (play / stop, gain, autocenter).
 
-  int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (sock < 0)
-    return;
-
-  struct sockaddr_un addr = {};
-  addr.sun_family = AF_UNIX;
-  const char *name = "winlator_vibration";
-  memcpy(addr.sun_path + 1, name, strlen(name));
-  socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
-
-  if (connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen) < 0) {
-    syscall(SYS_close, sock);
-    return;
+// The pad's EV_FF bitmap (EVIOCGBIT layout, FF_MAX + 1 bits), zeroed when the engine has none.
+__attribute__((visibility("hidden"))) static bool
+ff_bits(hermes_handle handle, unsigned char (&bits)[(FF_MAX + 8) / 8]) {
+  memset(bits, 0, sizeof(bits));
+  int n = hermes_ff_bits(handle, bits, sizeof(bits));
+  if (n <= 0) {
+    memset(bits, 0, sizeof(bits));
+    return false;
   }
-
-  uint16_t data[4];
-  data[0] = static_cast<uint16_t>(strong);
-  data[1] = static_cast<uint16_t>(weak);
-  data[2] = duration_ms;
-  data[3] = slot;
-  send(sock, data, sizeof(data), 0);
-  syscall(SYS_close, sock);
+  for (unsigned char byte : bits)
+    if (byte)
+      return true;
+  return false;
 }
 
 __attribute__((visibility("hidden"))) static void
-check_ff_event(const struct input_event *ev, uint16_t slot) {
-  if (ev->type != EV_FF)
-    return;
+copy_ff_envelope(struct hermes_ff_envelope *out, const struct ff_envelope &in) {
+  out->attack_length = in.attack_length;
+  out->attack_level = in.attack_level;
+  out->fade_length = in.fade_length;
+  out->fade_level = in.fade_level;
+}
 
-  int id = ev->code;
-  if (ev->value > 0) {
-    auto it = ff_effects.find(id);
-    if (it == ff_effects.end())
-      return;
+// struct ff_effect -> the engine's effect. The trigger button and a custom waveform's sample data
+// have no counterpart (the engine plays effects only on request, and custom samples live in the
+// caller's memory); everything else is copied field by field.
+__attribute__((visibility("hidden"))) static void
+to_hermes_effect(const struct ff_effect &in, struct hermes_ff_effect *out) {
+  memset(out, 0, sizeof(*out));
+  out->type = in.type;
+  out->id = in.id;
+  out->direction = in.direction;
+  out->replay_length = in.replay.length;
+  out->replay_delay = in.replay.delay;
+  switch (in.type) {
+  case FF_RUMBLE:
+    out->u.rumble.strong_magnitude = in.u.rumble.strong_magnitude;
+    out->u.rumble.weak_magnitude = in.u.rumble.weak_magnitude;
+    break;
+  case FF_PERIODIC:
+    out->u.periodic.waveform = in.u.periodic.waveform;
+    out->u.periodic.period = in.u.periodic.period;
+    out->u.periodic.magnitude = in.u.periodic.magnitude;
+    out->u.periodic.offset = in.u.periodic.offset;
+    out->u.periodic.phase = in.u.periodic.phase;
+    copy_ff_envelope(&out->u.periodic.envelope, in.u.periodic.envelope);
+    break;
+  case FF_CONSTANT:
+    out->u.constant.level = in.u.constant.level;
+    copy_ff_envelope(&out->u.constant.envelope, in.u.constant.envelope);
+    break;
+  case FF_RAMP:
+    out->u.ramp.start_level = in.u.ramp.start_level;
+    out->u.ramp.end_level = in.u.ramp.end_level;
+    copy_ff_envelope(&out->u.ramp.envelope, in.u.ramp.envelope);
+    break;
+  case FF_SPRING:
+  case FF_FRICTION:
+  case FF_DAMPER:
+  case FF_INERTIA:
+    // Conditions travel as raw bytes: struct ff_condition_effect[2] (one per axis), as evdev has it.
+    static_assert(sizeof(in.u.condition) <= sizeof(out->u.raw),
+                  "two ff_condition_effect fit the engine's raw effect data");
+    memcpy(out->u.raw, in.u.condition, sizeof(in.u.condition));
+    break;
+  default:
+    // A type the pad doesn't advertise: the engine refuses it.
+    break;
+  }
+}
 
-    uint16_t duration = it->second.replay.length;
-    if (it->second.type == FF_RUMBLE) {
-      send_vibration(it->second.u.rumble.strong_magnitude,
-                     it->second.u.rumble.weak_magnitude, duration, slot);
-    } else if (it->second.type == FF_PERIODIC) {
-      send_vibration(it->second.u.periodic.magnitude,
-                     it->second.u.periodic.magnitude, duration, slot);
+// EVIOCSFF: upload a new effect (id -1; the engine picks the id) or update one of this fd's. The id
+// goes back into the caller's struct, as evdev writes it.
+__attribute__((visibility("hidden"))) static int
+upload_ff_effect(hermes_handle handle, fakeinput_ioctl_request_t op, void *argp) {
+  if (!argp) {
+    errno = EFAULT;
+    return -1;
+  }
+  struct ff_effect effect;
+  memset(&effect, 0, sizeof(effect));
+  memcpy(&effect, argp, std::min<size_t>(_IOC_SIZE(op), sizeof(effect)));
+
+  struct hermes_ff_effect converted;
+  to_hermes_effect(effect, &converted);
+  int error = hermes_ff_upload(handle, &converted, sizeof(converted));
+  if (error < 0) {
+    Logger::log("EVIOCSFF type 0x%x id %d refused: %s\n", effect.type, effect.id, strerror(-error));
+    errno = -error;
+    return -1;
+  }
+  static_cast<struct ff_effect *>(argp)->id = converted.id;
+  return 0;
+}
+
+// The EV_FF events of one write: FF_GAIN / FF_AUTOCENTER set the device's gain / autocenter (values
+// above 0xffff ignored, as evdev does), any other code plays (value = count) or stops (0) the effect
+// with that id. Other event types are accepted and ignored, as before.
+__attribute__((visibility("hidden"))) static void
+write_ff_events(hermes_handle handle, const void *buf, size_t count) {
+  const struct input_event *events = static_cast<const struct input_event *>(buf);
+  for (size_t i = 0; i < count / sizeof(struct input_event); i++) {
+    const struct input_event &ev = events[i];
+    if (ev.type != EV_FF)
+      continue;
+    int error;
+    if (ev.code == FF_GAIN || ev.code == FF_AUTOCENTER) {
+      if (ev.value < 0 || ev.value > 0xffff)
+        continue;
+      uint16_t value = static_cast<uint16_t>(ev.value);
+      error = ev.code == FF_GAIN ? hermes_ff_set_gain(handle, value)
+                                 : hermes_ff_set_autocenter(handle, value);
+    } else {
+      error = hermes_ff_play(handle, ev.code, ev.value);
     }
-  } else {
-    send_vibration(0, 0, 0, slot);
+    if (error < 0)
+      Logger::log("EV_FF code %u value %d: %s\n", ev.code, ev.value, strerror(-error));
   }
+}
+
+// An EVIOCGBIT reply the way evdev gives it: no more than the caller's buffer (_IOC_SIZE), and the
+// number of bytes copied as the result.
+__attribute__((visibility("hidden"))) static int
+copy_bits_reply(fakeinput_ioctl_request_t op, void *argp, const void *bits, size_t size) {
+  size_t n = std::min<size_t>(_IOC_SIZE(op), size);
+  if (argp && n)
+    memcpy(argp, bits, n);
+  return static_cast<int>(n);
 }
 
 __attribute__((visibility("hidden"))) char *
@@ -345,182 +413,36 @@ get_fake_input_rdev(const char *event) {
   return makedev(FAKE_INPUT_MAJOR, event_number);
 }
 
-__attribute__((visibility("hidden"))) static void load_ring_paths() {
-  if (ring_paths_loaded)
-    return;
-
-  ring_paths_loaded = true;
-  const char *spec = getenv("FAKE_EVDEV_MEMFD_PATHS");
-  if (!spec || !*spec)
-    return;
-
-  char *copy = strdup(spec);
-  if (!copy)
-    return;
-
-  char *saveptr = nullptr;
-  for (char *token = strtok_r(copy, ";", &saveptr); token;
-       token = strtok_r(nullptr, ";", &saveptr)) {
-    char *equals = strchr(token, '=');
-    if (!equals)
-      continue;
-    *equals = '\0';
-    int slot = atoi(token);
-    const char *path = equals + 1;
-    if (slot >= 0 && *path)
-      ring_paths[slot] = path;
-  }
-
-  free(copy);
-}
-
-__attribute__((visibility("hidden"))) static const char *
-get_ring_path_for_slot(int slot) {
-  load_ring_paths();
-  auto it = ring_paths.find(slot);
-  return it == ring_paths.end() ? nullptr : it->second.c_str();
-}
-
-__attribute__((visibility("hidden"))) static uint64_t
-ring_write_seq(const FakeInputRingHeader *ring) {
-  return __atomic_load_n(&ring->write_seq, __ATOMIC_ACQUIRE);
-}
-
-__attribute__((visibility("hidden"))) static uint64_t
-ring_generation(const FakeInputRingHeader *ring) {
-  return __atomic_load_n(&ring->generation, __ATOMIC_ACQUIRE);
-}
-
-__attribute__((visibility("hidden"))) static bool
-ring_header_is_valid(const FakeInputRingHeader *ring) {
-  return ring && ring->magic == FAKE_INPUT_RING_MAGIC &&
-         ring->version == FAKE_INPUT_RING_VERSION &&
-         ring->event_size == FAKE_INPUT_EVENT_SIZE &&
-         ring->capacity == FAKE_INPUT_RING_CAPACITY;
-}
-
-struct SnapshotState {
-  uint32_t buttons = 0;
-  int32_t axes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-};
-
-static long long monotonic_ms();
-
-// Read the authoritative absolute-state snapshot using the writer's seqlock.
-// Retries on a torn read (snapshot_seq odd or changed mid-read); after a few
-// failed attempts returns the neutral baseline rather than spinning. This
-// mirrors the publication model already used for write_seq.
-__attribute__((visibility("hidden"))) static SnapshotState
-read_snapshot(const FakeInputRingHeader *ring) {
-  SnapshotState out;
-  for (int attempt = 0; attempt < 8; attempt++) {
-    uint64_t s1 = __atomic_load_n(&ring->snapshot_seq, __ATOMIC_ACQUIRE);
-    if (s1 & 1ULL)
-      continue; // a write is in progress
-    uint32_t buttons = ring->snapshot_buttons;
-    int16_t axes[8];
-    for (int i = 0; i < 8; i++)
-      axes[i] = ring->snapshot_axes[i];
-    __atomic_thread_fence(__ATOMIC_ACQUIRE);
-    uint64_t s2 = __atomic_load_n(&ring->snapshot_seq, __ATOMIC_RELAXED);
-    if (s1 == s2) {
-      out.buttons = buttons;
-      for (int i = 0; i < 8; i++)
-        out.axes[i] = axes[i]; // sign-extend to int32 for the event value
-      return out;
-    }
-  }
-  return out;
-}
-
-// Capture the current absolute state into the controller so it can be streamed
-// as a keyframe independently of the ring. Idempotent w.r.t. an in-flight
-// keyframe: callers guard on keyframe_remaining == 0 so a partially delivered
-// frame is never restarted mid-stream.
-__attribute__((visibility("hidden"))) static void
-capture_keyframe(FakeController &fake, const char *reason, int fd) {
-  SnapshotState snap = read_snapshot(fake.ring);
-  fake.keyframe_buttons = snap.buttons;
-  for (int i = 0; i < 8; i++)
-    fake.keyframe_axes[i] = snap.axes[i];
-  fake.keyframe_remaining = kNeutralEventCount;
-  Logger::log("Fake input keyframe reason=%s fd=%d slot=%d read_seq=%llu "
-              "write_seq=%llu buttons=0x%03x axes=[%d,%d,%d,%d,%d,%d,%d,%d]\n",
-              reason ? reason : "unknown", fd, fake.slot,
-              static_cast<unsigned long long>(fake.read_seq),
-              static_cast<unsigned long long>(ring_write_seq(fake.ring)),
-              fake.keyframe_buttons, fake.keyframe_axes[0],
-              fake.keyframe_axes[1], fake.keyframe_axes[2],
-              fake.keyframe_axes[3], fake.keyframe_axes[4],
-              fake.keyframe_axes[5], fake.keyframe_axes[6],
-              fake.keyframe_axes[7]);
-}
-
-// Resolve the value a keyframe event should carry from the captured snapshot.
-__attribute__((visibility("hidden"))) static int32_t
-keyframe_value(const FakeController &fake, uint16_t type, uint16_t code) {
-  if (type == EV_KEY) {
-    for (int i = 0; i < 10; i++)
-      if (kSnapshotButtons[i] == code)
-        return (fake.keyframe_buttons >> i) & 1u;
-    return 0; // e.g. BTN_MODE, which the writer never presses
-  }
-  if (type == EV_ABS) {
-    for (int i = 0; i < 8; i++)
-      if (kSnapshotAxisCodes[i] == code)
-        return fake.keyframe_axes[i];
-  }
-  return 0; // SYN / unknown
-}
-
+// Attach a guest open() of event<N>/js<N> to pad slot N. The fd returned is hermes's; its first
+// read is the slot's full current state.
 __attribute__((visibility("hidden"))) static int
-open_fake_input_ring(const char *event, int flags) {
+attach_fake_input(const char *event, int flags) {
   int slot = get_event_number(event);
-  const char *ring_path = get_ring_path_for_slot(slot);
-  if (!ring_path) {
-    errno = ENODEV;
+  hermes_handle handle = 0;
+  int fd = hermes_attach(slot, flags, &handle);
+  if (fd < 0) {
+    Logger::log("Could not attach %s (slot %d): %s\n", event, slot,
+                strerror(-fd));
+    errno = -fd;
     return -1;
   }
 
-  if (!my_open)
-    *(void **)&my_open = dlsym(RTLD_NEXT, "open");
-
-  int fd = my_open(ring_path, O_RDWR | (flags & O_NONBLOCK));
-  if (fd < 0)
-    return -1;
-
-  void *mapping =
-      mmap(nullptr, FAKE_INPUT_RING_SIZE, PROT_READ, MAP_SHARED, fd, 0);
-  if (mapping == MAP_FAILED) {
-    int saved_errno = errno;
-    syscall(SYS_close, fd);
-    errno = saved_errno;
-    return -1;
-  }
-
-  FakeInputRingHeader *ring =
-      reinterpret_cast<FakeInputRingHeader *>(mapping);
-  if (!ring_header_is_valid(ring)) {
-    munmap(mapping, FAKE_INPUT_RING_SIZE);
-    syscall(SYS_close, fd);
-    errno = ENODEV;
-    return -1;
+  auto stale = controller_map.find(fd);
+  if (stale != controller_map.end()) {
+    // The fd number was closed behind this library's back and has been reused. That handle can
+    // no longer be detached (it would close the new fd), so only the table entry is replaced.
+    Logger::log("Replacing stale controller entry for fd %d\n", fd);
+    free(stale->second.event);
+    controller_map.erase(stale);
   }
 
   FakeController controller = {};
   controller.event = strdup(event);
   controller.slot = slot;
-  controller.ring = ring;
-  controller.mapping_size = FAKE_INPUT_RING_SIZE;
-  controller.read_seq = ring_write_seq(ring);
-  controller.generation = ring_generation(ring);
-  // Emit the current absolute state as the first frame so a guest that opens
-  // mid-hold (or reopens after a slot hand-off) starts already in sync.
-  capture_keyframe(controller, "open", fd);
+  controller.handle = handle;
   controller_map[fd] = controller;
 
-  Logger::log("Adding ring-backed controller, fd %d event %s slot %d\n", fd,
-              event, slot);
+  Logger::log("Adding controller, fd %d event %s slot %d\n", fd, event, slot);
   return fd;
 }
 
@@ -534,59 +456,21 @@ copy_slot_ioctl_string(fakeinput_ioctl_request_t op, void *argp,
   snprintf(static_cast<char *>(argp), size, format, event_number);
 }
 
-__attribute__((visibility("hidden"))) static bool is_fake_input_fd(int fd) {
-  return controller_map.find(fd) != controller_map.end();
-}
-
-__attribute__((visibility("hidden"))) static bool fake_fd_is_stale(int fd) {
+// The handle behind a fake fd, or 0 for any other fd.
+__attribute__((visibility("hidden"))) static hermes_handle
+fake_handle(int fd) {
   auto controller = controller_map.find(fd);
-  return controller != controller_map.end() &&
-         ring_generation(controller->second.ring) != controller->second.generation;
+  return controller == controller_map.end() ? 0 : controller->second.handle;
 }
 
+// write/writev on an unplugged pad fail with ENODEV, as evdev does.
 __attribute__((visibility("hidden"))) static bool
-fake_fd_has_unread_data(int fd) {
-  auto controller = controller_map.find(fd);
-  if (controller == controller_map.end())
+fake_fd_write_fails(hermes_handle handle) {
+  int removed = hermes_is_removed(handle);
+  if (removed == 0)
     return false;
-
-  FakeController &fake = controller->second;
-  if (ring_generation(fake.ring) != fake.generation)
-    return false;
-  uint64_t write_seq = ring_write_seq(fake.ring);
-  if (write_seq < fake.read_seq)
-    fake.read_seq = write_seq;
-  if (write_seq - fake.read_seq > FAKE_INPUT_RING_CAPACITY) {
-    fake.read_seq = write_seq - FAKE_INPUT_RING_CAPACITY;
-    if (fake.keyframe_remaining == 0) {
-      capture_keyframe(fake, "overflow", fd);
-    }
-  }
-  // A pending keyframe counts as readable so poll/blocking reads wake to finish
-  // flushing it even after the ring itself has drained.
-  return fake.keyframe_remaining > 0 || write_seq > fake.read_seq;
-}
-
-__attribute__((visibility("hidden"))) static long long
-timespec_to_ms(const struct timespec *timeout) {
-  if (!timeout)
-    return -1;
-  return static_cast<long long>(timeout->tv_sec) * 1000LL +
-         timeout->tv_nsec / 1000000LL;
-}
-
-__attribute__((visibility("hidden"))) static long long
-timeval_to_ms(const struct timeval *timeout) {
-  if (!timeout)
-    return -1;
-  return static_cast<long long>(timeout->tv_sec) * 1000LL +
-         timeout->tv_usec / 1000LL;
-}
-
-__attribute__((visibility("hidden"))) static long long monotonic_ms() {
-  struct timespec now = {};
-  clock_gettime(CLOCK_MONOTONIC, &now);
-  return static_cast<long long>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
+  errno = removed > 0 ? ENODEV : -removed;
+  return true;
 }
 
 EXPORT int open(const char *pathname, int flags, ...) {
@@ -619,7 +503,7 @@ EXPORT int open(const char *pathname, int flags, ...) {
         return -1;
       }
       if (path_exists(fake_path)) {
-        fd = open_fake_input_ring(event, flags);
+        fd = attach_fake_input(event, flags);
         if (fd >= 0) {
           free(fake_path);
           return fd;
@@ -683,7 +567,7 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
         return -1;
       }
       if (path_exists(fake_path)) {
-        fd = open_fake_input_ring(event, flags);
+        fd = attach_fake_input(event, flags);
         if (fd >= 0) {
           free(fake_path);
           return fd;
@@ -904,21 +788,33 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
     Logger::log("Hooking ioctl EVIOCGID for event %s\n", event);
     struct input_id id;
     memset(&id, 0, sizeof(id));
-    id.bustype = 0x03;
-    // A real 360 pad reports the same vendor/product on every port.
-    // Offsetting per slot would yield a GUID no mapping database knows, which is the whole problem being fixed here.
-    id.vendor = xbox360_identity ? X360_VENDOR_ID
-                                 : static_cast<uint16_t>(GAMEPAD_VENDOR_ID_BASE + event_number);
-    id.product = xbox360_identity ? X360_PRODUCT_ID
-                                  : static_cast<uint16_t>(GAMEPAD_PRODUCT_ID_BASE + event_number);
-    id.version = GAMEPAD_VERSION;
+    struct hermes_identity live;
+    if (live_pad_identity(controller->second.handle, &live)) {
+      id.bustype = live.bustype;
+      id.vendor = live.vendor;
+      id.product = live.product;
+      id.version = live.version;
+    } else {
+      id.bustype = 0x03;
+      // A real pad reports the same vendor/product on every port (see PAD_IDENTITIES).
+      id.vendor = pad_identity ? pad_identity->vendor
+                               : static_cast<uint16_t>(GAMEPAD_VENDOR_ID_BASE + event_number);
+      id.product = pad_identity ? pad_identity->product
+                                : static_cast<uint16_t>(GAMEPAD_PRODUCT_ID_BASE + event_number);
+      id.version = GAMEPAD_VERSION;
+    }
     memcpy(argp, (void *)&id, sizeof(id));
     return 0;
   } else if (type == 0x45 && number == 0x6) {
     Logger::log("Hooking ioctl EVIOCGNAME for event %s\n", event);
+    struct hermes_identity live;
+    if (live_pad_identity(controller->second.handle, &live)) {
+      copy_live_name(op, argp, live);
+      return 0;
+    }
     copy_slot_ioctl_string(op, argp,
-                                  xbox360_identity ? X360_NAME_TEMPLATE
-                                                   : GAMEPAD_NAME_TEMPLATE,
+                                  pad_identity ? pad_identity->name_template
+                                               : GAMEPAD_NAME_TEMPLATE,
                                   event_number);
     return 0;
   } else if (type == 0x45 && number == 0x7) {
@@ -934,8 +830,17 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
     return 0;
   } else if (type == 0x45 && number == 0x18) {
     Logger::log("Hooking ioctl EVIOCGKEY(len) for event %s\n", event);
-    char bitmask[KEY_MAX / 8] = {0};
-    memcpy(argp, (void *)&bitmask, sizeof(bitmask));
+    // The buttons held right now (an unplugged pad reads as none held).
+    unsigned char bitmask[(KEY_MAX + 8) / 8] = {0};
+    struct hermes_state state;
+    if (hermes_current_state(controller->second.handle, &state) == 0) {
+      for (int i = 0; i < HERMES_BUTTONS; i++)
+        if (state.buttons[i])
+          bitmask[kPadButtonCodes[i] / 8] |= 1u << (kPadButtonCodes[i] % 8);
+    }
+    size_t size = std::min<size_t>(_IOC_SIZE(op), sizeof(bitmask));
+    if (argp && size)
+      memcpy(argp, bitmask, size);
     return 0;
   } else if (type == 0x45 && number == 0x20) {
     Logger::log("Hooking ioctl EVIOCGBIT(0, len) for event %s\n", event);
@@ -943,8 +848,12 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
     bitmask[EV_SYN / 8] |= (1 << (EV_SYN % 8));
     bitmask[EV_KEY / 8] |= (1 << (EV_KEY % 8));
     bitmask[EV_ABS / 8] |= (1 << (EV_ABS % 8));
-    memcpy(argp, (void *)&bitmask, sizeof(bitmask));
-    return 0;
+    // EV_FF while the pad has any effect type: SDL's haptic layer, and through it winebus's
+    // DirectInput force feedback, looks for it.
+    unsigned char ff[(FF_MAX + 8) / 8];
+    if (ff_bits(controller->second.handle, ff))
+      bitmask[EV_FF / 8] |= (1 << (EV_FF % 8));
+    return copy_bits_reply(op, argp, bitmask, sizeof(bitmask));
   } else if (type == 0x45 && number == 0x21) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_KEY, len) for event %s\n", event);
     char bitmask[KEY_MAX / 8] = {0};
@@ -953,13 +862,11 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
                                 BTN_MODE, BTN_THUMBL, BTN_THUMBR};
     for (int button : xbox_buttons)
       bitmask[button / 8] |= (1 << (button % 8));
-    memcpy(argp, (void *)&bitmask, sizeof(bitmask));
-    return 0;
+    return copy_bits_reply(op, argp, bitmask, sizeof(bitmask));
   } else if (type == 0x45 && number == 0x22) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_REL, len) for event %s\n", event);
     char bitmask[REL_MAX / 8] = {0};
-    memcpy(argp, (void *)&bitmask, sizeof(bitmask));
-    return 0;
+    return copy_bits_reply(op, argp, bitmask, sizeof(bitmask));
   } else if (type == 0x45 && number == 0x23) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_ABS, len) for event %s\n", event);
     char bitmask[ABS_MAX / 8] = {0};
@@ -971,37 +878,23 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
     bitmask[ABS_BRAKE / 8] |= (1 << (ABS_BRAKE % 8));
     bitmask[ABS_HAT0X / 8] |= (1 << (ABS_HAT0X % 8));
     bitmask[ABS_HAT0Y / 8] |= (1 << (ABS_HAT0Y % 8));
-    memcpy(argp, (void *)&bitmask, sizeof(bitmask));
-    return 0;
+    return copy_bits_reply(op, argp, bitmask, sizeof(bitmask));
   } else if (type == 0x45 && number == 0x35) {
     Logger::log("Hooking ioctl EVIOCGBIT(EV_FF, len) for event %s\n", event);
-    char bitmask[FF_MAX / 8] = {0};
-    bitmask[FF_RUMBLE / 8] |= (1 << (FF_RUMBLE % 8));
-    bitmask[FF_PERIODIC / 8] |= (1 << (FF_PERIODIC % 8));
-    memcpy(argp, (void *)&bitmask, sizeof(bitmask));
-    return 0;
+    unsigned char bitmask[(FF_MAX + 8) / 8];
+    ff_bits(controller->second.handle, bitmask);
+    return copy_bits_reply(op, argp, bitmask, sizeof(bitmask));
   } else if (type == 0x45 && number == 0x80) {
-    struct ff_effect *effect = static_cast<struct ff_effect *>(argp);
-    if (effect->id == -1)
-      effect->id = next_ff_id++;
-    ff_effects[effect->id] = *effect;
-
-    uint16_t duration = effect->replay.length;
-    uint16_t slot = static_cast<uint16_t>(event_number);
-    if (effect->type == FF_RUMBLE) {
-      send_vibration(effect->u.rumble.strong_magnitude,
-                     effect->u.rumble.weak_magnitude, duration, slot);
-    } else if (effect->type == FF_PERIODIC) {
-      send_vibration(effect->u.periodic.magnitude, effect->u.periodic.magnitude,
-                     duration, slot);
+    return upload_ff_effect(controller->second.handle, op, argp);
+  } else if (type == 0x45 && number == 0x81) {
+    int error = hermes_ff_erase(controller->second.handle, static_cast<int>((intptr_t)argp));
+    if (error < 0) {
+      errno = -error;
+      return -1;
     }
     return 0;
-  } else if (type == 0x45 && number == 0x81) {
-    int id = (intptr_t)argp;
-    ff_effects.erase(id);
-    return 0;
   } else if (type == 0x45 && number == 0x84) {
-    int max_effects = 16;
+    int max_effects = HERMES_FF_MAX_EFFECTS;
     memcpy(argp, &max_effects, sizeof(int));
     return 0;
   } else if (type == 0x45 && number >= 0x40 && number <= 0x51) {
@@ -1020,6 +913,13 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
       abs_info.value = 0;
       abs_info.minimum = -1;
       abs_info.maximum = 1;
+    }
+    // The axis's current value (neutral for an unplugged pad).
+    struct hermes_state state;
+    if (hermes_current_state(controller->second.handle, &state) == 0) {
+      for (int i = 0; i < HERMES_AXES; i++)
+        if (kPadAxisCodes[i] == number - 0x40)
+          abs_info.value = state.axes[i];
     }
     memcpy(argp, (void *)&abs_info, sizeof(abs_info));
     return 0;
@@ -1043,9 +943,14 @@ EXPORT int ioctl(int fd, fakeinput_ioctl_request_t op, ...) {
     return 0;
   } else if (type == 0x6A && number == 0x13) {
     Logger::log("Hooking ioctl JSIOCGNAME(len) for event %s\n", event);
+    struct hermes_identity live;
+    if (live_pad_identity(controller->second.handle, &live)) {
+      copy_live_name(op, argp, live);
+      return 0;
+    }
     copy_slot_ioctl_string(op, argp,
-                                  xbox360_identity ? X360_NAME_TEMPLATE
-                                                   : GAMEPAD_NAME_TEMPLATE,
+                                  pad_identity ? pad_identity->name_template
+                                               : GAMEPAD_NAME_TEMPLATE,
                                   event_number);
     return 0;
   } else {
@@ -1062,117 +967,35 @@ EXPORT int close(int fd) {
   if (controller != controller_map.end()) {
     Logger::log("Removing controller, fd %d event %s\n", controller->first,
                 controller->second.event ? controller->second.event : "(unknown)");
-    if (controller->second.ring)
-      munmap(controller->second.ring, controller->second.mapping_size);
+    hermes_handle handle = controller->second.handle;
     free(controller->second.event);
-    controller_map.erase(fd);
+    controller_map.erase(controller);
+    // hermes owns the fd: detaching releases the handle and closes it.
+    if (hermes_detach(handle) == 0)
+      return 0;
   }
 
   return my_close(fd);
 }
 
 EXPORT ssize_t read(int fd, void *buf, size_t count) {
-  auto controller = controller_map.find(fd);
-
-  if (controller != controller_map.end()) {
-    FakeController &fake = controller->second;
-    if (count < FAKE_INPUT_EVENT_SIZE) {
+  hermes_handle handle = fake_handle(fd);
+  if (handle) {
+    if (count < HERMES_EVENT_SIZE) {
       errno = EINVAL;
       return -1;
     }
-
+    // O_NONBLOCK as the fd has it now: the program may have changed it since open().
     int flags = fcntl(fd, F_GETFL);
-    bool isNonBlock = flags >= 0 && (flags & O_NONBLOCK);
-
-    if (fake_fd_is_stale(fd)) {
-      errno = ENODEV;
+    bool nonblock = flags >= 0 && (flags & O_NONBLOCK);
+    // No table entry is referenced from here on, so a close() in another thread is safe: the
+    // read then fails with EBADF.
+    ssize_t n = hermes_read(handle, buf, count, nonblock ? 1 : 0);
+    if (n < 0) {
+      errno = static_cast<int>(-n);
       return -1;
     }
-
-    long backoff_ns = 1000 * 1000; // 1ms initial
-    while (!fake_fd_has_unread_data(fd)) {
-      if (fake_fd_is_stale(fd)) {
-        errno = ENODEV;
-        return -1;
-      }
-      if (isNonBlock) {
-        errno = EAGAIN;
-        return -1;
-      }
-      setup_signal_handler();
-      if (stop_flag) {
-        errno = EINTR;
-        return -1;
-      }
-      struct timespec sleep_time = {0, backoff_ns};
-      nanosleep(&sleep_time, nullptr);
-      if (backoff_ns < 16 * 1000 * 1000)
-        backoff_ns *= 2;
-    }
-
-    uint64_t write_seq = ring_write_seq(fake.ring);
-    if (write_seq - fake.read_seq > FAKE_INPUT_RING_CAPACITY) {
-      fake.read_seq = write_seq - FAKE_INPUT_RING_CAPACITY;
-      if (fake.keyframe_remaining == 0) {
-        capture_keyframe(fake, "overflow", fd);
-      }
-    }
-
-    uint8_t *out = static_cast<uint8_t *>(buf);
-    size_t out_events = 0;
-    size_t requested_events = count / FAKE_INPUT_EVENT_SIZE;
-
-    // A keyframe is pending (open / ring overflow). Replay the full
-    // absolute baseline — every button and axis at its snapshot value — before
-    // any surviving delta events, so a lost button-up / axis-return can't stick.
-    // The frame streams across reads of any size: we emit as much as fits and do
-    // NOT consume the ring until it is fully delivered, so even a
-    // one-event-at-a-time consumer recovers. keyframe_remaining keeps the fd
-    // readable (see fake_fd_has_unread_data) so poll wakes us to finish it.
-    if (fake.keyframe_remaining > 0) {
-      struct timeval now = {};
-      gettimeofday(&now, nullptr);
-      while (fake.keyframe_remaining > 0 && out_events < requested_events) {
-        size_t idx = kNeutralEventCount - fake.keyframe_remaining;
-        struct input_event ev;
-        memset(&ev, 0, sizeof(ev));
-        ev.time = now;
-        ev.type = kNeutralEvents[idx].type;
-        ev.code = kNeutralEvents[idx].code;
-        ev.value = keyframe_value(fake, kNeutralEvents[idx].type,
-                                  kNeutralEvents[idx].code);
-        memcpy(out + (out_events * FAKE_INPUT_EVENT_SIZE), &ev,
-               FAKE_INPUT_EVENT_SIZE);
-        out_events++;
-        fake.keyframe_remaining--;
-      }
-      if (fake.keyframe_remaining > 0) {
-        // Buffer filled before the baseline finished; deliver the remainder (and
-        // only then fresh events) on subsequent reads. out_events >= 1 here.
-        return static_cast<ssize_t>(out_events * FAKE_INPUT_EVENT_SIZE);
-      }
-    }
-
-    size_t available_events =
-        static_cast<size_t>(std::min<uint64_t>(write_seq - fake.read_seq,
-                                              FAKE_INPUT_RING_CAPACITY));
-    size_t events_to_read =
-        std::min(requested_events - out_events, available_events);
-    const uint8_t *ring_events =
-        reinterpret_cast<const uint8_t *>(fake.ring) +
-        FAKE_INPUT_RING_HEADER_SIZE;
-
-    for (size_t i = 0; i < events_to_read; i++) {
-      size_t event_index =
-          static_cast<size_t>((fake.read_seq + i) % FAKE_INPUT_RING_CAPACITY);
-      memcpy(out + ((out_events + i) * FAKE_INPUT_EVENT_SIZE),
-             ring_events + (event_index * FAKE_INPUT_EVENT_SIZE),
-             FAKE_INPUT_EVENT_SIZE);
-    }
-
-    fake.read_seq += events_to_read;
-    return static_cast<ssize_t>((out_events + events_to_read) *
-                                FAKE_INPUT_EVENT_SIZE);
+    return n;
   }
   return syscall(SYS_read, fd, buf, count);
 }
@@ -1183,18 +1006,10 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
 
   auto controller = controller_map.find(fd);
   if (controller != controller_map.end()) {
-    if (fake_fd_is_stale(fd)) {
-      errno = ENODEV;
+    if (fake_fd_write_fails(controller->second.handle))
       return -1;
-    }
 
-    const struct input_event *ev = nullptr;
-    uint16_t slot = static_cast<uint16_t>(controller->second.slot);
-    if (count == sizeof(struct input_event)) {
-      ev = static_cast<const struct input_event *>(buf);
-      check_ff_event(ev, slot);
-    }
-
+    write_ff_events(controller->second.handle, buf, count);
     return static_cast<ssize_t>(count);
   }
   return my_write(fd, buf, count);
@@ -1203,19 +1018,12 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
 EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   auto controller = controller_map.find(fd);
   if (controller != controller_map.end()) {
-    if (fake_fd_is_stale(fd)) {
-      errno = ENODEV;
+    if (fake_fd_write_fails(controller->second.handle))
       return -1;
-    }
 
-    uint16_t slot = static_cast<uint16_t>(controller->second.slot);
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
-      if (iov[i].iov_len == sizeof(struct input_event)) {
-        const struct input_event *ev =
-            static_cast<const struct input_event *>(iov[i].iov_base);
-        check_ff_event(ev, slot);
-      }
+      write_ff_events(controller->second.handle, iov[i].iov_base, iov[i].iov_len);
       total += static_cast<ssize_t>(iov[i].iov_len);
     }
     return total;
@@ -1223,255 +1031,34 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
   return syscall(SYS_writev, fd, iov, iovcnt);
 }
 
+// Pad fds are real kernel fds that hermes keeps readable while input is pending and hung up
+// once the pad is unplugged, so poll, ppoll and select need no emulation: they go straight to
+// libc, with the caller's timeout and signal mask untouched.
 EXPORT int poll(struct pollfd *fds, nfds_t nfds, int timeout) {
   if (!my_poll)
     *(void **)&my_poll = dlsym(RTLD_NEXT, "poll");
-
-  bool has_fake_fds = false;
-  std::vector<struct pollfd> real_fds;
-  real_fds.reserve(nfds);
-
-  for (nfds_t i = 0; i < nfds; i++) {
-    if (is_fake_input_fd(fds[i].fd)) {
-      has_fake_fds = true;
-    }
-    real_fds.push_back(fds[i]);
-    if (is_fake_input_fd(real_fds[i].fd)) {
-      real_fds[i].fd = -1;
-      real_fds[i].revents = 0;
-    }
-  }
-
-  if (!has_fake_fds)
-    return my_poll ? my_poll(fds, nfds, timeout) : -1;
-
-  const long long deadline_ms = timeout < 0 ? -1 : monotonic_ms() + timeout;
-  int backoff_ms = 1;
-
-  while (true) {
-    int ready = 0;
-
-    for (nfds_t i = 0; i < nfds; i++)
-      fds[i].revents = 0;
-
-    for (nfds_t i = 0; i < nfds; i++) {
-      if (!is_fake_input_fd(fds[i].fd))
-        continue;
-
-      short revents = 0;
-      if (fake_fd_is_stale(fds[i].fd))
-        revents |= POLLHUP;
-      if ((fds[i].events & (POLLIN | POLLRDNORM)) &&
-          fake_fd_has_unread_data(fds[i].fd))
-        revents |= (fds[i].events & (POLLIN | POLLRDNORM));
-
-      fds[i].revents = revents;
-      if (revents)
-        ready++;
-    }
-
-    int real_timeout = ready > 0 ? 0 : [&] {
-      if (timeout == 0) return 0;
-      int remaining = deadline_ms < 0
-                          ? backoff_ms
-                          : std::min(backoff_ms, (int)(deadline_ms - monotonic_ms()));
-      return std::max(remaining, 0);
-    }();
-
-    int real_ready = my_poll ? my_poll(real_fds.data(), nfds, real_timeout) : 0;
-    if (real_ready > 0) {
-      for (nfds_t i = 0; i < nfds; i++) {
-        if (!is_fake_input_fd(fds[i].fd)) {
-          fds[i].revents = real_fds[i].revents;
-          if (fds[i].revents)
-            ready++;
-        }
-      }
-    }
-
-    if (ready == 0 && real_timeout > 0) {
-      for (nfds_t i = 0; i < nfds; i++) {
-        if (!is_fake_input_fd(fds[i].fd))
-          continue;
-
-        short revents = 0;
-        if (fake_fd_is_stale(fds[i].fd))
-          revents |= POLLHUP;
-        if ((fds[i].events & (POLLIN | POLLRDNORM)) &&
-            fake_fd_has_unread_data(fds[i].fd))
-          revents |= (fds[i].events & (POLLIN | POLLRDNORM));
-
-        fds[i].revents = revents;
-        if (revents)
-          ready++;
-      }
-    }
-
-    if (ready > 0)
-      return ready;
-
-    if (timeout == 0)
-      return 0;
-
-    if (deadline_ms >= 0 && monotonic_ms() >= deadline_ms)
-      return 0;
-
-    if (backoff_ms < 16)
-      backoff_ms *= 2;
-  }
+  if (my_poll)
+    return my_poll(fds, nfds, timeout);
+  struct timespec ts = {timeout / 1000, (timeout % 1000) * 1000000L};
+  return syscall(SYS_ppoll, fds, nfds, timeout < 0 ? nullptr : &ts, nullptr,
+                 sizeof(sigset_t));
 }
 
 EXPORT int ppoll(struct pollfd *fds, nfds_t nfds,
                  const struct timespec *timeout, const sigset_t *sigmask) {
   if (!my_ppoll)
     *(void **)&my_ppoll = dlsym(RTLD_NEXT, "ppoll");
-
-  if (sigmask)
-    return my_ppoll ? my_ppoll(fds, nfds, timeout, sigmask)
-                    : syscall(SYS_ppoll, fds, nfds, timeout, sigmask,
-                              sizeof(sigset_t));
-
-  return poll(fds, nfds, static_cast<int>(timespec_to_ms(timeout)));
+  if (my_ppoll)
+    return my_ppoll(fds, nfds, timeout, sigmask);
+  return syscall(SYS_ppoll, fds, nfds, timeout, sigmask, sizeof(sigset_t));
 }
 
 EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
                   fd_set *exceptfds, struct timeval *timeout) {
   if (!my_select)
     *(void **)&my_select = dlsym(RTLD_NEXT, "select");
-
-  fd_set original_readfds;
-  fd_set original_writefds;
-  fd_set original_exceptfds;
-  fd_set real_readfds;
-  fd_set real_writefds;
-  fd_set real_exceptfds;
-  bool has_fake_fds = false;
-
-  if (readfds) {
-    original_readfds = *readfds;
-    real_readfds = *readfds;
-  } else {
-    FD_ZERO(&original_readfds);
-    FD_ZERO(&real_readfds);
-  }
-  if (writefds) {
-    original_writefds = *writefds;
-    real_writefds = *writefds;
-  } else {
-    FD_ZERO(&original_writefds);
-    FD_ZERO(&real_writefds);
-  }
-  if (exceptfds) {
-    original_exceptfds = *exceptfds;
-    real_exceptfds = *exceptfds;
-  } else {
-    FD_ZERO(&original_exceptfds);
-    FD_ZERO(&real_exceptfds);
-  }
-
-  for (int fd = 0; fd < nfds; fd++) {
-    if (!is_fake_input_fd(fd))
-      continue;
-    has_fake_fds = true;
-    FD_CLR(fd, &real_readfds);
-    FD_CLR(fd, &real_writefds);
-    FD_CLR(fd, &real_exceptfds);
-  }
-
-  if (!has_fake_fds)
-    return my_select ? my_select(nfds, readfds, writefds, exceptfds, timeout)
-                     : -1;
-
-  const long long timeout_ms = timeval_to_ms(timeout);
-  const long long deadline_ms =
-      timeout_ms < 0 ? -1 : monotonic_ms() + timeout_ms;
-  int backoff_ms = 1;
-
-  while (true) {
-    int ready = 0;
-
-    if (readfds)
-      FD_ZERO(readfds);
-    if (writefds)
-      FD_ZERO(writefds);
-    if (exceptfds)
-      FD_ZERO(exceptfds);
-
-    for (int fd = 0; fd < nfds; fd++) {
-      if (!is_fake_input_fd(fd))
-        continue;
-      if (readfds && FD_ISSET(fd, &original_readfds) && fake_fd_is_stale(fd)) {
-        FD_SET(fd, readfds);
-        ready++;
-      } else if (readfds && FD_ISSET(fd, &original_readfds) &&
-                 fake_fd_has_unread_data(fd)) {
-        FD_SET(fd, readfds);
-        ready++;
-      }
-    }
-
-    int wait_ms = ready > 0 ? 0 : [&] {
-      if (timeout_ms == 0) return 0;
-      int remaining = deadline_ms < 0
-                          ? backoff_ms
-                          : std::min(backoff_ms, (int)(deadline_ms - monotonic_ms()));
-      return std::max(remaining, 0);
-    }();
-    struct timeval wait_tv = {wait_ms / 1000, (wait_ms % 1000) * 1000};
-
-    fd_set iter_readfds = real_readfds;
-    fd_set iter_writefds = real_writefds;
-    fd_set iter_exceptfds = real_exceptfds;
-
-    int real_ready =
-        my_select
-            ? my_select(nfds, readfds ? &iter_readfds : nullptr,
-                        writefds ? &iter_writefds : nullptr,
-                        exceptfds ? &iter_exceptfds : nullptr, &wait_tv)
-            : 0;
-
-    if (real_ready > 0) {
-      for (int fd = 0; fd < nfds; fd++) {
-        if (readfds && FD_ISSET(fd, &iter_readfds)) {
-          FD_SET(fd, readfds);
-          ready++;
-        }
-        if (writefds && FD_ISSET(fd, &iter_writefds)) {
-          FD_SET(fd, writefds);
-          ready++;
-        }
-        if (exceptfds && FD_ISSET(fd, &iter_exceptfds)) {
-          FD_SET(fd, exceptfds);
-          ready++;
-        }
-      }
-    }
-
-    if (ready == 0 && wait_ms > 0) {
-      for (int fd = 0; fd < nfds; fd++) {
-        if (!is_fake_input_fd(fd))
-          continue;
-        if (readfds && FD_ISSET(fd, &original_readfds) && fake_fd_is_stale(fd)) {
-          FD_SET(fd, readfds);
-          ready++;
-        } else if (readfds && FD_ISSET(fd, &original_readfds) &&
-                   fake_fd_has_unread_data(fd)) {
-          FD_SET(fd, readfds);
-          ready++;
-        }
-      }
-    }
-
-    if (ready > 0)
-      return ready;
-
-    if (timeout_ms == 0)
-      return 0;
-
-    if (deadline_ms >= 0 && monotonic_ms() >= deadline_ms)
-      return 0;
-
-    if (backoff_ms < 16)
-      backoff_ms *= 2;
-  }
+  if (my_select)
+    return my_select(nfds, readfds, writefds, exceptfds, timeout);
+  errno = ENOSYS;
+  return -1;
 }

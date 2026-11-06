@@ -1,0 +1,38 @@
+# HERMES: the controller-input transport between the app (Java writer) and the guest
+# processes (the libfakeinput.so evdev layers). See include/hermes.h for the guest contract.
+#
+#   core   no_std protocol, file layout, frame builder, writer engine, guest runtime
+#   guest  staticlib (libhermes_guest.a) linked into both libfakeinput.so builds; C ABI only
+#   jni    cdylib (libhermes.so) behind com.winhub.hernandez.inputcontrols.HermesWriter
+#   loom   model check of the publish/read protocol (separate crate, not part of the APK build)
+#
+# No external crates: everything the guest side needs from the OS is a raw system call or one
+# of a handful of libc entry points (see core/src/sys.rs), so the static library can only ever
+# depend on libc, libdl and pthread.
+
+[workspace]
+resolver = "2"
+members = ["core", "guest", "jni"]
+exclude = ["loom"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = false
+incremental = false
+
+[profile.dev]
+panic = "abort"
+
+# Host tests keep debug assertions and overflow checks (every counter in the protocol is meant to
+# wrap explicitly), but are optimised enough that the 100k-tap and stick-spam runs stay quick.
+[profile.test]
+opt-level = 1

@@ -24,6 +24,17 @@
 /app/src/main/cpp/bl-steam-client/rust/target/
 /app/src/main/jniLibs/arm64-v8a/libblsteam.so
 scratchpad/
+# hermes (Rust controller-input transport): cargo output, the loom crate's own lockfile, and the
+# CI-built JNI writer copied into jniLibs.
+/app/src/main/cpp/hermes/target/
+/app/src/main/cpp/hermes/loom/target/
+/app/src/main/cpp/hermes/loom/Cargo.lock
+/app/src/main/jniLibs/arm64-v8a/libhermes.so
+# HERMES-XInput: the CI test feeder's cargo output, and the DLLs + manifest _build.yml builds into
+# the assets (app/src/main/cpp/hermes/xinput/build.sh dlls), never committed.
+/app/src/main/cpp/hermes/xinput/feeder/target/
+/app/src/main/cpp/hermes/xinput/feeder/Cargo.lock
+/app/src/main/assets/hermes-xinput/
 
 # dxvk-nvapi dlls: fetched and sha256-checked by _build.yml from the release pinned in
 # app/src/main/assets/dxvk-nvapi/manifest.json, never committed.

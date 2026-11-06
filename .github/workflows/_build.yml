@@ -241,13 +241,63 @@ jobs:
           || echo "::warning::the dxvk-nvapi $VER LICENSE differs from the copy committed in $D"
         echo "dxvk-nvapi $VER bundled:"; ls -l "$D"
 
+    # --- hermes: the controller-input transport (Rust, app/src/main/cpp/hermes) -------------------
+    # The guest-side static library for the bionic libfakeinput.so (linked by CMake in the Gradle
+    # build below, which needs it to exist) and the app-side JNI writer libhermes.so into jniLibs.
+    # ci/build.sh link-probes the static library the way the interposer links it and fails if it would
+    # pull in anything beyond libc/libdl/pthread (liblog on Android) or export any of its symbols.
+    # The glibc build of the same library is built, probed and linked inside the Linux-runtime
+    # fakeinput step below, which installs the aarch64 cross compiler. Host tests and the loom model
+    # check run in hermes-check.yml.
+    - name: hermes toolchain
+      id: hermes-rust
+      run: |
+        rustup target add aarch64-linux-android aarch64-unknown-linux-gnu
+        echo "rustc=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        rustc -V; cargo -V
+
+    - name: Cache hermes target dir
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          app/src/main/cpp/hermes/target
+        key: hermes-${{ steps.hermes-rust.outputs.rustc }}-${{ hashFiles('app/src/main/cpp/hermes/**/Cargo.toml', 'app/src/main/cpp/hermes/Cargo.lock') }}
+        restore-keys: |
+          hermes-${{ steps.hermes-rust.outputs.rustc }}-
+
+    - name: Build hermes (guest static library, JNI writer) + link probe
+      run: |
+        set -euo pipefail
+        export NDK_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+        app/src/main/cpp/hermes/ci/build.sh android
+        mkdir -p app/src/main/jniLibs/arm64-v8a
+        cp app/src/main/cpp/hermes/target/aarch64-linux-android/release/libhermes.so \
+          app/src/main/jniLibs/arm64-v8a/libhermes.so
+        test -s app/src/main/cpp/hermes/target/aarch64-linux-android/release/libhermes_guest.a
+
+    # --- HERMES-XInput: the replacement XInput DLLs (app/src/main/cpp/hermes/xinput) ---------------
+    # Built from source with the pinned bylaws/llvm-mingw for x86_64, i386 and arm64ec, every DLL's
+    # export table, imports and machine type checked, into assets/hermes-xinput/ with a manifest of
+    # their sha256s (never committed). core/HermesXInput installs them into a prefix when a container
+    # turns on "Direct XInput (HERMES)". The Wine end-to-end test is hermes-xinput.yml.
+    - name: Cache llvm-mingw (HERMES-XInput)
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/llvm-mingw-bylaws-20250920
+        key: llvm-mingw-bylaws-20250920-ubuntu-22.04-x86_64
+
+    - name: Build HERMES-XInput DLLs into assets
+      run: app/src/main/cpp/hermes/xinput/build.sh dlls app/src/main/assets/hermes-xinput
+
     # --- fake evdev for the Linux runtime session -------------------------------------------
     # NOT the jniLibs libfakeinput.so: that one is built from winlator/fakeinput.cpp against bionic
     # and preloaded into Wine. This is the client's own source, winlator/fakeinput_steam.cpp.
     # The Steam client's own copy, built against glibc for the Linux runtime rootfs. A SEPARATE source
     # from the bionic one preloaded into Wine, so a change for the client cannot reach a Windows game.
     # The native Steam client has no Wine and no XInput, so a pad only reaches it as a real
-    # /dev/input/eventN — which is what this serves out of the app's fake-input rings. It goes in
+    # /dev/input/eventN — which is what this serves from the app's HERMES pad files. It goes in
     # assets rather than the rootfs asset so an existing installed runtime picks it up on the next
     # launch instead of waiting on a ~790MB runtime release. Built from source here, never
     # committed, so it cannot drift from the bionic copy.

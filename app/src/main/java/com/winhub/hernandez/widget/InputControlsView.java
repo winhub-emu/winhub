@@ -327,7 +327,10 @@ public class InputControlsView extends View {
         }
 
         if (profile != null && showTouchscreenControls) {
-            if (!profile.isElementsLoaded()) profile.loadElements(this);
+            if (!profile.isElementsLoaded()) {
+                profile.loadElements(this);
+                notifyProfileElementsLoaded();
+            }
             for (ControlElement element : profile.getElements()) {
                 if (isElementHiddenByGroup(element)) continue;
                 element.draw(canvas);
@@ -530,6 +533,20 @@ public class InputControlsView extends View {
         }
         else this.profile = null;
         updateTouchscreenMouseButtons();
+    }
+
+    /** Loads the profile's elements now when the view has been laid out (otherwise the first draw does
+     *  it), so whether it is a virtual gamepad is known. Main thread. */
+    public synchronized void loadProfileElementsIfReady() {
+        if (profile != null && !profile.isElementsLoaded() && getWidth() > 0 && getHeight() > 0 && snappingSize > 0)
+            profile.loadElements(this);
+    }
+
+    // isVirtualGamepad() is only known once the elements are loaded; publish then, so the on-screen pad
+    // takes its slot without waiting for the first touch. Posted: this runs from onDraw.
+    private void notifyProfileElementsLoaded() {
+        WinHandler winHandler = xServer != null ? xServer.getWinHandler() : null;
+        if (winHandler != null) post(winHandler::onScreenProfileLoaded);
     }
 
     public synchronized ControlsProfile getPhysicalProfile() {

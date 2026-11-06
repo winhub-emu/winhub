@@ -1,0 +1,15 @@
+[package]
+name = "hermes-jni"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# libhermes.so: the app-side writer, loaded by com.winhub.hernandez.inputcontrols.HermesWriter.
+[lib]
+name = "hermes"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+hermes-core = { path = "../core" }

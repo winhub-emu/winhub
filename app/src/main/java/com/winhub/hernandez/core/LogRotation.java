@@ -123,6 +123,7 @@ public final class LogRotation {
         // not a "any .txt" match: see the class javadoc). It is not a crash report, so — unlike
         // crash_*.txt, which lives in the _app bucket — it does belong to a game's per-run rotation.
         if (n.equals(com.winhub.hernandez.core.SteamLiteLogCollector.OUTPUT_NAME)) return true;
+        if (n.equals(com.winhub.hernandez.core.ControllerLog.OUTPUT_NAME)) return true;
         if (!n.endsWith(".log")) return false;              // never .txt — that is other people's
         return n.equals("wine_debug.log")
                 || n.equals("logcat.log")

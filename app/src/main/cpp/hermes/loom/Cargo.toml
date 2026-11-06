@@ -1,0 +1,22 @@
+# Model check of the HERMES publish/read protocol (core/src/proto.rs) with loom.
+# Standalone (excluded from the parent workspace): loom and its dependencies never enter the
+# lockfile of the libraries that ship. Run: cargo test --release (CI sets LOOM_MAX_PREEMPTIONS).
+[package]
+name = "hermes-loom"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hermes-core = { path = "../core" }
+loom = "0.7"
+
+[workspace]
+
+[profile.release]
+debug-assertions = true
+overflow-checks = true

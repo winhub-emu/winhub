@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -283,32 +284,59 @@ public abstract class WineUtils {
     }
 
     /**
-     * Configure Wine DirectInput joystick registry keys for all gamepads.
-     * By default, disables all joysticks in Wine's DirectInput.
-     * When DInput is enabled, sets joysticks to "override" mode to make them visible.
-     * 
+     * Configure Wine DirectInput joystick registry keys for all gamepads (core.JoystickRegistry): no
+     * entry when DirectInput games may see the controller (core.DInputVisibility), "override" when
+     * that is forced for the launch, "disabled" when they may not.
+     *
+     * Wine matches these entries by the pad's DirectInput name, which follows the container's
+     * Controller identity, so the names come from {@link ControllerIdentity#dinputNames} (for the
+     * Generic identity the eight "Generic HID Gamepad N" / "ric HID Gamepad N" values this always
+     * wrote). Names belonging to the other identities are removed, so switching identity between
+     * launches leaves no stale hide/show rule behind. Visible writes none, as the old "Exclusive Input
+     * off" did: "override" makes Wine's DirectInput open its internal XInput HID device for the pad,
+     * which some DirectInput games did not take (see JoystickRegistry).
+     *
      * @param container The container to configure
-     * @param dinputEnabled Whether DInput is enabled for this container
-     * @param exclusiveXInput Whether Exclusive XInput is enabled (if false, keys are removed)
+     * @param dinputVisible Whether DirectInput games may see the controller
+     * @param forced Visibility is forced on for this launch (controller passthrough, Classic DirectInput pad)
+     * @param identity The launch's effective Controller identity (ControllerIdentity value)
      */
-    public static void setJoystickRegistryKeys(Container container, boolean dinputEnabled, boolean exclusiveXInput) {
+    public static void setJoystickRegistryKeys(Container container, boolean dinputVisible, boolean forced, String identity) {
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
-        final String joysticksKey = "Software\\Wine\\DirectInput\\Joysticks";
-        
-        // The value to set: "disabled" hides from DInput, "override" makes visible
-        final String value = dinputEnabled ? "override" : "disabled";
-        
+        // The same builder the in-game change uses (LiveWineRegistry), so launch and live never disagree.
+        JoystickRegistry.Desired desired = JoystickRegistry.desired(identity, dinputVisible, forced);
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
-            // Configure all 4 possible gamepad slots
-            for (int i = 0; i < 4; i++) {
-                if (exclusiveXInput) {
-                    registryEditor.setStringValue(joysticksKey, "Generic HID Gamepad " + i, value);
-                    registryEditor.setStringValue(joysticksKey, "ric HID Gamepad " + i, value);
-                }
-                else {
-                    registryEditor.removeValue(joysticksKey, "Generic HID Gamepad " + i);
-                    registryEditor.removeValue(joysticksKey, "ric HID Gamepad " + i);
-                }
+            for (String stale : desired.delete) registryEditor.removeValue(JoystickRegistry.KEY, stale);
+            for (Map.Entry<String, String> e : desired.set.entrySet()) {
+                registryEditor.setStringValue(JoystickRegistry.KEY, e.getKey(), e.getValue());
+            }
+        }
+    }
+
+    /**
+     * winebus options (HKLM\System\CurrentControlSet\Services\winebus, read by
+     * dlls/winebus.sys/main.c), written before every Wine launch:
+     * <ul>
+     *   <li>"Map Controllers": absent = Wine's default, mapped. Written as 0 only while the Controller
+     *       identity wants the pads presented unmapped (the Classic DirectInput pad), removed again
+     *       otherwise so a container goes back to Wine's default as soon as the identity changes back.</li>
+     *   <li>"DisableHidraw" = 1, always. winebus prefers hidraw for some ids (DualShock 4 / DualSense)
+     *       and drops the same pad arriving any other way ("ignoring non-hidraw device"), which made
+     *       the PlayStation identities lose the pad. PROTON_DISABLE_HIDRAW cannot fix that: winebus runs
+     *       in winedevice.exe, whose Windows environment services.exe builds from the registry only
+     *       (CreateEnvironmentBlock(..., FALSE)), and winebus reads it from that environment. The option
+     *       is read per device, so it applies to every pad. No downside: WinHub's layers are built
+     *       --with-sdl --without-udev, so there is no hidraw bus to disable; every pad comes through SDL.</li>
+     * </ul>
+     */
+    public static void setWinebusOptions(Container container, boolean mapControllers) {
+        File systemRegFile = new File(container.getRootDir(), ".wine/system.reg");
+        try (WineRegistryEditor registryEditor = new WineRegistryEditor(systemRegFile)) {
+            registryEditor.setCreateKeyIfNotExist(false);
+            for (String key : new String[]{"System\\CurrentControlSet\\Services\\winebus", "System\\ControlSet001\\Services\\winebus"}) {
+                if (mapControllers) registryEditor.removeValue(key, "Map Controllers");
+                else registryEditor.setDwordValue(key, "Map Controllers", 0);
+                registryEditor.setDwordValue(key, "DisableHidraw", 1);
             }
         }
     }

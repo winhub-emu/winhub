@@ -1,0 +1,22 @@
+# Test helper for HERMES-XInput (CI only, never shipped): publishes scripted pad states into real
+# slot files with the app's own writer engine (hermes-core), and checks the rumble datagrams the
+# DLL sends. Standalone, like ../../loom: not a member of the parent workspace.
+[package]
+name = "hermes-xinput-feeder"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[[bin]]
+name = "hermes-xinput-feeder"
+path = "src/main.rs"
+
+[dependencies]
+hermes-core = { path = "../../core" }
+
+[workspace]
+
+[profile.release]
+debug-assertions = true
+overflow-checks = false

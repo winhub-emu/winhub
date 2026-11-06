@@ -305,6 +305,75 @@ object XServerDialogState {
     fun interface VibrationIntensityCallback { fun invoke(intensity: Int) }
     @JvmField var onVibrationIntensityChanged: VibrationIntensityCallback? = null
 
+    // ── Controls › Pad: live controller settings (LiveControllerSession owns the logic) ──
+    /** What the Pad sub-tab shows. The activity republishes it after every change and reconnect. */
+    data class PadState(
+        /** Wine session, not gamescope / the Linux runtime: the sub-tab exists at all. */
+        val supported: Boolean = false,
+        /** ControllerIdentity value the setting holds now. */
+        val identity: String = "generic",
+        /** Non-null: why the identity can't change here (e.g. FAKE_EVDEV_IDENTITY in the env vars). */
+        val identityLockedReason: String? = null,
+        /** Direct XInput is installed for this session (the XInput source row exists). */
+        val xinputAvailable: Boolean = false,
+        /** XInput source wanted: true = Direct (HERMES), false = Wine's own. */
+        val xinputDirect: Boolean = true,
+        /** The source can switch in-game ("Allow in-game switching" was on at launch). */
+        val xinputSwitchable: Boolean = false,
+        val dinputVisible: Boolean = false,
+        /** Non-null: why DirectInput visibility is fixed for this launch (passthrough, DirectInput pad). */
+        val dinputLockedReason: String? = null,
+        /** DirectInput vibration (core.DInputVibration): DirectInput games' force feedback reaches the pad. */
+        val dinputVibration: Boolean = true,
+        /** Non-null: why it can't change here (HERMES_DINPUT_FF in the env vars). */
+        val dinputVibrationLockedReason: String? = null,
+        /** StickPacing format: auto:N / fixed:N / off. */
+        val pacing: String = "auto:60",
+        /** Non-null: why the pacing can't change here (HERMES_AXIS_* env vars). */
+        val pacingLockedReason: String? = null,
+        /** The stick-frame rate the game gets right now (0 = unknown). */
+        val nowHz: Int = 0,
+        /** Changes saved but waiting for the controller to reconnect. */
+        val pendingReconnect: Boolean = false,
+        val reconnecting: Boolean = false,
+        /** Settings saved that take effect only on the next launch (shown as a note). */
+        val nextLaunchOnly: List<String> = emptyList(),
+    )
+
+    private val _pad = MutableStateFlow(PadState())
+    val pad: StateFlow<PadState> = _pad
+    fun setPad(state: PadState) { _pad.value = state }
+
+    fun interface PadStringCallback { fun invoke(value: String) }
+    fun interface PadBoolCallback { fun invoke(value: Boolean) }
+    @JvmField var onPadIdentity: PadStringCallback? = null
+    @JvmField var onPadXInputDirect: PadBoolCallback? = null
+    @JvmField var onPadDInputVisible: PadBoolCallback? = null
+    @JvmField var onPadDInputVibration: PadBoolCallback? = null
+    @JvmField var onPadPacing: PadStringCallback? = null
+    @JvmField var onPadReconnectNow: Runnable? = null
+    @JvmField var onPadNextLaunch: Runnable? = null
+    /** The sub-tab is showing: refresh "Now: N Hz" (called about once a second). */
+    @JvmField var onPadRefresh: Runnable? = null
+
+    // ── Where Controls › Pad and the rumble rows save (ControllerSaveTarget in the activity) ──
+    data class ControllerSaveScope(
+        /** The game the session runs; null for a desktop / container launch (container only). */
+        val gameName: String? = null,
+        val containerName: String = "",
+        /** Changes go to this game; false = to the container, for all of its games. */
+        val toGame: Boolean = false,
+        /** Where the last change went, e.g. "Saved for NINJA GAIDEN only."; null before any change. */
+        val lastSaved: String? = null,
+    )
+
+    private val _controllerSaveScope = MutableStateFlow(ControllerSaveScope())
+    val controllerSaveScope: StateFlow<ControllerSaveScope> = _controllerSaveScope
+    fun setControllerSaveScope(scope: ControllerSaveScope) { _controllerSaveScope.value = scope }
+
+    /** The footer's "Save for" choice: true = this game, false = all games in the container. */
+    @JvmField var onControllerSaveScope: PadBoolCallback? = null
+
     // -------------------------------------------------------------------------
     // Player Slots (manual per-device slot assignment) — Controls > Players sub-tab. One row per
     // detected input device (plus the on-screen pad). `override` is the user's choice: SLOT_AUTO
@@ -869,6 +938,9 @@ object XServerDialogState {
         onRequestResume = null
         onVibrationSlotChanged = null
         onVibrationModeChanged = null; onVibrationIntensityChanged = null
+        onPadIdentity = null; onPadXInputDirect = null; onPadDInputVisible = null; onPadDInputVibration = null; onPadPacing = null
+        onPadReconnectNow = null; onPadNextLaunch = null; onPadRefresh = null
+        onControllerSaveScope = null
         onPlayerSlotChanged = null; onPlayerSlotsRefresh = null; onResetInput = null
         onGyroEnabledChanged = null; onGyroTargetChanged = null
         onGyroSensitivityChanged = null; onGyroDeadzoneChanged = null; onGyroSmoothingChanged = null

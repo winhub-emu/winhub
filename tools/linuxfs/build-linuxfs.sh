@@ -6,7 +6,8 @@
 #
 #   tools/linuxfs/build-linuxfs.sh <work dir> <output.tar.zst>
 #
-# Needs curl, tar, zstd, ar, python3, proot, qemu-aarch64-static, aarch64-linux-gnu-gcc/g++, meson >= 1.5 and ninja.
+# Needs curl, tar, zstd, ar, python3, proot, qemu-aarch64-static, aarch64-linux-gnu-gcc/g++, meson >= 1.5, ninja,
+# and cargo with the aarch64-unknown-linux-gnu target (the controller-input transport, hermes).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 work=${1:?work dir}
@@ -170,13 +171,19 @@ aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread -o rootfs/usr/local/lib/l
 # Deliberately a SEPARATE source from the one preloaded into Wine: what this needs - a virtual
 # gamepad identity, the triggers where an X-Box pad keeps them, a Steam button - is what the
 # client wants and not what a Windows game does, and sharing one file meant every change made for
-# the client landed in every Wine game too. The app's on-screen and physical pads are published as shared-memory rings (see
-# FakeInputWriter); this serves them to a client as a real /dev/input/eventN, which is how the
+# the client landed in every Wine game too. The app's on-screen and physical pads are published as shared state files (see
+# HermesWriter); this serves them to a client as a real /dev/input/eventN, which is how the
 # native Steam client gets a controller at all - it has no Wine and no XInput to read. Preloaded
 # only on the client, by bannerlator-session, not from ld.so.preload: every interposed call here
 # sits on open/read/poll/select, and nothing else in the session needs a gamepad.
+# The transport's guest side (hermes) is a Rust static library linked into it, built and link-probed here
+# the same way the app's CI builds it, and kept out of the exported symbols.
+hermes="$here/../../app/src/main/cpp/hermes"
+"$hermes/ci/build.sh" glibc
 aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare -pthread -std=c++17 -static-libstdc++ -static-libgcc \
-  -o rootfs/usr/local/lib/libfakeinput.so "$here/../../app/src/main/cpp/winlator/fakeinput_steam.cpp" -ldl
+  -Wl,--no-undefined -Wl,--exclude-libs,libhermes_guest.a \
+  -o rootfs/usr/local/lib/libfakeinput.so "$here/../../app/src/main/cpp/winlator/fakeinput_steam.cpp" \
+  "$hermes/target/aarch64-unknown-linux-gnu/release/libhermes_guest.a" -ldl
 aarch64-linux-gnu-readelf -d rootfs/usr/local/lib/libfakeinput.so | grep NEEDED
 # Games that ship a native Linux x86 build run under FEX, and the aarch64 library above cannot be
 # loaded into an x86 process - so those get their own copies. Only the System V IPC shim is built

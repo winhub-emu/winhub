@@ -1,0 +1,16 @@
+[package]
+name = "hermes-guest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# libhermes_guest.a: linked into libfakeinput.so (bionic, via CMake) and into the glibc
+# libfakeinput.so of the Linux runtime. Exposes only the C ABI declared in include/hermes.h.
+[lib]
+name = "hermes_guest"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+hermes-core = { path = "../core" }

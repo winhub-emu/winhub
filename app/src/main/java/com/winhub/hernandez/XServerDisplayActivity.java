@@ -1221,6 +1221,85 @@ public class XServerDisplayActivity extends AppCompatActivity {
     // Reset to -1 when the HUD unbinds.
     private volatile int glZinkHealedWindowId = -1;
 
+    // Controller input pacing (HermesWriter.onGameFrame) needs the game's frame rate whether or not
+    // a HUD is shown, so it keeps its own copy of the HUD's window choice: the same rules as
+    // changeFrameRatingVisibility (bind to a _MESA_DRV render window, upgrade off a fallback, rebind
+    // to another one or the focused application window on unmap) and as driveHudFrameTick's GL/Zink
+    // self-heal, applied to these fields instead of the HUD's. Written by the WM callbacks; the
+    // present threads only read the volatile ints. padFeedMesaDrvIds is touched by the WM thread only.
+    private volatile int padFeedWindowId = -1;
+    private volatile int padFeedHealedWindowId = -1;
+    private final java.util.LinkedHashSet<Integer> padFeedMesaDrvIds = new java.util.LinkedHashSet<>();
+    private long padFeedBindTryNs;                  // present threads; a lost race only delays a bind
+    private volatile boolean padFeedWaylandGame;    // Wayland: the compositor names a game surface
+    // The guest-side win-fg layer (X11 when Win-FG Native cannot run, or for training capture)
+    // presents its generated frames to the X server like real ones: while its multiplier is N >= 2,
+    // only one present in N is a real game frame. Set from writeWinFgConfig, that layer's only
+    // config writer. LSFG Native and Win-FG Native generate inside our own renderer/compositor and
+    // never reach these present callbacks, so they need nothing here.
+    private volatile int padFeedPresentsPerFrame = 1;
+    private int padFeedPresentPhase;                // present threads; a lost race shifts the phase only
+
+    /** WM thread: keep the pad frame feed bound to the game's presenting window (see the fields). */
+    private void trackPadFeedWindow(Window window, Property property) {
+        if (property != null) {
+            if (!property.nameAsString().contains("_MESA_DRV")) return;
+            padFeedMesaDrvIds.add(window.id);
+            int bound = padFeedWindowId;
+            boolean boundToFallback = bound != -1 && !padFeedMesaDrvIds.contains(bound);
+            if (bound == -1 || boundToFallback) padFeedWindowId = window.id;
+            return;
+        }
+        padFeedMesaDrvIds.remove(window.id);
+        if (padFeedWindowId == -1 || window.id != padFeedWindowId) return;
+        padFeedHealedWindowId = -1;
+        Integer next = padFeedMesaDrvIds.isEmpty() ? null : padFeedMesaDrvIds.iterator().next();
+        if (next == null) {
+            try {
+                Window focused = xServer.windowManager.getFocusedWindow();
+                if (focused != null && focused.id != window.id && focused.isApplicationWindow()) next = focused.id;
+            } catch (Exception ignore) {}
+        }
+        padFeedWindowId = next != null ? next : -1;
+    }
+
+    /**
+     * Present threads: report one frame of the game's window to the controller transport. A few
+     * volatile reads on the hot path; WM state is only consulted while unbound (at most twice a
+     * second, the live-HUD rule: the focused application window) or for the GL/Zink self-heal.
+     */
+    private void feedPadFrame(int wid) {
+        int bound = padFeedWindowId;
+        if (bound == -1) {
+            long now = System.nanoTime();
+            if (now - padFeedBindTryNs < 500_000_000L) return;
+            padFeedBindTryNs = now;
+            try {
+                Window focused = xServer.windowManager.getFocusedWindow();
+                if (focused == null || focused.id != wid || !focused.isApplicationWindow()
+                        || focused.isDesktopWindow()) return;
+            } catch (Exception e) {
+                return;
+            }
+            padFeedWindowId = bound = wid;
+        }
+        if (wid != bound && wid != padFeedHealedWindowId) {
+            if (!guestGlIsZink()) return;
+            try {
+                Window focused = xServer.windowManager.getFocusedWindow();
+                boolean gameFocused = focused != null && focused.isApplicationWindow() && !focused.isDesktopWindow();
+                Window w = xServer.windowManager.getWindow(wid);
+                if (!gameFocused || (w != null && w.isDesktopWindow())) return;
+            } catch (Exception e) {
+                return;
+            }
+            padFeedHealedWindowId = wid;
+        }
+        int perFrame = padFeedPresentsPerFrame;
+        if (perFrame > 1 && (++padFeedPresentPhase % perFrame) != 0) return;   // a generated frame
+        com.winhub.hernandez.inputcontrols.HermesWriter.onGameFrame();
+    }
+
     /**
      * Drive every perf-HUD overlay for one presented frame on window {@code wid}. Single entry point
      * for all present/tick paths (SHM copyArea content-update, Vulkan AHB copy, Vulkan native
@@ -1239,6 +1318,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
      * or {@code mesaDrvWindowIds} here (those are owned by the WM thread) — the volatile int is enough.
      */
     private void driveHudFrameTick(int wid) {
+        feedPadFrame(wid);   // controller pacing follows the game's frames, HUD or not
         if (frameRatingWindowId == -1 || !hudCounterEnabled) return;   // HUD inactive or toggled off -> never count
         if (wid != frameRatingWindowId && wid != glZinkHealedWindowId) {
             if (!guestGlIsZink()) return;                      // only the GL/Zink present topology
@@ -1667,6 +1747,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
             }
             @Override public void onDrawerClosed(@NonNull View drawerView) {
                 XServerDialogState.INSTANCE.setMenuOpen(false);
+                // A controller change waiting to reconnect goes now rather than after its batching delay.
+                if (liveControllerSession != null) liveControllerSession.onMenuClosed();
                 // If the user left Relative Mouse enabled, recapture.
                 if (isRelativeMouseMovement && !pointerCaptureRequested) {
                     drawerLayout.postDelayed(() -> ensurePointerCapture("drawer-closed"), 2000);
@@ -2323,13 +2405,13 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
         containerManager.activateContainer(container);
 
-        // Pre-create all 4 event files so Wine registers every slot at startup.
-        // Wine scans /dev/input/ once on boot — slots that don't exist then are never seen,
-        // even if created later. OSC takes slot 0; physical controllers need slots 1-3.
-        for (int i = 0; i < 4; i++) {
-            try { new File(devInputDir, "event" + i).createNewFile(); } catch (Exception e) {}
-        }
-        Log.d("XServerDisplayActivity", "Pre-created 4 controller event file(s)");
+        // Controller discovery nodes: a slot's event<N> exists only while a controller holds that slot.
+        // WinHandler's slot writer creates it when a pad or the on-screen pad takes the slot (pads that
+        // are connected at launch are pre-assigned before Wine boots, the on-screen pad when setupUI
+        // shows it) and removes it when the slot is released; the guest's evdev layer redirects the
+        // inotify watch on /dev/input to this directory, so SDL (winebus' only bus here) sees nodes come
+        // and go. All four used to be created here unconditionally, and slots 1-3, never written, were
+        // listed to games as three phantom pads.
 
         taskAffinityMask = (short) ProcessHelper.getAffinityMask(container.getCPUList(true));
         taskAffinityMaskWoW64 = (short) ProcessHelper.getAffinityMask(container.getCPUListWoW64(true));
@@ -2647,6 +2729,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
             @Override
             public void onModifyWindowProperty(Window window, Property property) {
+                trackPadFeedWindow(window, property);
                 changeFrameRatingVisibility(window, property);
                 // The guest publishes its pid via _NET_WM_PID, which for many titles (e.g. DiRT 3)
                 // arrives AFTER the window maps — so at onMapWindow assignTaskAffinity could only pin by
@@ -2660,6 +2743,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
             @Override
             public void onUnmapWindow(Window window) {
+                trackPadFeedWindow(window, null);
                 changeFrameRatingVisibility(window, null);
             }
         });
@@ -2727,6 +2811,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     // Epic overlay.
                     preloaderDialog.step(2, "Preparing Wine & graphics driver…");
                     setWineDisplayDriver();   // BEFORE setupWineSystemFiles starts the first wineserver
+                    // Controller input log (Log Manager, default off): this launch's recorder, before
+                    // the controller setup below starts filling it.
+                    com.winhub.hernandez.core.ControllerLog.begin(preferences);
                     setupWineSystemFiles();
                     // Steam install-recipe robustness pass: a steamAppId-tagged game's installScript.vdf
                     // Registry + Copy Files land in this prefix before the game boots (covers shortcuts made
@@ -3168,6 +3255,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
             configDir.mkdirs();
             File confFile = new File(configDir, "conf.toml");
             boolean on = multiplier >= 2;
+            // The layer will now present multiplier frames per game frame: the pad frame feed
+            // counts one of them (see padFeedPresentsPerFrame).
+            padFeedPresentsPerFrame = on ? Math.max(2, Math.min(4, multiplier)) : 1;
             String toml = "# Written by Bannerlator (per-container frame generation)\n"
                     + "enabled = " + (on ? "1" : "0") + "\n"
                     + "multiplier = " + Math.max(2, Math.min(4, on ? multiplier : 2)) + "\n"
@@ -4889,6 +4979,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
         final Runnable teardown = new Runnable() {
             @Override
             public void run() {
+                // The controllers and their slots for the controller log, before anything is released.
+                if (winHandler != null) com.winhub.hernandez.core.ControllerLog.pads(winHandler.getPlayerSlotAssignments(), true);
                 savePlaytimeData(); // Save on destroy
                 handler.removeCallbacks(savePlaytimeRunnable);
                 if (midiHandler != null) midiHandler.stop();
@@ -4926,6 +5018,19 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 // the main thread. (Teardown above stays on-main; it's short.)
                 preloaderDialog.hint(getString(R.string.saving_on_exit));
                 new Thread(() -> {
+                    // Controller input log: first, because it is quick and the network steps below may be
+                    // cut short by a user who swipes the app away. No-op unless this launch began one.
+                    if (com.winhub.hernandez.core.ControllerLog.isActive()) {
+                        try {
+                            ProcessHelper.removeDebugCallback(com.winhub.hernandez.core.ControllerLog.GUEST_LINES);
+                            Context logCtx = getApplicationContext();
+                            String logGame = currentLogGameName();
+                            com.winhub.hernandez.core.ControllerLog.finish(logCtx,
+                                    com.winhub.hernandez.core.LogLocation.resolveGameLogDir(logCtx, logGame), logGame);
+                        } catch (Throwable t) {
+                            Log.w("XServerDisplayActivity", "controller log on exit errored", t);
+                        }
+                    }
                     try {
                         // Real-Steam launch: the guest (and the agent's own Steam_LogOff) is gone, so the
                         // account is free — bring the app's own CM session back FIRST and give it a bounded
@@ -6489,6 +6594,14 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // exit (no-op unless a root toggle wrote something this session).
         com.winhub.hernandez.perf.TempWatchdog.INSTANCE.stop();
         com.winhub.hernandez.perf.PerfRevertRegistry.INSTANCE.revertAll();
+        // Game xinput DLLs moved aside for Direct XInput this session go back under their own names
+        // (core.GameXInputDlls; the next app start or launch catches a session that never got here).
+        try {
+            for (String line : com.winhub.hernandez.core.GameXInputDlls.restoreAll(gameXInputManifest()))
+                Log.i("XServerDisplayActivity", "Game xinput DLL: " + line);
+        } catch (Throwable t) {
+            Log.w("XServerDisplayActivity", "game xinput DLL restore", t);
+        }
         // Release the no-root Samsung Galaxy performance boost on game exit (no-op off Samsung).
         com.winhub.hernandez.perf.galaxy.GalaxyPerfManager.stop();
         // Clear the cross-vendor "game is running" signal.
@@ -6756,6 +6869,21 @@ public class XServerDisplayActivity extends AppCompatActivity {
         nvapiSync = com.winhub.hernandez.core.DxvkNvapi.sync(this, new File(imageFs.getRootDir(), ImageFs.WINEPREFIX),
                 com.winhub.hernandez.core.UnrealHdr.usesDxvkNvapi(unrealHdrMode));
 
+        // Direct XInput (HERMES): the HERMES-XInput dlls into this prefix (system32 + syswow64), or
+        // the prefix's own xinput dlls back when the setting is off (core.HermesXInput). Every launch,
+        // idempotent, finishes or undoes an interrupted one; setupXEnvironment adds the
+        // WINEDLLOVERRIDES entry and writes the session log line.
+        // With "Allow in-game switching", our DLLs go in either way plus Wine's own xinput1_4 beside them
+        // (the forward target), so the XInput source can change mid-game (Controls › Pad).
+        // A game xinput DLL an earlier session moved aside and never put back (it ended uncleanly) goes
+        // back first (core.GameXInputDlls); applyHermesXInputEnv decides this launch's.
+        for (String line : com.winhub.hernandez.core.GameXInputDlls.restoreAll(gameXInputManifest()))
+            Log.i("XServerDisplayActivity", "Game xinput DLL: " + line);
+        String hxinputWineRoot = null;
+        try { hxinputWineRoot = imageFs.getWinePath(); } catch (Throwable ignored) {}
+        hxinputSync = com.winhub.hernandez.core.HermesXInput.syncForLaunch(this, new File(imageFs.getRootDir(), ImageFs.WINEPREFIX),
+                container, shortcut, wineInfo != null && wineInfo.isArm64EC(),
+                hxinputWineRoot != null ? new File(hxinputWineRoot) : null);
         String wincomponents = shortcut != null ? shortcut.getExtra("wincomponents", container.getWinComponents()) : container.getWinComponents();
         if (!wincomponents.equals(container.getExtra("wincomponents"))) {
             extractWinComponentFiles();
@@ -6782,28 +6910,41 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // container without an imagefs reinstall or a new container. Version-gated + best-effort.
         stageBundledFileManager();
 
-        // Configure Wine joystick registry keys based on DInput setting
-        int inputType = container.getInputType();
-        if (shortcut != null) {
-            String shortcutInputType = shortcut.getExtra("inputType");
-            if (!shortcutInputType.isEmpty()) {
-                inputType = Byte.parseByte(shortcutInputType);
-            }
-        }
+        // DirectInput visibility ("DirectInput games can see the controller", core.DInputVisibility,
+        // which also reads the old Enable DInput / Exclusive Input values). The entries it writes are
+        // matched by the pad's name, which follows the Controller identity
+        // (core.ControllerIdentity.dinputNames); the Classic DirectInput pad also needs winebus to
+        // present the pads unmapped, i.e. not as XInput gamepads.
+        String padIdentity = com.winhub.hernandez.core.ControllerIdentity.effective(container, shortcut);
+        boolean dinputVisible = com.winhub.hernandez.core.DInputVisibility.forGame(container, shortcut);
+        String dinputWhy = "settings";
         if (isControllerPassthroughLaunch()) {
-            // Controller passthrough (lever 3): force DInput-only so setJoystickRegistryKeys enables the
-            // DInput joystick path for this RealSteam launch, regardless of the container/shortcut value.
-            inputType = WinHandler.FLAG_INPUT_TYPE_DINPUT;
+            // Controller passthrough (lever 3): the classic game reads the pad through DirectInput, so it
+            // must see it for this RealSteam launch, whatever the container/shortcut value.
+            dinputVisible = true;
+            dinputWhy = "controller passthrough";
+        } else if (com.winhub.hernandez.core.ControllerIdentity.DINPUT_PAD.equals(padIdentity)) {
+            // The Classic DirectInput pad exists for DirectInput games; hidden from them it is no pad at all.
+            if (!dinputVisible) dinputWhy = "forced on by the Classic DirectInput pad identity";
+            dinputVisible = true;
         }
-        boolean dinputEnabled = (inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) == WinHandler.FLAG_INPUT_TYPE_DINPUT;
-        
-        boolean exclusiveXInput = container.isExclusiveXInput();
-        if (shortcut != null) {
-            String extra = shortcut.getExtra("exclusiveXInput");
-            if (!extra.isEmpty()) exclusiveXInput = extra.equals("1");
-        }
-        
-        WineUtils.setJoystickRegistryKeys(container, dinputEnabled, exclusiveXInput);
+        Log.i("XServerDisplayActivity", "DirectInput games can see the controller: "
+                + (dinputVisible ? "on" : "off") + " (" + dinputWhy + ")");
+        com.winhub.hernandez.core.ControllerLog.setup("Controller type", com.winhub.hernandez.core.ControllerIdentity.describe(padIdentity));
+        com.winhub.hernandez.core.ControllerLog.setup("DirectInput games can see the controller", (dinputVisible ? "on" : "off") + " (" + dinputWhy + ")");
+        com.winhub.hernandez.core.ControllerLog.setup("winebus", (com.winhub.hernandez.core.ControllerIdentity.mapControllers(padIdentity)
+                ? "Map Controllers default (pads mapped as gamepads)" : "Map Controllers 0 (raw joystick, Classic DirectInput pad)")
+                + ", DisableHidraw 1");
+        // What the in-game controller settings (Controls › Pad) start from.
+        launchPadIdentity = padIdentity;
+        launchDInputVisible = dinputVisible;
+        launchDInputForcedWhy = dinputWhy.equals("settings") ? null
+                : (dinputWhy.startsWith("forced on by ") ? dinputWhy.substring("forced on by ".length()) : dinputWhy);
+        boolean dinputForced = !dinputWhy.equals("settings");
+        WineUtils.setJoystickRegistryKeys(container, dinputVisible, dinputForced, padIdentity);
+        com.winhub.hernandez.core.ControllerLog.setup("DirectInput registry",
+                com.winhub.hernandez.core.JoystickRegistry.describe(dinputVisible, dinputForced));
+        WineUtils.setWinebusOptions(container, com.winhub.hernandez.core.ControllerIdentity.mapControllers(padIdentity));
 
         String startupServices;
         if (shortcut != null) {
@@ -7016,6 +7157,116 @@ public class XServerDisplayActivity extends AppCompatActivity {
      *  prefix for it (core.DxvkNvapi); both are read by setupXEnvironment on the same launch thread. */
     private String unrealHdrMode = com.winhub.hernandez.core.UnrealHdr.OFF;
     private com.winhub.hernandez.core.DxvkNvapi.Result nvapiSync;
+    private com.winhub.hernandez.core.HermesXInput.Result hxinputSync;
+    /** XInput DLL names this game ships that Wine's builtin serves this launch (=b), for the toast and Pad. */
+    private final java.util.List<String> hxinputGameBuiltin = new ArrayList<>();
+    private com.winhub.hernandez.core.HermesXInput.LaunchControl hermesLaunchControl;
+    // In-game controller settings (Controls › Pad) of a Wine session, and what the launch set them to.
+    private LiveControllerSession liveControllerSession;
+    /** Where in-game rumble and Controls › Pad changes are saved (made in setupUI). */
+    private ControllerSaveTarget controllerSaveTarget;
+    private String launchPadIdentity = com.winhub.hernandez.core.ControllerIdentity.GENERIC;
+    private boolean launchDInputVisible;
+    private String launchDInputForcedWhy;
+
+    /** Direct XInput (HERMES, core.HermesXInput; launch worker thread, after the user's env vars are
+     *  merged): when setupWineSystemFiles put the dlls in the prefix, WINEDLLOVERRIDES gains
+     *  xinput1_1,xinput1_2,xinput1_3,xinput1_4,xinput9_1_0,xinputuap=n,b (a user's own entry for any of
+     *  them is kept). One "xinput" line in the session log; off logs only when this launch put the
+     *  prefix's own dlls back. */
+    private void applyHermesXInputEnv(EnvVars envVars) {
+        try {
+            com.winhub.hernandez.core.HermesXInput.Result sync = hxinputSync;
+            if (sync == null) return;
+            if (!sync.on) {
+                if (sync.detail != null) logSessionLine("xinput", "Direct XInput (HERMES) off: " + sync.detail);
+                com.winhub.hernandez.core.ControllerLog.setup("Direct XInput", "off" + (sync.detail != null ? ": " + sync.detail : ""));
+                return;
+            }
+            StringBuilder line = new StringBuilder("Direct XInput (HERMES) on: ")
+                    .append(sync.detail != null ? sync.detail : "dlls not installed");
+            if (sync.installed) {
+                String before = envVars.has("WINEDLLOVERRIDES") ? envVars.get("WINEDLLOVERRIDES") : "";
+                // The game's own xinput DLLs (core.GameXInputDlls): Wine looks in the game's folder before
+                // system32, so a copy there would load instead of ours (Microsoft's needs a driver Wine
+                // lacks: no pads). A name the user's overrides set stays theirs; with "Use Direct XInput
+                // over the game's own XInput DLL" the copy is moved aside for the session; otherwise that
+                // name gets Wine's builtin (=b), as before Direct XInput.
+                java.util.Map<String, String> userNamed = com.winhub.hernandez.core.GameXInputDlls.named(before);
+                java.util.Map<String, File> shipped = com.winhub.hernandez.core.GameXInputDlls.findShipped(
+                        gameExeFolders(), com.winhub.hernandez.core.HermesXInput.bundledShas(this));
+                boolean overGame = shortcut != null
+                        && "1".equals(shortcut.getExtra(com.winhub.hernandez.core.GameXInputDlls.EXTRA_OVER_GAME));
+                java.util.Set<String> builtin = new java.util.LinkedHashSet<>();
+                java.util.List<String> notes = new ArrayList<>();
+                for (java.util.Map.Entry<String, File> e : shipped.entrySet()) {
+                    String dll = e.getKey();
+                    if (userNamed.containsKey(dll)) {
+                        String order = userNamed.get(dll);
+                        notes.add("the game ships " + e.getValue().getName() + "; yours kept (" + dll + "=" + order + ")"
+                                + (com.winhub.hernandez.core.GameXInputDlls.nativeFirst(order)
+                                        ? ", so the game's own copy loads (Prefer game-folder DLLs)" : ""));
+                        continue;
+                    }
+                    if (overGame && com.winhub.hernandez.core.GameXInputDlls.moveAside(gameXInputManifest(), e.getValue(), notes))
+                        continue;
+                    builtin.add(dll);
+                    notes.add("the game ships " + e.getValue().getName() + ": Wine's builtin " + dll + " for it (=b)");
+                }
+                com.winhub.hernandez.core.GameXInputDlls.Overrides o =
+                        com.winhub.hernandez.core.GameXInputDlls.overrides(before, builtin);
+                if (!o.value.equals(before)) envVars.put("WINEDLLOVERRIDES", o.value);
+                synchronized (hxinputGameBuiltin) {
+                    hxinputGameBuiltin.clear();
+                    hxinputGameBuiltin.addAll(o.builtin);
+                }
+                line.append("; WINEDLLOVERRIDES=").append(o.value);
+                if (!o.kept.isEmpty()) line.append(" (yours kept for ").append(String.join(",", o.kept)).append(")");
+                for (String n : notes) line.append("; ").append(n);
+            } else {
+                line.append("; no override, Wine's builtin xinput stays in use");
+            }
+            logSessionLine("xinput", line.toString());
+            com.winhub.hernandez.core.ControllerLog.setup("Direct XInput", line.toString());
+        } catch (Throwable t) {
+            Log.w("XServerDisplayActivity", "Direct XInput (HERMES) environment failed", t);
+        }
+    }
+
+    /** Controller input log (core.ControllerLog), when the Log Manager switch is on: the rest of the launch's
+     *  controller setup, the evdev layer's diagnostics (FAKE_EVDEV_LOG=1, written at attach / probe / loss)
+     *  and the guest's output, of which only the controller lines are kept. Launch worker thread, after
+     *  applyHermesXInputEnv; before the guest starts, so the capture sees its first line. */
+    private void applyControllerLogEnv(EnvVars envVars) {
+        if (!com.winhub.hernandez.core.ControllerLog.isActive()) return;
+        try {
+            com.winhub.hernandez.core.HermesXInput.Result sync = hxinputSync;
+            boolean direct = sync != null && sync.installed && sync.directOn;
+            boolean dinputVibration = com.winhub.hernandez.core.DInputVibration.effective(container, shortcut);
+            com.winhub.hernandez.core.ControllerLog.launchChoices(direct, !direct, launchDInputVisible, dinputVibration);
+            com.winhub.hernandez.core.ControllerLog.setup("XInput source", (direct ? "Direct (HERMES)" : "Wine's XInput")
+                    + (sync != null && sync.installed && sync.switching && sync.forwardAvailable
+                            ? ", in-game switching available" : ", no in-game switching"));
+            com.winhub.hernandez.core.ControllerLog.setup("DirectInput vibration", (dinputVibration ? "on" : "off")
+                    + (com.winhub.hernandez.core.DInputVibration.envOverride(container, shortcut) != null
+                            ? " (" + com.winhub.hernandez.core.DInputVibration.ENV + " in the env vars decides)" : ""));
+            com.winhub.hernandez.core.ControllerLog.setup("Stick updates",
+                    com.winhub.hernandez.core.StickPacing.forGame(container, shortcut).format()
+                            + (com.winhub.hernandez.core.StickPacing.envOverrides(container, shortcut)
+                                    ? " (HERMES_AXIS_* in the env vars decide)" : ""));
+            com.winhub.hernandez.core.ControllerLog.setup("Wine layer", container.getWineVersion()
+                    + (wineInfo != null && wineInfo.isArm64EC() ? " (arm64ec)" : ""));
+            if (!envVars.has("FAKE_EVDEV_LOG")) envVars.put("FAKE_EVDEV_LOG", "1");
+            ProcessHelper.addDebugCallback(com.winhub.hernandez.core.ControllerLog.GUEST_LINES);
+        } catch (Throwable t) {
+            Log.w("XServerDisplayActivity", "controller log setup failed", t);
+        }
+    }
+
+    /** Where GameXInputDlls records the game xinput DLLs it moved aside (app files, survives the session). */
+    private File gameXInputManifest() {
+        return new File(getFilesDir(), com.winhub.hernandez.core.GameXInputDlls.MANIFEST_NAME);
+    }
 
     // ── Game mods (core.GameMods: REFramework, Special K) ────────────────────────────────────────────────
 
@@ -7645,6 +7896,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
             // WINEDLLOVERRIDES / DXVK_CONFIG entry of the user's wins and the log line can say
             // whether DXVK_HDR is on.
             applyUnrealHdrEnv(envVars);
+            applyHermesXInputEnv(envVars);
+            applyControllerLogEnv(envVars);
             applyGameModsEnv(envVars);
 
             // Keep the lsfg-vk Vulkan layer INERT unless lsfg-vk is actually the engine.
@@ -7839,6 +8092,12 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
         // Pass final envVars to the launcher
         guestProgramLauncherComponent.setEnvVars(envVars);
+        // Direct XInput's mode/flags for HERMES's control block (the launcher writes it with the slots'
+        // identity before the guest starts). No "DirectInput only" hiding from XInput in this build.
+        com.winhub.hernandez.core.HermesXInput.LaunchControl hxControl =
+                com.winhub.hernandez.core.HermesXInput.launchControlMode(hxinputSync, false);
+        guestProgramLauncherComponent.setHermesLaunchControl(hxControl.xinputMode, hxControl.xinputFlags);
+        hermesLaunchControl = hxControl;
         final boolean launchLoggingEnabled = isLaunchLoggingEnabled();
         guestProgramLauncherComponent.setTerminationCallback((status) -> {
             // The guest process died. If it never rendered a window, this is a launch failure — show
@@ -7888,6 +8147,11 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // startEnvironmentComponents below, so this must sit here — after the path is known and
         // before the guest starts reading the rings.
         winHandler.preAssignConnectedControllers();
+        // Then the on-screen pad, so a game that only looks for controllers at startup finds it too.
+        seatOnScreenPadBeforeBoot();
+        // What the guest will list at boot: one node per slot a controller holds, nothing else.
+        Log.i("XServerDisplayActivity", "fake evdev nodes at boot: "
+                + java.util.Arrays.toString(devInputDir.list()) + ", slots held: " + winHandler.getUsedSlotsSnapshot());
 
         // Pre-launch: pull the freshest GOG cloud saves INTO the prefix before the guest boots, so the
         // game reads current progress (Galaxy-parity download-on-launch). We're on the launch worker
@@ -7925,6 +8189,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // Start all environment components (XServer, Audio, Wine, etc.)
         preloaderDialog.step(4, "Launching Windows…");
         environment.startEnvironmentComponents();
+        runOnUiThread(this::startLiveControllerSession);
 
         // Guest is now booting — the tail is unmeasurable, so switch to the indeterminate spinner and
         // arm the not-frozen reassurance timers (cancelled on first render or termination).
@@ -11190,6 +11455,89 @@ return true;
     // fireControllerToast field initializer) to avoid an illegal forward reference to winHandler.
     private void refreshInGamePlayerSlotList() {
         if (winHandler != null) XServerDialogState.INSTANCE.setPlayerSlots(buildPlayerSlotRows());
+    }
+
+    /** Launch worker thread, before Wine boots: seats the on-screen pad on the main thread (its profile
+     *  and slot state live there) and waits for it, at most 2 s. */
+    private void seatOnScreenPadBeforeBoot() {
+        final CountDownLatch seated = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            try {
+                inputControlsView.loadProfileElementsIfReady();
+                winHandler.seatOnScreenPadAtBoot();
+            } finally {
+                seated.countDown();
+            }
+        });
+        try {
+            if (!seated.await(2, TimeUnit.SECONDS))
+                Log.w("XServerDisplayActivity", "on-screen pad not seated before boot (main thread busy)");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+    /**
+     * Controls › Pad for a Wine session: the controller settings that change while the game runs
+     * (LiveControllerSession), started once the launch has written their starting values.
+     */
+    private void startLiveControllerSession() {
+        if (winHandler == null || container == null || liveControllerSession != null) return;
+        com.winhub.hernandez.core.HermesXInput.Result sync = hxinputSync;
+        boolean direct = sync != null ? sync.directOn
+                : com.winhub.hernandez.core.HermesXInput.effective(container, shortcut);
+        boolean switchable = sync != null && sync.installed && sync.switching && sync.forwardAvailable;
+        int mode = hermesLaunchControl != null ? hermesLaunchControl.xinputMode : 0;
+        int flags = hermesLaunchControl != null ? hermesLaunchControl.xinputFlags : 0;
+        if (controllerSaveTarget == null) {
+            controllerSaveTarget = new ControllerSaveTarget(preferences, container, shortcut);
+            controllerSaveTarget.attach();
+        }
+        winHandler.setReconnectGapMs(preferences.getInt("live_reconnect_gap_ms", (int) com.winhub.hernandez.winhandler.SlotReconnector.GAP_MS_DEFAULT));
+        liveControllerSession = new LiveControllerSession(container, shortcut, winHandler, new LiveControllerSession.Host() {
+            @Override public void onReconnecting() {
+                XServerDialogState.INSTANCE.showInfoToast("CONTROLLER RECONNECTING…", "just now", null);
+            }
+
+            @Override public void onReconnected(boolean ok, String identityLabel) {
+                refreshInGamePlayerSlotList();
+                updateAutoHideForControllers();
+                if (ok) {
+                    XServerDialogState.INSTANCE.showControllerToastFor("reconnected", buildPlayerSlotRows(), null);
+                } else {
+                    XServerDialogState.INSTANCE.showInfoToast("CONTROLLER NOT BACK YET", "",
+                            "If the game lost the controller: Controls › Players › Reset Input, or restart the game.");
+                }
+            }
+
+            @Override public void onXInputApplied(boolean direct, boolean ok) {
+                if (ok) {
+                    XServerDialogState.INSTANCE.showInfoToast("XINPUT SOURCE", "applied in game",
+                            direct ? "Direct XInput (WinHub)" : "Wine's XInput");
+                } else {
+                    XServerDialogState.INSTANCE.showInfoToast("XINPUT SOURCE", "",
+                            "Wine's XInput isn't available in this game; it stays on Direct XInput.");
+                }
+            }
+        }, controllerSaveTarget, launchPadIdentity, launchDInputVisible, launchDInputForcedWhy, direct, switchable, mode, flags);
+        liveControllerSession.attach();
+        com.winhub.hernandez.core.ControllerLog.pads(winHandler.getPlayerSlotAssignments(), false);
+        noteGameShipsXInput();
+    }
+
+    /** The game ships its own xinput DLL and Wine's builtin serves it (applyHermesXInputEnv): a note on
+     *  Controls › Pad, and once per game a toast saying how to use Direct XInput there. */
+    private void noteGameShipsXInput() {
+        String names;
+        synchronized (hxinputGameBuiltin) {
+            if (hxinputGameBuiltin.isEmpty()) return;
+            names = String.join(", ", hxinputGameBuiltin);
+        }
+        if (liveControllerSession != null) liveControllerSession.noteGameShipsXInput(names);
+        String key = "hxinput_game_dll_toast:" + (shortcut != null ? shortcut.file.getAbsolutePath() : "") + ":" + names;
+        if (preferences.getBoolean(key, false)) return;
+        preferences.edit().putBoolean(key, true).apply();
+        XServerDialogState.INSTANCE.showInfoToast("DIRECT XINPUT", "",
+                "This game ships its own XInput DLL (" + names + "), so Wine's XInput is used for it instead of Direct XInput.");
     }
 
     private void updateAutoHideForControllers() {

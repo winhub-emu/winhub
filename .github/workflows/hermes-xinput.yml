@@ -1,0 +1,212 @@
+name: HERMES-XInput
+
+# The replacement XInput DLLs (app/src/main/cpp/hermes/xinput):
+#   dlls  build x86_64, i386 and ARM64X (ARM64 + ARM64EC in one image) with the pinned
+#         bylaws/llvm-mingw, check every DLL's export table (names + ordinals, both views of the ARM64X
+#         image) against its .def, its imports, machine type, CHPE metadata and ARM64X relocations;
+#         build the Wine test programs (x86_64, i386, aarch64)
+#   host  the reader + XInput mapping (the DLL's own hxi_core.h) on Linux x86_64 AND aarch64,
+#         against the app's real writer engine publishing as fast as it can (torn / backwards /
+#         mis-mapped snapshots fail the job; on aarch64 the barriers are the arm64ec DLL's)
+#   wine-check (in both Wine jobs) every export name of Wine's builtin XInput DLLs, and every ordinal
+#         programs import by, must be exported by ours (per DLL, arch and ARM64X view); every Wine module
+#         that imports from an XInput DLL (joy.cpl, ...) must resolve against ours
+#   wine  end to end under Wine on x86_64: x86_64 DLLs (all three DOS path forms) and i386 DLLs
+#         (WoW64) read slot files the writer engine publishes, incl. live-update latency (proves
+#         Wine's read-only views are live MAP_SHARED mappings), file retire/replace/loss, unplug,
+#         rumble datagrams, capabilities, keystrokes, the Guide wait, and GUI children without std
+#         handles whose DllMain line must reach Wine's stderr
+#   wine-arm64ec  the same test on an aarch64 runner under Hangover (Wine arm64ec + FEX, the app's
+#         layer layout): the ARM64X image's native view in a native ARM64 process (what Wine's own
+#         programs are there, e.g. control.exe with joy.cpl), its EC view in an x64 process under
+#         FEX (a game), and the i386 DLLs in a 32-bit process under WoW64 FEX
+# The APK build (_build.yml) runs the same build.sh dlls before Gradle.
+on:
+  push:
+    paths:
+      - 'app/src/main/cpp/hermes/xinput/**'
+      - 'app/src/main/cpp/hermes/core/**'
+      - '.github/workflows/hermes-xinput.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dlls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache llvm-mingw
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/llvm-mingw-bylaws-20250920
+        key: llvm-mingw-bylaws-20250920-ubuntu-22.04-x86_64
+
+    - name: Build the DLLs (x86_64, i386, arm64ec) and check their exports
+      run: app/src/main/cpp/hermes/xinput/build.sh dlls out/dlls
+
+    - name: Build the Wine test programs (x86_64, i386)
+      run: app/src/main/cpp/hermes/xinput/build.sh tests out/tests
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: hermes-xinput
+        path: out/
+        if-no-files-found: error
+        retention-days: 14
+
+  host:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Rust
+      run: |
+        if ! command -v cargo >/dev/null; then
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        fi
+
+    - name: Build host_test + feeder
+      run: app/src/main/cpp/hermes/xinput/build.sh host out/host
+
+    - name: Mapping + path grammar
+      run: out/host/host_test unit
+
+    - name: Reader vs the app's writer engine (stress)
+      run: |
+        set -euo pipefail
+        d="$(mktemp -d)"
+        out/host/hermes-xinput-feeder stress "$d" 7 &
+        f=$!
+        out/host/host_test stress "$d/pad0" 5
+        wait "$f"
+
+  wine:
+    needs: dlls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: hermes-xinput
+        path: out
+
+    - name: Install Wine (64-bit + 32-bit)
+      run: |
+        set -euo pipefail
+        sudo dpkg --add-architecture i386
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends wine wine64 wine32:i386 >/dev/null
+        wine --version
+
+    - name: Build the feeder
+      run: app/src/main/cpp/hermes/xinput/build.sh host out/host
+
+    - name: Cache llvm-mingw
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/llvm-mingw-bylaws-20250920
+        key: llvm-mingw-bylaws-20250920-ubuntu-22.04-x86_64
+
+    - name: Our exports cover Wine's (x86_64 + i386 builtins), Wine modules' XInput imports resolve
+      run: app/src/main/cpp/hermes/xinput/build.sh wine-check out/dlls /usr/lib /usr/lib64 /opt
+
+    - name: End to end under Wine
+      run: bash app/src/main/cpp/hermes/xinput/test/run_wine.sh out/dlls out/tests out/host/hermes-xinput-feeder
+
+  wine-arm64ec:
+    needs: dlls
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: hermes-xinput
+        path: out
+
+    # Hangover: Wine built for ARM64 + ARM64EC with FEX as the x86 emulator, the same layout as the
+    # app's arm64ec Proton layers (Wine's own programs native ARM64, x64 programs through FEX).
+    - name: Install Hangover 11.16 (Wine arm64ec + FEX)
+      run: |
+        set -euo pipefail
+        V=11.16
+        curl -fsSL --retry 5 --retry-delay 5 -o /tmp/hangover.tar \
+          "https://github.com/AndreRH/hangover/releases/download/hangover-$V/hangover_${V}_ubuntu2404_noble_arm64.tar"
+        echo "94611dad2b23978d35825a018c81b3947caaec174aa04c052849d37bc6a39e72  /tmp/hangover.tar" | sha256sum -c -
+        mkdir -p /tmp/hangover
+        tar -xf /tmp/hangover.tar -C /tmp/hangover
+        ls -l /tmp/hangover
+        sudo apt-get update -qq
+        debs="$(ls /tmp/hangover/*.deb | grep -E 'hangover-(wine|libarm64ecfex|libwow64fex)_' || true)"
+        [ -n "$debs" ] || debs="$(ls /tmp/hangover/*.deb)"
+        echo "installing: $debs"
+        # Its Depends are written for a desktop noble; show what apt objects to, then install the
+        # packages with whatever of their dependencies the runner can satisfy.
+        dpkg-deb -f /tmp/hangover/hangover-wine_*.deb Depends | tr ',' '\n' | sed 's/^ */    /'
+        # shellcheck disable=SC2086
+        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $debs >/tmp/apt.log 2>&1; then
+          grep -E 'Depends|Conflicts|Breaks|but|E:' /tmp/apt.log | head -40
+          echo "== apt refused; installing with --force-depends and the dependencies apt can resolve"
+          # shellcheck disable=SC2086
+          deps="$(for d in $debs; do dpkg-deb -f "$d" Depends; done | tr ',' '\n' | sed 's/([^)]*)//g; s/|.*//; s/ //g' | grep -v '^hangover' | sort -u)"
+          for p in $deps; do sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "$p" >/dev/null 2>&1 || echo "    could not install $p"; done
+          # shellcheck disable=SC2086
+          sudo dpkg -i --force-depends $debs >/dev/null
+        fi
+        wine --version
+
+    - name: Rust
+      run: |
+        if ! command -v cargo >/dev/null; then
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+        fi
+
+    - name: Build the feeder
+      run: app/src/main/cpp/hermes/xinput/build.sh host out/host
+
+    - name: Cache llvm-mingw (aarch64 host)
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/llvm-mingw-bylaws-20250920-aarch64
+        key: llvm-mingw-bylaws-20250920-ubuntu-22.04-aarch64
+
+    - name: Our exports cover Wine's (ARM64X builtins, both views; i386), Wine modules' XInput imports resolve
+      run: |
+        dpkg -L hangover-wine 2>/dev/null | grep -E '/(aarch64|i386|x86_64)-windows/(xinput[^/]*|joy)\.(dll|cpl)$' || true
+        app/src/main/cpp/hermes/xinput/build.sh wine-check out/dlls /usr/lib /usr/lib64 /usr/local/lib /opt
+
+    - name: Probe (prefix, an ARM64 and an x64 program)
+      continue-on-error: true
+      env:
+        HODLL64: libarm64ecfex.dll
+        HODLL: libwow64fex.dll
+      run: |
+        export WINEPREFIX="$HOME/.wine-hxi"
+        WINEDLLOVERRIDES="mscoree,mshtml=" timeout 600 wine wineboot -i >/tmp/wineboot.log 2>&1; echo "wineboot exit $?"; tail -15 /tmp/wineboot.log
+        timeout 60 wineserver -w || true
+        timeout 60 wine cmd /c echo hello-from-cmd; echo "cmd exit $?"
+        for a in aarch64 x86_64; do
+          timeout 120 wine out/tests/$a/xinput_test.exe 2>&1 | tail -5; echo "$a usage run exit ${PIPESTATUS[0]} (2 = ran and printed its usage)"
+        done
+        timeout 60 wineserver -w || true
+
+    - name: End to end under Wine arm64ec (ARM64X native view, ARM64X EC view under FEX, i386 under WoW64 FEX)
+      env:
+        CASES: arm64x:aarch64:auto arm64x:x86_64:auto i386:i386:auto
+        HODLL64: libarm64ecfex.dll
+        HODLL: libwow64fex.dll
+      run: bash app/src/main/cpp/hermes/xinput/test/run_wine.sh out/dlls out/tests out/host/hermes-xinput-feeder

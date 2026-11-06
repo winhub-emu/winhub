@@ -20,11 +20,14 @@ import com.winhub.hernandez.contents.ContentProfile
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.contents.WrapperManager
 import com.winhub.hernandez.core.AppUtils
+import com.winhub.hernandez.core.ControllerIdentity
+import com.winhub.hernandez.core.DInputVibration
 import com.winhub.hernandez.core.DefaultVersion
 import com.winhub.hernandez.core.EnvVars
 import com.winhub.hernandez.core.GPUInformation
 import com.winhub.hernandez.core.NewContainerDefaults
 import com.winhub.hernandez.core.PreloaderState
+import com.winhub.hernandez.core.StickPacing
 import com.winhub.hernandez.core.StorageRoots
 import com.winhub.hernandez.core.StringUtils
 import com.winhub.hernandez.core.SyncCaps
@@ -379,6 +382,17 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     var enableXInput by mutableStateOf(true)
     var enableDInput by mutableStateOf(false)
     var exclusiveXInput by mutableStateOf(true)
+    // "DirectInput vibration" (core.DInputVibration, extra "dinputVibration", stored only when off).
+    var dinputVibration by mutableStateOf(true)
+    // Direct XInput (HERMES): XInput games read the HERMES slot files directly (core/HermesXInput).
+    var hermesXInput by mutableStateOf(false)
+    // "Allow in-game switching" of Direct XInput (core/HermesXInput.switchingEffective).
+    var hermesXInputSwitching by mutableStateOf(true)
+    // "Stick updates" (core.StickPacing format: auto:N / fixed:N / off).
+    var stickPacing by mutableStateOf(StickPacing.DEFAULT.format())
+    // Controller identity (core.ControllerIdentity value): what the virtual pads say they are to a Wine
+    // game. "generic" (the default) is stored as absent.
+    var controllerIdentity by mutableStateOf(ControllerIdentity.GENERIC)
 
     // Controller vibration (PC-accurate dual-motor rumble), per-container. Mode: 0=Off 1=Controller
     // 2=Device(phone) 3=Both (Container.VIBRATION_MODE_*). Intensity 0..100 scales amplitude. Both
@@ -728,6 +742,11 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         if (!exclusiveXInput) {
             enableXInput = true; enableDInput = true
         }
+        dinputVibration = DInputVibration.forContainer(seed)
+        hermesXInput = seed?.isHermesXInput ?: false
+        hermesXInputSwitching = seed?.isHermesXInputSwitching ?: true
+        stickPacing = StickPacing.forContainer(seed).format()
+        controllerIdentity = ControllerIdentity.forWine(seed?.getControllerIdentity())
         vibrationMode      = seed?.getVibrationMode() ?: Container.VIBRATION_MODE_DEFAULT
         vibrationIntensity = seed?.getVibrationIntensity() ?: Container.VIBRATION_INTENSITY_DEFAULT
         controllerSlotOverridesJson = seed?.getControllerSlotOverrides() ?: "{}"
@@ -1195,6 +1214,12 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setReshadeParams(reshadeLoadout.paramsJsonOrNull())
         c.setReshadeEffect(reshadeLoadout.firstEffectName())
         c.setExclusiveXInput(exclusiveXInput)
+        c.putExtra(DInputVibration.EXTRA, DInputVibration.containerExtra(dinputVibration))
+        c.setHermesXInput(hermesXInput)
+        c.setHermesXInputSwitching(hermesXInputSwitching)
+        // Only stored when it differs from the default, so an untouched container's data doesn't change.
+        c.putExtra(StickPacing.EXTRA, StickPacing.parse(stickPacing)?.format()?.takeIf { it != StickPacing.DEFAULT.format() })
+        c.setControllerIdentity(controllerIdentity)
         c.setVibrationMode(vibrationMode)
         c.setVibrationIntensity(vibrationIntensity)
         // Player Slots + On-screen mode + auto-hide: seeded from the app-drawer global ONLY for a

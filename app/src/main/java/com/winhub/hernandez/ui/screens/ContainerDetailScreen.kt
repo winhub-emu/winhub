@@ -2014,6 +2014,20 @@ private fun AdvancedTab(
                     Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            ControllerSettingsRows(
+                hermesXInput = viewModel.hermesXInput,
+                onHermesXInput = { viewModel.hermesXInput = it },
+                switching = viewModel.hermesXInputSwitching,
+                onSwitching = { viewModel.hermesXInputSwitching = it },
+                identity = viewModel.controllerIdentity,
+                onIdentity = { viewModel.controllerIdentity = it },
+                dinputVibration = viewModel.dinputVibration,
+                onDinputVibration = { viewModel.dinputVibration = it },
+                pacing = viewModel.stickPacing,
+                onPacing = { viewModel.stickPacing = it },
+                onHelp = { helpRes = it },
+            )
         }
 
         // Vibration section — per-container rumble target + intensity default. Also live-tunable

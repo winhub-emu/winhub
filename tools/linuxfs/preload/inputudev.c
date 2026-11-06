@@ -4,7 +4,7 @@
  *
  * The session's controllers, described to libudev's callers.
  *
- * The pads are evdev nodes the app backs with its own input rings, bound over /dev/input. Wine's
+ * The pads are evdev nodes the app backs with its own pad files, bound over /dev/input. Wine's
  * HID bus finds them there, but it identifies a node by resolving /sys/class/input/<name> and
  * asking libudev about the result: on Android that resolves to whatever real input device the
  * host numbered the same, whose device node libudev cannot read, so every pad is discarded before
@@ -31,7 +31,7 @@
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 
-/* The app opens one ring per configured controller; four is what its launcher offers. */
+/* The app opens one pad file per controller slot; four is what its launcher offers. */
 #define PAD_MAX 4
 #define EVENT_MINOR_BASE 64
 
@@ -53,7 +53,7 @@ static struct pad pads[PAD_MAX];
 static int pad_count;
 
 /*
- * The slots the app published rings for, named in FAKE_EVDEV_MEMFD_PATHS as "<slot>=<path>"
+ * The slots the app published pad files for, named in FAKE_EVDEV_MEMFD_PATHS as "<slot>=<path>"
  * separated by semicolons. Without it the process has no pads of the session's and every call
  * here is a passthrough.
  */

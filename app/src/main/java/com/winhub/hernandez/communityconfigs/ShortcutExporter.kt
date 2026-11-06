@@ -85,6 +85,9 @@ object ShortcutExporter {
         put(effective, "startupSelection", shortcut.getExtra("startupSelection"))
         put(effective, "exclusiveXInput", shortcut.getExtra("exclusiveXInput"))
         put(effective, "disableXinput", shortcut.getExtra("disableXinput"))
+        // Controller identity: the game's own, else the container's (Generic is stored as absent).
+        put(effective, "controllerIdentity", orDefault(shortcut, "controllerIdentity",
+            container?.getControllerIdentity()?.takeIf { it != com.winhub.hernandez.core.ControllerIdentity.GENERIC }))
         put(effective, "simTouchScreen", shortcut.getExtra("simTouchScreen"))
         put(effective, "numControllers", shortcut.getExtra("numControllers"))
         put(effective, "controlsProfile", shortcut.getExtra("controlsProfile"))
@@ -126,6 +129,9 @@ object ShortcutExporter {
         put(effective, "startupServices", orDefault(shortcut, "startupServices", container?.getStartupServices()))
         // Per-game upscaler override — a sticky extra on both shortcut and container (no dedicated getter).
         put(effective, "scalingMode", orDefault(shortcut, "scalingMode", container?.getExtra("scalingMode")))
+        // Direct XInput (HERMES) + "Allow in-game switching" — effective shortcut-or-container, 1/0.
+        put(effective, "hermesXInput", orDefault(shortcut, "hermesXInput", container?.let { if (it.isHermesXInput()) "1" else "0" }))
+        put(effective, "hermesXInputSwitching", orDefault(shortcut, "hermesXInputSwitching", container?.let { if (it.isHermesXInputSwitching()) "1" else "0" }))
 
         val device = Build.MANUFACTURER + " " + Build.MODEL
         val soc = DeviceIdentity.gpu(context) ?: DeviceIdentity.soc()

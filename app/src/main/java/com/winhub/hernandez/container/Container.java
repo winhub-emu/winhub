@@ -7,6 +7,7 @@ import com.winhub.hernandez.BuildConfig;
 import com.winhub.hernandez.box64.Box64Preset;
 import com.winhub.hernandez.contentdialog.DXVKConfigDialog;
 import com.winhub.hernandez.contentdialog.WineD3DConfigDialog;
+import com.winhub.hernandez.core.ControllerIdentity;
 import com.winhub.hernandez.core.DefaultVersion;
 import com.winhub.hernandez.core.EnvVars;
 import com.winhub.hernandez.core.FileUtils;
@@ -173,6 +174,13 @@ public class Container {
     private String emulator;
     private String renderer = "vulkan";
     private boolean exclusiveXInput = true;
+    // "Direct XInput (HERMES)": XInput games read the pad straight from the HERMES slot files
+    // (core/HermesXInput). Default off; always persisted so an explicit choice survives a reload.
+    private boolean hermesXInput = false;
+    // "Allow in-game switching" of Direct XInput: the HERMES-XInput DLLs go in for both states and Wine's
+    // own xinput is installed beside them as the forward target, so the mode can flip mid-game
+    // (core/HermesXInput). Default on; always persisted, so an explicit off stays off.
+    private boolean hermesXInputSwitching = true;
     private ContainerManager containerManager;
 
 
@@ -431,6 +439,20 @@ public class Container {
 
     public void setExtraData(JSONObject extraData) {
         this.extraData = extraData;
+    }
+
+    // Controller identity (core.ControllerIdentity): what the virtual pads say they are to a Wine game
+    // (FAKE_EVDEV_IDENTITY at launch). Absent = Generic, the identity every container had before;
+    // Generic is stored as absent so an untouched container's extraData doesn't change.
+    public String getControllerIdentity() {
+        String v = ControllerIdentity.normalize(getExtra(ControllerIdentity.EXTRA, ""));
+        return v != null ? v : ControllerIdentity.GENERIC;
+    }
+
+    public void setControllerIdentity(String identity) {
+        String v = ControllerIdentity.normalize(identity);
+        putExtra(ControllerIdentity.EXTRA,
+                v == null || v.equals(ControllerIdentity.GENERIC) ? null : v);
     }
 
     public String getExtra(String name) {
@@ -1181,6 +1203,22 @@ public class Container {
         this.inputType = inputType;
     }
 
+    public boolean isHermesXInput() {
+        return hermesXInput;
+    }
+
+    public void setHermesXInput(boolean hermesXInput) {
+        this.hermesXInput = hermesXInput;
+    }
+
+    public boolean isHermesXInputSwitching() {
+        return hermesXInputSwitching;
+    }
+
+    public void setHermesXInputSwitching(boolean hermesXInputSwitching) {
+        this.hermesXInputSwitching = hermesXInputSwitching;
+    }
+
     public boolean isExclusiveXInput() {
         return exclusiveXInput;
     }
@@ -1299,6 +1337,8 @@ public class Container {
             data.put("primaryController", primaryController);
             data.put("controllerMapping", controllerMapping);
             data.put("exclusiveXInput", exclusiveXInput);
+            data.put("hermesXInput", hermesXInput);
+            data.put("hermesXInputSwitching", hermesXInputSwitching);
             data.put("renderer", renderer);
             data.put("rendererNative", rendererNative);
             data.put("rendererPresentMode", rendererPresentMode);
@@ -1438,6 +1478,12 @@ public class Container {
                     break;
                 case "exclusiveXInput" :
                     setExclusiveXInput(data.getBoolean(key));
+                    break;
+                case "hermesXInput" :
+                    setHermesXInput(data.optBoolean(key, false));
+                    break;
+                case "hermesXInputSwitching" :
+                    setHermesXInputSwitching(data.optBoolean(key, true));
                     break;
                 case "renderer" :
                     setRenderer(data.getString(key));

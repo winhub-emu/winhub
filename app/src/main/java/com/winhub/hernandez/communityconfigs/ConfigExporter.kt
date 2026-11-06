@@ -45,6 +45,8 @@ object ConfigExporter {
         "fpsLimiterEnabled", "sharpnessEffect", "sharpnessLevel", "sharpnessDenoise", "reshadeLoadout",
         "reshadeMode", "reshadeParams", "reshadeEffect", "emulator", "box64Version", "box64Preset",
         "fexcorePreset", "cpuList", "startupSelection", "inputType", "exclusiveXInput", "disableXinput",
+        // Controller identity (generic / xbox360 / ... ; core.ControllerIdentity) with the other controller keys.
+        "controllerIdentity",
         "simTouchScreen", "numControllers", "controlsProfile", "wincomponents", "midiSoundFont",
         "lc_all", "autoCloseOnExit",
         // Fast OpenGL ("1" / "0"); an importer whose driver can't do it stays on the old path at
@@ -72,6 +74,8 @@ object ConfigExporter {
         // that are remembered per game alongside scalingMode. Each round-trips as a scalar.
         "upscaleSharpness", "casEnabled", "casSharpness", "hdrEnabled",
         "debandEnabled", "debandStrength",
+        // Direct XInput (HERMES) and its "Allow in-game switching" ("1" / "0"; core.HermesXInput).
+        "hermesXInput", "hermesXInputSwitching",
     )
 
     /**

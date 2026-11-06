@@ -97,6 +97,9 @@ fun LogManagerScreen(onClose: () -> Unit) {
     var wineDebug by remember { mutableStateOf(prefs.getBoolean("enable_wine_debug", false)) }
     var box64Logs by remember { mutableStateOf(prefs.getBoolean("enable_box64_logs", false)) }
     var dxvkLogs by remember { mutableStateOf(prefs.getBoolean("enable_dxvk_logs", true)) }
+    var controllerLogs by remember {
+        mutableStateOf(prefs.getBoolean(com.winhub.hernandez.core.ControllerLog.PREF_KEY, false))
+    }
     var steamLite by remember { mutableStateOf(prefs.getBoolean("enable_steamlite_logs", false)) }
     var logcat by remember { mutableStateOf(prefs.getBoolean("enable_logcat", true)) }
     var crashReports by remember { mutableStateOf(prefs.getBoolean("enable_crash_reports", true)) }
@@ -266,6 +269,11 @@ fun LogManagerScreen(onClose: () -> Unit) {
                     hint = "Safe to leave on — mostly written at startup",
                     onInfo = { info = "DXVK & VKD3D" to LogCopy.DXVK }) {
                     dxvkLogs = it; putBool("enable_dxvk_logs", it)
+                }
+                LogToggle("Controller input", controllerLogs,
+                    hint = "For controls that don't work — written when the game exits",
+                    onInfo = { info = "Controller input" to LogCopy.CONTROLLER }) {
+                    controllerLogs = it; putBool(com.winhub.hernandez.core.ControllerLog.PREF_KEY, it)
                 }
                 LogToggle("SteamLite (Steam client)", steamLite,
                     hint = "Only when a game launches through SteamLite",
@@ -1212,6 +1220,21 @@ private object LogCopy {
         "driver were picked, which features are missing, why a shader failed.\n\n" +
         "This is the log to check for black screens, missing textures or a game that refuses a " +
         "graphics feature. Safe to leave on."
+
+    const val CONTROLLER =
+        "Little to no performance cost.\n\n" +
+        "Records how the controller reached the game, for when the controls don't work. It covers " +
+        "XInput games (Direct XInput and Wine's own XInput) and DirectInput games, plus vibration. " +
+        "It notes the controller settings the game launched with, which controller went to which " +
+        "player, every in-game change in Controls › Pad, and how much input the app sent and the game " +
+        "actually read.\n\n" +
+        "Everything lands in a single \"controller.txt\" next to that game's other logs, written when " +
+        "the game exits. It opens with a checklist (PASS / FAIL / WARN) for each player, so you can see " +
+        "where input stopped: the app got nothing from the controller, Wine never opened it, the game " +
+        "never read it, or Direct XInput never loaded. Send that file when you report a controller " +
+        "problem — play long enough to try the controls, then quit the game normally.\n\n" +
+        "Wine games only; the Linux runtime keeps its own controller diagnostics. Nothing is recorded " +
+        "while this is off."
 
     const val STEAMLITE =
         "Little to no performance cost.\n\n" +

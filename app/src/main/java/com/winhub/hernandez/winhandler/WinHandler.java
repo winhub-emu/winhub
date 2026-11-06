@@ -8,11 +8,13 @@ import android.view.MotionEvent;
 import androidx.preference.PreferenceManager;
 
 import com.winhub.hernandez.XServerDisplayActivity;
+import com.winhub.hernandez.core.HermesXInput;
+import com.winhub.hernandez.core.ControllerLog;
 import com.winhub.hernandez.core.GyroCalibrator;
 import com.winhub.hernandez.core.StringUtils;
 import com.winhub.hernandez.inputcontrols.ControlsProfile;
 import com.winhub.hernandez.inputcontrols.ExternalController;
-import com.winhub.hernandez.inputcontrols.FakeInputWriter;
+import com.winhub.hernandez.inputcontrols.HermesWriter;
 import com.winhub.hernandez.inputcontrols.GamepadState;
 import com.winhub.hernandez.inputcontrols.SteamControllerBackend;
 import com.winhub.hernandez.widget.InputControlsView;
@@ -68,6 +70,9 @@ public class WinHandler {
     private boolean initReceived = false;
     private boolean running = false;
     private OnGetProcessInfoListener onGetProcessInfoListener;
+    // Extra process-list listeners that sit beside the single owner above (the Task Manager, the
+    // installer/game-exit watchers swap that one), e.g. LiveWineRegistry waiting for regedit to finish.
+    private final CopyOnWriteArrayList<OnGetProcessInfoListener> extraProcessInfoListeners = new CopyOnWriteArrayList<>();
     // Task Manager "Processor Affinity": the last mask the user applied per (guest) pid. The guest's
     // GetProcessAffinityMask readback is unreliable under wow64/FEX (it keeps reporting the full mask
     // even after SetProcessAffinityMask has moved the live threads), so we remember what the user
@@ -87,7 +92,7 @@ public class WinHandler {
     // Multi-controller support
     private static final int MAX_CONTROLLERS = 4;
     private static final int OSC_DEVICE_ID = -1;
-    private FakeInputWriter[] writers = new FakeInputWriter[MAX_CONTROLLERS];
+    private HermesWriter[] writers = new HermesWriter[MAX_CONTROLLERS];
     // ConcurrentHashMap: the vibration thread iterates this to resolve a slot's owning
     // device while the input/hotplug path (main thread) mutates it — avoid a CME.
     private Map<Integer, Integer> deviceToSlot = new ConcurrentHashMap<>();
@@ -165,6 +170,35 @@ public class WinHandler {
     // the main looper — the InputDeviceListener is registered with a null Handler, so its
     // callbacks land on the main thread too.
     private static final long PHYSICAL_DISCONNECT_DEBOUNCE_MS = 400;
+    // On-screen pad slot release, debounced. Hiding the on-screen controls (auto-hide when a pad takes
+    // over, the user's own toggle, a YIELD move, a manual reassignment) soft-releases the slot at once
+    // and unplugs it (writer destroy: a removal for every reader, and the event<N> node deleted) only
+    // if nothing claims the slot again within this window. Show/hide flapping therefore never flaps the
+    // guest's controller, and a slot no contributor holds is never left listed as a phantom pad.
+    private static final long OSC_RELEASE_DEBOUNCE_MS = 1500;
+    private final Runnable[] pendingSlotUnplugs = new Runnable[MAX_CONTROLLERS];
+    // Linux session: the Steam client reads player 1, so slot 0's node stays listed even while
+    // nothing holds it (the on-screen pad's release there stays a soft release, as before).
+    private volatile boolean keepPlayerOneNode = false;
+    // Set by seatOnScreenPadAtBoot. Until then a newly loaded on-screen profile does not publish by itself.
+    private boolean onScreenBootSeated = false;
+    // Live reconnect (SlotReconnector): bit N set = slot N is being reconnected; nothing writes to it or
+    // creates its writer until the replug. Main thread.
+    private int reconnectBlockedMask = 0;
+    private SlotReconnector reconnector;
+    private volatile SlotReconnector.Listener reconnectListener;
+
+    /** Direct XInput applied a control-block change in a guest process (status datagram, code 16). */
+    public interface XInputStatusListener {
+        /** Receive thread. {@code mode}: 1 direct, 2 forward; {@code ok} false = forward unavailable, stayed direct. */
+        void onXInputStatus(int requestedMode, int mode, boolean ok, int gen, int pid);
+    }
+
+    private volatile XInputStatusListener xinputStatusListener;
+
+    public void setXInputStatusListener(XInputStatusListener listener) {
+        xinputStatusListener = listener;
+    }
     private final Handler inputHandler = new Handler(Looper.getMainLooper());
     private final Map<Integer, Runnable> pendingDeviceReleases = new HashMap<>();
     private LocalServerSocket vibrationServer;
@@ -553,8 +587,9 @@ public class WinHandler {
 
             boolean sentLP = sendPacket(CLIENT_PORT);
             Log.d("WinHandlerTM", "listProcesses sent=" + sentLP + " initReceived=" + initReceived + " listener=" + (onGetProcessInfoListener != null));
-            if (!sentLP && onGetProcessInfoListener != null) {
-                onGetProcessInfoListener.onGetProcessInfo(0, 0, null);
+            if (!sentLP) {
+                if (onGetProcessInfoListener != null) onGetProcessInfoListener.onGetProcessInfo(0, 0, null);
+                for (OnGetProcessInfoListener extra : extraProcessInfoListeners) extra.onGetProcessInfo(0, 0, null);
             }
         });
     }
@@ -698,6 +733,16 @@ public class WinHandler {
         }
     }
 
+    /** Adds a process-list listener beside the owner set with setOnGetProcessInfoListener. Called on
+     *  the receive thread, like the owner. */
+    public void addProcessInfoListener(OnGetProcessInfoListener listener) {
+        if (listener != null) extraProcessInfoListeners.addIfAbsent(listener);
+    }
+
+    public void removeProcessInfoListener(OnGetProcessInfoListener listener) {
+        extraProcessInfoListeners.remove(listener);
+    }
+
     private void startSendThread() {
         Executors.newSingleThreadExecutor().execute(() -> {
             while (running) {
@@ -715,7 +760,10 @@ public class WinHandler {
 
     public void stop() {
         running = false;
-        closeFakeInputWriter();
+        closeInputWriters();
+        // Session end: retire the slot files. A guest process still attached shows a neutral pad
+        // and re-attaches by itself to the files the next session prepares.
+        HermesWriter.releaseAllRingSlots();
 
         if (socket != null) {
             socket.close();
@@ -1093,6 +1141,22 @@ public class WinHandler {
         return onScreenControllerMode;
     }
 
+    /** Cancels whatever rumble the physical pads are playing (all motors). The phone vibrator has one
+     *  motor and is left alone. Safe from the main thread: deviceToSlot is concurrent, and the
+     *  VibratorManager/SDL calls are the same ones testRumble makes from here. */
+    private void stopPhysicalRumble() {
+        SteamControllerBackend backend = sdlBackend;
+        for (Integer devId : deviceToSlot.keySet()) {
+            if (devId == null || devId == OSC_DEVICE_ID) continue;
+            if (backend != null && sdlPads.containsKey(devId)) {
+                backend.rumble(devId, 0, 0, 0);
+                continue;
+            }
+            android.view.InputDevice device = android.view.InputDevice.getDevice(devId);
+            if (device != null) stopVibrationTarget(device);
+        }
+    }
+
     public int getVibrationMode() {
         return vibrationMode;
     }
@@ -1123,7 +1187,7 @@ public class WinHandler {
             }
 
             case RequestCodes.GET_PROCESS: {
-                if (onGetProcessInfoListener == null)
+                if (onGetProcessInfoListener == null && extraProcessInfoListeners.isEmpty())
                     return;
                 receiveData.position(receiveData.position() + 4);
                 int numProcesses = receiveData.getShort();
@@ -1138,8 +1202,11 @@ public class WinHandler {
                 String name = StringUtils.fromANSIString(bytes);
 
                 Log.d("WinHandlerTM", "GET_PROCESS idx=" + index + "/" + numProcesses + " name=" + name);
-                onGetProcessInfoListener.onGetProcessInfo(index, numProcesses,
-                        new ProcessInfo(pid, name, memoryUsage, affinityMask, wow64Process));
+                ProcessInfo processInfo = new ProcessInfo(pid, name, memoryUsage, affinityMask, wow64Process);
+                OnGetProcessInfoListener owner = onGetProcessInfoListener;
+                if (owner != null) owner.onGetProcessInfo(index, numProcesses, processInfo);
+                for (OnGetProcessInfoListener extra : extraProcessInfoListeners)
+                    extra.onGetProcessInfo(index, numProcesses, processInfo);
                 break;
             }
             case RequestCodes.GET_GAMEPAD: {
@@ -1160,6 +1227,39 @@ public class WinHandler {
                 xServer.pointer.setX(x);
                 xServer.pointer.setY(y);
                 activity.getXServerView().requestRender();
+                break;
+            }
+            case RequestCodes.XINPUT_RUMBLE: {
+                // Direct XInput (HERMES-XInput DLL): the game's XInputSetState for one slot, through
+                // the same gates and per-slot dispatch as the evdev force-feedback rumble.
+                if (receivePacket.getLength() < 12) break;
+                if (receiveData.get() != 'H' || receiveData.get() != 'X' || receiveData.get() != 'R'
+                        || receiveData.get() != '1') break;
+                int slot = receiveData.get() & 0xFF;
+                int strong = receiveData.getShort() & 0xFFFF;
+                int weak = receiveData.getShort() & 0xFFFF;
+                int durationMs = receiveData.getShort() & 0xFFFF;
+                ControllerLog.rumble(slot);
+                triggerVibration(strong, weak, durationMs, slot);
+                break;
+            }
+            case RequestCodes.XINPUT_STATUS: {
+                // Direct XInput applied a control-block change (Direct / forward / hidden) in a process.
+                if (receivePacket.getLength() < 21) break;
+                if (receiveData.get() != 'H' || receiveData.get() != 'X' || receiveData.get() != 'S'
+                        || receiveData.get() != '1') break;
+                int requested = receiveData.get() & 0xFF;
+                int mode = receiveData.get() & 0xFF;
+                boolean ok = receiveData.get() != 0;
+                int gen = receiveData.getInt();
+                int flags = receiveData.getInt();
+                int pid = receiveData.getInt();
+                Log.i("WinHandler", "Direct XInput in pid " + pid + ": mode " + mode + " (asked " + requested + ")"
+                        + (ok ? "" : " NOT applied") + ", flags " + flags + ", control gen " + gen);
+                ControllerLog.event("Direct XInput in pid " + pid + ": mode " + HermesXInput.modeName(mode)
+                        + " (asked " + HermesXInput.modeName(requested) + ")" + (ok ? " applied" : " NOT applied"));
+                XInputStatusListener statusListener = xinputStatusListener;
+                if (statusListener != null) statusListener.onXInputStatus(requested, mode, ok, gen, pid);
                 break;
             }
             default: {
@@ -1193,7 +1293,8 @@ public class WinHandler {
                     synchronized (actions) {
                         receiveData.rewind();
                         byte requestCode = receiveData.get();
-                        Log.d("WinHandlerTM", "recv code=" + requestCode + " from port " + receivePacket.getPort());
+                        if (requestCode != RequestCodes.XINPUT_RUMBLE)
+                            Log.d("WinHandlerTM", "recv code=" + requestCode + " from port " + receivePacket.getPort());
                         handleRequest(requestCode, receivePacket.getPort());
                     }
                 }
@@ -1226,7 +1327,7 @@ public class WinHandler {
     }
 
     // Menu owns the controller while the drawer is open; zero tracked pad state and
-    // push it once through the ring so nothing (held stick, pressed button, latched
+    // publish it once so nothing (held stick, pressed button, latched
     // trigger) stays applied in the guest while the user isn't looking. Preserves
     // our slot pinning and per-slot rumble tuning (rumble state lives outside
     // GamepadState and is not touched here).
@@ -1326,6 +1427,8 @@ public class WinHandler {
     private void writeSlotState(int slot, int deviceId, GamepadState state) {
         if (slot < 0 || slot >= MAX_CONTROLLERS || writers[slot] == null || state == null)
             return;
+        if ((reconnectBlockedMask & (1 << slot)) != 0)
+            return; // held neutral while it reconnects; the replug republishes the current state
 
         if (!slotShared[slot]) {
             writers[slot].writeGamepadState(state);
@@ -1664,7 +1767,7 @@ public class WinHandler {
     /**
      * Re-injects the current gamepad state for whichever target holds the activator, so a sustained
      * tilt keeps panning even while no controller/touch event is arriving. A no-op when the
-     * activator isn't held, and FakeInputWriter still diffs the axes, so an unchanged state writes
+     * activator isn't held, and HermesWriter still diffs the axes, so an unchanged state writes
      * nothing.
      */
     private void pushGyroToActiveTarget() {
@@ -2129,6 +2232,7 @@ public class WinHandler {
         recomputeSharedSlots();
         Log.d("WinHandler", "Pinned device " + deviceId + " to slot " + slot
                 + (descriptor != null ? " (descriptor: " + descriptor + ")" : " (OSC)"));
+        ControllerLog.slotTaken(slot, controllerLabel(deviceId) + " pinned to slot " + slot);
         return slot;
     }
 
@@ -2158,6 +2262,7 @@ public class WinHandler {
         recomputeSharedSlots();
         Log.d("WinHandler", "Device " + deviceId + " SHARING slot " + slot
                 + (descriptor != null ? " (descriptor: " + descriptor + ")" : " (OSC)"));
+        ControllerLog.slotTaken(slot, controllerLabel(deviceId) + " sharing slot " + slot);
         return slot;
     }
 
@@ -2176,28 +2281,239 @@ public class WinHandler {
                 recomputeSharedSlots();
                 Log.d("WinHandler", "Assigned device " + deviceId + " to slot " + slot
                         + (descriptor != null ? " (descriptor: " + descriptor + ")" : ""));
+                ControllerLog.slotTaken(slot, controllerLabel(deviceId) + " took slot " + slot);
                 return slot;
             }
         }
         Log.w("WinHandler", "No slots available for device " + deviceId);
+        ControllerLog.event(controllerLabel(deviceId) + " got NO slot: all four are taken");
         return -1;
     }
 
+    /**
+     * Presses or releases the app's own Steam button and A on player one's pad, merged with whatever
+     * the pad itself holds. In a Linux session the Steam client reads that slot, so this is how the
+     * in-game drawer and the on-screen buttons open Steam's menu and its Quick Access Menu on a device
+     * with no Steam button of its own.
+     */
+    public void setSystemButtons(boolean guide, boolean a) {
+        if ((reconnectBlockedMask & 1) != 0)
+            return;
+        ensureWriterForSlot(0);
+        if (writers[0] != null) writers[0].setSystemButtons(guide, a);
+    }
+
     /** Lazily creates and opens the fake-input writer backing a slot. Opening the writer
-     *  activates the slot's mmap ring (P0), which is what the guest sees as a controller. */
+     *  makes the slot live for readers (P0), which is what the guest sees as a controller. */
     private void ensureWriterForSlot(int slot) {
         if (slot < 0 || slot >= MAX_CONTROLLERS || fakeInputBasePath == null)
             return;
+        // Whoever claims the slot keeps it listed: a soft-released on-screen slot waiting to be
+        // unplugged is reused (its writer reopens on the next publish) instead of flapping.
+        cancelSlotUnplug(slot);
+        // Mid-reconnect: the replug creates it.
+        if ((reconnectBlockedMask & (1 << slot)) != 0)
+            return;
         if (writers[slot] == null) {
-            writers[slot] = new FakeInputWriter(fakeInputBasePath, slot);
+            writers[slot] = new HermesWriter(fakeInputBasePath, slot);
             writers[slot].open();
         }
+    }
+
+    /** Unplugs a slot the on-screen pad left, unless something claims it within the debounce. */
+    private void scheduleSlotUnplug(final int slot) {
+        if (slot < 0 || slot >= MAX_CONTROLLERS)
+            return;
+        cancelSlotUnplug(slot);
+        final HermesWriter writer = writers[slot];
+        if (writer == null)
+            return;
+        Runnable unplug = new Runnable() {
+            @Override
+            public void run() {
+                if (pendingSlotUnplugs[slot] != this)
+                    return;
+                pendingSlotUnplugs[slot] = null;
+                // Claimed again (by the on-screen pad or anyone else), or already replaced: keep it.
+                if (usedSlots.contains(slot) || writers[slot] != writer)
+                    return;
+                if (slot == 0 && keepPlayerOneNode)
+                    return;
+                writer.destroy();
+                writers[slot] = null;
+                Log.d("WinHandler", "Slot " + slot + " unplugged: no controller holds it (on-screen pad released)");
+            }
+        };
+        pendingSlotUnplugs[slot] = unplug;
+        inputHandler.postDelayed(unplug, OSC_RELEASE_DEBOUNCE_MS);
+    }
+
+    private void cancelSlotUnplug(int slot) {
+        if (slot < 0 || slot >= MAX_CONTROLLERS)
+            return;
+        Runnable pending = pendingSlotUnplugs[slot];
+        if (pending != null) {
+            pendingSlotUnplugs[slot] = null;
+            inputHandler.removeCallbacks(pending);
+        }
+    }
+
+    private void cancelAllSlotUnplugs() {
+        for (int i = 0; i < MAX_CONTROLLERS; i++)
+            cancelSlotUnplug(i);
+    }
+
+    /** Linux session: keep player 1's node listed while nothing holds slot 0 (see keepPlayerOneNode). */
+    public void setKeepPlayerOneNode(boolean keep) {
+        keepPlayerOneNode = keep;
+    }
+
+    /** The slots a controller holds right now, for the launch log. Read from deviceToSlot (concurrent),
+     *  so it is safe off the main thread. */
+    public java.util.List<Integer> getUsedSlotsSnapshot() {
+        java.util.TreeSet<Integer> held = new java.util.TreeSet<>();
+        for (Integer s : deviceToSlot.values())
+            if (s != null && s >= 0 && s < MAX_CONTROLLERS) held.add(s);
+        return new java.util.ArrayList<>(held);
+    }
+
+    // ---- Live reconnect (in-game controller settings) ----
+
+    /** Receives "reconnecting" / "reconnected" for the toasts. Main thread. */
+    public void setReconnectListener(SlotReconnector.Listener listener) {
+        reconnectListener = listener;
+    }
+
+    /** The unplug gap for {@link #reconnectSlots} (250..1000 ms; hidden preference). */
+    public void setReconnectGapMs(long gapMs) {
+        reconnector().setGapMs(gapMs);
+    }
+
+    /**
+     * Unplugs and replugs every held slot so the game sees a changed setting (SlotReconnector has the
+     * sequence). Requests while one runs coalesce into one more. Main thread.
+     */
+    public void reconnectSlots(SlotReconnector.Job job) {
+        reconnector().request(job);
+    }
+
+    public boolean isReconnecting() {
+        return reconnector != null && reconnector.isRunning();
+    }
+
+    private SlotReconnector reconnector() {
+        if (reconnector == null) {
+            reconnector = new SlotReconnector(new SlotReconnector.Scheduler() {
+                @Override public void post(Runnable task, long delayMs) { inputHandler.postDelayed(task, delayMs); }
+                @Override public long now() { return android.os.SystemClock.uptimeMillis(); }
+            }, new ReconnectTarget(), new SlotReconnector.Listener() {
+                @Override public void onReconnecting(int[] slots) {
+                    Log.i("WinHandler", "Reconnecting slots " + Arrays.toString(slots));
+                    SlotReconnector.Listener l = reconnectListener;
+                    if (l != null) l.onReconnecting(slots);
+                }
+                @Override public void onReconnected(boolean ok, int[] slots, int attempts) {
+                    Log.i("WinHandler", "Reconnect of slots " + Arrays.toString(slots) + (ok ? " confirmed" : " NOT confirmed")
+                            + " after " + attempts + " attempt(s)");
+                    ControllerLog.reconnect(Arrays.toString(slots), ok);
+                    SlotReconnector.Listener l = reconnectListener;
+                    if (l != null) l.onReconnected(ok, slots, attempts);
+                }
+            });
+        }
+        return reconnector;
+    }
+
+    /** SlotReconnector's view of the slots. Main thread. */
+    private final class ReconnectTarget implements SlotReconnector.Target {
+        @Override public int[] heldSlots() {
+            java.util.List<Integer> held = getUsedSlotsSnapshot();
+            int[] out = new int[held.size()];
+            for (int i = 0; i < out.length; i++) out[i] = held.get(i);
+            return out;
+        }
+
+        @Override public void neutralise(int[] slots) {
+            stopPhysicalRumble();
+            for (int slot : slots) {
+                HermesWriter w = writers[slot];
+                if (w == null || !w.isOpen()) continue;
+                if (slot == 0) w.setSystemButtons(false, false);
+                w.reset();
+            }
+        }
+
+        @Override public void block(int[] slots) {
+            for (int slot : slots) reconnectBlockedMask |= 1 << slot;
+        }
+
+        @Override public long frameIntervalMs() {
+            long ns = 0;
+            for (int slot = 0; slot < MAX_CONTROLLERS; slot++)
+                ns = Math.max(ns, HermesWriter.getSlotStat(slot, HermesWriter.STAT_FRAME_INTERVAL_NS));
+            return ns / 1_000_000L;
+        }
+
+        @Override public void unplug(int slot) {
+            cancelSlotUnplug(slot);
+            HermesWriter w = writers[slot];
+            if (w != null) {
+                w.destroy();
+                writers[slot] = null;
+            }
+        }
+
+        @Override public void replug(int[] slots) {
+            for (int slot : slots) reconnectBlockedMask &= ~(1 << slot);
+            // Anything still blocked (a slot left behind by a pad unplugged meanwhile) is released too.
+            reconnectBlockedMask = 0;
+            for (int slot : slots) {
+                if (writers[slot] == null && fakeInputBasePath != null) {
+                    writers[slot] = new HermesWriter(fakeInputBasePath, slot);
+                    writers[slot].open();
+                }
+            }
+            // Republish what each contributor holds right now (a button still held comes back held).
+            for (ExternalController controller : controllers.values()) {
+                Integer s = deviceToSlot.get(controller.getDeviceId());
+                if (s != null && contains(slots, s)) sendGamepadState(controller);
+            }
+            for (ExternalController pad : sdlPads.values()) {
+                Integer s = deviceToSlot.get(pad.getDeviceId());
+                if (s != null && contains(slots, s)) sendGamepadState(pad);
+            }
+            Integer osc = deviceToSlot.get(OSC_DEVICE_ID);
+            if (osc != null && contains(slots, osc)) sendGamepadState();
+        }
+
+        @Override public long readerAttaches(int slot) {
+            return HermesWriter.getSlotStat(slot, HermesWriter.STAT_READER_ATTACHES);
+        }
+
+        private boolean contains(int[] slots, int slot) {
+            for (int s : slots) if (s == slot) return true;
+            return false;
+        }
+    }
+
+    /** A controller as the controller log names it: its Android name and VID:PID, or what kind of pad it is. */
+    private String controllerLabel(int deviceId) {
+        if (deviceId == OSC_DEVICE_ID) return "on-screen controls";
+        if (deviceId >= 0) {
+            android.view.InputDevice device = android.view.InputDevice.getDevice(deviceId);
+            if (device != null) {
+                return "\"" + device.getName() + "\" " + String.format(java.util.Locale.ROOT, "%04x:%04x",
+                        device.getVendorId(), device.getProductId());
+            }
+        }
+        return "device " + deviceId;
     }
 
     private void releaseSlot(int deviceId) {
         Integer slot = deviceToSlot.remove(deviceId);
         if (slot == null)
             return;
+        ControllerLog.event(controllerLabel(deviceId) + " released slot " + slot);
 
         // Sibling-sub-device reuse: one physical controller enumerates several deviceIds
         // (gamepad + touchpad + motion), all sharing one slot via its descriptor. Only tear
@@ -2219,7 +2535,7 @@ public class WinHandler {
         }
 
         // Shared-slot co-owner (a DIFFERENT descriptor, or OSC) still on this slot? If so we must NOT
-        // tear the ring down — only the LAST contributor to leave a shared slot destroys it (mirrors the
+        // tear the slot down — only the LAST contributor to leave a shared slot destroys it (mirrors the
         // sibling-sub-device rule above, extended to distinct co-owners of a shared slot).
         boolean coOwnerHoldsSlot = false;
         for (Integer s : deviceToSlot.values()) {
@@ -2240,15 +2556,15 @@ public class WinHandler {
             if (fallbackSlot == slot) fallbackSlot = -1;
             if (writers[slot] != null) {
                 if (deviceId == OSC_DEVICE_ID) {
-                    // OSC / virtual pad: keep the ring alive across on-screen-controls
-                    // hide/show. softRelease resets the pad to neutral without bumping the
-                    // ring generation, so toggling the overlay never flaps the guest's
-                    // virtual controller — this is the P0 on-screen path, left intact.
+                    // OSC / virtual pad: neutral at once without an unplug, so a quick hide/show
+                    // never flaps the guest's virtual controller; if nobody claims the slot within
+                    // OSC_RELEASE_DEBOUNCE_MS it is unplugged and its node removed (no phantom pad).
                     writers[slot].softRelease();
+                    scheduleSlotUnplug(slot);
                 } else {
-                    // Physical disconnect: destroy() so the ring generation bumps and the
-                    // guest sees a REAL removal (the core hot-plug fix). A fresh writer is
-                    // created on reconnect, which re-activates the ring at a new generation.
+                    // Physical disconnect: destroy() so every reader of the slot sees a REAL
+                    // removal (the core hot-plug fix). A fresh writer is created on reconnect,
+                    // and the guest's fresh open gets the new device.
                     writers[slot].destroy();
                     writers[slot] = null;
                 }
@@ -2326,6 +2642,25 @@ public class WinHandler {
         }
         Log.d("WinHandler", "Pre-assigned " + assignedCount + " controller(s) before Wine startup.");
         return assignedCount;
+    }
+
+    /**
+     * Seats the on-screen pad before Wine boots, after preAssignConnectedControllers, so a game that
+     * looks for controllers only at startup finds it. Without this it took its slot on the first touch:
+     * isVirtualGamepad() is false until the overlay's first draw loads the profile, and nothing
+     * published after that. Main thread.
+     */
+    public void seatOnScreenPadAtBoot() {
+        onScreenBootSeated = true;
+        sendGamepadState();
+        Log.d("WinHandler", "On-screen pad at boot: slot " + deviceToSlot.get(OSC_DEVICE_ID));
+    }
+
+    /** The overlay loaded its profile's elements. After the boot seating, publish so a virtual-gamepad
+     *  profile takes its slot now; before it, wait, so physical pads pre-assigned at boot keep the slots
+     *  they had. Main thread. */
+    public void onScreenProfileLoaded() {
+        if (onScreenBootSeated) sendGamepadState();
     }
 
     /** Pass-1 helper for pre-assignment: assigns a device to its manually PINNED slot if it has one
@@ -2493,9 +2828,9 @@ public class WinHandler {
      * pin the device to that XInput player slot (Player 1 = slot 0), SLOT_IGNORE to drop it (free its
      * slot, never re-grab), or -1 to clear the override back to auto (FCFS). The override is recorded
      * first so every later assign path obeys it, then the change is applied immediately:
-     *   • Physical devices are torn down (releaseSlot → destroy() → ring generation bump → the guest
+     *   • Physical devices are torn down (releaseSlot → destroy() → an unplug → the guest
      *     sees a real removal) and re-seated on the new slot — the P1 physical-reassignment semantic.
-     *   • OSC keeps softRelease semantics: only its slot INDEX changes; its ring stays alive across
+     *   • OSC keeps softRelease semantics: only its slot INDEX changes; its slot stays alive across
      *     the move so the on-screen overlay never flaps.
      * Pinning onto a slot another device holds evicts that other device (it re-auto-assigns to the
      * next free slot). Returns the resulting slot, or -1 for ignore / unassigned. Main-thread only.
@@ -2528,7 +2863,7 @@ public class WinHandler {
             // next free slot), so OSC can take ANY slot including Player 1 (slot 0).
             if (normalized >= 0)
                 evictSlotOccupants(normalized, OSC_DESCRIPTOR);
-            // softRelease (inside releaseSlot for OSC) keeps the ring alive across the move; only the
+            // softRelease (inside releaseSlot for OSC) keeps the slot alive across the move; only the
             // slot INDEX changes. The re-seat below (or the next sendGamepadState frame) re-opens it.
             releaseSlot(OSC_DEVICE_ID);
             if (normalized >= 0)
@@ -2632,8 +2967,10 @@ public class WinHandler {
         }
         Log.d("WinHandler", "resetInputPipeline: rebuilding input transport in place.");
 
-        // 1) Tear down all rings + slot bookkeeping (overrides preserved so we re-seat the same pins).
+        // 1) Tear down all writers + slot bookkeeping (overrides preserved so we re-seat the same pins).
         cancelAllPendingDeviceReleases();
+        cancelAllSlotUnplugs();
+        reconnectBlockedMask = 0;
         for (int i = 0; i < MAX_CONTROLLERS; i++) {
             if (writers[i] != null) {
                 writers[i].destroy();
@@ -2801,13 +3138,14 @@ public class WinHandler {
     public void setFakeInputPath(String fakeInputPath) {
         if (fakeInputPath != null && !fakeInputPath.isEmpty()) {
             this.fakeInputBasePath = fakeInputPath;
-            Log.d("WinHandler", "FakeInputWriter base path set: " + fakeInputPath);
+            Log.d("WinHandler", "fake input base path set: " + fakeInputPath);
             startVibrationListener();
         }
     }
 
-    public void closeFakeInputWriter() {
+    public void closeInputWriters() {
         cancelAllPendingDeviceReleases();
+        cancelAllSlotUnplugs();
         if (inputManager != null && inputDeviceListener != null) {
             inputManager.unregisterInputDeviceListener(inputDeviceListener);
         }
@@ -3011,7 +3349,12 @@ public class WinHandler {
         for (ExternalController controller : profile.getControllers()) {
             controller.state.reset();
             controller.remappedState.reset();
-            sendGamepadState(controller);
+            // A profile entry for a pad that isn't connected resolves to deviceId -1, the on-screen
+            // pad's id: sending it would claim a slot and list a pad with nothing behind it. Only an
+            // entry whose pad holds a slot has anything to neutralise.
+            int deviceId = controller.getDeviceId();
+            if (deviceId != OSC_DEVICE_ID && deviceToSlot.containsKey(deviceId))
+                sendGamepadState(controller);
         }
     }
 
