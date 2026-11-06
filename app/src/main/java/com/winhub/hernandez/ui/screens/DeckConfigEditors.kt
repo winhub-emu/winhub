@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -84,6 +85,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -179,6 +181,9 @@ internal fun DeckConfigTextField(
                 singleLine = singleLine,
                 readOnly = !edit.editing,
                 isError = isError,
+                shape = RoundedCornerShape(12.dp),
+                // Centered text balances the field; multi-line (raw env text) stays left-aligned.
+                textStyle = LocalTextStyle.current.copy(textAlign = if (singleLine) TextAlign.Center else TextAlign.Start),
                 keyboardOptions = when {
                     numeric -> KeyboardOptions(keyboardType = KeyboardType.Number)
                     password -> KeyboardOptions(keyboardType = KeyboardType.Password)
@@ -210,8 +215,7 @@ internal fun DeckConfigTextField(
                             true
                         } else false
                     }
-                    .then(if (minHeight > 0.dp) Modifier.heightIn(min = minHeight) else Modifier)
-                    .clip(RoundedCornerShape(10.dp)),
+                    .then(if (minHeight > 0.dp) Modifier.heightIn(min = minHeight) else Modifier),
             )
             if (!edit.editing) DeckEditOverlay(edit, Modifier.matchParentSize())
         }

@@ -49,10 +49,11 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -102,6 +103,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -1269,11 +1271,15 @@ internal fun DeckTextRow(
     @Composable
     fun FieldBox(boxModifier: Modifier) {
         Box(boxModifier) {
-            TextField(
+            OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
                 readOnly = !edit.editing,
+                // Full rounded outline + centered text: the filled field's bottom-only line clipped to
+                // rounded corners read as lopsided, with the text hugging the left edge.
+                shape = RoundedCornerShape(12.dp),
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
                 visualTransformation = if (mask && value.isNotEmpty()) PasswordVisualTransformation() else VisualTransformation.None,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DeckPalette.surfaceVariant,
@@ -1297,8 +1303,7 @@ internal fun DeckTextRow(
                             edit.editing = false
                             true
                         } else false
-                    }
-                    .clip(RoundedCornerShape(10.dp)),
+                    },
             )
             if (!edit.editing) DeckEditOverlay(edit, Modifier.matchParentSize())
         }
