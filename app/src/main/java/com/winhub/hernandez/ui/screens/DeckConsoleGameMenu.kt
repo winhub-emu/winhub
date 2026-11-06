@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,9 +105,7 @@ internal fun DeckConsoleGameMenu(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = appear }
-                .background(
-                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.90f), Color.Black.copy(alpha = 0.78f))),
-                )
+                .background(Color.Black.copy(alpha = 0.6f))
                 .pointerInput(Unit) { detectTapGestures { onDismiss() } }
                 .focusRequester(root)
                 .focusable()
@@ -129,21 +128,31 @@ internal fun DeckConsoleGameMenu(
                     }
                 },
         ) {
+            // A centered rounded card instead of a full-screen takeover; a tap on the dim area closes it.
+            val cardShape = RoundedCornerShape(24.dp)
             Column(
                 Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp, start = 40.dp, end = 40.dp),
+                    .align(Alignment.Center)
+                    .padding(vertical = 12.dp)
+                    .widthIn(max = 460.dp)
+                    .fillMaxWidth(0.8f)
+                    .clip(cardShape)
+                    .background(Color(0xFF12151B))
+                    .border(1.dp, DeckPalette.line2, cardShape)
+                    // Swallow taps on the card so only the dim area dismisses.
+                    .pointerInput(Unit) { detectTapGestures { } },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     title,
                     color = Color.White,
-                    fontSize = 24.sp,
-                    lineHeight = 27.sp,
+                    fontSize = 22.sp,
+                    lineHeight = 25.sp,
                     fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 16.dp, start = 20.dp, end = 20.dp),
                 )
                 Text(
                     subtitle.uppercase(),
@@ -154,30 +163,25 @@ internal fun DeckConsoleGameMenu(
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = 2.dp, start = 20.dp, end = 20.dp),
+                )
+                LazyColumn(
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(consoleRowGap),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    itemsIndexed(items) { i, item ->
+                        DeckConsoleRow(item, focused = i == sel, onTap = { sel = i; choose(i) })
+                    }
+                }
+                Text(
+                    "↑↓  Navigate      A  Select      B  Back",
+                    color = DeckPalette.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 12.dp),
                 )
             }
-
-            LazyColumn(
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(consoleRowGap),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .widthIn(max = 440.dp)
-                    .fillMaxWidth(0.8f)
-                    .padding(top = 80.dp, bottom = 40.dp),
-            ) {
-                itemsIndexed(items) { i, item ->
-                    DeckConsoleRow(item, focused = i == sel, onTap = { sel = i; choose(i) })
-                }
-            }
-
-            Text(
-                "↑↓  Navigate      A  Select      B  Back",
-                color = DeckPalette.onSurfaceVariant,
-                fontSize = 12.sp,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-            )
         }
     }
 }
