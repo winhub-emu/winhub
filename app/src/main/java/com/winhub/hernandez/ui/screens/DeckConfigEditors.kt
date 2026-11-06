@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -427,6 +428,7 @@ internal fun DeckConfigDialog(
     title: String,
     onDismiss: () -> Unit,
     subtitle: String? = null,
+    compact: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -449,8 +451,11 @@ internal fun DeckConfigDialog(
         }
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.96f)
-                .fillMaxHeight(0.94f)
+                .then(
+                    // Compact: a small centered card that wraps its content (progress / confirm popups).
+                    if (compact) Modifier.fillMaxWidth(0.88f).widthIn(max = 420.dp)
+                    else Modifier.fillMaxWidth(0.96f).fillMaxHeight(0.94f)
+                )
                 .clip(RoundedCornerShape(24.dp))
                 .background(DeckPalette.surface)
                 .border(1.dp, DeckPalette.line2, RoundedCornerShape(24.dp))
@@ -536,7 +541,8 @@ internal fun DeckConfigDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    // weight(1f) would stretch a wrapping compact card back to full height.
+                    .then(if (compact) Modifier else Modifier.weight(1f, fill = true))
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 content = content,
@@ -2141,7 +2147,7 @@ internal fun DeckDxvkConfigEditor(
     }
 
     pendingDeleteKey?.let { delKey ->
-        DeckConfigDialog(title = "Remove key?", onDismiss = { pendingDeleteKey = null }) {
+        DeckConfigDialog(title = "Remove key?", onDismiss = { pendingDeleteKey = null }, compact = true) {
             DeckConfigNote("Are you sure you want '$delKey' removed? You can restore it via Backup → Restore or Add key.")
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
                 DeckButton("Remove", primary = true) {
@@ -2166,7 +2172,7 @@ internal fun DeckDxvkConfigEditor(
     }
 
     restoreTarget?.let { backup ->
-        DeckConfigDialog(title = "Restore this backup?", onDismiss = { restoreTarget = null }) {
+        DeckConfigDialog(title = "Restore this backup?", onDismiss = { restoreTarget = null }, compact = true) {
             DeckConfigNote("The live config file will be replaced by '${backup.name}'. The current state is backed up first.")
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
                 DeckButton("Restore") { restoreBackup(backup); restoreTarget = null }

@@ -181,7 +181,7 @@ internal fun DeckContentDownloadSheet(
     }
 
     removeTarget?.let { profile ->
-        DeckConfigDialog(title = "Remove component?", onDismiss = { removeTarget = null }) {
+        DeckConfigDialog(title = "Remove component?", onDismiss = { removeTarget = null }, compact = true) {
             DeckConfigNote("Remove \"${profile.verName}\" from this device?")
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
                 DeckButton("Remove", primary = true) {

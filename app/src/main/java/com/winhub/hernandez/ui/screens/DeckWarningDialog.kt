@@ -20,7 +20,7 @@ internal fun DeckWarningDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    DeckConfigDialog(title = title, onDismiss = onDismiss) {
+    DeckConfigDialog(title = title, onDismiss = onDismiss, compact = true) {
         DeckConfigNote(message)
         DeckButtonRow(onDismiss = onDismiss, confirmLabel = confirmLabel, onConfirm = onConfirm)
     }

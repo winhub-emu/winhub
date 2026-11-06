@@ -1548,7 +1548,7 @@ private fun DeckConfirm(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    DeckConfigDialog(title = title, onDismiss = onDismiss) {
+    DeckConfigDialog(title = title, onDismiss = onDismiss, compact = true) {
         DeckConfigNote(message)
         Row(
             horizontalArrangement = Arrangement.End,
@@ -1652,7 +1652,7 @@ private fun DeckSourceMenuDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    DeckConfigDialog(title = source.name, onDismiss = onDismiss) {
+    DeckConfigDialog(title = source.name, onDismiss = onDismiss, compact = true) {
         DeckDialogAction(Icons.Filled.OpenInNew, "Open source page") {
             runCatching {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(vm.browseUrl(source))))
@@ -1720,7 +1720,7 @@ private fun DeckTransferDialog(vm: ContentsHubViewModel, onDismiss: () -> Unit) 
             }
         }
     }
-    DeckConfigDialog(title = "Import / export sources", onDismiss = onDismiss) {
+    DeckConfigDialog(title = "Import / export sources", onDismiss = onDismiss, compact = true) {
         DeckDialogAction(Icons.Filled.FileDownload, "Import list from file...") {
             importer.launch(
                 Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -1892,6 +1892,7 @@ private fun DeckInstallDialog(
             else -> "Installing component"
         },
         onDismiss = { if (state.terminal) onDismiss() else onCancel() },
+        compact = true,
     ) {
         Text(
             text = state.title,
