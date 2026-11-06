@@ -47,6 +47,9 @@ internal fun Modifier.deckPageBackground(color: Color = DeckPalette.background):
  */
 internal object PortraitPageState {
     var open by mutableStateOf(false)
+
+    /** True while the inline per-game settings editor is up: it is a full page, so no waves behind it. */
+    var editor by mutableStateOf(false)
 }
 
 /**

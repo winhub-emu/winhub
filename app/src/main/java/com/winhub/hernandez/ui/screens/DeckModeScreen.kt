@@ -448,7 +448,7 @@ internal fun DeckModeScreen() {
                 .drawBehind { drawDeckCornerGlow(Deck.primary) }
                 // Portrait basic tabs: waves behind the page and the bottom bar; Home adds the drifting glows.
                 .then(
-                    if (portrait && section in liquidSections && !PortraitPageState.open &&
+                    if (portrait && section in liquidSections && !PortraitPageState.open && !PortraitPageState.editor &&
                         !(section == "containers" && deckDetail != null)) Modifier.liquidBackdrop(glows = section == "home") else Modifier
                 )
                 .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
@@ -692,6 +692,11 @@ private fun DeckHome(
     // game menu / detail page asks for Settings; the ContainerEditor is still reached from the
     // Storage section for whole-container changes.
     var shortcutSettingsFor by remember { mutableStateOf<Shortcut?>(null) }
+    // The shell draws its wave backdrop behind the page; the settings editor is a full page of its own.
+    DisposableEffect(shortcutSettingsFor != null) {
+        PortraitPageState.editor = shortcutSettingsFor != null
+        onDispose { PortraitPageState.editor = false }
+    }
 
     // Open a game's per-shortcut settings (a game added via Master Containers lives as a shortcut in
     // a shared container, so editing the container would change it for every game in it).
