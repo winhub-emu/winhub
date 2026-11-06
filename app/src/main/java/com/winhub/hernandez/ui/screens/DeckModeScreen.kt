@@ -493,7 +493,8 @@ internal fun DeckModeScreen() {
                     .weight(1f)
                     .fillMaxWidth()
                     .onFocusChanged { contentFocused = it.hasFocus }
-                    .clipToBounds(),
+                    .clipToBounds()
+                    .then(if (portrait) Modifier.portraitBottomFade() else Modifier),
             ) {
                 DeckPaneContent(
                     section = section,

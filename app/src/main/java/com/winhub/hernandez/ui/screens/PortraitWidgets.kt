@@ -56,6 +56,12 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -97,6 +103,28 @@ internal fun deckAccentBrush(alpha: Float = 1f): Brush {
         ),
     )
 }
+
+/**
+ * Fades the last [height] of this node to transparent, so scrolling content dissolves into the page
+ * above the bottom nav instead of being cut in a straight line. A mask (not a colour overlay), so it
+ * works over the wave backdrop too.
+ */
+internal fun Modifier.portraitBottomFade(height: androidx.compose.ui.unit.Dp = 28.dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val h = height.toPx().coerceAtMost(size.height)
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color.Black, Color.Transparent),
+                startY = size.height - h,
+                endY = size.height,
+            ),
+            topLeft = Offset(0f, size.height - h),
+            size = Size(size.width, h),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 /** Subtle gradient hairline between a tab bar and the screen below it. */
 @Composable
