@@ -635,6 +635,18 @@ internal fun DeckContainerDetailScreen(
                             control = { DeckToggle(viewModel.enableDInput) { viewModel.enableDInput = it } },
                         )
                         }
+                        DeckControllerSettingsRows(
+                            hermesXInput = viewModel.hermesXInput,
+                            onHermesXInput = { viewModel.hermesXInput = it },
+                            switching = viewModel.hermesXInputSwitching,
+                            onSwitching = { viewModel.hermesXInputSwitching = it },
+                            identity = viewModel.controllerIdentity,
+                            onIdentity = { viewModel.controllerIdentity = it },
+                            dinputVibration = viewModel.dinputVibration,
+                            onDinputVibration = { viewModel.dinputVibration = it },
+                            pacing = viewModel.stickPacing,
+                            onPacing = { viewModel.stickPacing = it },
+                        )
                         DeckGroup("Feedback") {
                         DeckChoiceRow(
                             label = "Controller Vibration",

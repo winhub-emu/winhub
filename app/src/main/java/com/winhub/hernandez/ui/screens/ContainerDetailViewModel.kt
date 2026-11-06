@@ -385,7 +385,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     // "DirectInput vibration" (core.DInputVibration, extra "dinputVibration", stored only when off).
     var dinputVibration by mutableStateOf(true)
     // Direct XInput (HERMES): XInput games read the HERMES slot files directly (core/HermesXInput).
-    var hermesXInput by mutableStateOf(false)
+    var hermesXInput by mutableStateOf(true)
     // "Allow in-game switching" of Direct XInput (core/HermesXInput.switchingEffective).
     var hermesXInputSwitching by mutableStateOf(true)
     // "Stick updates" (core.StickPacing format: auto:N / fixed:N / off).
@@ -743,7 +743,15 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             enableXInput = true; enableDInput = true
         }
         dinputVibration = DInputVibration.forContainer(seed)
-        hermesXInput = seed?.isHermesXInput ?: false
+        // Direct XInput: on for a new container. An existing container keeps its own (a missing key there
+        // is an older container that had it off); a saved defaults profile keeps its choice when it
+        // stored one.
+        hermesXInput = when {
+            c != null -> c.isHermesXInput
+            NewContainerDefaults.load(context, seedArch)?.let { runCatching { org.json.JSONObject(it).has("hermesXInput") }.getOrNull() } == true ->
+                template?.isHermesXInput ?: true
+            else -> true
+        }
         hermesXInputSwitching = seed?.isHermesXInputSwitching ?: true
         stickPacing = StickPacing.forContainer(seed).format()
         controllerIdentity = ControllerIdentity.forWine(seed?.getControllerIdentity())

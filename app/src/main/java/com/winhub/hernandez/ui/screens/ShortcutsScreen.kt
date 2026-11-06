@@ -227,6 +227,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.container.GameDetails
 import com.winhub.hernandez.container.Shortcut
+import com.winhub.hernandez.core.ControllerIdentity
+import com.winhub.hernandez.core.DInputVibration
+import com.winhub.hernandez.core.HermesXInput
+import com.winhub.hernandez.core.StickPacing
 import com.winhub.hernandez.reshade.ReshadeManager
 import com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
 import com.winhub.hernandez.contents.AdrenotoolsManager
@@ -6517,6 +6521,8 @@ internal fun ShortcutSettingsDialogScreen(
         val v = shortcut.getExtra("exclusiveXInput")
         mutableStateOf(if (v.isEmpty()) shortcut.container.isExclusiveXInput else v == "1")
     }
+    // Per-game controller overrides (Direct XInput, vibration, identity, stick updates); "" = the container's.
+    val ctrlOv = remember { ControllerOverrides(shortcut) }
     val initialInputType = remember {
         shortcut.getExtra("inputType", shortcut.container.getInputType().toString()).toIntOrNull()
             ?: shortcut.container.getInputType()
@@ -6939,6 +6945,7 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("autoCloseOnExit", if (autoCloseOnExit) "1" else "0")
             putExtra("inputType", finalInputType.toString())
             putExtra("exclusiveXInput", if (exclusiveXInput) "1" else "0")
+            ctrlOv.saveTo(this)
             putExtra("disableXinput", if (disabledXInput) "1" else null)
             putExtra("simTouchScreen", if (simTouchScreen) "1" else "0")
             // Empty = clear the extra so the game re-inherits the container's Player Slots.
@@ -7030,7 +7037,7 @@ internal fun ShortcutSettingsDialogScreen(
                 }
             }
             4 -> { // Controller
-                if (!isLinuxEntry) { add("enableXInput"); add("enableDInput"); add("exclusiveXInput"); add("disableXInput") }
+                if (!isLinuxEntry) { add("enableXInput"); add("enableDInput"); add("exclusiveXInput"); add("disableXInput"); add("hermesXInput"); add("hermesSwitching"); add("dinputVibration"); add("controllerIdentity"); add("stickPacing") }
                 add("simTouch")
                 if (!isLinuxEntry) add("numControllers")
                 add("gyroEnabled")
@@ -8061,6 +8068,7 @@ internal fun ShortcutSettingsDialogScreen(
                             DpCheck(dp, "disableXInput", checked = disabledXInput, onCheckedChange = { disabledXInput = it })
                             Text("Disable XInput")
                         }
+                        ControllerOverrideRows(dp, shortcut.container, ctrlOv)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             DpCheck(dp, "simTouch", checked = simTouchScreen, onCheckedChange = { simTouchScreen = it })
@@ -8705,6 +8713,8 @@ internal fun DeckShortcutSettingsScreen(
         val v = shortcut.getExtra("exclusiveXInput")
         mutableStateOf(if (v.isEmpty()) shortcut.container.isExclusiveXInput else v == "1")
     }
+    // Per-game controller overrides (Direct XInput, vibration, identity, stick updates); "" = the container's.
+    val ctrlOv = remember { ControllerOverrides(shortcut) }
     val initialInputType = remember {
         shortcut.getExtra("inputType", shortcut.container.getInputType().toString()).toIntOrNull()
             ?: shortcut.container.getInputType()
@@ -9081,6 +9091,7 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("autoCloseOnExit", if (autoCloseOnExit) "1" else "0")
             putExtra("inputType", finalInputType.toString())
             putExtra("exclusiveXInput", if (exclusiveXInput) "1" else "0")
+            ctrlOv.saveTo(this)
             putExtra("disableXinput", if (disabledXInput) "1" else null)
             putExtra("simTouchScreen", if (simTouchScreen) "1" else "0")
             putExtra("controllerSlotOverrides", controllerSlotOverridesJson.ifEmpty { null })
@@ -9732,6 +9743,7 @@ internal fun DeckShortcutSettingsScreen(
                                     DeckRow("Disable XInput") {
                                         DeckToggle(checked = disabledXInput, onChange = { disabledXInput = it })
                                     }
+                                    DeckControllerOverrideRows(shortcut.container, ctrlOv)
                                 }
                                 DeckRow("Touchscreen Mode") {
                                     DeckToggle(checked = simTouchScreen, onChange = { simTouchScreen = it })
@@ -12168,4 +12180,110 @@ private fun ScannedGameRow(
         }
     }
     }
+}
+
+// ───── Per-game controller settings (Direct XInput, vibration, identity, stick updates) ─────
+// Each setting is the container's until this game picks its own; "" is stored as no extra at all.
+
+private class ControllerOverrides(shortcut: Shortcut) {
+    var hermesXInput by mutableStateOf(shortcut.getExtra(HermesXInput.EXTRA_KEY))
+    var switching by mutableStateOf(shortcut.getExtra(HermesXInput.EXTRA_SWITCHING))
+    var dinputVibration by mutableStateOf(shortcut.getExtra(DInputVibration.EXTRA))
+    var identity by mutableStateOf(shortcut.getExtra(ControllerIdentity.EXTRA))
+    var pacing by mutableStateOf(shortcut.getExtra(StickPacing.EXTRA))
+
+    fun saveTo(shortcut: Shortcut) {
+        shortcut.putExtra(HermesXInput.EXTRA_KEY, hermesXInput.ifEmpty { null })
+        shortcut.putExtra(HermesXInput.EXTRA_SWITCHING, switching.ifEmpty { null })
+        shortcut.putExtra(DInputVibration.EXTRA, dinputVibration.ifEmpty { null })
+        shortcut.putExtra(ControllerIdentity.EXTRA, identity.ifEmpty { null })
+        shortcut.putExtra(StickPacing.EXTRA, pacing.ifEmpty { null })
+    }
+}
+
+private fun inheritLabel(what: String) = "Use container default ($what)"
+
+/** (label, stored value) pairs for an on/off setting: the container's, On, Off. */
+private fun boolOverrideOptions(containerOn: Boolean): List<Pair<String, String>> =
+    listOf(inheritLabel(if (containerOn) "On" else "Off") to "", "On" to "1", "Off" to "0")
+
+private fun identityOverrideOptions(container: Container): List<Pair<String, String>> =
+    listOf(inheritLabel(ControllerIdentity.label(container.controllerIdentity)) to "") +
+        ControllerIdentity.wineChoices().map { it.label to it.value }
+
+private fun pacingLabel(p: StickPacing): String = when (p.mode) {
+    StickPacing.MODE_AUTO -> "Auto, up to ${p.hz} per second"
+    StickPacing.MODE_FIXED -> "Fixed, ${p.hz} per second"
+    else -> "Unpaced"
+}
+
+private fun pacingOverrideOptions(container: Container, current: String): List<Pair<String, String>> {
+    val values = mutableListOf("auto:60", "auto:90", "auto:120", "fixed:125", "fixed:250", "fixed:500", "off")
+    // A value set elsewhere (an imported config) stays selectable instead of reading as "container default".
+    if (current.isNotEmpty() && current !in values && StickPacing.parse(current) != null) values.add(current)
+    return listOf(inheritLabel(pacingLabel(StickPacing.forContainer(container))) to "") +
+        values.mapNotNull { v -> StickPacing.parse(v)?.let { pacingLabel(it) to v } }
+}
+
+private fun List<Pair<String, String>>.labelFor(value: String): String =
+    (firstOrNull { it.second == value } ?: first()).first
+
+private fun List<Pair<String, String>>.valueFor(label: String): String =
+    firstOrNull { it.first == label }?.second ?: ""
+
+@Composable
+private fun ControllerOverrideRows(dp: SettingsDpad, container: Container, ov: ControllerOverrides) {
+    @Composable
+    fun Drop(id: String, label: String, options: List<Pair<String, String>>, value: String, onValue: (String) -> Unit) {
+        DpDrop(
+            dp, id, label = label, options = options.map { it.first },
+            selected = options.labelFor(value),
+            onSelect = { picked -> onValue(options.valueFor(picked)) },
+        )
+    }
+    Drop("hermesXInput", stringResource(R.string.hermes_xinput), boolOverrideOptions(container.isHermesXInput), ov.hermesXInput) { ov.hermesXInput = it }
+    Drop("hermesSwitching", stringResource(R.string.hermes_xinput_switching), boolOverrideOptions(container.isHermesXInputSwitching), ov.switching) { ov.switching = it }
+    Drop("dinputVibration", stringResource(R.string.dinput_vibration), boolOverrideOptions(DInputVibration.forContainer(container)), ov.dinputVibration) { ov.dinputVibration = it }
+    Drop("controllerIdentity", stringResource(R.string.controller_identity_label), identityOverrideOptions(container), ov.identity) { ov.identity = it }
+    Drop("stickPacing", stringResource(R.string.stick_pacing_label), pacingOverrideOptions(container, ov.pacing), ov.pacing) { ov.pacing = it }
+}
+
+/** DeckChoiceRow wants (value, label); the option builders above give (label, value). */
+private fun List<Pair<String, String>>.deckPairs(): List<Pair<String, String>> = map { it.second to it.first }
+
+@Composable
+private fun DeckControllerOverrideRows(container: Container, ov: ControllerOverrides) {
+    DeckChoiceRow(
+        label = stringResource(R.string.hermes_xinput),
+        hint = stringResource(R.string.hermes_xinput_summary),
+        options = boolOverrideOptions(container.isHermesXInput).deckPairs(),
+        selected = ov.hermesXInput,
+        onPick = { ov.hermesXInput = it },
+    )
+    DeckChoiceRow(
+        label = stringResource(R.string.hermes_xinput_switching),
+        hint = stringResource(R.string.hermes_xinput_switching_summary),
+        options = boolOverrideOptions(container.isHermesXInputSwitching).deckPairs(),
+        selected = ov.switching,
+        onPick = { ov.switching = it },
+    )
+    DeckChoiceRow(
+        label = stringResource(R.string.dinput_vibration),
+        hint = stringResource(R.string.dinput_vibration_summary),
+        options = boolOverrideOptions(DInputVibration.forContainer(container)).deckPairs(),
+        selected = ov.dinputVibration,
+        onPick = { ov.dinputVibration = it },
+    )
+    DeckChoiceRow(
+        label = stringResource(R.string.controller_identity_label),
+        options = identityOverrideOptions(container).deckPairs(),
+        selected = ov.identity,
+        onPick = { ov.identity = it },
+    )
+    DeckChoiceRow(
+        label = stringResource(R.string.stick_pacing_label),
+        options = pacingOverrideOptions(container, ov.pacing).deckPairs(),
+        selected = ov.pacing,
+        onPick = { ov.pacing = it },
+    )
 }

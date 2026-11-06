@@ -51,7 +51,11 @@ import com.winhub.hernandez.container.GameDetails
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.contents.WrapperManager
+import com.winhub.hernandez.core.ControllerIdentity
+import com.winhub.hernandez.core.DInputVibration
 import com.winhub.hernandez.core.DirectAudioSupport
+import com.winhub.hernandez.core.HermesXInput
+import com.winhub.hernandez.core.StickPacing
 import com.winhub.hernandez.core.StringUtils
 import com.winhub.hernandez.core.WineInfo
 import com.winhub.hernandez.core.WinePath
@@ -577,6 +581,40 @@ private fun controllerRows(xmb: XmbScope, p: XmbPrefs): List<XmbRow> {
     rows += XmbRow.Toggle("xinput", "Enable XInput for games", Icons.Filled.Gamepad, xi, disabledReason = needExcl) { writeInput(it, di); xmb.saved(); p.shortcut.saveData(); xmb.refresh() }
     rows += XmbRow.Toggle("dinput", "Enable DInput for games", Icons.Filled.Gamepad, di, disabledReason = needExcl) { writeInput(xi, it); xmb.saved(); p.shortcut.saveData(); xmb.refresh() }
     rows += XmbRow.Toggle("disableX", "Disable XInput", Icons.Filled.Gamepad, p.ex("disableXinput", "0") == "1") { xmb.set(p, "disableXinput", if (it) "1" else null) }
+    // Direct XInput, vibration, controller type and stick updates: the container's until this game picks its own.
+    fun inherit(what: String) = "Use container default ($what)"
+    fun boolRow(id: String, title: String, extra: String, containerOn: Boolean) {
+        val labels = listOf(inherit(if (containerOn) "On" else "Off"), "On", "Off")
+        val values = listOf("", "1", "0")
+        rows += XmbRow.Choice(id, title, Icons.Filled.Gamepad, labels, labels[values.indexOf(p.ex(extra, "")).coerceAtLeast(0)]) { v ->
+            xmb.set(p, extra, values[labels.indexOf(v).coerceAtLeast(0)].ifEmpty { null })
+        }
+    }
+    boolRow("hermesXInput", p.str(R.string.hermes_xinput), HermesXInput.EXTRA_KEY, c.isHermesXInput)
+    boolRow("hermesSwitching", p.str(R.string.hermes_xinput_switching), HermesXInput.EXTRA_SWITCHING, c.isHermesXInputSwitching)
+    boolRow("dinputVibration", p.str(R.string.dinput_vibration), DInputVibration.EXTRA, DInputVibration.forContainer(c))
+    val idChoices = ControllerIdentity.wineChoices()
+    val idLabels = listOf(inherit(ControllerIdentity.label(c.controllerIdentity))) + idChoices.map { it.label }
+    val idCur = p.ex(ControllerIdentity.EXTRA, "")
+    rows += XmbRow.Choice("controllerIdentity", p.str(R.string.controller_identity_label), Icons.Filled.Gamepad, idLabels,
+        idLabels[(idChoices.indexOfFirst { it.value == idCur } + 1).coerceAtLeast(0)]) { v ->
+        val i = idLabels.indexOf(v) - 1
+        xmb.set(p, ControllerIdentity.EXTRA, if (i < 0) null else idChoices[i].value)
+    }
+    fun pacingLabel(pc: StickPacing) = when (pc.mode) {
+        StickPacing.MODE_AUTO -> "Auto, up to ${pc.hz} per second"
+        StickPacing.MODE_FIXED -> "Fixed, ${pc.hz} per second"
+        else -> "Unpaced"
+    }
+    val pacingValues = mutableListOf("auto:60", "auto:90", "auto:120", "fixed:125", "fixed:250", "fixed:500", "off")
+    val pacingCur = p.ex(StickPacing.EXTRA, "")
+    if (pacingCur.isNotEmpty() && pacingCur !in pacingValues && StickPacing.parse(pacingCur) != null) pacingValues.add(pacingCur)
+    val pacingLabels = listOf(inherit(pacingLabel(StickPacing.forContainer(c)))) + pacingValues.map { pacingLabel(StickPacing.parse(it)!!) }
+    rows += XmbRow.Choice("stickPacing", p.str(R.string.stick_pacing_label), Icons.Filled.Gamepad, pacingLabels,
+        pacingLabels[(pacingValues.indexOf(pacingCur) + 1).coerceAtLeast(0)]) { v ->
+        val i = pacingLabels.indexOf(v) - 1
+        xmb.set(p, StickPacing.EXTRA, if (i < 0) null else pacingValues[i])
+    }
     rows += XmbRow.Toggle("simTouch", "Touchscreen mode", Icons.Filled.TouchApp, p.ex("simTouchScreen", "0") == "1") { xmb.set(p, "simTouchScreen", if (it) "1" else "0") }
     val nc = p.arr(R.array.num_controllers_entries)
     val ncIdx = ((p.ex("numControllers", "1").toIntOrNull() ?: 1).coerceIn(1, nc.size)) - 1
