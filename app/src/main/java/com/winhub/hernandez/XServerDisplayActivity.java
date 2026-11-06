@@ -11475,6 +11475,7 @@ return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
 
     /**
      * Controls › Pad for a Wine session: the controller settings that change while the game runs
