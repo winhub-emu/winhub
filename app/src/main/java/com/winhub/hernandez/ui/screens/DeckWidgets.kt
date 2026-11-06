@@ -49,7 +49,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -103,7 +102,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -1276,10 +1274,7 @@ internal fun DeckTextRow(
                 onValueChange = onValueChange,
                 singleLine = true,
                 readOnly = !edit.editing,
-                // Full rounded outline + centered text: the filled field's bottom-only line clipped to
-                // rounded corners read as lopsided, with the text hugging the left edge.
                 shape = RoundedCornerShape(12.dp),
-                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
                 visualTransformation = if (mask && value.isNotEmpty()) PasswordVisualTransformation() else VisualTransformation.None,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DeckPalette.surfaceVariant,
@@ -1310,7 +1305,7 @@ internal fun DeckTextRow(
     }
     if (LocalDeckPortrait.current) {
         // A fixed-width field beside the label squeezes the label to a sliver on a phone: stack them.
-        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(label, color = DeckPalette.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             if (hint != null) Text(hint, color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
             FieldBox(Modifier.fillMaxWidth())

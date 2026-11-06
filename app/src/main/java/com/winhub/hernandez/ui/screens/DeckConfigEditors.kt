@@ -45,7 +45,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -85,7 +84,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -168,7 +166,8 @@ internal fun DeckConfigTextField(
 ) {
     val edit = rememberDeckEditState()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-        Text(
+        // Blank label: the caller already shows the name (env var rows put it beside their buttons).
+        if (label.isNotEmpty()) Text(
             text = label,
             color = DeckPalette.onSurfaceVariant,
             fontSize = 12.sp,
@@ -182,8 +181,6 @@ internal fun DeckConfigTextField(
                 readOnly = !edit.editing,
                 isError = isError,
                 shape = RoundedCornerShape(12.dp),
-                // Centered text balances the field; multi-line (raw env text) stays left-aligned.
-                textStyle = LocalTextStyle.current.copy(textAlign = if (singleLine) TextAlign.Center else TextAlign.Start),
                 keyboardOptions = when {
                     numeric -> KeyboardOptions(keyboardType = KeyboardType.Number)
                     password -> KeyboardOptions(keyboardType = KeyboardType.Password)
@@ -773,9 +770,19 @@ private fun DeckEnvVarRow(
     val help = remember(row.name) { deckEnvHelp(context, row.name) }
     var showHelp by remember { mutableStateOf(false) }
 
+    // Text/number values: the help + remove buttons sit in a header with the name, so the field below
+    // gets equal margins left and right instead of being squeezed by the buttons.
+    val fullWidthField = type != EnvVarType.CHECKBOX && type != EnvVarType.SELECT_MULTIPLE
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.weight(1f)) {
+            if (fullWidthField) {
+                Text(
+                    text = row.name,
+                    color = DeckPalette.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                )
+            } else Box(Modifier.weight(1f)) {
                 when (type) {
                     EnvVarType.CHECKBOX -> {
                         val offValue = known?.options?.getOrNull(0) ?: "0"
@@ -805,28 +812,7 @@ private fun DeckEnvVarRow(
                             }
                         }
                     }
-                    else -> {
-                        val presets = known?.options.orEmpty()
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            DeckConfigTextField(
-                                label = row.name,
-                                value = row.value,
-                                onValueChange = { onValueChange(it.replace(" ", "")) },
-                                numeric = type == EnvVarType.NUMBER,
-                            )
-                            if (presets.isNotEmpty()) {
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    presets.forEach { preset ->
-                                        DeckConfigChip(preset, preset == row.value) { onValueChange(preset) }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    else -> Unit
                 }
             }
             if (help != null) {
@@ -840,6 +826,26 @@ private fun DeckEnvVarRow(
             }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Default.Delete, contentDescription = "Remove ${row.name}", tint = DeckPalette.error)
+            }
+        }
+        if (fullWidthField) {
+            val presets = known?.options.orEmpty()
+            DeckConfigTextField(
+                label = "",
+                value = row.value,
+                onValueChange = { onValueChange(it.replace(" ", "")) },
+                numeric = type == EnvVarType.NUMBER,
+            )
+            if (presets.isNotEmpty()) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    presets.forEach { preset ->
+                        DeckConfigChip(preset, preset == row.value) { onValueChange(preset) }
+                    }
+                }
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(DeckPalette.line))
