@@ -53,6 +53,7 @@ import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.contents.WrapperManager
 import com.winhub.hernandez.core.ControllerIdentity
 import com.winhub.hernandez.core.DInputVibration
+import com.winhub.hernandez.core.DInputVisibility
 import com.winhub.hernandez.core.DirectAudioSupport
 import com.winhub.hernandez.core.HermesXInput
 import com.winhub.hernandez.core.StickPacing
@@ -559,27 +560,22 @@ private fun controllerRows(xmb: XmbScope, p: XmbPrefs): List<XmbRow> {
     val s = p.shortcut
     val c = p.c
     val rows = mutableListOf<XmbRow>()
-    val xBit = WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()
-    val dBit = WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()
-    val exclRaw = s.getExtra("exclusiveXInput") ?: ""
-    val excl = if (exclRaw.isEmpty()) c.isExclusiveXInput else exclRaw == "1"
-    val inputType = p.ex("inputType", c.getInputType().toString()).toIntOrNull() ?: c.getInputType()
-    val xi = (inputType and xBit) != 0
-    val di = (inputType and dBit) != 0
-    fun writeInput(nx: Boolean, nd: Boolean) {
-        var t = 0
-        if (nx) t = t or xBit
-        if (nd) t = t or dBit
-        s.putExtra("inputType", t.toString())
-    }
+    // "DirectInput games can see the controller" replaced Enable XInput / Enable DInput / Exclusive Input
+    // (core.DInputVisibility); the game's own value is stored as the same inputType / exclusiveXInput pair.
     rows += XmbRow.Header("hInput", "Input")
-    rows += XmbRow.Toggle("excl", "Exclusive input", Icons.Filled.Gamepad, excl) { on ->
-        if (!on) writeInput(true, true) else if (xi && di) writeInput(true, false)
-        xmb.set(p, "exclusiveXInput", if (on) "1" else "0")
+    val visLabels = listOf("Use container default (${if (DInputVisibility.forContainer(c)) "On" else "Off"})", "On", "Off")
+    val visCur = if (!DInputVisibility.gameOwns(s)) 0 else if (DInputVisibility.forGame(c, s)) 1 else 2
+    rows += XmbRow.Choice("dinputVisible", p.str(R.string.dinput_visible), Icons.Filled.Gamepad, visLabels, visLabels[visCur]) { v ->
+        val i = visLabels.indexOf(v).coerceAtLeast(0)
+        if (i == 0) {
+            s.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, null)
+            s.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, null)
+        } else {
+            s.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1")
+            s.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, DInputVisibility.inputTypeFor(i == 1).toString())
+        }
+        xmb.saved(); s.saveData(); xmb.refresh()
     }
-    val needExcl = if (excl) null else "Needs exclusive input"
-    rows += XmbRow.Toggle("xinput", "Enable XInput for games", Icons.Filled.Gamepad, xi, disabledReason = needExcl) { writeInput(it, di); xmb.saved(); p.shortcut.saveData(); xmb.refresh() }
-    rows += XmbRow.Toggle("dinput", "Enable DInput for games", Icons.Filled.Gamepad, di, disabledReason = needExcl) { writeInput(xi, it); xmb.saved(); p.shortcut.saveData(); xmb.refresh() }
     rows += XmbRow.Toggle("disableX", "Disable XInput", Icons.Filled.Gamepad, p.ex("disableXinput", "0") == "1") { xmb.set(p, "disableXinput", if (it) "1" else null) }
     // Direct XInput, vibration, controller type and stick updates: the container's until this game picks its own.
     fun inherit(what: String) = "Use container default ($what)"

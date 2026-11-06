@@ -229,6 +229,7 @@ import com.winhub.hernandez.container.GameDetails
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.core.ControllerIdentity
 import com.winhub.hernandez.core.DInputVibration
+import com.winhub.hernandez.core.DInputVisibility
 import com.winhub.hernandez.core.HermesXInput
 import com.winhub.hernandez.core.StickPacing
 import com.winhub.hernandez.reshade.ReshadeManager
@@ -6517,18 +6518,8 @@ internal fun ShortcutSettingsDialogScreen(
     var autoCloseOnExit by remember {
         mutableStateOf(shortcut.getExtra("autoCloseOnExit", shortcut.container.getExtra("autoCloseOnExit", "1")) == "1")
     }
-    var exclusiveXInput by remember {
-        val v = shortcut.getExtra("exclusiveXInput")
-        mutableStateOf(if (v.isEmpty()) shortcut.container.isExclusiveXInput else v == "1")
-    }
     // Per-game controller overrides (Direct XInput, vibration, identity, stick updates); "" = the container's.
     val ctrlOv = remember { ControllerOverrides(shortcut) }
-    val initialInputType = remember {
-        shortcut.getExtra("inputType", shortcut.container.getInputType().toString()).toIntOrNull()
-            ?: shortcut.container.getInputType()
-    }
-    var enableXInput by remember { mutableStateOf((initialInputType and WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()) != 0) }
-    var enableDInput by remember { mutableStateOf((initialInputType and WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()) != 0) }
     var disabledXInput by remember { mutableStateOf(shortcut.getExtra("disableXinput", "0") == "1") }
     var simTouchScreen by remember { mutableStateOf(shortcut.getExtra("simTouchScreen", "0") == "1") }
 
@@ -6852,9 +6843,6 @@ internal fun ShortcutSettingsDialogScreen(
             StringUtils.parseIdentifier(selectedScreenSize)
         }
 
-        var finalInputType = 0
-        if (enableXInput) finalInputType = finalInputType or WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()
-        if (enableDInput) finalInputType = finalInputType or WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()
 
         val wincomps = winComponents.joinToString(",") { "${it.key}=${it.selectedIndex}" }
         val envVars = com.winhub.hernandez.core.SyncSupport.stripSyncVars(envVarsStr)
@@ -6943,8 +6931,6 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("fullscreenMode", if (fullscreenModeOverride < 0) null else fullscreenModeOverride.toString())
             putExtra("fullscreenStretched", null)
             putExtra("autoCloseOnExit", if (autoCloseOnExit) "1" else "0")
-            putExtra("inputType", finalInputType.toString())
-            putExtra("exclusiveXInput", if (exclusiveXInput) "1" else "0")
             ctrlOv.saveTo(this)
             putExtra("disableXinput", if (disabledXInput) "1" else null)
             putExtra("simTouchScreen", if (simTouchScreen) "1" else "0")
@@ -7037,7 +7023,7 @@ internal fun ShortcutSettingsDialogScreen(
                 }
             }
             4 -> { // Controller
-                if (!isLinuxEntry) { add("enableXInput"); add("enableDInput"); add("exclusiveXInput"); add("disableXInput"); add("hermesXInput"); add("hermesSwitching"); add("dinputVibration"); add("controllerIdentity"); add("stickPacing") }
+                if (!isLinuxEntry) { add("dinputVisible"); add("disableXInput"); add("hermesXInput"); add("hermesSwitching"); add("dinputVibration"); add("controllerIdentity"); add("stickPacing") }
                 add("simTouch")
                 if (!isLinuxEntry) add("numControllers")
                 add("gyroEnabled")
@@ -8023,48 +8009,6 @@ internal fun ShortcutSettingsDialogScreen(
                         // side (touchscreen mode, on-screen-control auto-hide, player slots, gyro) stay.
                         if (!isLinuxEntry) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            DpSwitch(
-                                dp, "enableXInput",
-                                checked = enableXInput,
-                                onCheckedChange = { enableXInput = it },
-                                enabled = exclusiveXInput
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.enable_xinput_for_wine_game), modifier = Modifier.weight(1f))
-                            IconButton(onClick = { helpRes = R.string.help_xinput }) {
-                                Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            DpSwitch(
-                                dp, "enableDInput",
-                                checked = enableDInput,
-                                onCheckedChange = { enableDInput = it },
-                                enabled = exclusiveXInput
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.enable_dinput_for_wine_game), modifier = Modifier.weight(1f))
-                            IconButton(onClick = { helpRes = R.string.help_dinput }) {
-                                Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            DpSwitch(
-                                dp, "exclusiveXInput",
-                                checked = exclusiveXInput,
-                                onCheckedChange = { checked ->
-                                    exclusiveXInput = checked
-                                    if (!checked) { enableXInput = true; enableDInput = true }
-                                    else if (enableXInput && enableDInput) enableDInput = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("Exclusive Input", modifier = Modifier.weight(1f))
-                            IconButton(onClick = { helpRes = R.string.help_exclusive_xinput }) {
-                                Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
                             DpCheck(dp, "disableXInput", checked = disabledXInput, onCheckedChange = { disabledXInput = it })
                             Text("Disable XInput")
                         }
@@ -8709,18 +8653,8 @@ internal fun DeckShortcutSettingsScreen(
     var autoCloseOnExit by remember {
         mutableStateOf(shortcut.getExtra("autoCloseOnExit", shortcut.container.getExtra("autoCloseOnExit", "1")) == "1")
     }
-    var exclusiveXInput by remember {
-        val v = shortcut.getExtra("exclusiveXInput")
-        mutableStateOf(if (v.isEmpty()) shortcut.container.isExclusiveXInput else v == "1")
-    }
     // Per-game controller overrides (Direct XInput, vibration, identity, stick updates); "" = the container's.
     val ctrlOv = remember { ControllerOverrides(shortcut) }
-    val initialInputType = remember {
-        shortcut.getExtra("inputType", shortcut.container.getInputType().toString()).toIntOrNull()
-            ?: shortcut.container.getInputType()
-    }
-    var enableXInput by remember { mutableStateOf((initialInputType and WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()) != 0) }
-    var enableDInput by remember { mutableStateOf((initialInputType and WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()) != 0) }
     var disabledXInput by remember { mutableStateOf(shortcut.getExtra("disableXinput", "0") == "1") }
     var simTouchScreen by remember { mutableStateOf(shortcut.getExtra("simTouchScreen", "0") == "1") }
     var controllerSlotOverridesJson by remember { mutableStateOf(shortcut.getExtra("controllerSlotOverrides", "")) }
@@ -9016,9 +8950,6 @@ internal fun DeckShortcutSettingsScreen(
             StringUtils.parseIdentifier(selectedScreenSize)
         }
 
-        var finalInputType = 0
-        if (enableXInput) finalInputType = finalInputType or WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()
-        if (enableDInput) finalInputType = finalInputType or WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()
 
         val wincomps = winComponents.joinToString(",") { "${it.key}=${it.selectedIndex}" }
         val envVars = com.winhub.hernandez.core.SyncSupport.stripSyncVars(envVarsStr)
@@ -9089,8 +9020,6 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("fullscreenMode", if (fullscreenModeOverride < 0) null else fullscreenModeOverride.toString())
             putExtra("fullscreenStretched", null)
             putExtra("autoCloseOnExit", if (autoCloseOnExit) "1" else "0")
-            putExtra("inputType", finalInputType.toString())
-            putExtra("exclusiveXInput", if (exclusiveXInput) "1" else "0")
             ctrlOv.saveTo(this)
             putExtra("disableXinput", if (disabledXInput) "1" else null)
             putExtra("simTouchScreen", if (simTouchScreen) "1" else "0")
@@ -9727,19 +9656,6 @@ internal fun DeckShortcutSettingsScreen(
                         4 -> {
                             DeckGroup("Input") {
                                 if (!isLinuxEntry) {
-                                    DeckRow(stringResource(R.string.enable_xinput_for_wine_game)) {
-                                        DeckToggle(checked = enableXInput, onChange = { enableXInput = it })
-                                    }
-                                    DeckRow(stringResource(R.string.enable_dinput_for_wine_game)) {
-                                        DeckToggle(checked = enableDInput, onChange = { enableDInput = it })
-                                    }
-                                    DeckRow("Exclusive Input") {
-                                        DeckToggle(checked = exclusiveXInput, onChange = { checked ->
-                                            exclusiveXInput = checked
-                                            if (!checked) { enableXInput = true; enableDInput = true }
-                                            else if (enableXInput && enableDInput) enableDInput = false
-                                        })
-                                    }
                                     DeckRow("Disable XInput") {
                                         DeckToggle(checked = disabledXInput, onChange = { disabledXInput = it })
                                     }
@@ -12186,6 +12102,10 @@ private fun ScannedGameRow(
 // Each setting is the container's until this game picks its own; "" is stored as no extra at all.
 
 private class ControllerOverrides(shortcut: Shortcut) {
+    // "DirectInput games can see the controller": the game's own "1" / "0", or "" to follow the container.
+    var dinputVisible by mutableStateOf(
+        if (DInputVisibility.gameOwns(shortcut)) (if (DInputVisibility.forGame(shortcut.container, shortcut)) "1" else "0") else ""
+    )
     var hermesXInput by mutableStateOf(shortcut.getExtra(HermesXInput.EXTRA_KEY))
     var switching by mutableStateOf(shortcut.getExtra(HermesXInput.EXTRA_SWITCHING))
     var dinputVibration by mutableStateOf(shortcut.getExtra(DInputVibration.EXTRA))
@@ -12193,6 +12113,14 @@ private class ControllerOverrides(shortcut: Shortcut) {
     var pacing by mutableStateOf(shortcut.getExtra(StickPacing.EXTRA))
 
     fun saveTo(shortcut: Shortcut) {
+        // Stored as the inputType / exclusiveXInput pair older builds read (core.DInputVisibility).
+        if (dinputVisible.isEmpty()) {
+            shortcut.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, null)
+            shortcut.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, null)
+        } else {
+            shortcut.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1")
+            shortcut.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, DInputVisibility.inputTypeFor(dinputVisible == "1").toString())
+        }
         shortcut.putExtra(HermesXInput.EXTRA_KEY, hermesXInput.ifEmpty { null })
         shortcut.putExtra(HermesXInput.EXTRA_SWITCHING, switching.ifEmpty { null })
         shortcut.putExtra(DInputVibration.EXTRA, dinputVibration.ifEmpty { null })
@@ -12241,6 +12169,7 @@ private fun ControllerOverrideRows(dp: SettingsDpad, container: Container, ov: C
             onSelect = { picked -> onValue(options.valueFor(picked)) },
         )
     }
+    Drop("dinputVisible", stringResource(R.string.dinput_visible), boolOverrideOptions(DInputVisibility.forContainer(container)), ov.dinputVisible) { ov.dinputVisible = it }
     Drop("hermesXInput", stringResource(R.string.hermes_xinput), boolOverrideOptions(container.isHermesXInput), ov.hermesXInput) { ov.hermesXInput = it }
     Drop("hermesSwitching", stringResource(R.string.hermes_xinput_switching), boolOverrideOptions(container.isHermesXInputSwitching), ov.switching) { ov.switching = it }
     Drop("dinputVibration", stringResource(R.string.dinput_vibration), boolOverrideOptions(DInputVibration.forContainer(container)), ov.dinputVibration) { ov.dinputVibration = it }
@@ -12253,6 +12182,12 @@ private fun List<Pair<String, String>>.deckPairs(): List<Pair<String, String>> =
 
 @Composable
 private fun DeckControllerOverrideRows(container: Container, ov: ControllerOverrides) {
+    DeckChoiceRow(
+        label = stringResource(R.string.dinput_visible),
+        options = boolOverrideOptions(DInputVisibility.forContainer(container)).deckPairs(),
+        selected = ov.dinputVisible,
+        onPick = { ov.dinputVisible = it },
+    )
     DeckChoiceRow(
         label = stringResource(R.string.hermes_xinput),
         hint = stringResource(R.string.hermes_xinput_summary),

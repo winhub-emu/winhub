@@ -22,6 +22,7 @@ import com.winhub.hernandez.contents.WrapperManager
 import com.winhub.hernandez.core.AppUtils
 import com.winhub.hernandez.core.ControllerIdentity
 import com.winhub.hernandez.core.DInputVibration
+import com.winhub.hernandez.core.DInputVisibility
 import com.winhub.hernandez.core.DefaultVersion
 import com.winhub.hernandez.core.EnvVars
 import com.winhub.hernandez.core.GPUInformation
@@ -379,9 +380,10 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     var lcAll by mutableStateOf("")
     var lcAllEntries by mutableStateOf(emptyList<String>()); private set
 
-    var enableXInput by mutableStateOf(true)
-    var enableDInput by mutableStateOf(false)
-    var exclusiveXInput by mutableStateOf(true)
+    // "DirectInput games can see the controller" (core.DInputVisibility): the one switch that replaced
+    // Enable XInput / Enable DInput / Exclusive Input. Saved into the same inputType/exclusiveXInput
+    // fields older builds read; a new container starts off, as the old default did.
+    var dinputVisible by mutableStateOf(false)
     // "DirectInput vibration" (core.DInputVibration, extra "dinputVibration", stored only when off).
     var dinputVibration by mutableStateOf(true)
     // Direct XInput (HERMES): XInput games read the HERMES slot files directly (core/HermesXInput).
@@ -734,13 +736,12 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         val locale = java.util.Locale.getDefault()
         lcAll = seed?.getLC_ALL() ?: "${locale.language}_${locale.country}.UTF-8"
 
-        // Input type
-        val inputType: Int = seed?.inputType ?: WinHandler.DEFAULT_INPUT_TYPE.toInt()
-        enableXInput   = (inputType and WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()) != 0
-        enableDInput   = (inputType and WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()) != 0
-        exclusiveXInput = seed?.isExclusiveXInput ?: true
-        if (!exclusiveXInput) {
-            enableXInput = true; enableDInput = true
+        // DirectInput visibility, read from the stored inputType / exclusiveXInput (old values included).
+        // A new container starts hidden unless the user saved a new-container defaults profile.
+        dinputVisible = when {
+            c != null -> DInputVisibility.forContainer(c)
+            NewContainerDefaults.load(context, seedArch) != null -> DInputVisibility.forContainer(template)
+            else -> false
         }
         dinputVibration = DInputVibration.forContainer(seed)
         // Direct XInput: on for a new container. An existing container keeps its own (a missing key there
@@ -1026,15 +1027,6 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         loadFEXCoreVersions()
     }
 
-    fun onExclusiveXInputChanged(checked: Boolean) {
-        exclusiveXInput = checked
-        if (!checked) {
-            enableXInput = true; enableDInput = true
-        } else {
-            if (enableXInput && enableDInput) enableDInput = false
-        }
-    }
-
     // ── Confirm ───────────────────────────────────────────────────────────────
     fun confirm(
         resolvedGraphicsDriverConfig: String,
@@ -1177,10 +1169,6 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             }
         } catch (_: Exception) {}
 
-        var inputType = 0
-        if (enableXInput) inputType = inputType or WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt()
-        if (enableDInput) inputType = inputType or WinHandler.FLAG_INPUT_TYPE_DINPUT.toInt()
-
         c.name               = containerName
         c.screenSize         = buildScreenSize()
         // Sync: the selector's pick is stored and the env string no longer carries sync variables
@@ -1221,7 +1209,6 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setReshadeMode(reshadeLoadout.mode)
         c.setReshadeParams(reshadeLoadout.paramsJsonOrNull())
         c.setReshadeEffect(reshadeLoadout.firstEffectName())
-        c.setExclusiveXInput(exclusiveXInput)
         c.putExtra(DInputVibration.EXTRA, DInputVibration.containerExtra(dinputVibration))
         c.setHermesXInput(hermesXInput)
         c.setHermesXInputSwitching(hermesXInputSwitching)
@@ -1275,7 +1262,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setGlVsyncOff(glVsyncOff)
         c.putExtra("renderScale", if (renderScale == "1.0") null else renderScale)
         c.putExtra("autoCloseOnExit", if (autoCloseOnExit) null else "0")  // default ON
-        c.setInputType(inputType)
+        DInputVisibility.writeTo(c, dinputVisible)   // inputType + exclusiveXInput, as older builds read them
         c.setStartupSelection(selectedStartupSelection.toByte())
         // Persist the Custom enabled set regardless of the active selection, so toggling to another
         // preset and back restores the picks. Launch only reads it when the selection is Custom.

@@ -618,21 +618,9 @@ internal fun DeckContainerDetailScreen(
                     4 -> {
                         DeckGroup("Input") {
                         DeckRow(
-                            label = "Exclusive Input",
-                            hint = "One controller API at a time (XInput or DInput). Off lets Wine expose both.",
-                            control = {
-                                DeckToggle(viewModel.exclusiveXInput) {
-                                    viewModel.onExclusiveXInputChanged(it)
-                                }
-                            },
-                        )
-                        DeckRow(
-                            label = "XInput",
-                            control = { DeckToggle(viewModel.enableXInput) { viewModel.enableXInput = it } },
-                        )
-                        DeckRow(
-                            label = "DInput",
-                            control = { DeckToggle(viewModel.enableDInput) { viewModel.enableDInput = it } },
+                            label = "DirectInput games can see the controller",
+                            hint = "Lets DirectInput games (many older titles, racing games, wheels) see the controller.",
+                            control = { DeckToggle(viewModel.dinputVisible) { viewModel.dinputVisible = it } },
                         )
                         }
                         DeckControllerSettingsRows(

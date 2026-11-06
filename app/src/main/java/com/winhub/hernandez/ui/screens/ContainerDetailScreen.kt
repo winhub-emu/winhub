@@ -1979,39 +1979,17 @@ private fun AdvancedTab(
 
         // Game Controller section
         SectionBox(title = stringResource(R.string.game_controller)) {
+            // "DirectInput games can see the controller" replaced Enable XInput / Enable DInput /
+            // Exclusive Input (core.DInputVisibility maps the old values).
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(
-                    checked = viewModel.enableXInput,
-                    onCheckedChange = { viewModel.enableXInput = it },
-                    enabled = viewModel.exclusiveXInput
+                    checked = viewModel.dinputVisible,
+                    onCheckedChange = { viewModel.dinputVisible = it }
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.enable_xinput_for_wine_game), modifier = Modifier.weight(1f))
-                IconButton(onClick = { helpRes = R.string.help_xinput }) {
-                    Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = viewModel.enableDInput,
-                    onCheckedChange = { viewModel.enableDInput = it },
-                    enabled = viewModel.exclusiveXInput
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.enable_dinput_for_wine_game), modifier = Modifier.weight(1f))
-                IconButton(onClick = { helpRes = R.string.help_dinput }) {
-                    Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = viewModel.exclusiveXInput,
-                    onCheckedChange = { viewModel.onExclusiveXInputChanged(it) }
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Exclusive Input", modifier = Modifier.weight(1f))
-                IconButton(onClick = { helpRes = R.string.help_exclusive_xinput }) {
-                    Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(R.string.dinput_visible), modifier = Modifier.weight(1f))
+                IconButton(onClick = { helpRes = R.string.help_dinput_visible }) {
+                    Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
                 }
             }
             Spacer(Modifier.height(8.dp))
