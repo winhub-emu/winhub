@@ -31,9 +31,11 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -58,12 +60,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winhub.hernandez.R
 import com.winhub.hernandez.ui.AccountAvatar
 import com.winhub.hernandez.store.SocialHubStore
 import com.winhub.hernandez.store.rememberShownAvatar
@@ -316,6 +320,37 @@ private fun PortraitCover(entry: HubEntry, isSelected: Boolean, favourite: Boole
                 tint = Color(0xFFFFC94D),
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp),
             )
+        }
+        if (entry.game != null) {
+            PortraitSourceBadge(entry.game.store, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+        }
+    }
+}
+
+/** Store logo for a hub game's source; the My Files folder for custom (hand-added) games. */
+@Composable
+private fun PortraitSourceBadge(store: String?, modifier: Modifier) {
+    val logo = when (store?.lowercase()) {
+        "steam" -> R.drawable.store_logo_steam
+        "epic" -> R.drawable.store_logo_epic
+        "gog" -> R.drawable.store_logo_gog
+        "amazon" -> R.drawable.store_logo_amazon
+        "xbox" -> R.drawable.store_logo_xbox
+        else -> null
+    }
+    Box(
+        modifier = modifier.size(24.dp).clip(CircleShape).background(Color(0xCC000000)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (logo != null) {
+            Image(
+                painter = painterResource(logo),
+                contentDescription = store,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(16.dp),
+            )
+        } else {
+            Icon(Icons.Filled.FolderOpen, contentDescription = "Custom game", tint = Color.White, modifier = Modifier.size(15.dp))
         }
     }
 }
