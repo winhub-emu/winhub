@@ -5,10 +5,7 @@ name: hermes check
 # (_build.yml) runs the same app/src/main/cpp/hermes/ci/build.sh for the device builds only; the host
 # tests and the loom check run here alone.
 on:
-  push:
-    paths:
-      - 'app/src/main/cpp/hermes/**'
-      - '.github/workflows/hermes-check.yml'
+  # Manual only: the APK build (_build.yml) already compiles the library and the DLLs.
   workflow_dispatch:
 
 permissions:

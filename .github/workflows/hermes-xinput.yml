@@ -22,11 +22,7 @@ name: HERMES-XInput
 #         FEX (a game), and the i386 DLLs in a 32-bit process under WoW64 FEX
 # The APK build (_build.yml) runs the same build.sh dlls before Gradle.
 on:
-  push:
-    paths:
-      - 'app/src/main/cpp/hermes/xinput/**'
-      - 'app/src/main/cpp/hermes/core/**'
-      - '.github/workflows/hermes-xinput.yml'
+  # Manual only: the APK build (_build.yml) already compiles the library and the DLLs.
   workflow_dispatch:
 
 permissions:
