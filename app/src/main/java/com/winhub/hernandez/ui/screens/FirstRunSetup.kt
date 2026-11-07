@@ -134,6 +134,8 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
     val hub: ContentsHubViewModel = viewModel()
     val step by vm.step.collectAsState()
     val extras by vm.extras.collectAsState()
+    val ctx = LocalContext.current
+    val config = LocalConfiguration.current
     val editTracker = remember { DeckEditTracker() }
     val stepFocus = remember { FocusRequester() }
 
@@ -168,6 +170,13 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
     }
 
     BackHandler(enabled = true) { back() }
+    // The layout step starts on the orientation the device is held in. Save that now, so a user who
+    // just taps Next gets the Deck layout the preview showed instead of the unset default.
+    LaunchedEffect(Unit) {
+        if (AppOrientation.mode(ctx) == AppOrientation.AUTO) {
+            AppOrientation.setMode(ctx, initialOrientation(ctx, config.screenWidthDp > config.screenHeightDp))
+        }
+    }
     LaunchedEffect(step) {
         delay(120)
         runCatching { stepFocus.requestFocus() }

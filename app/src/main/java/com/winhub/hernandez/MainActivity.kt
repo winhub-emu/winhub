@@ -243,30 +243,34 @@ class MainActivity : AppCompatActivity() {
                 val needsSetup by splashViewModel.needsSetup.collectAsState()
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    AppShell(
-                        startRoute = startRoute,
-                        pendingRoute = pendingRoute.value,
-                        onPendingRouteConsumed = { pendingRoute.value = null },
-                        showAllFilesDialog = showAllFilesDialog.value,
-                        showAboutDialog = showAboutDialog.value,
-                        onDismissAllFilesDialog = { showAllFilesDialog.value = false },
-                        onConfirmAllFilesDialog = {
-                            showAllFilesDialog.value = false
-                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                            intent.data = Uri.parse("package:$packageName")
-                            startActivity(intent)
-                        },
-                        onDismissAboutDialog = { showAboutDialog.value = false },
-                        onAboutRequested = { showAboutDialog.value = true },
-                        onLaunchStore = { screen -> launchStore(screen) },
-                    )
+                    // Held back during the first-run wizard: Deck reads the orientation choice once when it
+                    // starts, so it has to start after the user has picked a layout.
+                    if (!needsSetup) {
+                        AppShell(
+                            startRoute = startRoute,
+                            pendingRoute = pendingRoute.value,
+                            onPendingRouteConsumed = { pendingRoute.value = null },
+                            showAllFilesDialog = showAllFilesDialog.value,
+                            showAboutDialog = showAboutDialog.value,
+                            onDismissAllFilesDialog = { showAllFilesDialog.value = false },
+                            onConfirmAllFilesDialog = {
+                                showAllFilesDialog.value = false
+                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                intent.data = Uri.parse("package:$packageName")
+                                startActivity(intent)
+                            },
+                            onDismissAboutDialog = { showAboutDialog.value = false },
+                            onAboutRequested = { showAboutDialog.value = true },
+                            onLaunchStore = { screen -> launchStore(screen) },
+                        )
 
-                    // Resume a mid-flight component installer (Phase 3b) after the app restarts.
-                    // On completion/discard it routes back to Games (via pendingRoute, same one-shot
-                    // channel the store deep-link uses) so the user isn't stranded on the resume dialog.
-                    com.winhub.hernandez.ui.screens.ComponentInstallResume(
-                        onNavigateToGames = { pendingRoute.value = Screen.Deck.route },
-                    )
+                        // Resume a mid-flight component installer (Phase 3b) after the app restarts.
+                        // On completion/discard it routes back to Games (via pendingRoute, same one-shot
+                        // channel the store deep-link uses) so the user isn't stranded on the resume dialog.
+                        com.winhub.hernandez.ui.screens.ComponentInstallResume(
+                            onNavigateToGames = { pendingRoute.value = Screen.Deck.route },
+                        )
+                    }
 
                     // First open on a fresh install: the user picks layout, theme, extras and Social Hub
                     // before anything downloads. Finishing hands off to the install overlay below.
