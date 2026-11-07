@@ -6,7 +6,7 @@
 <p align="center"><b>Windows apps and games on Android, with a console-style interface.</b></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.1--beta-ff2d9b?style=for-the-badge" alt="Version 0.1-beta">
+  <img src="https://img.shields.io/badge/Version-1.0-ff2d9b?style=for-the-badge" alt="Version 1.0">
   <img src="https://img.shields.io/github/downloads/winhub-emu/winhub/total?style=for-the-badge&label=Downloads&color=7a4cff" alt="Total Downloads">
   <img src="https://img.shields.io/badge/Platform-Android%208.0%2B-2d9bff?style=for-the-badge" alt="Platform">
   <img src="https://img.shields.io/badge/License-GPL--3.0-2dd4bf?style=for-the-badge" alt="License">
@@ -31,7 +31,7 @@
 
 - [ℹ️ About](#️-about)
 - [📥 Install and update](#-install-and-update)
-- [🆕 What's new in 0.1-beta](#-whats-new-in-01-beta)
+- [🆕 What's new in 1.0](#-whats-new-in-10)
 - [✨ Features](#-features)
 - [🎮 Controller guide](#-controller-guide)
 - [🐛 Report a Mali GPU game issue](#-report-a-mali-gpu-game-issue)
@@ -57,7 +57,7 @@ WinHub is an unofficial community project. It continues the Winlator line (Winla
 |---|---|
 | **App name** | `WinHub` |
 | **Package** | `com.winhub.hernandez` (two alternate-package builds are published next to it) |
-| **Version** | **0.1-beta** (`versionCode 89`) |
+| **Version** | **1.0** (`versionCode 90`) |
 | **Android** | `minSdk 26` (Android 8.0+) · `targetSdk 28` · `compileSdk 34` |
 | **Releases** | [github.com/winhub-emu/winhub/releases](https://github.com/winhub-emu/winhub/releases) |
 
@@ -74,13 +74,16 @@ WinHub is an unofficial community project. It continues the Winlator line (Winla
 
 ---
 
-## 🆕 What's new in 0.1-beta
+## 🆕 What's new in 1.0
 
-- 🎨 **A fully revamped UI.** A console-style Deck shell with a controller-first design, a liquid-glass portrait mode, seven themes, Deck-style editors and a rebuilt in-game menu.
-- 🖼️ **Two new renderers.** **EGL** (OpenGL ES, zero-copy window buffers) and **SurfaceDirect** (each window becomes an Android SurfaceFlinger layer, with no extra GPU composition pass), next to the existing Vulkan renderer.
-- 💬 **Social Hub game configs.** Share and import complete game settings in one tap, search them, like and reply, and filter to configs that match your device.
-- 🟢 **Mali support.** PanVK driver sources, a faster BCn texture layer, PanVK tuning, Mali GPU counters in the HUD, renderer fixes and a **Force Mali mode** switch.
-- 🧩 **Mod Loader.** REFramework and Special K as per-game mods, plus programs (trainers, Cheat Engine) that start with the game, in the order and with the waits you set.
+- 🎮 **Hermes controller engine.** A new controller transport with real hot-plug, no lost presses, per-player identity, force feedback, **Direct XInput** with in-game switching and rumble, and a live **Controls → Pad** tab.
+- 📊 **Fusion HUD.** Rebuilt with four Steam Deck style levels, MangoHud colours and a present-latency row for SurfaceDirect. It is now the only HUD.
+- 🚀 **Fast OpenGL.** OpenGL games present through Mesa + Zink over a Vulkan swapchain, with **Show FPS** and **Vsync off** switches.
+- ⏲️ **Sync selector.** Pick esync, ntsync, fsync or wineserver per container or per game.
+- 🎵 **Music Player.** Play your own MP3 in the app, and in games if you allow it.
+- 📱 **Portrait polish.** Liquid waves on every basic tab, a store badge on each cover and content that fades above the bottom bar.
+
+Upgrading from 0.1? Existing containers keep their own controller settings. Only new containers start with Direct XInput on and the DirectInput switch off.
 
 The full, detailed list is in the **[changelog](CHANGELOG.md)**.
 

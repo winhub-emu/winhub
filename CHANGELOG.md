@@ -1,5 +1,129 @@
 # 📜 WinHub Changelog
 
+## 🏆 Version 1.0
+
+> Everything new since 0.1-beta. The big ones: a brand new **controller engine (Hermes)**, a rebuilt **Fusion HUD**, **Fast OpenGL**, a **Sync selector**, a **Music Player**, and a lot of portrait and Deck polish. 🚀
+
+**Jump to:** [🎮 Controllers](#-controllers-hermes) · [📊 Fusion HUD](#-fusion-hud) · [🖼️ Graphics](#️-graphics-and-opengl) · [⚙️ Containers](#️-containers-and-games) · [🎵 Music Player](#-music-player) · [📱 Portrait](#-portrait-mode) · [🪟 Deck UI](#-deck-ui-polish) · [🧱 Behind the scenes](#-behind-the-scenes) · [🗑️ Removed in 1.0](#️-removed-in-10)
+
+---
+
+### 🎮 Controllers (Hermes)
+
+A new way to get your controller into the game. It replaces the old shared-memory ring.
+
+- 🪽 **Hermes controller transport.** Each player slot gets one fixed-size shared state file. The game side compares it to the last read and turns the changes into real evdev events.
+- ⚡ **No lost presses.** A button pressed and released between two reads is still delivered, both the press and the release.
+- 🔌 **Real hot-plug.** Plugging or unplugging a controller is seen as a real hot-plug. Slot nodes only exist while a controller holds the slot, and readers reattach by themselves.
+- 🔄 **Live reconnect** of held slots, and the **on-screen pad is seated before Wine boots**, so it is ready from the first frame.
+- 🆔 **Per-slot controller identity**, so each player shows up as its own device.
+- 📳 **DirectInput force feedback** is forwarded to a new force-feedback engine.
+- 🧩 **Direct XInput.** Replacement `xinput` DLLs (x86_64, i386 and ARM64X) are built per container, with **in-game switching** and **rumble** over the existing UDP path.
+- 🕐 **Stick updates paced to the game's frame rate**: *Auto*, *Fixed* or *Unpaced*.
+- 🎛️ **New controller settings:** controller type/identity, DirectInput visibility, DirectInput vibration and stick updates.
+- 🧪 **Controls → Pad sub-tab** in the in-game menu shows your controller live.
+- 📝 **Log Manager** has a new **Controller input** log (`controller.txt`), and community configs carry the new keys.
+- 🆕 **New containers start with Direct XInput on.** Existing containers keep their own setting, and a saved new-container defaults profile keeps its choice when it stored one.
+- 🧭 **Same settings everywhere.** The Deck container editor, the classic and Deck per-game editors and the XMB **Controller** menu all show them. In a game each one reads *Use container default* until you pick your own.
+- 🔀 **One simple switch.** *Enable XInput*, *Enable DInput* and *Exclusive Input* became a single **"DirectInput games can see the controller"** switch in the container editors, the per-game editors and the XMB menu. It is **off for new containers** (unless your saved defaults say otherwise), and a game can follow the container or choose its own. It stores the same `inputType` / `exclusiveXInput` values, so **old data reads exactly the same**.
+
+---
+
+### 📊 Fusion HUD
+
+The performance overlay was rebuilt and is now the only HUD.
+
+- 🧱 **Four Steam Deck style levels:**
+  1. **FPS** only
+  2. Adds the **frametime graph**
+  3. Adds **GPU, CPU and memory**
+  4. **Everything**
+- 🎨 **MangoHud colours**, a big FPS number that turns **amber and red** as it drops, **per-core bars** and dividers.
+- 📐 **Layout follows the mock-up:** right-aligned groups, dim regular-weight units, a grey hairline border, a 62% panel and a **clock on the level 4 TIME row**.
+- 🔁 **Old sizes still work.** Minimal, pill, tiles, full and mega map to the nearest level.
+- 🆕 **New containers start at level 2.**
+- ⏱️ **Present latency and skipped frames.** While SurfaceDirect runs, level 4 shows a **PRES** row: how long SurfaceFlinger takes to latch each frame, and how many of the game's frames are replaced before they are shown. On older Android, where the latch-time call is missing, there is just no latency sample.
+
+---
+
+### 🖼️ Graphics and OpenGL
+
+- 🚀 **Fast OpenGL.** OpenGL games now present through the bundled **Mesa + Zink** over a Vulkan swapchain, instead of XMesa's readback on every frame.
+  - 🧵 Layers that use Wine's **EGL** backend take the EGL route.
+  - 🧰 The others take **GLX** through a new **opt-in server-side GLX** (GLX and Composite extensions, DRI3/Present 1.2).
+  - 🔧 `WINHUB_X11_EGL` and `WINHUB_X11_GLX` override the choice.
+- 🔢 **Show FPS** (`GALLIUM_HUD=fps`) and **Vsync off** (`vblank_mode=0`) sit beside it.
+- 🎚️ **Where to find it:** the **OpenGL card** in the classic and Deck container editors (switches) and in the classic and Deck shortcut editors (**Auto / On / Off** per game).
+- 📤 Community-config export now carries the three OpenGL settings.
+- 🛠️ Fixed a compile error in the GLX extension (a missing `XOutputStream.writeIntPair`).
+
+---
+
+### ⚙️ Containers and games
+
+- ⏲️ **Sync option: esync / ntsync / fsync / wineserver.**
+  - 📍 Sits under the Wine version in both container editors and in the per-game editors (a game follows the container unless it overrides it).
+  - ✍️ At launch it is the **only writer** of `WINEESYNC` / `WINENTSYNC`.
+  - 🚫 Options the Wine layer cannot run are **greyed out** and fall back to the layer default.
+  - 🧹 Old env-string choices are read as the starting pick and dropped from the Env Vars tab when you save.
+
+---
+
+### 🎵 Music Player
+
+- 🎶 **Settings → General → Music Player.** Choose an MP3 (it is copied into app storage) and switch it on or off.
+- 🎮 A separate **"Play in games"** switch, **off by default**, lets the track play inside games too.
+- 🔁 It loops, **pauses when the app leaves the screen**, and **takes no audio focus**, so it never interrupts other apps.
+
+---
+
+### 📱 Portrait mode
+
+- 🌊 **Liquid waves on the basic tabs.** Storage, Files, Controls, Contents, Saves, Social Hub, Settings and Stores now show the animated wave backdrop like Home.
+- ✨ **Drifting glows stay on Home.** The other tabs get only the waves.
+- 🫥 **Saves is transparent** in portrait so the waves show through. Stores joined the wave tabs.
+- 🏷️ **Store logo or folder badge on each game cover**, so you see where a game comes from at a glance.
+- 🌫️ **Content fades out above the bottom bar** instead of a hard cut.
+- 🚫 **No waves behind the per-game settings editor.** It is a full page of its own, and the waves used to show through under it.
+
+---
+
+### 🪟 Deck UI polish
+
+- 🃏 **Classic game menu is a centered rounded card**, not a full-screen takeover.
+- 💬 **Install popup and small confirm/menu dialogs** in Contents are now a **compact centered card**, not near-fullscreen.
+- ✏️ **Text fields get a full rounded outline** with centered text.
+- ↔️ **Text rows and Env Var value fields get symmetric margins**, and text stays left-aligned.
+
+---
+
+### 🧱 Behind the scenes
+
+- 🦀 **Rust workspace for Hermes:** the core protocol and writer engine, a guest static library linked into `libfakeinput.so` (Wine and the Linux runtime), the JNI writer `libhermes.so`, the force-feedback engine and a loom model check.
+- 🔁 `fakeinput.cpp` / `fakeinput_steam.cpp` now read the slot files.
+- 🏗️ **CI:** the APK build compiles the transport library and the XInput DLLs. The `hermes-check` and `hermes-xinput` workflows (host tests, model check, Wine end-to-end) are **manual only**, because they are slow. Executable bits on the build and test scripts were restored.
+- 🧹 Removed the AMA answer workflow, and Python bytecode is now ignored.
+- 📖 **Docs:** README rewritten for WinHub, release pages open with the centered WinHub logo, the project lineage is clarified, and the frontends guide uses the WinHub name and package.
+- 🔧 Fixed a missing brace in `seatOnScreenPadBeforeBoot` that broke `javac`.
+
+---
+
+### 🔼 Upgrading from 0.1
+
+- 📦 **Existing containers keep their own controller settings.** Only **new** containers start with Direct XInput on and the DirectInput switch off.
+- 📊 A saved HUD style that no longer exists becomes **Fusion**, and old HUD sizes map to the nearest level.
+- 🔀 Old input values (`inputType` / `exclusiveXInput`) read exactly as before.
+
+---
+
+### 🗑️ Removed in 1.0
+
+- 🧽 The **Classic, GameHub and GameNative HUD styles**, their widgets, renderer hooks and settings. A saved HUD style of any other value now becomes **Fusion**.
+- 🔀 The separate **Enable XInput / Enable DInput / Exclusive Input** switches, replaced by the single DirectInput switch (stored values unchanged).
+- 📨 The old **mmap ring** controller transport, replaced by Hermes.
+
+---
+
 ## 🚀 Version 0.1-beta
 
 > This page covers everything new in this release, grouped by what you will actually notice. 🚀
