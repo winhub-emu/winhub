@@ -27,7 +27,7 @@ import subprocess
 import sys
 
 REPO_URL = "%s/%s" % (os.environ.get("GITHUB_SERVER_URL", "https://github.com"),
-                      os.environ.get("GITHUB_REPOSITORY", "The412Banner/Bannerlator"))
+                      os.environ.get("GITHUB_REPOSITORY", "winhub-emu/winhub"))
 # Every release page opens with this logo, centered. A notes file may carry its own older logo header: it
 # is swapped for this one, so a page never shows two.
 LOGO_URL = "https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/logo.png"
