@@ -112,6 +112,9 @@ jobs:
     needs: pick
     runs-on: ubuntu-22.04
     continue-on-error: true
+    # A patch that hangs must not hold the release: standard and ludashi finish in about a minute.
+    # On timeout that flavor just ships without .wh patches (full-size updates).
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
