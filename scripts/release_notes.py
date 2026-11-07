@@ -201,7 +201,7 @@ def main():
         if not a.prerelease:
             prev = previous_stable(ver)
             required = [
-                ("the logo header", "blob/main/logo.jpg"),
+                ("the logo header", LOGO_URL),
                 ("the %s version badge" % ver, "img.shields.io/badge/release-%s-" % ver),
                 ("the title", "# Bannerlator %s" % ver),
                 ("What's New since the previous stable (%s)" % prev,
