@@ -37,6 +37,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -75,9 +78,37 @@ import java.io.RandomAccessFile
 internal const val TAIL_BYTES = 256L * 1024
 private const val MAX_LINES = 4000
 
+/** Colours the viewer draws with: the Material scheme, or the Deck palette when opened from Deck. */
+private class ViewerTheme(
+    val bg: Color,
+    val card: Color,
+    val text: Color,
+    val sub: Color,
+    val accent: Color,
+    val line: Color,
+)
+
+private val LocalViewerDeck = compositionLocalOf { false }
+
+@Composable
+private fun viewerTheme(deck: Boolean): ViewerTheme =
+    if (deck) ViewerTheme(
+        DeckPalette.background, DeckPalette.surfaceVariant, DeckPalette.onBackground,
+        DeckPalette.onSurfaceVariant, DeckPalette.primary, DeckPalette.line2,
+    ) else MaterialTheme.colorScheme.let {
+        ViewerTheme(it.background, it.surfaceContainerHigh, it.onSurface, it.onSurfaceVariant, it.primary, it.outline)
+    }
+
+@Composable
+fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit, deck: Boolean = false) {
+    CompositionLocalProvider(LocalViewerDeck provides deck) { LogViewerBody(entry, onClose) }
+}
+
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
+private fun LogViewerBody(entry: LogInventory.Entry, onClose: () -> Unit) {
+    val deck = LocalViewerDeck.current
+    val t = viewerTheme(deck)
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
@@ -118,24 +149,24 @@ fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
         if (query.isBlank()) lines else lines.filter { it.contains(query, ignoreCase = true) }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    Surface(modifier = Modifier.fillMaxSize(), color = t.bg) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp)) {
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     if (entry.isAppBucket) "App & crash logs" else entry.name,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = t.text,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.Close, "Close", tint = t.text)
                 }
             }
 
             if (files.isEmpty()) {
                 Text("This folder has no log files right now.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp,
+                    color = t.sub, fontSize = 12.sp,
                     modifier = Modifier.padding(top = 12.dp))
                 return@Column
             }
@@ -181,21 +212,21 @@ fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
                         modifier = Modifier
                             .size(7.dp)
                             .background(
-                                if (following) Color(0xFF5FBF6B) else MaterialTheme.colorScheme.outline,
+                                if (following) Color(0xFF5FBF6B) else t.line,
                                 RoundedCornerShape(4.dp)
                             )
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
                         if (following) "following" else "follow",
-                        color = if (following) Color(0xFF5FBF6B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (following) Color(0xFF5FBF6B) else t.sub,
                         fontSize = 11.sp
                     )
                 }
                 Spacer(Modifier.weight(1f))
                 selected?.let { f ->
                     Text("${f.name} · ${LogInventory.humanBytes(f.length())}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        color = t.sub, fontSize = 11.sp)
                 }
             }
 
@@ -205,7 +236,7 @@ fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(8.dp))
+                        .background(t.card, RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
                     BasicTextField(
@@ -213,17 +244,17 @@ fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
                         onValueChange = { query = it },
                         singleLine = true,
                         textStyle = TextStyle(
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = t.text,
                             fontSize = 13.sp
                         ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        cursorBrush = SolidColor(t.accent),
                         decorationBox = { inner ->
                             // The slot takes ONE child, so the placeholder has to be overlaid
                             // rather than emitted as a sibling.
                             Box {
                                 if (query.isEmpty()) {
                                     Text("Find in this log…",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                        color = t.sub, fontSize = 13.sp)
                                 }
                                 inner()
                             }
@@ -232,11 +263,11 @@ fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
                     )
                     Text(
                         if (query.isBlank()) "" else "${shown.size} line${if (shown.size == 1) "" else "s"}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp
+                        color = t.sub, fontSize = 11.sp
                     )
                     IconButton(onClick = { findOpen = false; query = "" }, modifier = Modifier.size(24.dp)) {
                         Icon(Icons.Default.Close, "Close search",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
+                            tint = t.sub, modifier = Modifier.size(15.dp))
                     }
                 }
             }
@@ -248,7 +279,7 @@ fun LogViewerScreen(entry: LogInventory.Entry, onClose: () -> Unit) {
                     .fillMaxWidth()
                     .weight(1f)
                     .background(Color(0xFF0B0807), RoundedCornerShape(8.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .border(1.dp, t.line, RoundedCornerShape(8.dp))
                     .padding(8.dp)
             ) {
                 if (shown.isEmpty()) {
@@ -338,6 +369,63 @@ private fun ReportDialog(entry: LogInventory.Entry, runDir: File, onDismiss: () 
 
     val willAttach = remember(runDir) { LogInventory.filesIn(runDir).map { it.name } }
 
+    // Reading, redacting and zipping several megabytes: not on the UI thread.
+    val submit: () -> Unit = {
+        busy = true
+        scope.launch {
+            val bundle = withContext(Dispatchers.IO) {
+                LogReport.build(context, entry, runDir, includeApp)
+            }
+            busy = false
+            if (bundle == null) {
+                Toast.makeText(context, "Couldn't build the report.", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            onDismiss()
+            Toast.makeText(
+                context, "Saved ${bundle.zip.name} to Downloads", Toast.LENGTH_LONG
+            ).show()
+            try {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW,
+                        android.net.Uri.parse(LogReport.issueUrl(title, description, bundle.facts)))
+                )
+            } catch (e: Exception) {
+                Toast.makeText(context, "No browser to open GitHub with.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    if (LocalViewerDeck.current) {
+        DeckConfigDialog(title = "Report a problem", onDismiss = { if (!busy) onDismiss() }) {
+            DeckGroup("What happened") {
+                DeckTextRow("What went wrong?", value = title, onValueChange = { title = it })
+                DeckTextRow("Details", "Any detail that helps (optional)", value = description, onValueChange = { description = it })
+            }
+            DeckGroup("Will be attached") {
+                willAttach.forEach { name ->
+                    DeckRow(name) {}
+                }
+                DeckRow("Also app logcat and crash reports") { DeckToggle(includeApp) { includeApp = it } }
+            }
+            DeckConfigNote(
+                "Saved as a zip in Downloads. E-mail addresses, auth tokens and your Steam " +
+                    "account name are stripped; file paths are kept so they stay useful for " +
+                    "debugging, so glance over them if a folder name identifies you. GitHub " +
+                    "can't receive a file from a link, so attach the zip with the paperclip once " +
+                    "the form opens."
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                DeckButton("Cancel", primary = false) { if (!busy) onDismiss() }
+                DeckButton(if (busy) "Working…" else "Continue on GitHub", primary = true) { if (!busy) submit() }
+            }
+        }
+        return
+    }
+
     OutlinedAlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text("Report a problem") },
@@ -383,35 +471,9 @@ private fun ReportDialog(entry: LogInventory.Entry, runDir: File, onDismiss: () 
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = !busy,
-                onClick = {
-                    busy = true
-                    scope.launch {
-                        // Reading, redacting and zipping several megabytes: not on the UI thread.
-                        val bundle = withContext(Dispatchers.IO) {
-                            LogReport.build(context, entry, runDir, includeApp)
-                        }
-                        busy = false
-                        if (bundle == null) {
-                            Toast.makeText(context, "Couldn't build the report.", Toast.LENGTH_SHORT).show()
-                            return@launch
-                        }
-                        onDismiss()
-                        Toast.makeText(
-                            context, "Saved ${bundle.zip.name} to Downloads", Toast.LENGTH_LONG
-                        ).show()
-                        try {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(LogReport.issueUrl(title, description, bundle.facts)))
-                            )
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "No browser to open GitHub with.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            ) { Text(if (busy) "Working…" else "Continue on GitHub") }
+            TextButton(enabled = !busy, onClick = submit) {
+                Text(if (busy) "Working…" else "Continue on GitHub")
+            }
         },
         dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancel") } }
     )
@@ -419,20 +481,21 @@ private fun ReportDialog(entry: LogInventory.Entry, runDir: File, onDismiss: () 
 
 @Composable
 private fun FileChip(name: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        name,
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        fontSize = 12.sp,
+    val deck = LocalViewerDeck.current
+    val t = viewerTheme(deck)
+    val shape = RoundedCornerShape(if (deck) 12.dp else 16.dp)
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = Modifier
+            .heightIn(min = if (deck) 40.dp else 0.dp)
+            .then(if (deck) Modifier.deckSelfFocusStroke(shape) else Modifier)
             .clickable { onClick() }
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp))
-            .border(
-                1.dp,
-                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(16.dp)
-            )
+            .background(t.card, shape)
+            .border(1.dp, if (selected) t.accent else t.line, shape)
             .padding(horizontal = 11.dp, vertical = 5.dp)
-    )
+    ) {
+        Text(name, color = if (selected) t.accent else t.sub, fontSize = if (deck) 13.sp else 12.sp)
+    }
 }
 
 @Composable
@@ -443,23 +506,25 @@ private fun ViewerAction(
     primary: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val deck = LocalViewerDeck.current
+    val t = viewerTheme(deck)
     val accent = primary || active
+    val shape = RoundedCornerShape(if (deck) 12.dp else 7.dp)
     Box(
         modifier = modifier
+            .heightIn(min = if (deck) 44.dp else 0.dp)
+            .then(if (deck) Modifier.deckSelfFocusStroke(shape) else Modifier)
             .clickable { onClick() }
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(7.dp))
-            .border(
-                1.dp,
-                if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(7.dp)
-            )
+            .background(if (primary && deck) t.accent else t.card, shape)
+            .border(1.dp, if (accent) t.accent else t.line, shape)
             .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            color = if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            fontSize = 12.sp
+            color = if (primary && deck) DeckPalette.onPrimary else if (accent) t.accent else t.text,
+            fontSize = if (deck) 14.sp else 12.sp,
+            fontWeight = if (deck) FontWeight.SemiBold else null
         )
     }
 }

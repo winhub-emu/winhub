@@ -453,7 +453,7 @@ internal fun DeckLogManagerDialog(onClose: () -> Unit) {
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
             Surface(modifier = Modifier.fillMaxSize(), color = DeckPalette.background) {
-                LogViewerScreen(entry = entry, onClose = { viewing = null })
+                LogViewerScreen(entry = entry, onClose = { viewing = null }, deck = true)
             }
         }
     }
