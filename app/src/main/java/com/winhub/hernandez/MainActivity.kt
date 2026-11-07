@@ -239,6 +239,8 @@ class MainActivity : AppCompatActivity() {
                 val installStep by splashViewModel.step.collectAsState()
                 val installDegraded by splashViewModel.degraded.collectAsState()
                 val showProceed by splashViewModel.showProceed.collectAsState()
+                val installLabels by splashViewModel.stepLabels.collectAsState()
+                val needsSetup by splashViewModel.needsSetup.collectAsState()
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     AppShell(
@@ -266,12 +268,21 @@ class MainActivity : AppCompatActivity() {
                         onNavigateToGames = { pendingRoute.value = Screen.Deck.route },
                     )
 
+                    // First open on a fresh install: the user picks layout, theme, extras and Social Hub
+                    // before anything downloads. Finishing hands off to the install overlay below.
+                    if (needsSetup) {
+                        com.winhub.hernandez.ui.screens.FirstRunSetup(
+                            onInstall = { extras -> splashViewModel.finishSetup(this@MainActivity, extras) },
+                        )
+                    }
+
                     if (isInstalling) {
                         SplashScreen(
                             progress = installProgress,
                             status = installStatus,
                             step = installStep,
                             degraded = installDegraded,
+                            stepLabels = installLabels,
                             showProceed = showProceed,
                             onProceed = {
                                 splashViewModel.dismissSplash()

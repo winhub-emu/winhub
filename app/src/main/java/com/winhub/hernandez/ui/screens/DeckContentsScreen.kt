@@ -137,14 +137,14 @@ private enum class DeckContentsTab(val label: String) {
     INSTALLED("Installed"),
 }
 
-private data class DeckContentCategory(
+internal data class DeckContentCategory(
     val type: String,
     val title: String,
     val blurb: String,
     val icon: ImageVector,
 )
 
-private val deckContentCategories = listOf(
+internal val deckContentCategories = listOf(
     DeckContentCategory("DXVK", "DXVK", "Direct3D 9 / 10 / 11 to Vulkan", Icons.Filled.ViewInAr),
     DeckContentCategory("D7VK", "D7VK", "Direct3D 7 to Vulkan", Icons.Filled.ViewInAr),
     DeckContentCategory("VKD3D", "VKD3D", "Direct3D 12 to Vulkan (VKD3D-Proton)", Icons.Filled.Widgets),
@@ -330,7 +330,7 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
 // ── Chrome ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DeckIconAction(
+internal fun DeckIconAction(
     icon: ImageVector,
     label: String,
     tint: Color = DeckPalette.onSurfaceVariant,
@@ -411,7 +411,7 @@ private fun DeckDangerAction(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DeckBadge(text: String, color: Color) {
+internal fun DeckBadge(text: String, color: Color) {
     Text(
         text = text.uppercase(),
         fontSize = 9.sp,
@@ -728,7 +728,7 @@ internal fun DeckSearchField(
 }
 
 @Composable
-private fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit) {
+internal fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(16.dp)
     Row(
@@ -899,7 +899,7 @@ private fun DeckCatalogCard(
 }
 
 @Composable
-private fun DeckMeta(icon: ImageVector, text: String) {
+internal fun DeckMeta(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             icon,
@@ -1952,7 +1952,7 @@ private fun DeckInstallDialog(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-private fun deckContentTypeIcon(type: String): ImageVector = when {
+internal fun deckContentTypeIcon(type: String): ImageVector = when {
     ContentsTypes.isDriver(type) -> Icons.Filled.ViewInAr
     type.equals("DXVK", true) -> Icons.Filled.GridView
     type.equals("D7VK", true) -> Icons.Filled.ViewInAr

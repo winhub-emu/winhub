@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -72,6 +75,7 @@ fun SplashScreen(
     degraded: Boolean,
     showProceed: Boolean = false,
     onProceed: () -> Unit = {},
+    stepLabels: List<String> = SETUP_STEPS,
 ) {
     Box(
         modifier = Modifier
@@ -110,6 +114,7 @@ fun SplashScreen(
                         degraded = degraded,
                         showProceed = showProceed,
                         onProceed = onProceed,
+                        stepLabels = stepLabels,
                         modifier = Modifier.widthIn(max = 460.dp).fillMaxHeight(),
                     )
                 }
@@ -130,6 +135,7 @@ fun SplashScreen(
                         degraded = degraded,
                         showProceed = showProceed,
                         onProceed = onProceed,
+                        stepLabels = stepLabels,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -221,6 +227,7 @@ private fun SplashProgress(
     degraded: Boolean,
     showProceed: Boolean,
     onProceed: () -> Unit,
+    stepLabels: List<String>,
     modifier: Modifier = Modifier,
 ) {
     val clamped = progress.coerceIn(0, 100)
@@ -289,7 +296,7 @@ private fun SplashProgress(
             )
             Spacer(Modifier.weight(1f))
             Text(
-                text = "STEP ${(step + 1).coerceAtMost(SETUP_STEPS.size)} OF ${SETUP_STEPS.size}",
+                text = "STEP ${(step + 1).coerceAtMost(stepLabels.size)} OF ${stepLabels.size}",
                 color = DeckPalette.onSurfaceVariant,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -298,13 +305,16 @@ private fun SplashProgress(
         }
 
         Spacer(Modifier.height(20.dp))
-        SETUP_STEPS.forEachIndexed { index, label ->
-            SetupStepRow(
-                label = label,
-                done = step > index,
-                active = step == index,
-            )
-            if (index != SETUP_STEPS.lastIndex) Spacer(Modifier.height(9.dp))
+        // Extras can make this list long, so it scrolls instead of pushing the button off screen.
+        Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+            stepLabels.forEachIndexed { index, label ->
+                SetupStepRow(
+                    label = label,
+                    done = step > index,
+                    active = step == index,
+                )
+                if (index != stepLabels.lastIndex) Spacer(Modifier.height(9.dp))
+            }
         }
 
         if (degraded) {
