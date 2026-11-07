@@ -1946,8 +1946,12 @@ fun ShortcutsScreen(
                 onDismissRequest = { logsShortcut = null },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             ) {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    LogViewerScreen(entry = entry, onClose = { logsShortcut = null })
+                val deck = LocalDeckMode.current
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = if (deck) DeckPalette.background else MaterialTheme.colorScheme.background,
+                ) {
+                    LogViewerScreen(entry = entry, onClose = { logsShortcut = null }, deck = deck)
                 }
             }
         } else {
