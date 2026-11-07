@@ -1113,16 +1113,7 @@ internal fun DeckSettingsScreen() {
     }
 
     // ── Overlay dialogs (same as SettingsScreen). ──
-    if (showLogManager) {
-        AlertDialog(
-            onDismissRequest = { showLogManager = false },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLogManager = false }) { Text("Close") }
-            },
-            text = { LogManagerScreen(onClose = { showLogManager = false }) },
-        )
-    }
+    if (showLogManager) DeckLogManagerDialog(onClose = { showLogManager = false })
     if (showPerformance) {
         AlertDialog(
             onDismissRequest = { showPerformance = false },

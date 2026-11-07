@@ -692,7 +692,7 @@ private fun MenuRow(
 }
 
 /** The channels people actually turn on. The other 500 are behind the search field. */
-private val COMMON_WINE_CHANNELS = listOf(
+internal val COMMON_WINE_CHANNELS = listOf(
     "err", "warn", "fixme", "seh", "module", "loaddll", "process", "thread",
     "sync", "file", "reg", "heap", "ntdll", "d3d", "dxgi", "vulkan", "opengl", "relay"
 )
@@ -852,7 +852,7 @@ private fun WineChannelGroup(
  * row is three lines tall and scanning gets slower.
  */
 @Composable
-private fun AllChannelsDialog(
+internal fun AllChannelsDialog(
     all: List<String>,
     selected: List<String>,
     onChange: (List<String>) -> Unit,
@@ -1136,7 +1136,7 @@ private fun CardAction(
 /** The design's one non-theme colour: destructive actions read as red in both light and dark. */
 
 /** "12 min ago" / "yesterday" — a timestamp is not what anyone is looking for in this list. */
-private fun relativeTime(millis: Long): String {
+internal fun relativeTime(millis: Long): String {
     if (millis <= 0) return "—"
     val mins = (System.currentTimeMillis() - millis) / 60000
     return when {
@@ -1190,7 +1190,7 @@ private fun InfoDot(onClick: () -> Unit) {
  * Help copy. Every entry leads with the performance cost, because that is the thing a user needs to
  * decide with — two of these are genuinely expensive to leave on.
  */
-private object LogCopy {
+internal object LogCopy {
     const val PER_GAME =
         "No performance cost.\n\n" +
         "Gives each game its own folder inside your log location, named after the game, so one " +
