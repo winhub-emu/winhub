@@ -23,17 +23,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CloudDownload
@@ -553,25 +550,6 @@ fun InputControlsScreen() {
             .fillMaxSize()
             .padding(16.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Controls", color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text("How you play", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .clickable { promptCreateName = true },
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "New profile", tint = MaterialTheme.colorScheme.onSurface)
-            }
-        }
         // ── Pinned Profile bar ──────────────────────────────────────
         val displayText = if (selectedProfileIdx > 0 && selectedProfileIdx - 1 < profiles.size)
             profiles[selectedProfileIdx - 1].getName() else "-- Select Profile --"
@@ -580,28 +558,29 @@ fun InputControlsScreen() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(22.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(14.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
                     .clickable { showProfileDropdown = true }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Accent avatar with the selected profile's initial.
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), RoundedCornerShape(16.dp)),
+                        .size(32.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         if (hasProfile) displayText.trim().take(1).uppercase() else "?",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     )
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(displayText, color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     // Content badges: tell you what the selected profile HOLDS before you act on it.
                     if (hasProfile && (profileHasLayout || profileBinds > 0)) {
                         Spacer(Modifier.height(3.dp))
@@ -779,28 +758,16 @@ fun InputControlsScreen() {
                                 )
                             } else AppUtils.showToast(context, R.string.no_profile_selected)
                         }
-                        if (profiles.isNotEmpty()) {
-                            Text("Layouts", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            profiles.forEachIndexed { i, p ->
-                                LayoutProfileRow(
-                                    name = p.getName(),
-                                    active = selectedProfileIdx == i + 1,
-                                    onClick = { selectedProfileIdx = i + 1; loadProfile(i + 1) },
-                                )
-                            }
-                        }
-                        Text("On-Screen Controls", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Text("On-Screen Controls", color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text("Touch overlay drawn on top of the game.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         Button(
                             onClick = openLayoutEditor,
                             // intentional: success green signals the primary "go/edit" action; kept off-theme by design
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(26.dp),
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
-                        ) { Text("Edit Layout", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold) }
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Edit Layout", color = Color.White) } // intentional: white kept for contrast on the green fill
 
                         // Live read-only preview — only when the selected profile actually has an overlay.
                         val cp = currentProfile
@@ -1031,8 +998,9 @@ private fun LayoutPreviewFrame(profile: ControlsProfile?, onTap: (() -> Unit)?) 
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspect)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF0F0C0B)), // dark "game screen" ground
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0F0C0B)) // dark "game screen" ground
+            .border(1.dp, cs.outline, RoundedCornerShape(12.dp)),
     ) {
         if (profile != null) {
             AndroidView(
@@ -1134,26 +1102,30 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
     val cs = MaterialTheme.colorScheme
     val labels = listOf("On-Screen", "Controller", "Assign", "Device")
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(cs.surfaceContainerHigh)
+            .border(1.dp, cs.outline, RoundedCornerShape(12.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         labels.forEachIndexed { i, label ->
             val on = i == selected
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(if (on) cs.primary.copy(alpha = 0.16f) else Color.Transparent)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (on) cs.primary else Color.Transparent)
                     .clickable { onSelect(i) }
-                    .padding(horizontal = 6.dp),
+                    .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (on) cs.primary else cs.onSurfaceVariant,
+                    color = if (on) cs.onPrimary else cs.onSurfaceVariant,
                     maxLines = 1,
                 )
             }
@@ -1165,55 +1137,6 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
  * Device-level gyroscope calibration. Only the zero-rate bias lives here — it's a property of the
  * hardware, not of a game; sensitivity/target/activator/invert stay with the container.
  */
-/** One control profile as a row: icon tile, name and an Active pill; the one in use is outlined. */
-@Composable
-private fun LayoutProfileRow(name: String, active: Boolean, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(22.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(cs.surface)
-            .then(if (active) Modifier.border(2.dp, cs.primary, shape) else Modifier)
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(if (active) cs.primary.copy(alpha = 0.16f) else cs.surfaceVariant),
-        ) {
-            Icon(
-                Icons.Default.SportsEsports,
-                contentDescription = null,
-                tint = if (active) cs.primary else cs.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        Column(Modifier.weight(1f)) {
-            Text(name, color = cs.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            if (active) Text("In use", color = cs.onSurfaceVariant, fontSize = 13.sp)
-        }
-        if (active) {
-            Text(
-                "Active",
-                color = cs.primary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(cs.primary.copy(alpha = 0.16f))
-                    .padding(horizontal = 10.dp, vertical = 3.dp),
-            )
-        }
-    }
-}
-
 @Composable
 private fun GyroscopeSection() {
     val context = LocalContext.current

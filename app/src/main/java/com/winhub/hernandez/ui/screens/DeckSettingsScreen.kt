@@ -399,7 +399,7 @@ internal fun DeckSettingsScreen() {
         saved = true
     }
 
-    DeckDragFrame(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(20.dp)) {
+    DeckDragFrame(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(12.dp)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -415,8 +415,8 @@ internal fun DeckSettingsScreen() {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Make WinHub yours",
-                fontSize = 14.sp,
+                text = "Identical to the Settings tab",
+                fontSize = 13.sp,
                 color = DeckPalette.onSurfaceVariant,
             )
         }
@@ -1087,7 +1087,7 @@ internal fun DeckSettingsScreen() {
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .height(48.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(DeckPalette.primary)
                     .deckDragItem("settings-save")
                     .clickable { save() }
@@ -1201,7 +1201,8 @@ private fun ThemePreviewDots(preset: ThemePreset) {
                 Modifier
                     .size(18.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(color),
+                    .background(color)
+                    .border(1.dp, DeckPalette.line2, RoundedCornerShape(5.dp)),
             )
         }
     }

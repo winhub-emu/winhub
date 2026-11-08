@@ -139,7 +139,6 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Text
@@ -228,8 +227,6 @@ import java.io.FileOutputStream
 import com.winhub.hernandez.ui.ControllerFocusIndication
 import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.theme.AppThemeState
-import com.winhub.hernandez.ui.theme.DeckFontFamily
-import com.winhub.hernandez.ui.theme.DeckTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -267,11 +264,11 @@ private class DeckSection(val key: String, val label: String, val icon: ImageVec
 
 private fun deckSections() = listOf(
     DeckSection("home", "Home", Icons.Filled.Apps),
-    DeckSection("containers", "Setups", Icons.Filled.Folder),
+    DeckSection("containers", "Storage", Icons.Filled.Folder),
     DeckSection("stores", "Stores", Icons.Filled.Storefront),
     DeckSection("file_manager", "Files", Icons.Filled.FolderOpen),
     DeckSection("input_controls", "Controls", Icons.Filled.SportsEsports),
-    DeckSection("contents", "Add-ons", Icons.Filled.Inventory2),
+    DeckSection("contents", "Contents", Icons.Filled.Inventory2),
     DeckSection("saves", "Saves", Icons.Filled.Save),
     DeckSection("social_hub", "Social", Icons.Filled.People),
     DeckSection("settings", "Settings", Icons.Filled.Settings),
@@ -430,13 +427,8 @@ internal fun DeckModeScreen() {
             onSurfaceVariant = Deck.onSurfaceVariant,
             error = DeckPalette.error,
         ),
-        typography = DeckTypography,
     ) {
         CompositionLocalProvider(
-            // Text outside a Material component has no style of its own, so the Deck shell hands it
-            // the app font; explicit sizes and weights still win. Scoped here so the in-game menu
-            // (which sits on WinlatorTheme) keeps its own look.
-            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = DeckFontFamily),
             LocalInputModeManager provides deckInputMode,
             LocalIndication provides remember(Deck.primary) { ControllerFocusIndication(Deck.primary) },
             LocalDeckTabs provides tabs,
@@ -657,7 +649,7 @@ private fun DeckHome(
     // L2/R2 switch the shelves (All / Recent / Favourites / Store games) through the shell's sub-tabs.
     val deckTabs = LocalDeckTabs.current
     // Home style (Settings > Appearance): XMB keeps this Home and swaps the game dropdown for the XMB one.
-    val xmbStyle = false
+    val xmbStyle = !portrait && remember { PreferenceManager.getDefaultSharedPreferences(context).getString("home_style", "xmb") != "classic" }
     LaunchedEffect(deckTabs) { deckTabs.bind(4) }
     val shelf = deckTabs.index
     var favs by remember {
@@ -675,8 +667,6 @@ private fun DeckHome(
     var addModeMenu by remember { mutableStateOf(false) }
     // Classic style: long-press a cover / Y opens the console-style game menu instead of the dropdown.
     var classicMenu by remember { mutableStateOf(false) }
-    // Landscape: A on a cover opens that game's page over Home.
-    var gamePageOpen by remember { mutableStateOf(false) }
     // Portrait: tapping a cover opens its game page over the grid.
     var portraitPageOpen by remember { mutableStateOf(false) }
     // The shell hides its liquid backdrop while the page is up (and when Home itself goes away).
@@ -1091,7 +1081,7 @@ private fun DeckHome(
 
     // Hand focus back to the carousel once any dialog/overlay opened from Home goes away.
     val overlayOpen = pending != null || launchRequest != null || launchMethodFor != null ||
-        propertiesFor != null || cronosReviewFor != null || shortcutSettingsFor != null || addModeMenu || xmbNested || showWrapperManager || classicMenu || gamePageOpen
+        propertiesFor != null || cronosReviewFor != null || shortcutSettingsFor != null || addModeMenu || xmbNested || showWrapperManager || classicMenu
     var hadOverlay by remember { mutableStateOf(false) }
     LaunchedEffect(overlayOpen) {
         if (!overlayOpen && hadOverlay) {
@@ -1110,6 +1100,38 @@ private fun DeckHome(
                 .then(if (portrait) Modifier else Modifier.background(Deck.background))
                 .clipToBounds(),
         ) {
+            if (!portrait) DeckCapsuleWall(
+                covers = wallCovers,
+                driftMs = if (covers.isEmpty()) 75_000 else 40_000,
+            )
+            if (!portrait) {
+                // The backdrop follows the focused game: its cover, blurred, crossfading as the selection moves.
+                Crossfade(targetState = current?.bitmap, animationSpec = tween(600), label = "homeBackdrop") { bmp ->
+                    if (bmp != null) {
+                        Image(
+                            bitmap = remember(bmp) { bmp.asImageBitmap() },
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().blur(18.dp).alpha(0.34f),
+                        )
+                    }
+                }
+                val coverTint = remember(current?.bitmap) {
+                    current?.bitmap?.let { b -> Color(Bitmap.createScaledBitmap(b, 1, 1, true).getPixel(0, 0)) }
+                }
+                val tint by animateColorAsState(coverTint ?: Deck.primary, tween(600), label = "homeTint")
+                Box(
+                    Modifier.fillMaxSize().drawBehind {
+                        val c = Offset(size.width * 0.2f, size.height * 0.3f)
+                        drawCircle(
+                            Brush.radialGradient(listOf(tint.copy(alpha = 0.32f), Color.Transparent), c, size.width * 0.7f),
+                            size.width * 0.7f,
+                            c,
+                        )
+                    },
+                )
+            }
+            if (!portrait) DeckWallFade()
 
             if (portrait) PortraitHome(
                 entries = visible,
@@ -1122,9 +1144,9 @@ private fun DeckHome(
                 onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
                 onMenu = { i -> selected = i; classicMenu = true },
-            ) else DeckCozyHome(
+            ) else DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {
-                    // An open tool replaces Home: it fades out and lifts a little.
+                    // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
                     alpha = intro.value * homeFade
                     translationY = (1f - intro.value) * 60.dp.toPx() - (1f - homeFade) * 12.dp.toPx()
                 },
@@ -1132,23 +1154,24 @@ private fun DeckHome(
                 loaded = entries != null && (visible.isNotEmpty() || entries.orEmpty().isEmpty()),
                 selected = sel,
                 favs = favs,
+                details = details,
+                onFavorite = { toggleFavorite() },
+                classic = !xmbStyle,
+                onMenu = { classicMenu = true },
                 onSelect = { selected = it },
-                onOpen = { selected = it; gamePageOpen = true },
-                onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
-                onMenu = { i -> selected = i; classicMenu = true },
+                mode = homeMode,
+                onMode = { homeMode = it },
+                xmbRows = xmbSc != null,
+                menuHidden = xmbNested,
+                launching = launchShown,
+                launchT = { launchT.value },
+                info = xmbInfo,
+                actions = actions,
+                cards = cards,
                 onAdd = { addModeMenu = true },
                 focus = heroFocus,
-                enabled = shortcutSettingsFor == null && !classicMenu && !gamePageOpen,
+                enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu,
             )
-            if (!portrait && gamePageOpen && current != null) {
-                BackHandler(enabled = shortcutSettingsFor == null && !classicMenu) { gamePageOpen = false }
-                DeckHubGamePage(
-                    entry = current,
-                    onBack = { gamePageOpen = false },
-                    onPlay = { gamePageOpen = false; playEntry(current) },
-                    onSettings = { gamePageOpen = false; openGameSettings(current) },
-                )
-            }
             if (portrait && portraitPageOpen && current != null) {
                 BackHandler(enabled = shortcutSettingsFor == null && !classicMenu) { portraitPageOpen = false }
                 PortraitGamePage(
@@ -1185,7 +1208,7 @@ private fun DeckHome(
             }
 
             // Shelves (L2/R2) top centre, status top right.
-            if (!portrait && !gamePageOpen) DeckStretchyTabs(
+            if (!portrait) DeckStretchyTabs(
                 labels = listOf("All", "Recent", "Favourites", "Store games"),
                 selected = shelf,
                 onSelect = { deckTabs.select(it) },
@@ -1194,7 +1217,7 @@ private fun DeckHome(
                 height = 30.dp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
-            if (!portrait && !gamePageOpen) DeckStatusStrip(
+            if (!portrait) DeckStatusStrip(
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },
             )
             AnimatedVisibility(
@@ -1245,6 +1268,7 @@ private fun DeckHome(
                             .fillMaxWidth(0.8f)
                             .clip(DeckPalette.groupShape)
                             .background(DeckPalette.surface)
+                            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -1530,14 +1554,16 @@ private fun DeckWordmark() {
             text = "Win",
             color = Deck.onBackground,
             fontSize = 40.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Black,
+            letterSpacing = (-0.5).sp,
             maxLines = 1,
         )
         Text(
             text = "Hub",
             color = Deck.primary,
             fontSize = 40.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Black,
+            letterSpacing = (-0.5).sp,
             maxLines = 1,
         )
         Box(
@@ -1713,15 +1739,11 @@ private fun DeckTopTabs(
     var placedAt by remember { mutableStateOf(Float.NaN) }
     var lastIndex by remember { mutableIntStateOf(-1) }
     val accent = Deck.primary
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Deck.surface.copy(alpha = barOpacity))
-            .padding(horizontal = 16.dp),
+            .background(Deck.surface.copy(alpha = barOpacity)),
     ) {
-    DeckBarWordmark()
-    BoxWithConstraints(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
         val index = sections.indexOfFirst { it.key == selected }.coerceAtLeast(0)
         val padPx = with(density) { 8.dp.toPx() }
         // The selected tab is wider (it carries its name); the total weight never changes, so the
@@ -1752,9 +1774,10 @@ private fun DeckTopTabs(
                 .drawBehind {
                     if (end.value > start.value) {
                         val top = 4.dp.toPx()
-                        val corner = CornerRadius(18.dp.toPx())
+                        val corner = CornerRadius(10.dp.toPx())
                         val pill = Size(end.value - start.value, size.height - top * 2f)
-                        drawRoundRect(accent.copy(alpha = 0.16f), Offset(start.value, top), pill, corner)
+                        drawRoundRect(accent.copy(alpha = 0.14f), Offset(start.value, top), pill, corner)
+                        drawRoundRect(accent, Offset(start.value, top), pill, corner, style = Stroke(1.5.dp.toPx()))
                     }
                 },
         )
@@ -1771,7 +1794,7 @@ private fun DeckTopTabs(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .weight(if (current) SELECTED_TAB_WEIGHT else 1f)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .focusProperties { canFocus = false }
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                             onSelect(item.key)
@@ -1798,8 +1821,7 @@ private fun DeckTopTabs(
             }
         }
     }
-    DeckBarClockAvatar()
-    }
+    HorizontalDivider(color = Deck.line.copy(alpha = barOpacity))
 }
 
 /**
@@ -1825,12 +1847,14 @@ private fun DeckBottomTabs(
         LaunchedEffect(index, viewportPx) {
             scroll.animateScrollTo((index * itemPx - (viewportPx - itemPx) / 2f).toInt().coerceAtLeast(0))
         }
+        val accent = deckAccentBrush()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(10.dp, pill)
                 .clip(pill)
                 .background(Deck.surface)
+                .border(1.dp, Deck.line, pill)
                 .horizontalScroll(scroll)
                 .padding(6.dp),
         ) {
@@ -1843,7 +1867,8 @@ private fun DeckBottomTabs(
                         .width(itemWidth)
                         .height(60.dp)
                         .clip(itemShape)
-                        .background(if (current) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
+                        .background(if (current) Deck.primary.copy(alpha = 0.14f) else Color.Transparent)
+                        .then(if (current) Modifier.border(1.5.dp, accent, itemShape) else Modifier)
                         .focusProperties { canFocus = false }
                         .clickable { onSelect(item.key) },
                 ) {
@@ -1880,12 +1905,10 @@ private fun DeckSideRail(
 ) {
     DeckDragFrame(
         modifier = Modifier
-            .padding(start = 8.dp, top = 8.dp, bottom = 8.dp)
             .width(92.dp)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(26.dp))
             .background(Deck.surface),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         strokeWidth = 2.5.dp,
         gap = 2.dp,
     ) {
@@ -1894,7 +1917,7 @@ private fun DeckSideRail(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 16.dp),
+                .padding(vertical = 12.dp),
         ) {
             deckSections().forEach { item ->
                 DeckRailItem(
@@ -1927,12 +1950,17 @@ private fun DeckRailItem(
     // The selection tint glides between items instead of snapping — the rail "drags".
     val tint by animateColorAsState(
         targetValue = when {
-            current -> Deck.primary.copy(alpha = 0.16f)
+            current -> Deck.primary.copy(alpha = 0.14f)
             focused -> Deck.surfaceVariant
             else -> Color.Transparent
         },
         animationSpec = tween(260, easing = DeckEase),
         label = "railTint",
+    )
+    val line by animateColorAsState(
+        targetValue = if (current || focused) Deck.primary else Color.Transparent,
+        animationSpec = tween(220, easing = DeckEase),
+        label = "railLine",
     )
     Box(
         contentAlignment = Alignment.Center,
@@ -1940,8 +1968,13 @@ private fun DeckRailItem(
             .then(modifier)
             .padding(bottom = 4.dp)
             .size(width = 80.dp, height = 56.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(tint)
+            .border(
+                width = 1.dp,
+                color = if (focused) Color.Transparent else line,
+                shape = RoundedCornerShape(14.dp),
+            )
             .deckBringIntoView()
             .deckDragItem("rail:$label")
             .focusProperties { if (rightFocus != null) right = rightFocus }
@@ -1966,6 +1999,16 @@ private fun DeckRailItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+        if (current) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 4.dp)
+                    .size(width = 3.dp, height = 26.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Deck.primary),
             )
         }
     }
@@ -2054,7 +2097,8 @@ private fun DeckCapsule(cover: DeckCover, shape: RoundedCornerShape, modifier: M
         Box(
             modifier
                 .clip(shape)
-                .background(Brush.linearGradient(listOf(Deck.surface, Deck.background))),
+                .background(Brush.linearGradient(listOf(Deck.surface, Deck.background)))
+                .border(1.dp, Deck.line, shape),
         )
         return
     }
@@ -2063,7 +2107,8 @@ private fun DeckCapsule(cover: DeckCover, shape: RoundedCornerShape, modifier: M
         Box(
             modifier
                 .clip(shape)
-                .background(Deck.surface),
+                .background(Deck.surface)
+                .border(1.dp, Deck.line.copy(alpha = 0.6f), shape),
         ) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
@@ -2085,7 +2130,8 @@ private fun DeckCapsule(cover: DeckCover, shape: RoundedCornerShape, modifier: M
                         Color.hsv((hue + 0.12f) % 1f, 0.70f, 0.55f),
                     ),
                 ),
-            ),
+            )
+            .border(1.dp, Deck.line.copy(alpha = 0.6f), shape),
     ) {
         Text(
             text = cover.name,
@@ -3037,6 +3083,7 @@ private fun DeckHomeCarousel(
                         .width(210.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Deck.surface.copy(alpha = 0.78f))
+                        .border(1.dp, Deck.line, RoundedCornerShape(12.dp))
                         .padding(14.dp),
                 ) {
                     details.forEach { (k, v) ->

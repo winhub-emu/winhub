@@ -374,7 +374,7 @@ private fun DeckLibraryPane(screen: Screen, context: Context, onGameClick: (Deck
 /** A library block: the cover fills the tile, a gradient fade grounds the title at its foot. */
 @Composable
 private fun DeckGameCard(game: DeckOwnedGame, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(12.dp)
     val interaction = remember { MutableInteractionSource() }
     val badge = when {
         game.gog != null -> deckStores[0].dot
@@ -767,7 +767,7 @@ private fun DeckHeroCarousel(items: List<DeckBrowseItem>, onCard: (DeckBrowseIte
 @Composable
 private fun DeckBrowseCard(item: DeckBrowseItem, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(10.dp)
     Column(
         modifier = Modifier
             .width(150.dp)
@@ -779,7 +779,8 @@ private fun DeckBrowseCard(item: DeckBrowseItem, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .height(200.dp)
                 .clip(shape)
-                .background(Deck.surface),
+                .background(Deck.surface)
+                .border(1.dp, Deck.line, shape),
         ) {
             val art = item.art
             if (art != null) {
@@ -1037,14 +1038,7 @@ internal fun DeckStoresScreen() {
                     text = "Stores",
                     color = Deck.onBackground,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
-                Text(
-                    text = "Your game libraries",
-                    color = Deck.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Black,
                     maxLines = 1,
                 )
             }
@@ -1214,7 +1208,8 @@ private fun DeckSignInCard(tile: DeckStoreTile, context: Context) {
             .fillMaxWidth()
             .height(320.dp)
             .clip(shape)
-            .background(Deck.background),
+            .background(Deck.background)
+            .border(1.dp, Deck.line, shape),
     ) {
         DeckTiltedWall(tile)
         // The words get the dark: side-lit from the right, weighted at the foot.
@@ -1269,7 +1264,7 @@ private fun DeckSignInCard(tile: DeckStoreTile, context: Context) {
 /** The sign-in hero's background: the store's brand wall, tilted like DroidDeck's capsule wall. */
 @Composable
 private fun DeckTiltedWall(tile: DeckStoreTile) {
-    val capsule = RoundedCornerShape(16.dp)
+    val capsule = RoundedCornerShape(10.dp)
     Box(
         modifier = Modifier
             .fillMaxSize()

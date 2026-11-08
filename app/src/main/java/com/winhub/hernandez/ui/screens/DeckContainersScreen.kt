@@ -47,9 +47,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -64,7 +62,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -164,44 +161,29 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                 .fillMaxSize()
                 .padding(horizontal = 22.dp, vertical = 18.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "My setups",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DeckPalette.onBackground,
-                    )
-                    Text(
-                        text = "Each game runs inside one",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = DeckPalette.onSurfaceVariant,
-                    )
-                }
-                val newInteraction = remember { MutableInteractionSource() }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(DeckPalette.surface)
-                        .deckOuterFocusStroke(newInteraction, CircleShape)
-                        .clickable(interactionSource = newInteraction, indication = null) { onEditContainer(-1) },
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "New setup", tint = DeckPalette.onBackground)
-                }
-            }
+            Text(
+                text = "Storage",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeckPalette.onBackground,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (subtab == 0) "${cronos.size} games on their own container"
+                else "${containers.size} installed",
+                fontSize = 13.sp,
+                color = DeckPalette.onSurfaceVariant,
+            )
             Spacer(Modifier.height(10.dp))
 
             DeckRailLayout(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 rail = {
                     if (LocalDeckPortrait.current) {
-                        DeckPortraitChips(listOf("Game setups", "Shared setups"), subtab) { tabs.select(it) }
+                        DeckPortraitChips(listOf("Cronos", "Containers"), subtab) { tabs.select(it) }
                     } else {
                         DeckEditorCategoryRail(
-                            labels = listOf("Game setups", "Shared setups"),
+                            labels = listOf("Cronos", "Containers"),
                             selected = subtab,
                             onSelect = { tabs.select(it) },
                             padFocus = false,
@@ -359,51 +341,6 @@ private fun DeckCronosTab(
                         )
                     }
                 }
-                item(key = "used-space") { DeckUsedSpaceGroup(games.map { it.container }.distinctBy { it.id }) }
-            }
-        }
-    }
-}
-
-/** "Estimated used space": what the setups take on disk, against the device's total storage. */
-@Composable
-private fun DeckUsedSpaceGroup(containers: List<Container>) {
-    val ids = containers.map { it.id }
-    val used by produceState(-1L, ids) {
-        value = withContext(Dispatchers.IO) { containers.sumOf { c -> c.rootDir?.let { deckDirSize(it) } ?: 0L } }
-    }
-    val total = remember { runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path).totalBytes }.getOrDefault(0L) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-        Text(
-            text = "Estimated used space",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DeckPalette.onSurfaceVariant,
-            modifier = Modifier.padding(start = 6.dp),
-        )
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DeckPalette.groupShape)
-                .background(DeckPalette.surface)
-                .padding(16.dp),
-        ) {
-            Row {
-                Text(
-                    text = if (used >= 0) StringUtils.formatBytes(used) + " used" else "…",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DeckPalette.onBackground,
-                    modifier = Modifier.weight(1f),
-                )
-                if (total > 0) {
-                    Text(text = "of " + StringUtils.formatBytes(total), fontSize = 14.sp, color = DeckPalette.onSurfaceVariant)
-                }
-            }
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(DeckPalette.surfaceVariant)) {
-                val fraction = if (used >= 0 && total > 0) (used.toFloat() / total).coerceIn(0.02f, 1f) else 0f
-                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(DeckPalette.primary))
             }
         }
     }
@@ -423,6 +360,55 @@ private fun DeckStorageContainersTab(
     onInfo: (Container) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DeckPalette.primary)
+                    .clickable { onNew() }
+                    .padding(horizontal = 16.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null,
+                        tint = DeckPalette.onPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "New",
+                        color = DeckPalette.onPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DeckPalette.surface)
+                    .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp))
+                    .clickable { onDefaults() }
+                    .padding(horizontal = 16.dp),
+            ) {
+                Text(
+                    text = "Defaults",
+                    color = DeckPalette.onBackground,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
         if (containers.isEmpty()) {
             Text(
                 text = "No containers yet.",
@@ -443,20 +429,11 @@ private fun DeckStorageContainersTab(
                 ) {
                     items(containers, key = { it.id }) { container ->
                         Box(Modifier.deckDragItem("container-${container.id}")) {
-                            val gameCount by produceState(0, container.id) {
-                                value = withContext(Dispatchers.IO) {
-                                    container.desktopDir.listFiles { f -> f.name.endsWith(".desktop") }?.size ?: 0
-                                }
-                            }
-                            val usedBytes = rememberDeckDirSize(container.rootDir)
                             DeckContainerCard(
                                 name = container.name,
-                                subtitle = listOf(
-                                    container.wineVersion,
-                                    if (gameCount == 1) "1 game" else "$gameCount games",
-                                    if (usedBytes >= 0) StringUtils.formatBytes(usedBytes) else "…",
-                                ).filter { it.isNotEmpty() }.joinToString(" · "),
-                                ready = gameCount > 0,
+                                subtitle = listOf(container.wineVersion, container.screenSize)
+                                    .filter { it.isNotEmpty() }
+                                    .joinToString(" · "),
                                 onRun = { onRun(container) },
                                 onEdit = { onEdit(container.id) },
                                 onDuplicate = { onDuplicate(container) },
@@ -467,35 +444,6 @@ private fun DeckStorageContainersTab(
                             )
                         }
                     }
-                    item(key = "defaults") {
-                        val defaultsInteraction = remember { MutableInteractionSource() }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(DeckPalette.groupShape)
-                                .background(DeckPalette.surface)
-                                .deckOuterFocusStroke(defaultsInteraction, DeckPalette.groupShape)
-                                .clickable(interactionSource = defaultsInteraction, indication = null) { onDefaults() }
-                                .padding(14.dp),
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(DeckPalette.surfaceVariant),
-                            ) {
-                                Icon(Icons.Filled.Settings, contentDescription = null, tint = DeckPalette.onSurfaceVariant, modifier = Modifier.size(22.dp))
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text("Defaults", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = DeckPalette.onBackground)
-                                Text("Used for every new setup", fontSize = 13.sp, color = DeckPalette.onSurfaceVariant)
-                            }
-                        }
-                    }
-                    item(key = "used-space") { DeckUsedSpaceGroup(containers) }
                 }
             }
         }
@@ -516,7 +464,6 @@ private fun DeckCronosCard(
     val store = item.store.isNotEmpty()
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    var menuOpen by remember { mutableStateOf(false) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -524,104 +471,87 @@ private fun DeckCronosCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, DeckPalette.groupShape) else Modifier)
+            .border(1.dp, if (focused) DeckPalette.primary else DeckPalette.line, DeckPalette.groupShape)
             .padding(12.dp),
     ) {
-        // Cover + details open the game; the actions button beside them is its own focus target.
+        // Cover + details open the game; the remove buttons beside them are separate focus targets.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .clickable(interactionSource = interaction, indication = null, onClick = onOpen),
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(width = 46.dp, height = 61.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DeckPalette.surfaceVariant),
-            ) {
-                if (cover != null) {
-                    Image(
-                        bitmap = cover,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.SportsEsports,
-                        contentDescription = null,
-                        tint = DeckPalette.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(width = 84.dp, height = 112.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(DeckPalette.surfaceVariant),
+        ) {
+            if (cover != null) {
+                Image(
+                    bitmap = cover,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.SportsEsports,
+                    contentDescription = null,
+                    tint = DeckPalette.onSurfaceVariant,
+                    modifier = Modifier.size(36.dp),
+                )
             }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
+        }
+
+        Spacer(Modifier.width(14.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = item.shortcut.name,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeckPalette.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = item.container.name,
+                fontSize = 12.sp,
+                color = DeckPalette.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            if (store) {
                 Text(
-                    text = item.shortcut.name,
-                    fontSize = 16.sp,
+                    text = "Game  " + if (gameSize >= 0) StringUtils.formatBytes(gameSize) else "…",
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = DeckPalette.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = (if (store) "Game " + (if (gameSize >= 0) StringUtils.formatBytes(gameSize) else "…") + " · " else "") +
-                        "Setup " + (if (containerSize >= 0) StringUtils.formatBytes(containerSize) else "…"),
-                    fontSize = 13.sp,
-                    color = DeckPalette.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Spacer(Modifier.height(2.dp))
             }
+            Text(
+                text = "Container  " + if (containerSize >= 0) StringUtils.formatBytes(containerSize) else "…",
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeckPalette.onSurfaceVariant,
+            )
         }
-        Box(
-            modifier = Modifier
-                .padding(start = 8.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(DeckPalette.primary.copy(alpha = 0.16f))
-                .padding(horizontal = 10.dp, vertical = 3.dp),
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Ready", color = DeckPalette.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        }
-        Spacer(Modifier.width(4.dp))
-        Box {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable { menuOpen = true },
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "Actions",
-                    tint = DeckPalette.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            // A dialog, not a dropdown: a popup window has no focus owner, so the D-pad could never walk its items.
-            if (menuOpen) Dialog(
-                onDismissRequest = { menuOpen = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-            ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth(0.5f)
-                        .heightIn(max = 320.dp)
-                        .clip(DeckPalette.groupShape)
-                        .background(DeckPalette.surfaceVariant)
-                        .deckDialogNav { menuOpen = false }
-                        .verticalScroll(rememberScrollState())
-                        .padding(vertical = 8.dp),
-                ) {
-                    DeckMenuItem(if (store) "Uninstall Game" else "Remove Game", Icons.Filled.Delete) { menuOpen = false; onRemoveGame() }
-                    DeckMenuItem("Remove Container", Icons.Filled.Delete) { menuOpen = false; onRemoveContainer() }
-                }
-            }
+            DeckOutlineButton(if (store) "Uninstall Game" else "Remove Game", onRemoveGame)
+            DeckDangerButton("Remove Container", onRemoveContainer)
         }
     }
 }
@@ -633,9 +563,10 @@ private fun DeckOutlineButton(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(DeckPalette.surfaceVariant)
-            .deckOuterFocusStroke(interaction, RoundedCornerShape(20.dp))
+            .border(1.dp, DeckPalette.line2, RoundedCornerShape(12.dp))
+            .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {
@@ -656,9 +587,10 @@ private fun DeckDangerButton(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(DeckPalette.error.copy(alpha = 0.16f))
-            .deckOuterFocusStroke(interaction, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(DeckPalette.error.copy(alpha = 0.12f))
+            .border(1.dp, DeckPalette.error, RoundedCornerShape(12.dp))
+            .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {
@@ -836,7 +768,6 @@ private fun DeckContainerCard(
     onExport: () -> Unit,
     onInfo: () -> Unit,
     onBackupRestore: () -> Unit,
-    ready: Boolean = true,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
@@ -847,19 +778,13 @@ private fun DeckContainerCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, DeckPalette.groupShape) else Modifier)
+            .border(
+                1.dp,
+                if (focused) DeckPalette.primary else DeckPalette.line,
+                DeckPalette.groupShape,
+            )
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(DeckPalette.primary.copy(alpha = 0.16f)),
-        ) {
-            Icon(Icons.Filled.Layers, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(22.dp))
-        }
-        Spacer(Modifier.width(14.dp))
         // Only the name area opens the editor: a clickable on the whole card would swallow Play and
         // the actions button, which D-pad focus could then never reach.
         Column(
@@ -871,7 +796,7 @@ private fun DeckContainerCard(
         ) {
             Text(
                 text = name,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DeckPalette.onBackground,
                 maxLines = 1,
@@ -880,7 +805,7 @@ private fun DeckContainerCard(
             if (subtitle.isNotEmpty()) {
                 Text(
                     text = subtitle,
-                    fontSize = 13.sp,
+                    fontSize = 12.5.sp,
                     color = DeckPalette.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -889,27 +814,12 @@ private fun DeckContainerCard(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .padding(end = 8.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (ready) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                .padding(horizontal = 10.dp, vertical = 3.dp),
-        ) {
-            Text(
-                if (ready) "Ready" else "Idle",
-                color = if (ready) DeckPalette.primary else DeckPalette.onSurfaceVariant,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
         // Run: the blue play pill (DroidDeck's PrimaryButton shape).
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(width = 52.dp, height = 40.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(DeckPalette.primary)
                 .clickable { onRun() },
         ) {
@@ -949,6 +859,7 @@ private fun DeckContainerCard(
                         .heightIn(max = 320.dp)
                         .clip(DeckPalette.groupShape)
                         .background(DeckPalette.surfaceVariant)
+                        .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                         .deckDialogNav { menuOpen = false }
                         .verticalScroll(rememberScrollState())
                         .padding(vertical = 8.dp),
@@ -1043,6 +954,7 @@ internal fun DeckPropertiesDialog(container: Container, onDismiss: () -> Unit) {
                 .fillMaxWidth(0.92f)
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
+                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(horizontal = 20.dp, vertical = 18.dp),
         ) {

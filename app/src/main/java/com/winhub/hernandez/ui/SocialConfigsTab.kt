@@ -143,7 +143,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                 }
             },
     ) {
-        if (deck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social", "Share setups with the community", horizontal = 0.dp)
+        if (deck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social Hub", horizontal = 0.dp)
         if (layout == "tabs") {
             if (portraitDeck) {
                 com.winhub.hernandez.ui.screens.DeckPortraitChips(labels, tab, select)
@@ -392,7 +392,7 @@ private fun SocialConfigsContent() {
 
 @Composable
 private fun ConfigRow(post: Post, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(12.dp)
     val json = remember(post.number) { SocialHubFormat.configJson(post.body).orEmpty() }
     val parts = remember(post.number) { SocialConfigs.componentNames(json) }
     val (device, soc) = remember(post.number) { SocialConfigs.hardware(json) }
@@ -402,10 +402,11 @@ private fun ConfigRow(post: Post, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
             .deckDragSelf()
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
@@ -495,9 +496,10 @@ private fun ToggleChip(text: String, checked: Boolean, onClick: () -> Unit) {
             .heightIn(min = 48.dp)
             .clip(shape)
             .background(
-                if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                else MaterialTheme.colorScheme.surfaceVariant,
+                if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
             )
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
             .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),

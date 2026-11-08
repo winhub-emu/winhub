@@ -233,21 +233,6 @@ val themePresets: List<ThemePreset> = listOf(
         line             = Color(0xFF2C2024),
         line2            = Color(0xFF3A2A2F),
     ),
-    // ── Cozy: warm charcoal with raised surfaces and a soft mint accent. Cards read from the
-    //    surface step alone, so the Deck needs no outlines to separate them.
-    ThemePreset(
-        name             = "Cozy",
-        background       = Color(0xFF18161B),
-        surface          = Color(0xFF221F27),
-        surfaceVariant   = Color(0xFF2C2933),
-        primary          = Color(0xFF86D6C4),
-        onPrimary        = Color(0xFF0F2A25),
-        onSurface        = Color(0xFFE8E3DD),
-        onBackground     = Color(0xFFF3EFE9),
-        onSurfaceVariant = Color(0xFFAAA3AD),
-        line             = Color(0xFF312F36),
-        line2            = Color(0xFF3C3942),
-    ),
     // Hidden slot backing the legacy custom-accent picker. Not listed in the Appearance picker.
     ThemePreset(
         name          = "Custom",
@@ -264,7 +249,7 @@ val CUSTOM_PRESET_INDEX = themePresets.size - 1
 
 // The app's default theme. Resolved by name so reordering or adding presets above it can never
 // silently point the app at a different colour scheme.
-val DEFAULT_PRESET_INDEX = themePresets.indexOfFirst { it.name == "Cozy" }.coerceAtLeast(0)
+val DEFAULT_PRESET_INDEX = themePresets.indexOfFirst { it.name == "Marcescence" }.coerceAtLeast(0)
 
-/** The eight user-selectable themes (the hidden Custom slot is excluded). */
+/** The seven user-selectable themes (the hidden Custom slot is excluded). */
 val selectableThemePresets: List<ThemePreset> = themePresets.filter { it.name != "Custom" }

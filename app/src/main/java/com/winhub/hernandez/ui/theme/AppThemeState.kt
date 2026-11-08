@@ -121,16 +121,6 @@ object AppThemeState {
             themePrefs.edit().putBoolean("preset_schema_v2", true).apply()
         }
 
-        // Cozy went in ahead of Custom, moving Custom from index 7 to 8. Anyone already settled on
-        // the old Custom slot is remapped; this runs before the v3 reset so a fresh install's
-        // default (Cozy, index 7) is never mistaken for it.
-        if (!themePrefs.getBoolean("preset_schema_v4", false)) {
-            if (themePrefs.getInt("preset_index", 1) == 7 && CUSTOM_PRESET_INDEX != 7) {
-                themePrefs.edit().putInt("preset_index", CUSTOM_PRESET_INDEX).apply()
-            }
-            themePrefs.edit().putBoolean("preset_schema_v4", true).apply()
-        }
-
         // One-time reset: the preset list was rebuilt for the seven-theme picker, so every old
         // index (which pointed into the previous, much longer list) is meaningless. Start those
         // users on Marcescence; afterwards the picker's choice persists normally.

@@ -211,13 +211,13 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "Add-ons",
+                        text = "Contents",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeckPalette.onBackground,
                     )
                     Text(
-                        text = "${installedKeys.size} installed · $archived archived",
+                        text = "${installedKeys.size} installed - $archived archived",
                         fontSize = 13.sp,
                         color = DeckPalette.onSurfaceVariant,
                     )
@@ -342,6 +342,7 @@ internal fun DeckIconAction(
         modifier = Modifier
             .size(44.dp)
             .clip(RoundedCornerShape(11.dp))
+            .border(1.dp, DeckPalette.line, RoundedCornerShape(11.dp))
             .deckRing(interaction, RoundedCornerShape(11.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
     ) {
@@ -362,10 +363,15 @@ private fun DeckAction(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .heightIn(min = 44.dp)
-            .deckRing(interaction, RoundedCornerShape(24.dp))
+            .deckRing(interaction, RoundedCornerShape(12.dp))
             .alpha(if (enabled) 1f else 0.42f)
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (primary) DeckPalette.primary else DeckPalette.surfaceVariant)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (primary) DeckPalette.primary else DeckPalette.surface)
+            .border(
+                1.dp,
+                if (primary) DeckPalette.primary else DeckPalette.line,
+                RoundedCornerShape(12.dp),
+            )
             .then(
                 if (enabled) Modifier.clickable(
                     interactionSource = interaction,
@@ -393,9 +399,10 @@ private fun DeckDangerAction(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(DeckPalette.error.copy(alpha = 0.16f))
-            .deckRing(interaction, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(DeckPalette.error.copy(alpha = 0.12f))
+            .border(1.dp, DeckPalette.error, RoundedCornerShape(12.dp))
+            .deckRing(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
@@ -406,14 +413,15 @@ private fun DeckDangerAction(text: String, onClick: () -> Unit) {
 @Composable
 internal fun DeckBadge(text: String, color: Color) {
     Text(
-        text = text,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
+        text = text.uppercase(),
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.6.sp,
         color = color,
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
     )
 }
 
@@ -425,9 +433,10 @@ private fun DeckSectionLabel(title: String, count: Int? = null) {
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
     ) {
         Text(
-            text = title,
-            fontSize = 14.sp,
+            text = title.uppercase(),
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.5.sp,
             color = DeckPalette.onSurfaceVariant,
         )
         if (count != null) {
@@ -645,7 +654,7 @@ internal fun DeckSearchField(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val edit = rememberDeckEditState()
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(12.dp)
     Box(Modifier.fillMaxWidth()) {
         BasicTextField(
             value = query,
@@ -729,6 +738,7 @@ internal fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit
             .heightIn(min = 72.dp)
             .clip(shape)
             .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(10.dp),
     ) {
@@ -736,7 +746,7 @@ internal fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(DeckPalette.primary.copy(alpha = 0.14f)),
         ) {
             Icon(category.icon, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(19.dp))
@@ -796,18 +806,19 @@ private fun DeckCatalogCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(9.dp))
                     .background(
-                        if (item.isDriver) DeckPalette.primary.copy(alpha = 0.16f)
+                        if (item.isDriver) DeckPalette.primary.copy(alpha = 0.14f)
                         else DeckPalette.surfaceVariant,
                     ),
             ) {
@@ -815,16 +826,17 @@ private fun DeckCatalogCard(
                     deckContentTypeIcon(item.type),
                     contentDescription = null,
                     tint = if (item.isDriver) DeckPalette.primary else DeckPalette.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 if (showSource) {
                     Text(
-                        text = item.sourceName,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = item.sourceName.uppercase(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
                         color = DeckPalette.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -832,8 +844,8 @@ private fun DeckCatalogCard(
                 }
                 Text(
                     text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
                     color = DeckPalette.onBackground,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -949,13 +961,14 @@ private fun DeckSourceCard(
     onMenu: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(14.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, shape)
             .deckRing(interaction, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
             .padding(10.dp),
@@ -1126,12 +1139,13 @@ private fun DeckSavedFolder(
     onDelete: (ComponentLibrary.SavedFile) -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(DeckPalette.surface),
+            .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, shape),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1145,7 +1159,7 @@ private fun DeckSavedFolder(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(38.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(DeckPalette.primary.copy(alpha = 0.12f)),
             ) {
                 Icon(
@@ -1392,15 +1406,16 @@ private fun DeckInstalledRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
             .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(38.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(DeckPalette.primary.copy(alpha = 0.12f)),
         ) {
             Icon(icon, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(20.dp))
@@ -1441,14 +1456,15 @@ private fun DeckInstalledComponents(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(DeckPalette.surface),
+            .clip(RoundedCornerShape(14.dp))
+            .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp)),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                    .deckRing(interaction, RoundedCornerShape(22.dp))
+                    .deckRing(interaction, RoundedCornerShape(14.dp))
                     .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
                 .padding(14.dp),
         ) {
@@ -1456,7 +1472,7 @@ private fun DeckInstalledComponents(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(38.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(DeckPalette.primary.copy(alpha = 0.12f)),
             ) {
                 Icon(

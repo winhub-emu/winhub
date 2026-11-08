@@ -108,7 +108,8 @@ internal fun DeckInstallShell(
                 .fillMaxWidth()
                 .height(210.dp)
                 .clip(shape)
-                .background(Deck.surface),
+                .background(Deck.surface)
+                .border(1.dp, Deck.line, shape),
         ) {
             if (!art.isNullOrEmpty()) {
                 AsyncImage(

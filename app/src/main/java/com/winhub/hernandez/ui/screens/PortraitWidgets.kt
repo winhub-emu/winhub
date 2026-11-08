@@ -153,7 +153,8 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
                         .then(if (equal) Modifier.weight(1f) else Modifier)
                         .height(48.dp)
                         .clip(shape)
-                        .background(if (on) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
+                        .background(if (on) Deck.primary.copy(alpha = 0.18f) else Deck.surface)
+                        .then(if (on) Modifier.border(1.5.dp, accent, shape) else Modifier.border(1.dp, Deck.line, shape))
                         .clickable { onSelect(i) }
                         .padding(horizontal = 16.dp),
                 ) {
@@ -169,6 +170,8 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        PortraitTabDivider()
         Spacer(Modifier.height(10.dp))
     }
 }
@@ -197,29 +200,33 @@ internal fun DeckPortraitTabStrip(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(cardShape),
+            .clip(cardShape)
+            .background(Deck.surface)
+            .border(1.dp, Deck.line, cardShape),
     ) {
         itemsIndexed(labels) { i, label ->
             val on = i == selected
             val source = remember { MutableInteractionSource() }
-            val shape = RoundedCornerShape(24.dp)
-            val tint = if (on) Deck.primary else Deck.onSurfaceVariant
+            val shape = RoundedCornerShape(12.dp)
+            val tint = if (on) Deck.onPrimary else Deck.onSurfaceVariant
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .clip(shape)
-                    .background(if (on) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
+                    .background(if (on) Deck.primary else Color.Transparent)
+                    .then(if (on) Modifier.border(1.5.dp, accent, shape) else Modifier)
                     .clickable(interactionSource = source, indication = null) { if (!on) onSelect(i) }
                     .heightIn(min = 48.dp)
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 14.dp),
             ) {
                 icons.getOrNull(i)?.let { Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
-                Text(label, color = tint, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
+                Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, maxLines = 1)
             }
         }
     }
     Spacer(Modifier.height(8.dp))
+    PortraitTabDivider()
     }
 }
 
@@ -262,6 +269,6 @@ internal fun rememberPortraitStrip(): Boolean =
 internal fun PortraitScreenTitle(title: String, subtitle: String? = null, horizontal: androidx.compose.ui.unit.Dp = 16.dp) {
     Column(Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = 8.dp, bottom = 10.dp)) {
         Text(title, color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        if (subtitle != null) Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        if (subtitle != null) Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 13.sp)
     }
 }

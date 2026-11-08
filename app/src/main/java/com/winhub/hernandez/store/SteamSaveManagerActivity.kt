@@ -499,7 +499,7 @@ internal fun SaveManagerScreen(
             else -> "Settings"
         }
 
-        if (deckMode) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Saves", "Back up and move your progress")
+        if (deckMode) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Saves")
         if (deckMode && sectionLayout == "tabs") {
             // Deck sections, same language as the Stores strip: landing on a pill selects its tab.
             if (com.winhub.hernandez.ui.screens.LocalDeckPortrait.current) {
@@ -1236,8 +1236,9 @@ private fun CustomSaveRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .deckDragItem(dragKey)
             .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
@@ -1246,8 +1247,8 @@ private fun CustomSaveRow(
         Box(
             modifier = Modifier
                 .size(width = 44.dp, height = 60.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center,
         ) {
             if (bmp != null) {
@@ -1425,8 +1426,9 @@ private fun EpicSaveRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             // Tapping the card opens the Epic store detail page. The Up/Down IconButtons keep their own
             // click handlers so they stay independently tappable (not swallowed by the card click).
             .deckDragItem(dragKey)
@@ -1438,8 +1440,8 @@ private fun EpicSaveRow(
         Box(
             modifier = Modifier
                 .size(width = 44.dp, height = 60.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -1719,8 +1721,9 @@ private fun GogSaveRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             // Tapping the card opens the GOG store detail page. The Up/Down IconButtons keep their own
             // click handlers so they stay independently tappable (not swallowed by the card click).
             .deckDragItem(dragKey)
@@ -1732,8 +1735,8 @@ private fun GogSaveRow(
         Box(
             modifier = Modifier
                 .size(width = 44.dp, height = 60.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

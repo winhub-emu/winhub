@@ -606,7 +606,7 @@ private fun LogTabs(selected: LogTab, gameCount: Int, onSelect: (LogTab) -> Unit
     ) {
         LogTab.values().forEach { t ->
             val sel = t == selected
-            val shape = RoundedCornerShape(20.dp)
+            val shape = RoundedCornerShape(12.dp)
             val interaction = remember { MutableInteractionSource() }
             Box(
                 contentAlignment = Alignment.Center,
@@ -671,7 +671,7 @@ private fun PrefSwitchRow(
 
 @Composable
 private fun LogInfoDot(onClick: () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(10.dp)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -695,7 +695,7 @@ private fun LogAction(
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(12.dp)
     val primary = kind == LogActionKind.PRIMARY
     Box(
         contentAlignment = Alignment.Center,
@@ -741,6 +741,7 @@ private fun DeckGameLogCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
+            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -748,8 +749,9 @@ private fun DeckGameLogCard(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(DeckPalette.surfaceVariant),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(DeckPalette.surfaceVariant)
+                    .border(1.dp, DeckPalette.line2, RoundedCornerShape(14.dp)),
             ) {
                 Icon(
                     when {
@@ -783,7 +785,7 @@ private fun DeckGameLogCard(
                     fontSize = 12.sp,
                 )
             }
-            val shape = RoundedCornerShape(16.dp)
+            val shape = RoundedCornerShape(10.dp)
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -814,6 +816,7 @@ private fun DeckGameLogCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(DeckPalette.background)
+                            .border(1.dp, DeckPalette.line, RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }

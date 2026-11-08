@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +21,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,7 +54,6 @@ private val portraitStores = listOf(
 @Composable
 internal fun PortraitStoresScreen() {
     val context = LocalContext.current
-    val signedIn = remember { portraitStores.associate { it.screen to deckSignedIn(context, it.screen) } }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -64,57 +61,46 @@ internal fun PortraitStoresScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column {
-            Text("Stores", color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("Your game libraries", color = Deck.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        }
-        portraitStores.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                pair.forEach { store ->
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Deck.surface)
-                            .clickable { context.startActivity(Intent(context, store.activity)) }
-                            .padding(16.dp),
-                    ) {
-                        // The same logo and brand colours as the landscape store picker.
-                        val logo = rememberDeckLogo(deckStoreLogo(store.screen))
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Brush.verticalGradient(deckStoreBrand(store.screen))),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (logo != null) {
-                                Image(
-                                    bitmap = logo,
-                                    contentDescription = store.name,
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxSize(0.8f),
-                                )
-                            } else {
-                                Text(store.name.take(1).uppercase(), color = Deck.onBackground, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                            }
-                        }
-                        Column {
-                            Text(store.name, color = Deck.onBackground, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                if (signedIn[store.screen] == true) "Signed in" else "Sign in",
-                                color = Deck.onSurfaceVariant,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                        }
+        Text("Stores", color = Deck.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        portraitStores.forEach { store ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(76.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Deck.surface)
+                    .clickable { context.startActivity(Intent(context, store.activity)) }
+                    .padding(horizontal = 14.dp),
+            ) {
+                // The same logo and brand colours as the landscape store picker.
+                val logo = rememberDeckLogo(deckStoreLogo(store.screen))
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Brush.verticalGradient(deckStoreBrand(store.screen))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (logo != null) {
+                        Image(
+                            bitmap = logo,
+                            contentDescription = store.name,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize(0.8f),
+                        )
+                    } else {
+                        Text(store.name.take(1).uppercase(), color = Deck.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Black)
                     }
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(store.name, color = Deck.onBackground, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(store.blurb, color = Deck.onSurfaceVariant, fontSize = 14.sp)
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Deck.onSurfaceVariant)
             }
         }
         PortraitFeaturedOnSteam()
-        DeckDownloadingNow()
     }
 }

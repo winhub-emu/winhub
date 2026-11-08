@@ -247,6 +247,7 @@ internal fun DeckSteamInstall(target: DeckSteamTarget, onBack: () -> Unit, onOpe
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Deck.surface)
+                    .border(1.dp, Deck.line, RoundedCornerShape(16.dp))
                     .padding(18.dp),
             ) {
                 Text(

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,7 +63,7 @@ internal class DeckConsoleItem(
     val onClick: () -> Unit,
 )
 
-private val consoleRowH = 64.dp
+private val consoleRowH = 52.dp
 private val consoleRowGap = 6.dp
 
 /**
@@ -129,30 +128,39 @@ internal fun DeckConsoleGameMenu(
                     }
                 },
         ) {
-            // A panel sliding in from the right edge; a tap on the dim area closes it.
-            val panelShape = RoundedCornerShape(topStart = 30.dp, bottomStart = 30.dp)
+            // A centered rounded card instead of a full-screen takeover; a tap on the dim area closes it.
+            val cardShape = RoundedCornerShape(24.dp)
             Column(
                 Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(340.dp)
-                    .clip(panelShape)
-                    .background(DeckPalette.surface)
-                    // Swallow taps on the panel so only the dim area dismisses.
+                    .align(Alignment.Center)
+                    .padding(vertical = 12.dp)
+                    .widthIn(max = 460.dp)
+                    .fillMaxWidth(0.8f)
+                    .clip(cardShape)
+                    .background(Color(0xFF12151B))
+                    .border(1.dp, DeckPalette.line2, cardShape)
+                    // Swallow taps on the card so only the dim area dismisses.
                     .pointerInput(Unit) { detectTapGestures { } },
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "Game menu",
-                    color = DeckPalette.onBackground,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
+                    title,
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    lineHeight = 25.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 16.dp, start = 20.dp, end = 20.dp),
                 )
                 Text(
-                    title,
+                    subtitle.uppercase(),
                     color = DeckPalette.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp, start = 20.dp, end = 20.dp),
@@ -160,13 +168,19 @@ internal fun DeckConsoleGameMenu(
                 LazyColumn(
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(consoleRowGap),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                    modifier = Modifier.weight(1f, fill = true),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    modifier = Modifier.weight(1f, fill = false),
                 ) {
                     itemsIndexed(items) { i, item ->
                         DeckConsoleRow(item, focused = i == sel, onTap = { sel = i; choose(i) })
                     }
                 }
+                Text(
+                    "↑↓  Navigate      A  Select      B  Back",
+                    color = DeckPalette.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
             }
         }
     }
@@ -174,10 +188,15 @@ internal fun DeckConsoleGameMenu(
 
 @Composable
 private fun DeckConsoleRow(item: DeckConsoleItem, focused: Boolean, onTap: () -> Unit) {
-    val scale by animateFloatAsState(if (focused) 1.02f else 1f, tween(150), label = "consoleRowScale")
-    val isPlay = item.label == "Play"
+    val scale by animateFloatAsState(if (focused) 1.04f else 1f, tween(150), label = "consoleRowScale")
     val accent = if (item.danger) DeckPalette.error else DeckPalette.primary
-    val shape = RoundedCornerShape(if (isPlay) 32.dp else 20.dp)
+    val content = when {
+        focused && item.danger -> Color.Black
+        focused -> DeckPalette.onPrimary
+        item.danger -> DeckPalette.error
+        else -> Color.White
+    }
+    val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier
             .fillMaxWidth()
@@ -185,50 +204,23 @@ private fun DeckConsoleRow(item: DeckConsoleItem, focused: Boolean, onTap: () ->
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
             .background(
-                when {
-                    isPlay -> DeckPalette.primary
-                    focused -> accent.copy(alpha = 0.16f)
-                    else -> Color.Transparent
-                },
+                if (focused) Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0.7f)))
+                else Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.04f))),
             )
-            .then(if (focused) Modifier.border(2.dp, accent, shape) else Modifier)
+            .border(if (focused) 2.dp else 1.dp, if (focused) Color.White.copy(alpha = 0.85f) else DeckPalette.line, shape)
             .pointerInput(onTap) { detectTapGestures { onTap() } }
-            .padding(horizontal = 10.dp),
-        horizontalArrangement = if (isPlay) Arrangement.Center else Arrangement.Start,
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (isPlay) {
-            Icon(item.icon, contentDescription = null, tint = DeckPalette.onPrimary, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(item.label, color = DeckPalette.onPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        } else {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.16f)),
-            ) {
-                Icon(item.icon, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    item.label,
-                    color = if (item.danger) DeckPalette.error else DeckPalette.onBackground,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                menuHint(item.label)?.let { hint ->
-                    Text(
-                        hint,
-                        color = DeckPalette.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        lineHeight = 15.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
+        Icon(item.icon, contentDescription = null, tint = content, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(
+            item.label,
+            color = content,
+            fontSize = 16.sp,
+            fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
