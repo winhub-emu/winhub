@@ -5,7 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.graphics.Color as AColor
 import android.net.Uri
 import android.os.Build
 import android.view.ViewGroup
@@ -13,13 +12,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.winhub.hernandez.ui.components.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,8 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -46,8 +49,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Visibility
-import com.winhub.hernandez.ui.components.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -66,7 +67,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +76,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.sp
@@ -134,8 +135,11 @@ fun InputControlsScreen() {
     var showControllerTest by remember { mutableStateOf(false) }
     // Tabbed redesign: the Profile bar's ⋯ overflow (profile CRUD + Share / Transfer).
     var showOverflow by remember { mutableStateOf(false) }
-    // Selected tab (0=On-Screen, 1=Controller, 2=Assign, 3=Device). rememberSaveable so rotation keeps it.
-    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    // Section (0=On-Screen, 1=Controller, 2=Assign, 3=Device) lives in the Deck tab host so the shell's
+    // L1/R1 and the rail drive the same index.
+    val deckTabs = LocalDeckTabs.current
+    LaunchedEffect(deckTabs) { deckTabs.bind(4) }
+    val selectedTab = deckTabs.index
     // Extras — content badges for the selected profile (recomputed in refreshControllers()).
     var profileHasLayout by remember { mutableStateOf(false) }
     var profileBinds by remember { mutableStateOf(0) }
@@ -543,414 +547,422 @@ fun InputControlsScreen() {
         )
     }
 
-    // ── Tabbed layout ───────────────────────────────────────────────
-    // Profile bar + tab row stay pinned at the top; only the selected tab's content scrolls.
-    Column(
+    // ── Deck layout ─────────────────────────────────────────────────
+    // Header and rail stay put; only the section body scrolls. The shell's L1/R1 and the rail both
+    // drive deckTabs, so a pad and a finger land on the same section.
+    val sections = listOf("On-Screen", "Controller", "Assign", "Device")
+    val displayText = if (selectedProfileIdx > 0 && selectedProfileIdx - 1 < profiles.size)
+        profiles[selectedProfileIdx - 1].getName() else "No profile selected"
+    val hasProfile = currentProfile != null
+
+    // Shared by the Edit Layout button AND tapping the preview.
+    val openLayoutEditor: () -> Unit = {
+        val profile = currentProfile
+        if (profile != null) {
+            val intent = Intent(context, ControlsEditorActivity::class.java)
+            intent.putExtra("profile_id", profile.id)
+            context.startActivity(intent)
+            (context as? Activity)?.overridePendingTransition(
+                com.winhub.hernandez.R.anim.slide_in_up,
+                com.winhub.hernandez.R.anim.slide_out_down
+            )
+        } else AppUtils.showToast(context, R.string.no_profile_selected)
+    }
+    val openBindings: (String) -> Unit = { controllerId ->
+        val profile = currentProfile
+        if (profile != null) {
+            val intent = Intent(context, ExternalControllerBindingsActivity::class.java)
+            intent.putExtra("profile_id", profile.id)
+            intent.putExtra("controller_id", controllerId)
+            context.startActivity(intent)
+            (context as? Activity)?.overridePendingTransition(
+                com.winhub.hernandez.R.anim.slide_in_up, com.winhub.hernandez.R.anim.slide_out_down
+            )
+        } else AppUtils.showToast(context, R.string.no_profile_selected)
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .deckPageBackground(),
     ) {
-        // ── Pinned Profile bar ──────────────────────────────────────
-        val displayText = if (selectedProfileIdx > 0 && selectedProfileIdx - 1 < profiles.size)
-            profiles[selectedProfileIdx - 1].getName() else "-- Select Profile --"
-        val hasProfile = currentProfile != null
-        Box {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(14.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-                    .clickable { showProfileDropdown = true }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Accent avatar with the selected profile's initial.
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 22.dp, vertical = 18.dp),
+        ) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
                     Text(
-                        if (hasProfile) displayText.trim().take(1).uppercase() else "?",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        text = "Controls",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeckPalette.onBackground,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "How you play",
+                        fontSize = 13.sp,
+                        color = DeckPalette.onSurfaceVariant,
                     )
                 }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(displayText, color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    // Content badges: tell you what the selected profile HOLDS before you act on it.
-                    if (hasProfile && (profileHasLayout || profileBinds > 0)) {
-                        Spacer(Modifier.height(3.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (profileHasLayout) ProfileBadge(
-                                "🖐 Layout",
-                                fg = MaterialTheme.colorScheme.primary,
-                                bg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                            )
-                            if (profileBinds > 0) ProfileBadge(
-                                "🎮 $profileBinds binds",
-                                // green = "has physical binds", echoing the connected-pad green used below.
-                                fg = Color(0xFF7FCE82),
-                                bg = Color(0xFF57B85A).copy(alpha = 0.16f),
-                            )
-                        }
+                DeckButton("New profile") { promptCreateName = true }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            DeckRailLayout(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                rail = {
+                    if (LocalDeckPortrait.current) {
+                        DeckPortraitChips(sections, selectedTab) { deckTabs.select(it) }
+                    } else {
+                        DeckEditorCategoryRail(
+                            labels = sections,
+                            selected = selectedTab,
+                            onSelect = { deckTabs.select(it) },
+                            padFocus = false,
+                            modifier = Modifier.width(200.dp).fillMaxHeight(),
+                        )
+                        Spacer(Modifier.width(16.dp))
                     }
-                }
-                IconButton(onClick = { showProfileDropdown = true }) {
-                    Icon(Icons.Default.ArrowDropDown, "Select profile", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                IconButton(onClick = { showOverflow = true }) {
-                    Icon(Icons.Default.MoreVert, "Profile actions", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-
-            // Profile picker (▾).
-            DropdownMenu(
-                expanded = showProfileDropdown,
-                onDismissRequest = { showProfileDropdown = false },
-                modifier = Modifier.outlinedMenuCard(),
-            ) {
-                DropdownMenuItem(text = { Text("-- Select Profile --") }, onClick = {
-                    selectedProfileIdx = 0; loadProfile(0); showProfileDropdown = false
-                })
-                profiles.forEachIndexed { i, p ->
-                    MenuItemDivider()
-                    DropdownMenuItem(text = { Text(p.getName()) }, onClick = {
-                        selectedProfileIdx = i + 1; loadProfile(i + 1); showProfileDropdown = false
-                    })
-                }
-            }
-
-            // Overflow (⋯): profile CRUD (create/rename/duplicate/delete) + Share / Transfer group.
-            DropdownMenu(
-                expanded = showOverflow,
-                onDismissRequest = { showOverflow = false },
-                modifier = Modifier.outlinedMenuCard(),
-            ) {
-                DropdownMenuItem(
-                    text = { Text("New profile") },
-                    leadingIcon = { Icon(Icons.Default.Add, null) },
-                    onClick = { showOverflow = false; promptCreateName = true },
-                )
-                MenuItemDivider()
-                DropdownMenuItem(
-                    text = { Text("Rename") },
-                    leadingIcon = { Icon(Icons.Default.Edit, null) },
-                    onClick = {
-                        showOverflow = false
-                        if (currentProfile != null) promptRenameOldName = currentProfile?.getName()
-                        else AppUtils.showToast(context, R.string.no_profile_selected)
-                    },
-                )
-                MenuItemDivider()
-                DropdownMenuItem(
-                    text = { Text("Duplicate") },
-                    leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
-                    onClick = {
-                        showOverflow = false
-                        val profile = currentProfile
-                        if (profile != null) {
-                            pendingConfirmation = R.string.do_you_want_to_duplicate_this_profile to {
-                                currentProfile = manager.duplicateProfile(profile)
-                                refreshProfiles()
-                                refreshControllers()
-                            }
-                        } else AppUtils.showToast(context, R.string.no_profile_selected)
-                    },
-                )
-                MenuItemDivider()
-                DropdownMenuItem(
-                    text = { Text("Delete") },
-                    leadingIcon = { Icon(Icons.Default.Delete, null) },
-                    onClick = {
-                        showOverflow = false
-                        val profile = currentProfile
-                        if (profile != null) {
-                            pendingConfirmation = R.string.do_you_want_to_remove_this_profile to {
-                                manager.removeProfile(profile)
-                                currentProfile = null
-                                refreshProfiles()
-                                refreshControllers()
-                            }
-                        } else AppUtils.showToast(context, R.string.no_profile_selected)
-                    },
-                )
-                MenuItemDivider()
-                // Share / Transfer group header (disabled label, matches the app's grouped-menu idiom).
-                DropdownMenuItem(
-                    enabled = false,
-                    text = {
-                        Text("Share / Transfer", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    onClick = {},
-                )
-                MenuItemDivider()
-                // Arrow direction reads as data flow relative to the app: import = INTO the app (down),
-                // export = OUT of the app (up).
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.import_control_profile)) },
-                    leadingIcon = { Icon(Icons.Default.FileDownload, null) },
-                    onClick = { showOverflow = false; showImportChooser = true },
-                )
-                MenuItemDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.export_control_profile_icpx)) },
-                    leadingIcon = { Icon(Icons.Default.FileUpload, null) },
-                    onClick = {
-                        showOverflow = false
-                        if (currentProfile != null) {
-                            val exported = manager.exportProfile(currentProfile!!)
-                            if (exported != null) AppUtils.showToast(context,
-                                "${context.getString(R.string.profile_exported_to)} ${exported.path}")
-                        } else AppUtils.showToast(context, R.string.no_profile_selected)
-                    },
-                )
-                MenuItemDivider()
-                // Legacy ICP export (was a tooltip'd OutlinedButton; the tooltip copy now reads as the item label).
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.export_control_profile_icp_legacy)) },
-                    leadingIcon = { Icon(Icons.Default.FileUpload, null) },
-                    onClick = {
-                        showOverflow = false
-                        if (currentProfile != null) {
-                            val exported = manager.exportLegacyProfile(currentProfile!!)
-                            if (exported != null) AppUtils.showToast(context,
-                                "${context.getString(R.string.profile_exported_to)} ${exported.path}")
-                        } else AppUtils.showToast(context, R.string.no_profile_selected)
-                    },
-                )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Segmented tab row (On-Screen · Controller · Assign · Device) ──
-        InputControlsTabs(selectedTab) { selectedTab = it }
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Tab content (scrolls independently; key() resets scroll on tab switch) ──
-        // Box carries the weight (valid in the outer ColumnScope); key() swaps the scroll state per tab.
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-          key(selectedTab) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                when (selectedTab) {
-                    // ── On-Screen: the touch overlay layout ──────────────
-                    0 -> {
-                        // Shared by the Edit Layout button AND tapping the preview.
-                        val openLayoutEditor: () -> Unit = {
-                            if (currentProfile != null) {
-                                val intent = Intent(context, ControlsEditorActivity::class.java)
-                                intent.putExtra("profile_id", currentProfile!!.id)
-                                context.startActivity(intent)
-                                (context as? Activity)?.overridePendingTransition(
-                                    com.winhub.hernandez.R.anim.slide_in_up,
-                                    com.winhub.hernandez.R.anim.slide_out_down
-                                )
-                            } else AppUtils.showToast(context, R.string.no_profile_selected)
-                        }
-                        Text("On-Screen Controls", color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Touch overlay drawn on top of the game.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                        Button(
-                            onClick = openLayoutEditor,
-                            // intentional: success green signals the primary "go/edit" action; kept off-theme by design
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Edit Layout", color = Color.White) } // intentional: white kept for contrast on the green fill
-
-                        // Live read-only preview — only when the selected profile actually has an overlay.
-                        val cp = currentProfile
-                        if (cp != null && profileHasLayout) {
-                            Text("Preview — your overlay on the game",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                            OnScreenLayoutPreview(profileId = cp.id, refreshKey = layoutRev, onOpenEditor = openLayoutEditor)
-                        } else if (cp != null) {
-                            Text("No on-screen layout — tap Edit Layout to add one.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                        }
-                    }
-
-                    // ── Controller: physical pads (test/bind + Default + per-pad) ──
-                    1 -> {
-                        // Test controller: opens the live pad-picture test (button/stick/dpad/trigger highlight +
-                        // verified checklist + native rumble Identify). No profile needed — it just reads the pad.
-                        Box(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
-                                .clickable { showControllerTest = true }
-                                .padding(14.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Gamepad, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text("Test and Bind Physical Controllers", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                    Text("Visually remap buttons + verify every input registers", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f), fontSize = 12.sp)
-                                }
-                            }
-                        }
-
-                        Text("Connected controllers", color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-
-                        // #333: the Default / Any Controller binding template — newly connected controllers inherit
-                        // these mappings automatically, so a fresh controller is never blank. Always shown.
-                        Box(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(8.dp))
-                                .clickable {
-                                    if (currentProfile != null) {
-                                        val intent = Intent(context, ExternalControllerBindingsActivity::class.java)
-                                        intent.putExtra("profile_id", currentProfile!!.id)
-                                        intent.putExtra("controller_id", com.winhub.hernandez.inputcontrols.ControlsProfile.DEFAULT_CONTROLLER_ID)
-                                        context.startActivity(intent)
-                                        (context as? Activity)?.overridePendingTransition(
-                                            com.winhub.hernandez.R.anim.slide_in_up, com.winhub.hernandez.R.anim.slide_out_down
-                                        )
-                                    } else AppUtils.showToast(context, R.string.no_profile_selected)
-                                }.padding(12.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Gamepad, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text("Default / Any Controller", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
-                                    Text("New controllers inherit these bindings", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                                }
-                            }
-                        }
-
-                        if (controllers.isEmpty()) {
-                            Text("No items to display", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp))
-                        } else {
-                            for (controller in controllers) {
-                                val bindingsCount = controller.getControllerBindingCount()
-                                // intentional: connected (green) / disconnected (red) are distinct status colors, kept off-theme
-                                val tintColor = if (controller.isConnected()) Color(0xFF4CAF50) else Color(0xFFE57373)
-                                val accentColor = AColor.parseColor("#4CAF50")
-                                // Extras — battery (API 29+) + own-vibrator test rumble for a connected pad.
-                                val padDevice = if (controller.isConnected())
-                                    android.view.InputDevice.getDevice(controller.getDeviceId()) else null
-                                var padBattery = -1
-                                if (padDevice != null && android.os.Build.VERSION.SDK_INT >= 29) {
-                                    try {
-                                        val bs = padDevice.batteryState
-                                        if (bs != null && bs.isPresent) {
-                                            val cap = bs.capacity
-                                            if (cap >= 0f) padBattery = Math.round(cap * 100f)
-                                        }
-                                    } catch (_: Throwable) {}
-                                }
-                                val padHasVibrator = padDevice?.vibrator?.hasVibrator() == true
-
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(8.dp)).clickable {
-                                        if (currentProfile != null) {
-                                            val intent = Intent(context, ExternalControllerBindingsActivity::class.java)
-                                            intent.putExtra("profile_id", currentProfile!!.id)
-                                            intent.putExtra("controller_id", controller.getId())
-                                            context.startActivity(intent)
-                                            (context as? Activity)?.overridePendingTransition(
-                                                com.winhub.hernandez.R.anim.slide_in_up,
-                                                com.winhub.hernandez.R.anim.slide_out_down
-                                            )
-                                        } else AppUtils.showToast(context, R.string.no_profile_selected)
-                                    }.padding(12.dp)
+                },
+            ) { bodyModifier ->
+                // key() swaps the scroll state per section so each opens at the top.
+                key(selectedTab) {
+                    Column(
+                        modifier = bodyModifier
+                            .focusGroup()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        DeckGroup("Profile") {
+                            Box {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Gamepad, null, tint = tintColor, modifier = Modifier.size(32.dp))
-                                        Spacer(Modifier.width(12.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(controller.getName(), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
-                                            Text(
-                                                if (padBattery >= 0) "$bindingsCount Bindings · 🔋 $padBattery%" else "$bindingsCount Bindings",
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                                        }
-                                        // Extras — test rumble: pulse this pad's own vibrator (no game running at rest).
-                                        if (padHasVibrator && padDevice != null) {
-                                            IconButton(onClick = { pulsePad(padDevice) }) {
-                                                Icon(Icons.Default.Vibration, "Test rumble", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(DeckPalette.primary),
+                                    ) {
+                                        Text(
+                                            if (hasProfile) displayText.trim().take(1).uppercase() else "?",
+                                            color = DeckPalette.onPrimary,
+                                            fontSize = 17.sp, fontWeight = FontWeight.ExtraBold,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            displayText, color = DeckPalette.onBackground,
+                                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        )
+                                        // Badges say what the profile HOLDS before you act on it.
+                                        if (hasProfile && (profileHasLayout || profileBinds > 0)) {
+                                            Spacer(Modifier.height(4.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                if (profileHasLayout) ProfileBadge(
+                                                    "Layout",
+                                                    fg = DeckPalette.primary,
+                                                    bg = DeckPalette.primary.copy(alpha = 0.15f),
+                                                )
+                                                if (profileBinds > 0) ProfileBadge(
+                                                    "$profileBinds binds",
+                                                    fg = DeckPalette.good,
+                                                    bg = DeckPalette.good.copy(alpha = 0.15f),
+                                                )
                                             }
                                         }
-                                        // #333: copy bindings from the Default template or another controller onto this one.
-                                        Box {
-                                            IconButton(onClick = { copyMenuForId = controller.getId() }) {
-                                                Icon(Icons.Default.ContentCopy, "Copy bindings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                            DropdownMenu(
-                                                expanded = copyMenuForId == controller.getId(),
-                                                onDismissRequest = { copyMenuForId = null },
-                                                // #333 polish: match the shared outlined-menu-card look.
-                                                modifier = Modifier.outlinedMenuCard()
-                                            ) {
-                                                DropdownMenuItem(text = { Text("From Default / Any Controller") }, onClick = {
-                                                    // #333: reload from disk first (the editor saves to a separate profile
-                                                    // instance), and never apply an EMPTY source — that would wipe the
-                                                    // target's bindings.
-                                                    currentProfile?.loadControllers()
-                                                    val src = currentProfile?.getController(com.winhub.hernandez.inputcontrols.ControlsProfile.DEFAULT_CONTROLLER_ID)
-                                                    if (src != null && src.getControllerBindingCount() > 0) {
-                                                        val tgt = currentProfile?.addController(controller.getId())
-                                                        if (tgt != null) { tgt.copyBindingsFrom(src); currentProfile?.save(); refreshControllers() }
-                                                    }
-                                                    copyMenuForId = null
-                                                })
-                                                for (other in controllers) {
-                                                    if (other.getId() == controller.getId() || other.getControllerBindingCount() == 0) continue
-                                                    MenuItemDivider()
-                                                    DropdownMenuItem(text = { Text("From ${other.getName()}") }, onClick = {
-                                                        currentProfile?.loadControllers()
-                                                        val src = currentProfile?.getController(other.getId())
-                                                        if (src != null && src.getControllerBindingCount() > 0) {
-                                                            val tgt = currentProfile?.addController(controller.getId())
-                                                            if (tgt != null) { tgt.copyBindingsFrom(src); currentProfile?.save(); refreshControllers() }
-                                                        }
-                                                        copyMenuForId = null
-                                                    })
-                                                }
-                                            }
-                                        }
-                                        if (bindingsCount > 0) {
-                                            IconButton(onClick = {
-                                                pendingConfirmation = R.string.do_you_want_to_remove_this_controller to {
-                                                    currentProfile?.removeController(controller)
-                                                    currentProfile?.save()
+                                    }
+                                    DeckValueChip("Switch", showProfileDropdown) { showProfileDropdown = true }
+                                    IconButton(onClick = { showOverflow = true }, modifier = Modifier.size(48.dp)) {
+                                        Icon(Icons.Default.MoreVert, "Profile actions", tint = DeckPalette.onSurfaceVariant)
+                                    }
+                                }
+
+                                // Profile picker (▾).
+                                DropdownMenu(
+                                    expanded = showProfileDropdown,
+                                    onDismissRequest = { showProfileDropdown = false },
+                                    modifier = Modifier.outlinedMenuCard(),
+                                ) {
+                                    DropdownMenuItem(text = { Text("-- Select Profile --") }, onClick = {
+                                        selectedProfileIdx = 0; loadProfile(0); showProfileDropdown = false
+                                    })
+                                    profiles.forEachIndexed { i, p ->
+                                        MenuItemDivider()
+                                        DropdownMenuItem(text = { Text(p.getName()) }, onClick = {
+                                            selectedProfileIdx = i + 1; loadProfile(i + 1); showProfileDropdown = false
+                                        })
+                                    }
+                                }
+
+                                // Overflow (⋯): profile CRUD (create/rename/duplicate/delete) + Share / Transfer group.
+                                DropdownMenu(
+                                    expanded = showOverflow,
+                                    onDismissRequest = { showOverflow = false },
+                                    modifier = Modifier.outlinedMenuCard(),
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("New profile") },
+                                        leadingIcon = { Icon(Icons.Default.Add, null) },
+                                        onClick = { showOverflow = false; promptCreateName = true },
+                                    )
+                                    MenuItemDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                        onClick = {
+                                            showOverflow = false
+                                            if (currentProfile != null) promptRenameOldName = currentProfile?.getName()
+                                            else AppUtils.showToast(context, R.string.no_profile_selected)
+                                        },
+                                    )
+                                    MenuItemDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Duplicate") },
+                                        leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                        onClick = {
+                                            showOverflow = false
+                                            val profile = currentProfile
+                                            if (profile != null) {
+                                                pendingConfirmation = R.string.do_you_want_to_duplicate_this_profile to {
+                                                    currentProfile = manager.duplicateProfile(profile)
+                                                    refreshProfiles()
                                                     refreshControllers()
                                                 }
-                                            }) { Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            } else AppUtils.showToast(context, R.string.no_profile_selected)
+                                        },
+                                    )
+                                    MenuItemDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                        onClick = {
+                                            showOverflow = false
+                                            val profile = currentProfile
+                                            if (profile != null) {
+                                                pendingConfirmation = R.string.do_you_want_to_remove_this_profile to {
+                                                    manager.removeProfile(profile)
+                                                    currentProfile = null
+                                                    refreshProfiles()
+                                                    refreshControllers()
+                                                }
+                                            } else AppUtils.showToast(context, R.string.no_profile_selected)
+                                        },
+                                    )
+                                    MenuItemDivider()
+                                    // Share / Transfer group header (disabled label, matches the app's grouped-menu idiom).
+                                    DropdownMenuItem(
+                                        enabled = false,
+                                        text = {
+                                            Text("Share / Transfer", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        },
+                                        onClick = {},
+                                    )
+                                    MenuItemDivider()
+                                    // Arrow direction reads as data flow relative to the app: import = INTO the app (down),
+                                    // export = OUT of the app (up).
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.import_control_profile)) },
+                                        leadingIcon = { Icon(Icons.Default.FileDownload, null) },
+                                        onClick = { showOverflow = false; showImportChooser = true },
+                                    )
+                                    MenuItemDivider()
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.export_control_profile_icpx)) },
+                                        leadingIcon = { Icon(Icons.Default.FileUpload, null) },
+                                        onClick = {
+                                            showOverflow = false
+                                            if (currentProfile != null) {
+                                                val exported = manager.exportProfile(currentProfile!!)
+                                                if (exported != null) AppUtils.showToast(context,
+                                                    "${context.getString(R.string.profile_exported_to)} ${exported.path}")
+                                            } else AppUtils.showToast(context, R.string.no_profile_selected)
+                                        },
+                                    )
+                                    MenuItemDivider()
+                                    // Legacy ICP export (was a tooltip'd OutlinedButton; the tooltip copy now reads as the item label).
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.export_control_profile_icp_legacy)) },
+                                        leadingIcon = { Icon(Icons.Default.FileUpload, null) },
+                                        onClick = {
+                                            showOverflow = false
+                                            if (currentProfile != null) {
+                                                val exported = manager.exportLegacyProfile(currentProfile!!)
+                                                if (exported != null) AppUtils.showToast(context,
+                                                    "${context.getString(R.string.profile_exported_to)} ${exported.path}")
+                                            } else AppUtils.showToast(context, R.string.no_profile_selected)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        when (selectedTab) {
+                            // ── On-Screen: the touch overlay layout ──────────────
+                            0 -> DeckGroup("On-screen controls") {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Text(
+                                        "Touch overlay drawn on top of the game. Tap the preview to edit it.",
+                                        color = DeckPalette.onSurfaceVariant, fontSize = 12.sp,
+                                    )
+                                    val cp = currentProfile
+                                    if (cp != null && profileHasLayout) {
+                                        OnScreenLayoutPreview(profileId = cp.id, refreshKey = layoutRev, onOpenEditor = openLayoutEditor)
+                                    } else {
+                                        Text(
+                                            if (cp == null) "Pick a profile to see its touch overlay."
+                                            else "No on-screen layout yet. Edit layout to add one.",
+                                            color = DeckPalette.onSurfaceVariant, fontSize = 14.sp,
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                        )
+                                    }
+                                    DeckButton("Edit layout", modifier = Modifier.fillMaxWidth(), onClick = openLayoutEditor)
+                                }
+                            }
+
+                            // ── Controller: physical pads (test/bind + Default + per-pad) ──
+                            1 -> {
+                                // Opens the live pad-picture test (highlights, verified checklist, rumble Identify).
+                                // No profile needed: it just reads the pad.
+                                DeckHeroCard(
+                                    title = "Test and bind controllers",
+                                    subtitle = "Remap buttons and check every input registers",
+                                ) { showControllerTest = true }
+
+                                DeckGroup("Connected controllers") {
+                                    // #333: the Default / Any Controller binding template. Newly connected
+                                    // controllers inherit it, so a fresh pad is never blank. Always shown.
+                                    DeckPadRow(
+                                        tint = DeckPalette.onSurfaceVariant,
+                                        title = "Default / Any controller",
+                                        subtitle = "New controllers inherit these bindings",
+                                        onClick = { openBindings(ControlsProfile.DEFAULT_CONTROLLER_ID) },
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ChevronRight, "Edit bindings",
+                                            tint = DeckPalette.secondary, modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+
+                                    if (controllers.isEmpty()) {
+                                        Text(
+                                            "No controllers yet. Plug in or pair a pad and it shows up here.",
+                                            color = DeckPalette.onSurfaceVariant, fontSize = 14.sp,
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        )
+                                    } else {
+                                        for (controller in controllers) {
+                                            val bindingsCount = controller.getControllerBindingCount()
+                                            val connected = controller.isConnected()
+                                            // Battery (API 29+) + own-vibrator test rumble for a connected pad.
+                                            val padDevice = if (connected)
+                                                android.view.InputDevice.getDevice(controller.getDeviceId()) else null
+                                            var padBattery = -1
+                                            if (padDevice != null && android.os.Build.VERSION.SDK_INT >= 29) {
+                                                try {
+                                                    val bs = padDevice.batteryState
+                                                    if (bs != null && bs.isPresent) {
+                                                        val cap = bs.capacity
+                                                        if (cap >= 0f) padBattery = Math.round(cap * 100f)
+                                                    }
+                                                } catch (_: Throwable) {}
+                                            }
+                                            val padHasVibrator = padDevice?.vibrator?.hasVibrator() == true
+                                            val status = (if (connected) "Connected" else "Not connected") +
+                                                " · $bindingsCount bindings" +
+                                                (if (padBattery >= 0) " · Battery $padBattery%" else "")
+
+                                            DeckPadRow(
+                                                tint = if (connected) DeckPalette.good else DeckPalette.error,
+                                                title = controller.getName(),
+                                                subtitle = status,
+                                                onClick = { openBindings(controller.getId()) },
+                                            ) {
+                                                // Test rumble: pulse this pad's own vibrator (no game running at rest).
+                                                if (padHasVibrator && padDevice != null) {
+                                                    IconButton(onClick = { pulsePad(padDevice) }, modifier = Modifier.size(48.dp)) {
+                                                        Icon(Icons.Default.Vibration, "Test rumble", tint = DeckPalette.onSurfaceVariant)
+                                                    }
+                                                }
+                                                // #333: copy bindings from the Default template or another controller onto this one.
+                                                Box {
+                                                    IconButton(onClick = { copyMenuForId = controller.getId() }, modifier = Modifier.size(48.dp)) {
+                                                        Icon(Icons.Default.ContentCopy, "Copy bindings", tint = DeckPalette.onSurfaceVariant)
+                                                    }
+                                                    DropdownMenu(
+                                                        expanded = copyMenuForId == controller.getId(),
+                                                        onDismissRequest = { copyMenuForId = null },
+                                                        // #333 polish: match the shared outlined-menu-card look.
+                                                        modifier = Modifier.outlinedMenuCard()
+                                                    ) {
+                                                        DropdownMenuItem(text = { Text("From Default / Any Controller") }, onClick = {
+                                                            // #333: reload from disk first (the editor saves to a separate profile
+                                                            // instance), and never apply an EMPTY source — that would wipe the
+                                                            // target's bindings.
+                                                            currentProfile?.loadControllers()
+                                                            val src = currentProfile?.getController(com.winhub.hernandez.inputcontrols.ControlsProfile.DEFAULT_CONTROLLER_ID)
+                                                            if (src != null && src.getControllerBindingCount() > 0) {
+                                                                val tgt = currentProfile?.addController(controller.getId())
+                                                                if (tgt != null) { tgt.copyBindingsFrom(src); currentProfile?.save(); refreshControllers() }
+                                                            }
+                                                            copyMenuForId = null
+                                                        })
+                                                        for (other in controllers) {
+                                                            if (other.getId() == controller.getId() || other.getControllerBindingCount() == 0) continue
+                                                            MenuItemDivider()
+                                                            DropdownMenuItem(text = { Text("From ${other.getName()}") }, onClick = {
+                                                                currentProfile?.loadControllers()
+                                                                val src = currentProfile?.getController(other.getId())
+                                                                if (src != null && src.getControllerBindingCount() > 0) {
+                                                                    val tgt = currentProfile?.addController(controller.getId())
+                                                                    if (tgt != null) { tgt.copyBindingsFrom(src); currentProfile?.save(); refreshControllers() }
+                                                                }
+                                                                copyMenuForId = null
+                                                            })
+                                                        }
+                                                    }
+                                                }
+                                                if (bindingsCount > 0) {
+                                                    IconButton(onClick = {
+                                                        pendingConfirmation = R.string.do_you_want_to_remove_this_controller to {
+                                                            currentProfile?.removeController(controller)
+                                                            currentProfile?.save()
+                                                            refreshControllers()
+                                                        }
+                                                    }, modifier = Modifier.size(48.dp)) {
+                                                        Icon(Icons.Default.Delete, "Remove", tint = DeckPalette.onSurfaceVariant)
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
+
+                            // ── Assign: global default player slots for new containers ──
+                            2 -> GlobalPlayerSlotsSection()
+
+                            // ── Device: gyroscope calibration + Steam Controller ──
+                            3 -> {
+                                GyroscopeSection()
+                                SteamControllerSection()
+                            }
                         }
-                    }
 
-                    // ── Assign: global default player slots for new containers ──
-                    2 -> GlobalPlayerSlotsSection()
-
-                    // ── Device: gyroscope calibration + Steam Controller ──
-                    3 -> {
-                        GyroscopeSection()
-                        Spacer(Modifier.height(16.dp))
-                        SteamControllerSection()
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
-
-                Spacer(Modifier.height(8.dp))
             }
-          }
         }
     }
 }
@@ -985,7 +997,6 @@ private fun OnScreenLayoutPreview(profileId: Int, refreshKey: Int, onOpenEditor:
 @Composable
 private fun LayoutPreviewFrame(profile: ControlsProfile?, onTap: (() -> Unit)?) {
     val context = LocalContext.current
-    val cs = MaterialTheme.colorScheme
     // Game-screen aspect (device long:short, clamped; 16:9 fallback) so it reads as a mini game screen.
     val aspect = remember {
         val dm = context.resources.displayMetrics
@@ -1000,7 +1011,7 @@ private fun LayoutPreviewFrame(profile: ControlsProfile?, onTap: (() -> Unit)?) 
             .aspectRatio(aspect)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF0F0C0B)) // dark "game screen" ground
-            .border(1.dp, cs.outline, RoundedCornerShape(12.dp)),
+            .border(1.dp, DeckPalette.line2, RoundedCornerShape(12.dp)),
     ) {
         if (profile != null) {
             AndroidView(
@@ -1063,7 +1074,7 @@ private fun ProfileBadge(text: String, fg: Color, bg: Color) {
     Text(
         text,
         color = fg,
-        fontSize = 10.sp,
+        fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
@@ -1093,47 +1104,6 @@ private fun pulsePad(device: android.view.InputDevice) {
 }
 
 /**
- * The 4-way segmented tab row (On-Screen · Controller · Assign · Device). Reads like the in-game
- * Controls tab toggle (TestBindToggle): an outlined pill with the active segment filled in the theme
- * accent (colorScheme.primary / onPrimary), inactive segments transparent with muted labels.
- */
-@Composable
-private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    val labels = listOf("On-Screen", "Controller", "Assign", "Device")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(cs.surfaceContainerHigh)
-            .border(1.dp, cs.outline, RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        labels.forEachIndexed { i, label ->
-            val on = i == selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) cs.primary else Color.Transparent)
-                    .clickable { onSelect(i) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (on) cs.onPrimary else cs.onSurfaceVariant,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
-/**
  * Device-level gyroscope calibration. Only the zero-rate bias lives here — it's a property of the
  * hardware, not of a game; sensitivity/target/activator/invert stay with the container.
  */
@@ -1142,10 +1112,10 @@ private fun GyroscopeSection() {
     val context = LocalContext.current
     val sensor = remember { GyroCalibrator.getSensor(context) }
 
-    Text("Gyroscope", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-
     if (sensor == null) {
-        Text("No gyroscope on this device", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        DeckGroup("Gyroscope") {
+            DeckRow(label = "No gyroscope on this device") {}
+        }
         return
     }
 
@@ -1174,30 +1144,22 @@ private fun GyroscopeSection() {
         }
     }
 
-    FieldSet {
+    DeckGroup("Gyroscope") {
         Text(
             "Rest the device on a flat surface and calibrate to remove the gyroscope's resting drift.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp
+            color = DeckPalette.onSurfaceVariant, fontSize = 12.sp,
+            modifier = Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp),
         )
-        Spacer(Modifier.height(8.dp))
-
         val summary = when {
             !calibrated -> "Not calibrated"
             abs(biasX) < GyroCalibrator.NEGLIGIBLE_BIAS && abs(biasY) < GyroCalibrator.NEGLIGIBLE_BIAS ->
                 "Very little drift detected — your device already compensates"
             else -> "Bias removed: x %.4f, y %.4f rad/s".format(biasX, biasY)
         }
-        Text(summary, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
-
-        if (status.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = {
+        DeckRow(label = summary, hint = status.takeIf { it.isNotEmpty() }) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                DeckButton(if (activeRun == null) "Calibrate" else "Calibrating…") {
+                    if (activeRun != null) return@DeckButton
                     status = "Hold still…"
                     activeRun = GyroCalibrator.calibrate(context) { result ->
                         activeRun = null
@@ -1210,21 +1172,14 @@ private fun GyroscopeSection() {
                         }
                         refreshBias()
                     }
-                },
-                enabled = activeRun == null,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-                modifier = Modifier.weight(1f)
-            ) { Text("Calibrate", color = MaterialTheme.colorScheme.onBackground, fontSize = 12.sp) }
-            Button(
-                onClick = {
+                }
+                DeckButton("Reset", primary = false) {
+                    if (!calibrated || activeRun != null) return@DeckButton
                     GyroCalibrator.clearBias(context)
                     status = "Calibration reset"
                     refreshBias()
-                },
-                enabled = calibrated && activeRun == null,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-                modifier = Modifier.weight(1f)
-            ) { Text("Reset", color = MaterialTheme.colorScheme.onBackground, fontSize = 12.sp) }
+                }
+            }
         }
     }
 }
@@ -1253,83 +1208,78 @@ private fun SteamControllerSection() {
             permissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
     }
 
-    Text("Steam Controller", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-    FieldSet {
+    DeckGroup("Steam Controller") {
         Text(
             "Reads the Steam Controller directly, the way Steam does, so it works as a normal gamepad in " +
                 "games. Pair it in Android's Bluetooth settings first, or connect it by USB. Other " +
                 "controllers are not affected. Takes effect the next time a game starts.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp
+            color = DeckPalette.onSurfaceVariant, fontSize = 12.sp,
+            modifier = Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp),
         )
-        Spacer(Modifier.height(8.dp))
-        val onOff = listOf("On", "Off")
-        LabeledDropdown(
+        DeckRow(
             label = "Steam Controller support",
-            options = onOff,
-            selectedOption = if (enabled) onOff[0] else onOff[1],
-            onSelect = {
-                enabled = it == onOff[0]
-                com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSteamControllerEnabled(context, enabled)
-                if (enabled) requestBluetooth()
+            control = {
+                DeckToggle(enabled) { on ->
+                    enabled = on
+                    com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSteamControllerEnabled(context, on)
+                    if (on) requestBluetooth()
+                }
             },
         )
         if (enabled) {
-            Spacer(Modifier.height(8.dp))
             // Order = the labels; values are SteamControllerBackend.TRACKPAD_MOUSE_*.
             val trackpadLabels = listOf("Right trackpad", "Left trackpad", "Both trackpads", "Off")
             val trackpadModes = listOf(
                 SteamControllerBackend.TRACKPAD_MOUSE_RIGHT, SteamControllerBackend.TRACKPAD_MOUSE_LEFT,
                 SteamControllerBackend.TRACKPAD_MOUSE_BOTH, SteamControllerBackend.TRACKPAD_MOUSE_OFF,
             )
-            LabeledDropdown(
+            DeckChoiceRow(
                 label = "Trackpad mouse",
-                options = trackpadLabels,
-                selectedOption = trackpadLabels[trackpadModes.indexOf(trackpadMode).coerceAtLeast(0)],
-                onSelect = {
+                hint = "Which trackpad moves the mouse. Clicking it is a left click; with both, the left trackpad clicks right.",
+                options = trackpadLabels.map { it to it },
+                selected = trackpadLabels[trackpadModes.indexOf(trackpadMode).coerceAtLeast(0)],
+                onPick = {
                     trackpadMode = trackpadModes[trackpadLabels.indexOf(it).coerceAtLeast(0)]
                     com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSteamTrackpadMouseMode(context, trackpadMode)
                 },
             )
-            Text(
-                "Which trackpad moves the mouse. Clicking it is a left click; with both, the left trackpad " +
-                    "clicks right.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp
-            )
-            Spacer(Modifier.height(12.dp))
-            Text("Extra buttons", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (!bluetoothGranted) {
+                DeckRow(
+                    label = "Bluetooth permission is off",
+                    hint = "Only a USB-connected controller will work.",
+                ) {
+                    if (Build.VERSION.SDK_INT >= 31) DeckButton("Allow", primary = false) { requestBluetooth() }
+                }
+            }
+        }
+    }
+
+    if (enabled) {
+        val paddleOptions = remember { steamPaddleOptions() }
+        val paddleLabels = remember { paddleOptions.map { it.first } }
+        val paddleChoices = remember(paddleLabels) { paddleLabels.map { it to it } }
+        var paddles by remember {
+            mutableStateOf(com.winhub.hernandez.ui.components.GlobalControllerPrefs.getSteamPaddleBindings(context).toList())
+        }
+        DeckGroup("Extra buttons") {
             Text(
                 "What the four back buttons and the … button do, in every game. To change what the other " +
                     "buttons do, bind them on the Controller tab under Default / Any Controller (the Steam " +
                     "Controller uses those bindings).",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp
+                color = DeckPalette.onSurfaceVariant, fontSize = 12.sp,
+                modifier = Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp),
             )
-            val paddleOptions = remember { steamPaddleOptions() }
-            val paddleLabels = remember { paddleOptions.map { it.first } }
-            var paddles by remember {
-                mutableStateOf(com.winhub.hernandez.ui.components.GlobalControllerPrefs.getSteamPaddleBindings(context).toList())
-            }
             STEAM_PADDLE_NAMES.forEachIndexed { i, name ->
-                Spacer(Modifier.height(8.dp))
-                LabeledDropdown(
+                DeckChoiceRow(
                     label = name,
-                    options = paddleLabels,
-                    selectedOption = paddleOptions.firstOrNull { it.second == paddles[i] }?.first ?: paddleLabels[0],
-                    onSelect = { label ->
+                    options = paddleChoices,
+                    selected = paddleOptions.firstOrNull { it.second == paddles[i] }?.first ?: paddleLabels[0],
+                    onPick = { label ->
                         val binding = paddleOptions.firstOrNull { it.first == label }?.second ?: Binding.NONE
                         paddles = paddles.toMutableList().also { it[i] = binding }
                         com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSteamPaddleBinding(context, i, binding)
                     },
                 )
-            }
-            if (!bluetoothGranted) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Bluetooth permission is off, so only a USB-connected controller will work.",
-                    color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp
-                )
-                if (Build.VERSION.SDK_INT >= 31) {
-                    TextButton(onClick = { requestBluetooth() }) { Text("Allow Bluetooth") }
-                }
             }
         }
     }
@@ -1389,62 +1339,106 @@ private fun GlobalPlayerSlotsSection() {
         mutableStateOf(com.winhub.hernandez.ui.components.GlobalControllerPrefs.getAutoHideControlsOnPad(context))
     }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Player Slots", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        IconButton(onClick = { helpRes = R.string.help_player_slots }) {
-            Icon(Icons.Default.Help, contentDescription = "What is this?",
-                tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-        }
-    }
-    FieldSet {
-        Text(
-            "The default for newly-created containers. Assign two devices to one player to share control. " +
-                "Applies to new containers only — existing containers keep their own settings.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp
+    DeckGroup("Player slots") {
+        DeckRow(
+            label = "Defaults for new containers",
+            hint = "Assign two devices to one player to share control. Existing containers keep their own settings.",
+            control = {
+                IconButton(onClick = { helpRes = R.string.help_player_slots }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.Help, contentDescription = "What is this?",
+                        tint = DeckPalette.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            },
         )
-        Spacer(Modifier.height(8.dp))
         val onScreenModeLabels = listOf("Keep on-screen player", "Yield Player 1 to pad", "Share the player")
-        LabeledDropdown(
+        DeckChoiceRow(
             label = "On-screen priority",
-            options = onScreenModeLabels,
-            selectedOption = onScreenModeLabels.getOrElse(onScreenMode) { onScreenModeLabels[0] },
-            onSelect = {
+            options = onScreenModeLabels.map { it to it },
+            selected = onScreenModeLabels.getOrElse(onScreenMode) { onScreenModeLabels[0] },
+            onPick = {
                 onScreenMode = onScreenModeLabels.indexOf(it).coerceAtLeast(0)
                 com.winhub.hernandez.ui.components.GlobalControllerPrefs.setOnScreenMode(context, onScreenMode)
             },
         )
-        Spacer(Modifier.height(8.dp))
-        // #333 auto-hide default for new containers. On/Off dropdown (no Switch in this screen).
-        val autoHideLabels = listOf("On", "Off")
-        LabeledDropdown(
+        DeckRow(
             label = "Hide on-screen controls when a controller connects",
-            options = autoHideLabels,
-            selectedOption = if (autoHideOnPad) autoHideLabels[0] else autoHideLabels[1],
-            onSelect = {
-                autoHideOnPad = autoHideLabels.indexOf(it) == 0
-                com.winhub.hernandez.ui.components.GlobalControllerPrefs.setAutoHideControlsOnPad(context, autoHideOnPad)
+            control = {
+                DeckToggle(autoHideOnPad) { on ->
+                    autoHideOnPad = on
+                    com.winhub.hernandez.ui.components.GlobalControllerPrefs.setAutoHideControlsOnPad(context, on)
+                }
             },
         )
-        Spacer(Modifier.height(8.dp))
-        PlayerSlotsEditor(
-            savedOverridesJson = slotOverridesJson,
-            onOverridesChange = {
-                slotOverridesJson = it
-                com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSlotOverridesJson(context, it)
-            },
-        )
+        Box(Modifier.padding(12.dp)) {
+            PlayerSlotsEditor(
+                savedOverridesJson = slotOverridesJson,
+                onOverridesChange = {
+                    slotOverridesJson = it
+                    com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSlotOverridesJson(context, it)
+                },
+            )
+        }
     }
 }
 
+/** Accent call-to-action card (Deck blue) for the section's one primary action. */
 @Composable
-private fun FieldSet(content: @Composable () -> Unit) {
-    Column(
+private fun DeckHeroCard(title: String, subtitle: String, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val shape = DeckPalette.groupShape
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(8.dp))
-            .padding(12.dp)
+            .clip(shape)
+            .background(DeckPalette.primary)
+            .deckOuterFocusStroke(interaction, shape, focusColor = DeckPalette.onPrimary)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(14.dp),
     ) {
-        content()
+        Icon(Icons.Default.Gamepad, null, tint = DeckPalette.onPrimary, modifier = Modifier.size(32.dp))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = DeckPalette.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = DeckPalette.onPrimary.copy(alpha = 0.85f), fontSize = 13.sp)
+        }
     }
+}
+
+/** One controller row: tinted pad tile, name + status, hairline underneath. [trailing] holds its actions. */
+@Composable
+private fun DeckPadRow(
+    tint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .deckOuterFocusStroke(interaction, shape)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(shape)
+                .background(DeckPalette.surfaceVariant),
+        ) {
+            Icon(Icons.Default.Gamepad, null, tint = tint, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(title, color = DeckPalette.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = DeckPalette.onSurfaceVariant, fontSize = 12.sp)
+        }
+        trailing()
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(DeckPalette.line))
 }
