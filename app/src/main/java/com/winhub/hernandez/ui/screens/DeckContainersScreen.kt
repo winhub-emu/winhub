@@ -395,7 +395,6 @@ private fun DeckStorageContainersTab(
                     .height(40.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(DeckPalette.surface)
-                    .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp))
                     .clickable { onDefaults() }
                     .padding(horizontal = 16.dp),
             ) {
@@ -565,7 +564,6 @@ private fun DeckOutlineButton(text: String, onClick: () -> Unit) {
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(DeckPalette.surfaceVariant)
-            .border(1.dp, DeckPalette.line2, RoundedCornerShape(12.dp))
             .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
@@ -859,7 +857,6 @@ private fun DeckContainerCard(
                         .heightIn(max = 320.dp)
                         .clip(DeckPalette.groupShape)
                         .background(DeckPalette.surfaceVariant)
-                        .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                         .deckDialogNav { menuOpen = false }
                         .verticalScroll(rememberScrollState())
                         .padding(vertical = 8.dp),
@@ -954,7 +951,6 @@ internal fun DeckPropertiesDialog(container: Container, onDismiss: () -> Unit) {
                 .fillMaxWidth(0.92f)
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(horizontal = 20.dp, vertical = 18.dp),
         ) {

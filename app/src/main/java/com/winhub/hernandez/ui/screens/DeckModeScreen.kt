@@ -139,6 +139,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Text
@@ -227,6 +228,8 @@ import java.io.FileOutputStream
 import com.winhub.hernandez.ui.ControllerFocusIndication
 import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.theme.AppThemeState
+import com.winhub.hernandez.ui.theme.DeckFontFamily
+import com.winhub.hernandez.ui.theme.DeckTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -427,8 +430,13 @@ internal fun DeckModeScreen() {
             onSurfaceVariant = Deck.onSurfaceVariant,
             error = DeckPalette.error,
         ),
+        typography = DeckTypography,
     ) {
         CompositionLocalProvider(
+            // Text outside a Material component has no style of its own, so the Deck shell hands it
+            // the app font; explicit sizes and weights still win. Scoped here so the in-game menu
+            // (which sits on WinlatorTheme) keeps its own look.
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = DeckFontFamily),
             LocalInputModeManager provides deckInputMode,
             LocalIndication provides remember(Deck.primary) { ControllerFocusIndication(Deck.primary) },
             LocalDeckTabs provides tabs,
@@ -1268,7 +1276,6 @@ private fun DeckHome(
                             .fillMaxWidth(0.8f)
                             .clip(DeckPalette.groupShape)
                             .background(DeckPalette.surface)
-                            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -1554,16 +1561,14 @@ private fun DeckWordmark() {
             text = "Win",
             color = Deck.onBackground,
             fontSize = 40.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = (-0.5).sp,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
         )
         Text(
             text = "Hub",
             color = Deck.primary,
             fontSize = 40.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = (-0.5).sp,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
         )
         Box(
@@ -1774,10 +1779,9 @@ private fun DeckTopTabs(
                 .drawBehind {
                     if (end.value > start.value) {
                         val top = 4.dp.toPx()
-                        val corner = CornerRadius(10.dp.toPx())
+                        val corner = CornerRadius(18.dp.toPx())
                         val pill = Size(end.value - start.value, size.height - top * 2f)
-                        drawRoundRect(accent.copy(alpha = 0.14f), Offset(start.value, top), pill, corner)
-                        drawRoundRect(accent, Offset(start.value, top), pill, corner, style = Stroke(1.5.dp.toPx()))
+                        drawRoundRect(accent.copy(alpha = 0.16f), Offset(start.value, top), pill, corner)
                     }
                 },
         )
@@ -1794,7 +1798,7 @@ private fun DeckTopTabs(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .weight(if (current) SELECTED_TAB_WEIGHT else 1f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(18.dp))
                         .focusProperties { canFocus = false }
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                             onSelect(item.key)
@@ -1821,7 +1825,6 @@ private fun DeckTopTabs(
             }
         }
     }
-    HorizontalDivider(color = Deck.line.copy(alpha = barOpacity))
 }
 
 /**
@@ -1854,7 +1857,6 @@ private fun DeckBottomTabs(
                 .shadow(10.dp, pill)
                 .clip(pill)
                 .background(Deck.surface)
-                .border(1.dp, Deck.line, pill)
                 .horizontalScroll(scroll)
                 .padding(6.dp),
         ) {
@@ -1905,10 +1907,12 @@ private fun DeckSideRail(
 ) {
     DeckDragFrame(
         modifier = Modifier
+            .padding(start = 8.dp, top = 8.dp, bottom = 8.dp)
             .width(92.dp)
             .fillMaxHeight()
+            .clip(RoundedCornerShape(26.dp))
             .background(Deck.surface),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(20.dp),
         strokeWidth = 2.5.dp,
         gap = 2.dp,
     ) {
@@ -1917,7 +1921,7 @@ private fun DeckSideRail(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 12.dp),
+                .padding(vertical = 16.dp),
         ) {
             deckSections().forEach { item ->
                 DeckRailItem(
@@ -1950,17 +1954,12 @@ private fun DeckRailItem(
     // The selection tint glides between items instead of snapping — the rail "drags".
     val tint by animateColorAsState(
         targetValue = when {
-            current -> Deck.primary.copy(alpha = 0.14f)
+            current -> Deck.primary.copy(alpha = 0.16f)
             focused -> Deck.surfaceVariant
             else -> Color.Transparent
         },
         animationSpec = tween(260, easing = DeckEase),
         label = "railTint",
-    )
-    val line by animateColorAsState(
-        targetValue = if (current || focused) Deck.primary else Color.Transparent,
-        animationSpec = tween(220, easing = DeckEase),
-        label = "railLine",
     )
     Box(
         contentAlignment = Alignment.Center,
@@ -1968,13 +1967,8 @@ private fun DeckRailItem(
             .then(modifier)
             .padding(bottom = 4.dp)
             .size(width = 80.dp, height = 56.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(tint)
-            .border(
-                width = 1.dp,
-                color = if (focused) Color.Transparent else line,
-                shape = RoundedCornerShape(14.dp),
-            )
             .deckBringIntoView()
             .deckDragItem("rail:$label")
             .focusProperties { if (rightFocus != null) right = rightFocus }
@@ -1999,16 +1993,6 @@ private fun DeckRailItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
-        if (current) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 4.dp)
-                    .size(width = 3.dp, height = 26.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Deck.primary),
             )
         }
     }
@@ -3083,7 +3067,6 @@ private fun DeckHomeCarousel(
                         .width(210.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(Deck.surface.copy(alpha = 0.78f))
-                        .border(1.dp, Deck.line, RoundedCornerShape(12.dp))
                         .padding(14.dp),
                 ) {
                     details.forEach { (k, v) ->

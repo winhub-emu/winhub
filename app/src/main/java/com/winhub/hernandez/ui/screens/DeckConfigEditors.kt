@@ -132,17 +132,16 @@ internal fun DeckConfigNote(text: String, error: Boolean = false) {
 internal fun DeckConfigPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(
-            text = title.uppercase(),
-            color = DeckPalette.primary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp,
+            text = title,
+            color = DeckPalette.onSurfaceVariant,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
         )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(20.dp))
                 .background(DeckPalette.surface)
                 .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp)),
             content = content,
@@ -459,7 +458,6 @@ internal fun DeckConfigDialog(
                 )
                 .clip(RoundedCornerShape(24.dp))
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line2, RoundedCornerShape(24.dp))
                 .focusRequester(rootFocus)
                 .focusable()
                 .focusGroup()

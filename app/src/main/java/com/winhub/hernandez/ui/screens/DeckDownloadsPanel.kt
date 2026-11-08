@@ -231,7 +231,6 @@ private fun DeckDownloadRow(
             .fillMaxWidth()
             .clip(shape)
             .background(Deck.surface)
-            .border(1.dp, Deck.line, shape)
             .padding(12.dp),
     ) {
         Box(

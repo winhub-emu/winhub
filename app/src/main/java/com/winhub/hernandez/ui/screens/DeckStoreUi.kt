@@ -263,7 +263,6 @@ internal fun DeckStoreHeader(
             .fillMaxWidth()
             .clip(shape)
             .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.24f), Color.Transparent)))
-            .border(1.dp, Deck.line, shape)
             .padding(10.dp),
     ) {
         val logoBmp = logo?.let { rememberDeckLogo(it) }

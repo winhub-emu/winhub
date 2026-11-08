@@ -146,12 +146,12 @@ internal fun DeckHintBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HintChip("A", Color(0xFF3DDC84), "Select", null)
-        HintChip("B", Color(0xFFFF5252), "Back", onBack)
-        HintChip("L1", Color(0xFF8A93A6), "Prev", onPrev)
-        HintChip("R1", Color(0xFF8A93A6), "Next", onNext)
-        if (subTabs) HintChip("L2 R2", Color(0xFF8A93A6), "Sub-tabs", null)
-        HintChip("START", Color(0xFF8A93A6), "Menu") { DeckConsole.quickMenu = true }
+        HintChip("A", Deck.primary, "Select", null)
+        HintChip("B", Deck.surfaceVariant, "Back", onBack)
+        HintChip("L1", Deck.surfaceVariant, "Prev", onPrev)
+        HintChip("R1", Deck.surfaceVariant, "Next", onNext)
+        if (subTabs) HintChip("L2 R2", Deck.surfaceVariant, "Sub-tabs", null)
+        HintChip("START", Deck.surfaceVariant, "Menu") { DeckConsole.quickMenu = true }
     }
 }
 
@@ -161,23 +161,23 @@ private fun HintChip(glyph: String, color: Color, label: String, onClick: (() ->
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(14.dp))
             .then(if (onClick != null) Modifier.pointerInput(onClick) { detectTapGestures { onClick() } } else Modifier)
             .padding(horizontal = 4.dp),
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .heightIn(min = 18.dp)
-                .widthIn(min = 18.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .heightIn(min = 22.dp)
+                .widthIn(min = 22.dp)
+                .clip(RoundedCornerShape(11.dp))
                 .background(color)
-                .padding(horizontal = 5.dp),
+                .padding(horizontal = 6.dp),
         ) {
-            Text(glyph, color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Black, maxLines = 1)
+            Text(glyph, color = if (color == Deck.primary) Deck.onPrimary else Deck.onBackground, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         }
         Spacer(Modifier.width(4.dp))
-        Text(label, color = Deck.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(label, color = Deck.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -224,7 +224,6 @@ private fun DeckDownloadTray(modifier: Modifier, onOpen: () -> Unit) {
                 modifier = Modifier
                     .clip(shape)
                     .background(Deck.surface.copy(alpha = 0.92f))
-                    .border(1.dp, Deck.line, shape)
                     .pointerInput(onOpen) { detectTapGestures { onOpen() } }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
@@ -315,7 +314,6 @@ private fun DeckQuickMenu(onDismiss: () -> Unit, onGo: (String) -> Unit) {
                 .widthIn(max = 460.dp)
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 // A dialog window never sees the Activity's A -> DPAD_CENTER rewrite, so activate from here.
                 .onPreviewKeyEvent { e ->
                     if (e.type == KeyEventType.KeyDown && e.key == Key.ButtonA) {

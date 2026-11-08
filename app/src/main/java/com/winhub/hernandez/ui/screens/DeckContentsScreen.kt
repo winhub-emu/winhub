@@ -342,7 +342,6 @@ internal fun DeckIconAction(
         modifier = Modifier
             .size(44.dp)
             .clip(RoundedCornerShape(11.dp))
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(11.dp))
             .deckRing(interaction, RoundedCornerShape(11.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
     ) {
@@ -433,10 +432,9 @@ private fun DeckSectionLabel(title: String, count: Int? = null) {
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
     ) {
         Text(
-            text = title.uppercase(),
-            fontSize = 12.sp,
+            text = title,
+            fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.5.sp,
             color = DeckPalette.onSurfaceVariant,
         )
         if (count != null) {
@@ -738,7 +736,6 @@ internal fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit
             .heightIn(min = 72.dp)
             .clip(shape)
             .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(10.dp),
     ) {
@@ -808,7 +805,6 @@ private fun DeckCatalogCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
@@ -968,7 +964,6 @@ private fun DeckSourceCard(
             .fillMaxWidth()
             .clip(shape)
             .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, shape)
             .deckRing(interaction, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
             .padding(10.dp),
@@ -1408,7 +1403,6 @@ private fun DeckInstalledRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
             .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
     ) {
         Box(

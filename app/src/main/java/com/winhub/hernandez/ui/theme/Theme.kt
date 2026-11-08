@@ -14,7 +14,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import com.winhub.hernandez.R
@@ -41,7 +43,41 @@ private val BricolageFontFamily = FontFamily(
     Font(R.font.bricolage_grotesque),
 )
 
+/**
+ * Bricolage Grotesque with real weights. The bundled file is a variable font, so each weight
+ * pins its own `wght` axis instead of leaving Android to fake-bold the regular face.
+ */
+@OptIn(ExperimentalTextApi::class)
+internal val DeckFontFamily = FontFamily(
+    listOf(400, 500, 600, 700, 800).map { w ->
+        Font(
+            resId = R.font.bricolage_grotesque,
+            weight = FontWeight(w),
+            variationSettings = FontVariation.Settings(FontVariation.weight(w)),
+        )
+    },
+)
+
 private val Default = Typography()
+
+/** Same family as [AppTypography] but with the stock weights, for the Deck shell's dialogs and menus. */
+internal val DeckTypography = Typography(
+    displayLarge   = Default.displayLarge.copy(fontFamily = DeckFontFamily),
+    displayMedium  = Default.displayMedium.copy(fontFamily = DeckFontFamily),
+    displaySmall   = Default.displaySmall.copy(fontFamily = DeckFontFamily),
+    headlineLarge  = Default.headlineLarge.copy(fontFamily = DeckFontFamily),
+    headlineMedium = Default.headlineMedium.copy(fontFamily = DeckFontFamily),
+    headlineSmall  = Default.headlineSmall.copy(fontFamily = DeckFontFamily),
+    titleLarge     = Default.titleLarge.copy(fontFamily = DeckFontFamily),
+    titleMedium    = Default.titleMedium.copy(fontFamily = DeckFontFamily),
+    titleSmall     = Default.titleSmall.copy(fontFamily = DeckFontFamily),
+    bodyLarge      = Default.bodyLarge.copy(fontFamily = DeckFontFamily),
+    bodyMedium     = Default.bodyMedium.copy(fontFamily = DeckFontFamily),
+    bodySmall      = Default.bodySmall.copy(fontFamily = DeckFontFamily),
+    labelLarge     = Default.labelLarge.copy(fontFamily = DeckFontFamily),
+    labelMedium    = Default.labelMedium.copy(fontFamily = DeckFontFamily),
+    labelSmall     = Default.labelSmall.copy(fontFamily = DeckFontFamily),
+)
 
 private val AppTypography = Typography(
     displayLarge   = Default.displayLarge.copy(fontFamily = BricolageFontFamily, fontWeight = FontWeight(600)),

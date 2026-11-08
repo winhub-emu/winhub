@@ -339,20 +339,12 @@ internal fun HubGradientButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .height(46.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        lerp(DeckPalette.primary, Color.Black, 0.78f),
-                        DeckPalette.primary,
-                    ),
-                ),
-            )
-            .border(1.dp, lerp(DeckPalette.primary, Color.White, 0.45f).copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+            .height(48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(DeckPalette.primary)
             .deckOuterFocusStroke(
                 interaction = interaction,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(24.dp),
                 focusColor = Color.White,
             )
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
@@ -360,9 +352,9 @@ internal fun HubGradientButton(
     ) {
         Text(
             text = text,
-            color = Color.White,
+            color = DeckPalette.onPrimary,
             fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
         )
     }
@@ -461,7 +453,7 @@ internal fun HubCarousel(
                         alpha = alphaAnim
                         cameraDistance = 12f * density
                     }
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(DeckPalette.surface)
                     .then(
                         if (isSelected) {
@@ -482,12 +474,12 @@ internal fun HubCarousel(
                                     ),
                                     topLeft = Offset(w / 2f, w / 2f),
                                     size = Size(size.width - w, size.height - w),
-                                    cornerRadius = CornerRadius(18.dp.toPx() - w / 2f),
+                                    cornerRadius = CornerRadius(20.dp.toPx() - w / 2f),
                                     style = Stroke(width = w),
                                 )
                             }
                         } else {
-                            Modifier.border(1.dp, DeckPalette.line, RoundedCornerShape(18.dp))
+                            Modifier
                         },
                     )
                     .combinedClickable(
@@ -622,9 +614,8 @@ internal fun DeckHubGamePage(
                 modifier = Modifier
                     .weight(1.15f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(DeckPalette.surface)
-                    .border(1.dp, DeckPalette.line, RoundedCornerShape(20.dp)),
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(DeckPalette.surface),
             ) {
                 val art: Any? = bannerUrl ?: entry.bitmap
                 if (art != null) {
@@ -652,11 +643,10 @@ internal fun DeckHubGamePage(
                         .padding(horizontal = 22.dp, vertical = 18.dp),
                 ) {
                     Text(
-                        text = origin.uppercase(),
+                        text = origin,
                         color = lerp(DeckPalette.primary, Color.White, 0.55f),
-                        fontSize = 10.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.8.sp,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -664,7 +654,7 @@ internal fun DeckHubGamePage(
                         color = Color.White,
                         fontSize = 32.sp,
                         lineHeight = 35.sp,
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -706,17 +696,15 @@ internal fun DeckHubGamePage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 12.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(20.dp))
                             .background(DeckPalette.surface)
-                            .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp))
-                            .padding(14.dp),
+                            .padding(16.dp),
                     ) {
                         Text(
                             text = "ABOUT",
                             color = DeckPalette.primary,
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.4.sp,
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
@@ -747,23 +735,21 @@ internal fun DeckHubGamePage(
 private fun DeckHubStat(label: String, value: String) {
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(DeckPalette.surfaceVariant)
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(DeckPalette.surface)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Text(
-            text = label.uppercase(),
+            text = label,
             color = DeckPalette.onSurfaceVariant,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.1.sp,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(2.dp))
         Text(
             text = value,
             color = DeckPalette.onBackground,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
@@ -806,7 +792,6 @@ internal fun DeckAddModeMenu(onPick: (HubAddMode) -> Unit, onDismiss: () -> Unit
                 .fillMaxWidth(0.92f)
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(22.dp),
         ) {
@@ -925,7 +910,6 @@ internal fun HubConfirmDialog(
                 .fillMaxWidth(0.92f)
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(horizontal = 20.dp, vertical = 18.dp),
         ) {
@@ -1172,7 +1156,6 @@ internal fun DeckLaunchMethodDialog(
                 .verticalScroll(rememberScrollState())
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(22.dp),
         ) {
@@ -1196,9 +1179,9 @@ internal fun DeckLaunchMethodDialog(
                     Modifier
                         .fillMaxWidth()
                         .padding(bottom = 10.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (picked) DeckPalette.primary.copy(alpha = 0.10f) else DeckPalette.surfaceVariant)
-                        .border(if (picked) 1.5.dp else 1.dp, if (picked) DeckPalette.primary else DeckPalette.line, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (picked) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
+                        .then(if (picked) Modifier.border(2.dp, DeckPalette.primary, RoundedCornerShape(20.dp)) else Modifier)
                         .clickable { method = mode }
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                 ) {
@@ -1428,7 +1411,6 @@ internal fun DeckLaunchStack(
                     .fillMaxWidth(0.85f)
                     .clip(DeckPalette.groupShape)
                     .background(DeckPalette.surface)
-                    .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                     .padding(22.dp),
             ) {
                 Text(
@@ -1523,7 +1505,6 @@ internal fun DeckGameMenu(
                 }
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(vertical = 10.dp),
         ) {
@@ -1563,7 +1544,7 @@ private fun DeckGameMenuRow(
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(14.dp))
-        Text(label, color = if (danger) DeckPalette.error else DeckPalette.onBackground, fontSize = 14.sp)
+        Text(label, color = if (danger) DeckPalette.error else DeckPalette.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -1609,7 +1590,6 @@ internal fun DeckCronosReviewDialog(
                 .verticalScroll(rememberScrollState())
                 .clip(DeckPalette.groupShape)
                 .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onKeep)
                 .padding(22.dp),
         ) {

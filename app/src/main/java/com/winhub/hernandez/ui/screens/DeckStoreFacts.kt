@@ -111,7 +111,6 @@ internal fun DeckScoresRow(scores: DeckScores, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .clip(shape)
                     .background(Deck.surfaceVariant)
-                    .border(1.dp, Deck.line, shape)
                     .clickable { openFactUrl(ctx, mc.url) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
@@ -152,7 +151,6 @@ internal fun DeckScoresRow(scores: DeckScores, modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .clip(shape)
                         .background(Deck.surfaceVariant)
-                        .border(1.dp, Deck.line, shape)
                         .clickable { openFactUrl(ctx, hltb.url) }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
@@ -199,7 +197,6 @@ internal fun DeckAboutCard(description: String, modifier: Modifier = Modifier) {
             .padding(top = 14.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Deck.surface)
-            .border(1.dp, Deck.line, RoundedCornerShape(12.dp))
             .padding(14.dp),
     ) {
         Text(
@@ -241,7 +238,6 @@ internal fun DeckAchievementsRow(
             .padding(top = 14.dp)
             .clip(shape)
             .background(Deck.surface)
-            .border(1.dp, Deck.line, shape)
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -288,7 +284,6 @@ internal fun DeckAchievementsRow(
                             .width(76.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Deck.surfaceVariant)
-                            .border(1.dp, Deck.line, RoundedCornerShape(8.dp))
                             .padding(6.dp),
                     ) {
                         Box(

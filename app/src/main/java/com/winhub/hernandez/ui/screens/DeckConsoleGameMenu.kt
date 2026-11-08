@@ -138,7 +138,6 @@ internal fun DeckConsoleGameMenu(
                     .fillMaxWidth(0.8f)
                     .clip(cardShape)
                     .background(Color(0xFF12151B))
-                    .border(1.dp, DeckPalette.line2, cardShape)
                     // Swallow taps on the card so only the dim area dismisses.
                     .pointerInput(Unit) { detectTapGestures { } },
                 horizontalAlignment = Alignment.CenterHorizontally,

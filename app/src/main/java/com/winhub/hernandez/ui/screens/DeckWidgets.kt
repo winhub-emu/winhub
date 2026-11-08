@@ -552,7 +552,7 @@ internal object DeckPalette {
     val error = Color(0xFFFF8A80)
 
     /** DroidDeck's GroupShape. */
-    val groupShape = RoundedCornerShape(14.dp)
+    val groupShape = RoundedCornerShape(22.dp)
 
     fun titleCase(value: String): String =
         value.lowercase().split("_").joinToString(" ") { part ->
@@ -566,33 +566,20 @@ internal object DeckPalette {
  */
 @Composable
 internal fun DeckGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    Text(
+        text = title,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = DeckPalette.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 4.dp),
-    ) {
-        Text(
-            text = title.uppercase(),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.5.sp,
-            color = DeckPalette.onSurfaceVariant,
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(DeckPalette.line),
-        )
-    }
+            .padding(start = 6.dp, top = 12.dp, bottom = 6.dp),
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, DeckPalette.groupShape),
+            .background(DeckPalette.surface),
         content = content,
     )
 }
@@ -626,7 +613,8 @@ internal fun DeckRow(
                     .clickable(interactionSource = rowInteraction, indication = null, onClick = onConfigClick)
                 else Modifier,
             )
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Column(
             modifier = Modifier
@@ -635,7 +623,7 @@ internal fun DeckRow(
         ) {
             Text(
                 text = label,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DeckPalette.onBackground,
             )
@@ -684,7 +672,7 @@ internal fun DeckRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(DeckPalette.line),
+            .background(DeckPalette.line.copy(alpha = 0.45f)),
     )
 }
 
@@ -784,12 +772,7 @@ internal fun DeckToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
             modifier = Modifier
                 .size(width = 52.dp, height = 30.dp)
                 .clip(RoundedCornerShape(99.dp))
-                .background(track)
-                .border(
-                    width = 1.dp,
-                    color = if (checked) DeckPalette.secondary else DeckPalette.line2,
-                    shape = RoundedCornerShape(99.dp),
-                ),
+                .background(track),
         ) {
             Box(
                 modifier = Modifier
@@ -813,9 +796,8 @@ internal fun DeckValueChip(text: String, open: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .widthIn(min = 100.dp)
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(DeckPalette.surfaceVariant)
-            .border(1.dp, DeckPalette.line2, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
@@ -1127,9 +1109,8 @@ internal fun DeckStretchyTabs(
         modifier = modifier
             .then(if (fill) Modifier.fillMaxWidth() else Modifier)
             .height(height + 6.dp)
-            .clip(RoundedCornerShape(13.dp))
-            .background(DeckPalette.surfaceVariant)
-            .border(1.dp, DeckPalette.line2, RoundedCornerShape(13.dp))
+            .clip(RoundedCornerShape(22.dp))
+            .background(DeckPalette.surface)
             .padding(3.dp),
     ) {
         Box(
@@ -1144,8 +1125,8 @@ internal fun DeckStretchyTabs(
                             .offset { IntOffset(start.value.roundToInt(), 0) }
                             .width(with(density) { (end.value - start.value).toDp() })
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(10.dp))
-                            .border(2.dp, DeckPalette.primary, RoundedCornerShape(10.dp)),
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(DeckPalette.primary.copy(alpha = 0.16f)),
                     )
                 }
                 Row(
@@ -1208,12 +1189,12 @@ private fun DeckStretchyTab(
         modifier = modifier
             .fillMaxHeight()
             .then(if (focusable) Modifier else Modifier.focusProperties { canFocus = false })
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(18.dp))
             // With selectOnFocus the stretchy selection pill is already the indicator; a second
             // border on the same tab reads as two cursors. Focus-only strips still need one.
             .then(
                 if (focusable && !selectOnFocus)
-                    Modifier.deckFocusBorder(interaction, RoundedCornerShape(10.dp), Color.Transparent)
+                    Modifier.deckFocusBorder(interaction, RoundedCornerShape(18.dp), Color.Transparent)
                 else Modifier,
             )
             .deckBringIntoView()
@@ -1327,17 +1308,12 @@ internal fun DeckButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (primary) DeckPalette.primary else DeckPalette.surface)
-            .border(
-                width = 1.dp,
-                color = if (primary) DeckPalette.primary else DeckPalette.line,
-                shape = RoundedCornerShape(12.dp),
-            )
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (primary) DeckPalette.primary else DeckPalette.surfaceVariant)
             .deckOuterFocusStroke(
                 interaction = interaction,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(24.dp),
                 focusColor = if (primary) DeckPalette.onPrimary else DeckPalette.primary,
             )
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)

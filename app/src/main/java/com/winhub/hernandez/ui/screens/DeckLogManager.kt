@@ -741,7 +741,6 @@ private fun DeckGameLogCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -816,7 +815,6 @@ private fun DeckGameLogCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(DeckPalette.background)
-                            .border(1.dp, DeckPalette.line, RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                     )
                 }
