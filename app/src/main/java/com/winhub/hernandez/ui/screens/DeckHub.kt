@@ -96,6 +96,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,6 +104,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
+import com.winhub.hernandez.R
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.core.FileUtils
 import com.winhub.hernandez.ui.moveFocusSafely
@@ -983,6 +985,12 @@ internal fun HubConfirmDialog(
                                 .clickable { menuOpen = true }
                                 .padding(horizontal = 14.dp, vertical = 9.dp),
                         ) {
+                            Icon(
+                                painter = painterResource(R.drawable.icon_menu_container),
+                                contentDescription = null,
+                                tint = DeckPalette.primary,
+                                modifier = Modifier.padding(end = 8.dp).size(20.dp),
+                            )
                             Text(
                                 text = "Container · ${containerNames[containerIdx.coerceIn(0, containerNames.size - 1)]}",
                                 fontSize = 13.sp,
@@ -999,6 +1007,14 @@ internal fun HubConfirmDialog(
                             containerNames.forEachIndexed { i, label ->
                                 androidx.compose.material3.DropdownMenuItem(
                                     text = { Text(label, color = DeckPalette.onBackground, fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.icon_menu_container),
+                                            contentDescription = null,
+                                            tint = DeckPalette.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    },
                                     onClick = { containerIdx = i; menuOpen = false },
                                 )
                             }

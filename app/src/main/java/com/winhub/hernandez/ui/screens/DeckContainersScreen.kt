@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,6 +82,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.winhub.hernandez.R
 import com.winhub.hernandez.XServerDisplayActivity
 import com.winhub.hernandez.XrActivity
 import com.winhub.hernandez.container.Container
@@ -794,6 +796,14 @@ private fun DeckContainerCard(
             .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
+        // Same container glyph as the normal Containers tab; tinted so it follows the Deck theme.
+        Icon(
+            painter = painterResource(R.drawable.icon_menu_container),
+            contentDescription = null,
+            tint = DeckPalette.primary,
+            modifier = Modifier.padding(end = 12.dp).size(28.dp),
+        )
+
         // Only the name area opens the editor: a clickable on the whole card would swallow Play and
         // the actions button, which D-pad focus could then never reach. Each part rings on its own.
         Column(
