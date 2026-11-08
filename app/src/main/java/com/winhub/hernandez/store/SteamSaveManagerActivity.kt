@@ -1239,7 +1239,7 @@ private fun CustomSaveRow(
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-            .deckDragItem(dragKey)
+            .deckDragItem(dragKey, selfOnly = true)
             .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
         // Thumbnail = the shortcut's own art (cover → icon); custom games have no Steam appId cover.
@@ -1431,7 +1431,7 @@ private fun EpicSaveRow(
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             // Tapping the card opens the Epic store detail page. The Up/Down IconButtons keep their own
             // click handlers so they stay independently tappable (not swallowed by the card click).
-            .deckDragItem(dragKey)
+            .deckDragItem(dragKey, selfOnly = true)
             .clickable(onClick = onOpen)
             .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
@@ -1726,7 +1726,7 @@ private fun GogSaveRow(
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             // Tapping the card opens the GOG store detail page. The Up/Down IconButtons keep their own
             // click handlers so they stay independently tappable (not swallowed by the card click).
-            .deckDragItem(dragKey)
+            .deckDragItem(dragKey, selfOnly = true)
             .clickable(onClick = onOpen)
             .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
@@ -1860,7 +1860,7 @@ private fun SaveStatusRow(
                         else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(12.dp),
             )
-            .deckDragItem(dragKey)
+            .deckDragItem(dragKey, selfOnly = true)
             .clickable(onClick = onOpen)
             .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {

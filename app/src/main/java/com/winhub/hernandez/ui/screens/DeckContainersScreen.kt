@@ -20,7 +20,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -337,7 +336,7 @@ private fun DeckCronosTab(
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 items(games, key = { it.shortcut.file.absolutePath }) { item ->
-                    Box(Modifier.deckDragItem(item.shortcut.file.absolutePath)) {
+                    Box(Modifier.deckDragItem(item.shortcut.file.absolutePath, selfOnly = true)) {
                         DeckCronosCard(
                             item = item,
                             onOpen = { onOpen(item) },
@@ -433,7 +432,7 @@ private fun DeckStorageContainersTab(
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     items(containers, key = { it.id }) { container ->
-                        Box(Modifier.deckDragItem("container-${container.id}")) {
+                        Box(Modifier.deckDragItem("container-${container.id}", selfOnly = true)) {
                             DeckContainerCard(
                                 name = container.name,
                                 subtitle = listOf(container.wineVersion, container.screenSize)
@@ -468,7 +467,6 @@ private fun DeckCronosCard(
     val gameSize = rememberDeckDirSize(item.gameDir)
     val store = item.store.isNotEmpty()
     val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -476,15 +474,17 @@ private fun DeckCronosCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .border(1.dp, if (focused) DeckPalette.primary else DeckPalette.line, DeckPalette.groupShape)
+            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(12.dp),
     ) {
-        // Cover + details open the game; the remove buttons beside them are separate focus targets.
+        // Cover + details open the game; the remove buttons beside them are separate focus targets,
+        // and each one rings on its own: the card never lights up for a button inside it.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(10.dp))
+                .deckOuterFocusStroke(interaction, RoundedCornerShape(10.dp))
                 .clickable(interactionSource = interaction, indication = null, onClick = onOpen),
         ) {
         Box(
@@ -785,26 +785,22 @@ private fun DeckContainerCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .border(
-                1.dp,
-                if (focused) DeckPalette.primary else DeckPalette.line,
-                DeckPalette.groupShape,
-            )
+            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
         // Only the name area opens the editor: a clickable on the whole card would swallow Play and
-        // the actions button, which D-pad focus could then never reach.
+        // the actions button, which D-pad focus could then never reach. Each part rings on its own.
         Column(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(10.dp))
+                .deckOuterFocusStroke(interaction, RoundedCornerShape(10.dp))
                 .clickable(interactionSource = interaction, indication = null, onClick = onEdit)
                 .padding(end = 12.dp),
         ) {

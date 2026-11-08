@@ -860,9 +860,24 @@ internal fun DeckStoresScreen() {
     var storeTab by remember(active.screen) { mutableIntStateOf(0) }
     val storeTabCount = if (active.screen == Screen.Steam) 5 else 3
     val tabFocus = remember { FocusRequester() }
-    // Bind a single page so the shell leaves L2/R2 to this screen instead of a stale tab host.
+    // The shell owns L2/R2 (it works without Compose focus): the host steps the store on the picker and
+    // the page tab inside a signed-in store. Pages and index are mirrored both ways below.
     val deckTabs = LocalDeckTabs.current
-    LaunchedEffect(deckTabs) { deckTabs.bind(1) }
+    val storeSignedIn = signedInByStore[active.screen] == true
+    val stepPages = if (!inStore) deckStores.size else if (storeSignedIn) storeTabCount else 1
+    val stepIndex = if (!inStore) deckStores.indexOfFirst { it.screen == selected }.coerceAtLeast(0) else storeTab
+    LaunchedEffect(deckTabs, stepPages, stepIndex) {
+        deckTabs.bind(stepPages)
+        deckTabs.select(stepIndex)
+    }
+    LaunchedEffect(deckTabs.index) {
+        val i = deckTabs.index
+        if (!inStore) {
+            deckStores.getOrNull(i)?.let { selected = it.screen }
+        } else if (storeSignedIn && i in 0 until storeTabCount) {
+            storeTab = i
+        }
+    }
     val canLeaveStore = inStore && !showDownloads && gogInstall == null && epicInstall == null &&
         amazonInstall == null && xboxInstall == null && steamInstall == null
     val backLayer = LocalDeckBack.current
@@ -1014,18 +1029,7 @@ internal fun DeckStoresScreen() {
                     showDownloads = true
                     return@onPreviewKeyEvent true
                 }
-                val step = when (e.key) {
-                    Key.ButtonL2 -> -1
-                    Key.ButtonR2 -> 1
-                    else -> return@onPreviewKeyEvent false
-                }
-                if (!inStore) {
-                    val i = deckStores.indexOfFirst { it.screen == selected }.coerceAtLeast(0)
-                    selected = deckStores[(i + step + deckStores.size) % deckStores.size].screen
-                } else if (signedInByStore[active.screen] == true) {
-                    storeTab = (storeTab + step + storeTabCount) % storeTabCount
-                }
-                true
+                false
             }
             .padding(horizontal = 24.dp, vertical = 14.dp),
     ) {
