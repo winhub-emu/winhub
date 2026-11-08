@@ -2,6 +2,7 @@ package com.winhub.hernandez.ui.theme
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -126,7 +127,11 @@ fun WinlatorTheme(content: @Composable () -> Unit) {
             // inside MaterialTheme so nothing deeper can shadow it.
             CompositionLocalProvider(LocalIndication provides remember(colorScheme.primary) { ControllerFocusIndication(colorScheme.primary) }) {
                 // One animated focus ring for the whole window; screens with their own frame override it.
-                ControllerNavRoot { DeckDragFrame(Modifier.fillMaxSize()) { content() } }
+                // Text outside a Material component has no style of its own, so hand the whole window
+                // the app font; explicit sizes and weights still win.
+                CompositionLocalProvider(LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = DeckFontFamily)) {
+                    ControllerNavRoot { DeckDragFrame(Modifier.fillMaxSize()) { content() } }
+                }
             }
         }
     }
