@@ -151,16 +151,23 @@ object UpdateManager {
      * On network failure, falls back to the last cached result so the banner
      * still works offline.
      */
-    fun check(ctx: Context, onResult: (UpdateInfo?) -> Unit) {
-        if (isIncludePrereleases(ctx)) checkViaApi(ctx, onResult)
-        else checkStable(ctx, onResult)
+    fun check(ctx: Context, onResult: (UpdateInfo?) -> Unit) = check(ctx, true, onResult)
+
+    /**
+     * [hashInstalled] false skips hashing the installed APK to pick a small-update patch. The first
+     * hash takes several seconds, so a caller that only needs "is there a newer build" (the
+     * app-open notice, which gives up after a few seconds) must not wait on it.
+     */
+    fun check(ctx: Context, hashInstalled: Boolean, onResult: (UpdateInfo?) -> Unit) {
+        if (isIncludePrereleases(ctx)) checkViaApi(ctx, hashInstalled, onResult)
+        else checkStable(ctx, hashInstalled, onResult)
     }
 
     /** Stable-only path: releases/latest only ever resolves to a non-prerelease. */
-    private fun checkStable(ctx: Context, onResult: (UpdateInfo?) -> Unit) {
+    private fun checkStable(ctx: Context, hashInstalled: Boolean, onResult: (UpdateInfo?) -> Unit) {
         HttpUtils.download(UPDATE_JSON_URL) { body ->
             val info = body?.let { parseUpdateJson(it) { n -> assetUrl(n) } }
-            finish(ctx, body, info, onResult)
+            finish(ctx, body, info, hashInstalled, onResult)
         }
     }
 
@@ -171,29 +178,29 @@ object UpdateManager {
      * assets, not releases/latest. Falls back to the stable path if the API is
      * unreachable or no release yet carries update.json.
      */
-    private fun checkViaApi(ctx: Context, onResult: (UpdateInfo?) -> Unit) {
+    private fun checkViaApi(ctx: Context, hashInstalled: Boolean, onResult: (UpdateInfo?) -> Unit) {
         HttpUtils.download(API_RELEASES_URL) { listBody ->
             val picked = listBody?.let { pickNewestWithUpdateJson(it) }
             if (picked == null) {
-                checkStable(ctx, onResult)
+                checkStable(ctx, hashInstalled, onResult)
                 return@download
             }
             HttpUtils.download(picked.updateJsonUrl) { body ->
                 val info = body?.let { uj -> parseUpdateJson(uj) { n -> picked.assets[n] } }
-                finish(ctx, body, info, onResult)
+                finish(ctx, body, info, hashInstalled, onResult)
             }
         }
     }
 
     private fun finish(
-        ctx: Context, body: String?, info: UpdateInfo?, onResult: (UpdateInfo?) -> Unit,
+        ctx: Context, body: String?, info: UpdateInfo?, hashInstalled: Boolean, onResult: (UpdateInfo?) -> Unit,
     ) {
         if (info != null && body != null) {
             cache(ctx, body)
             prefs(ctx).edit().putLong(PREF_LAST_CHECK, System.currentTimeMillis()).apply()
-            onResult(withPatch(ctx, info, hash = true))
+            onResult(withPatch(ctx, info, hash = hashInstalled))
         } else {
-            onResult(loadCached(ctx)?.let { withPatch(ctx, it, hash = true) })
+            onResult(loadCached(ctx)?.let { withPatch(ctx, it, hash = hashInstalled) })
         }
     }
 

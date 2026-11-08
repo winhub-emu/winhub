@@ -26,9 +26,9 @@ import kotlin.random.Random
  * [RUN_DEADLINE_MS] so a slow network cannot pin the thread (the old worst case was 10 × 10 s).
  * A 429/403 aborts the run instead of hammering through the throttle.
  *
- * With [notify] set, the outcome of the run is surfaced when the run finishes: "No necessary
- * updates found." shows as the top-right Compose banner ([ComposeNotifier]), while a throttle
- * message (GitHub pushed back) and a failure message (nothing answered) keep the centered toast.
+ * With [notify] set, the app first looks for a newer WinHub build and shows the answer as the
+ * top-right Compose banner ([ComposeNotifier]): "Update available", "No necessary updates found."
+ * or "Couldn't check for updates". The run above starts once that answer is in.
  */
 object WinhubPing {
     private const val TAG = "WinhubPing"
@@ -46,8 +46,8 @@ object WinhubPing {
     private const val JITTER_MIN_MS = 80L
     private const val JITTER_MAX_MS = 300L
 
-    /** How long the banner waits for the update lookup before it just reports the run outcome. */
-    private const val UPDATE_LOOKUP_WAIT_MS = 5_000L
+    /** How long the update lookup may take before the banner reports a failed check and the run goes on. */
+    private const val UPDATE_LOOKUP_WAIT_MS = 15_000L
 
     private enum class Outcome { OK, FAILED, THROTTLED }
 
@@ -61,12 +61,17 @@ object WinhubPing {
      *
      * @param context used only to resolve the result toast; the application context is taken from
      *   it, so an Activity is never held past this call.
-     * @param notify when true, show the result toast once the run finishes.
+     * @param notify when true, check for a newer build first and show the result banner.
      */
     fun ping(context: Context? = null, notify: Boolean = false) {
         if (running) return
         running = true
         val appContext = context?.applicationContext
+        if (notify && appContext != null) checkForUpdate(appContext) { startRun() }
+        else startRun()
+    }
+
+    private fun startRun() {
         try {
             Thread {
                 var ok = 0
@@ -98,7 +103,6 @@ object WinhubPing {
                         Log.d(TAG, "ping finished: $ok/$sent ok, throttled=$throttled, " +
                             "${System.currentTimeMillis() - startedAt}ms")
                     }
-                    if (notify) report(appContext, ok, throttled)
                 }
             }.start()
         } catch (t: Throwable) {
@@ -107,45 +111,44 @@ object WinhubPing {
         }
     }
 
-    /** Reports the run outcome; [ComposeNotifier.show] is safe from any thread. */
-    private fun report(context: Context?, ok: Int, throttled: Boolean) {
-        if (context == null) return
-        if (ok > 0 && UpdateManager.isNotifyEnabled(context)) {
-            // A newer release turns the banner into "Update available"; the user's skipped version stays quiet.
-            // First answer wins: the lookup, or the timeout, so a slow or failed lookup never costs the banner.
-            val answered = AtomicBoolean(false)
-            fun answer(newer: UpdateManager.UpdateInfo?) {
-                if (!answered.compareAndSet(false, true)) return
-                mainHandler.post {
-                    if (newer != null) ComposeNotifier.showUpdate(context, newer.versionName)
-                    else showOutcome(context, ok, throttled)
-                }
-            }
-            mainHandler.postDelayed({ answer(null) }, UPDATE_LOOKUP_WAIT_MS)
-            try {
-                UpdateManager.check(context) { info ->
-                    answer(info?.takeIf { it.isNewer && it.versionCode != UpdateManager.skippedVersionCode(context) })
-                }
-            } catch (t: Throwable) {
-                Log.w(TAG, "update lookup failed", t)
-                answer(null)
-            }
+    /**
+     * Looks for a newer build, shows the banner for the answer, then calls [then] exactly once
+     * (also when the lookup hangs or fails), so the run is never held back.
+     */
+    private fun checkForUpdate(context: Context, then: () -> Unit) {
+        if (!UpdateManager.isNotifyEnabled(context)) {
+            then()
             return
         }
-        showOutcome(context, ok, throttled)
-    }
-
-    private fun showOutcome(context: Context, ok: Int, throttled: Boolean) {
-        val message = context.getString(
-            when {
-                ok > 0 -> R.string.winhub_ping_no_updates
-                throttled -> R.string.winhub_ping_throttled
-                else -> R.string.winhub_ping_failed
+        val answered = AtomicBoolean(false)
+        fun answer(newer: UpdateManager.UpdateInfo?, checked: Boolean) {
+            if (!answered.compareAndSet(false, true)) return
+            mainHandler.post {
+                when {
+                    newer != null -> ComposeNotifier.showUpdate(context, newer.versionName)
+                    checked -> ComposeNotifier.show(context, context.getString(R.string.winhub_ping_no_updates))
+                    else -> ComposeNotifier.show(context, context.getString(R.string.winhub_ping_failed))
+                }
             }
-        )
-        // Every outcome goes through the top-right Compose banner (one per app open, enforced by
-        // ComposeNotifier). The centered toast is kept only for the rest of the app.
-        ComposeNotifier.show(context, message)
+            then()
+        }
+        mainHandler.postDelayed({ answer(null, false) }, UPDATE_LOOKUP_WAIT_MS)
+        // A failed fetch falls back to the cached answer, so only a fresher lastCheck proves this one is live.
+        val before = UpdateManager.lastCheck(context)
+        try {
+            UpdateManager.check(context, hashInstalled = false) { info ->
+                val fresh = UpdateManager.lastCheck(context) != before
+                answer(
+                    info?.takeIf {
+                        fresh && it.isNewer && it.versionCode != UpdateManager.skippedVersionCode(context)
+                    },
+                    fresh,
+                )
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "update lookup failed", t)
+            answer(null, false)
+        }
     }
 
     private fun download(index: Int): Outcome {
