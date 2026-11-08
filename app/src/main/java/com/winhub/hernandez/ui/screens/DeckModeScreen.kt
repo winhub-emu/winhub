@@ -657,7 +657,7 @@ private fun DeckHome(
     // L2/R2 switch the shelves (All / Recent / Favourites / Store games) through the shell's sub-tabs.
     val deckTabs = LocalDeckTabs.current
     // Home style (Settings > Appearance): XMB keeps this Home and swaps the game dropdown for the XMB one.
-    val xmbStyle = !portrait && remember { PreferenceManager.getDefaultSharedPreferences(context).getString("home_style", "xmb") != "classic" }
+    val xmbStyle = false
     LaunchedEffect(deckTabs) { deckTabs.bind(4) }
     val shelf = deckTabs.index
     var favs by remember {
@@ -675,6 +675,8 @@ private fun DeckHome(
     var addModeMenu by remember { mutableStateOf(false) }
     // Classic style: long-press a cover / Y opens the console-style game menu instead of the dropdown.
     var classicMenu by remember { mutableStateOf(false) }
+    // Landscape: A on a cover opens that game's page over Home.
+    var gamePageOpen by remember { mutableStateOf(false) }
     // Portrait: tapping a cover opens its game page over the grid.
     var portraitPageOpen by remember { mutableStateOf(false) }
     // The shell hides its liquid backdrop while the page is up (and when Home itself goes away).
@@ -1089,7 +1091,7 @@ private fun DeckHome(
 
     // Hand focus back to the carousel once any dialog/overlay opened from Home goes away.
     val overlayOpen = pending != null || launchRequest != null || launchMethodFor != null ||
-        propertiesFor != null || cronosReviewFor != null || shortcutSettingsFor != null || addModeMenu || xmbNested || showWrapperManager || classicMenu
+        propertiesFor != null || cronosReviewFor != null || shortcutSettingsFor != null || addModeMenu || xmbNested || showWrapperManager || classicMenu || gamePageOpen
     var hadOverlay by remember { mutableStateOf(false) }
     LaunchedEffect(overlayOpen) {
         if (!overlayOpen && hadOverlay) {
@@ -1108,38 +1110,6 @@ private fun DeckHome(
                 .then(if (portrait) Modifier else Modifier.background(Deck.background))
                 .clipToBounds(),
         ) {
-            if (!portrait) DeckCapsuleWall(
-                covers = wallCovers,
-                driftMs = if (covers.isEmpty()) 75_000 else 40_000,
-            )
-            if (!portrait) {
-                // The backdrop follows the focused game: its cover, blurred, crossfading as the selection moves.
-                Crossfade(targetState = current?.bitmap, animationSpec = tween(600), label = "homeBackdrop") { bmp ->
-                    if (bmp != null) {
-                        Image(
-                            bitmap = remember(bmp) { bmp.asImageBitmap() },
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().blur(18.dp).alpha(0.34f),
-                        )
-                    }
-                }
-                val coverTint = remember(current?.bitmap) {
-                    current?.bitmap?.let { b -> Color(Bitmap.createScaledBitmap(b, 1, 1, true).getPixel(0, 0)) }
-                }
-                val tint by animateColorAsState(coverTint ?: Deck.primary, tween(600), label = "homeTint")
-                Box(
-                    Modifier.fillMaxSize().drawBehind {
-                        val c = Offset(size.width * 0.2f, size.height * 0.3f)
-                        drawCircle(
-                            Brush.radialGradient(listOf(tint.copy(alpha = 0.32f), Color.Transparent), c, size.width * 0.7f),
-                            size.width * 0.7f,
-                            c,
-                        )
-                    },
-                )
-            }
-            if (!portrait) DeckWallFade()
 
             if (portrait) PortraitHome(
                 entries = visible,
@@ -1152,9 +1122,9 @@ private fun DeckHome(
                 onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
                 onMenu = { i -> selected = i; classicMenu = true },
-            ) else DeckHomeCarousel(
+            ) else DeckCozyHome(
                 modifier = Modifier.graphicsLayer {
-                    // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
+                    // An open tool replaces Home: it fades out and lifts a little.
                     alpha = intro.value * homeFade
                     translationY = (1f - intro.value) * 60.dp.toPx() - (1f - homeFade) * 12.dp.toPx()
                 },
@@ -1162,24 +1132,23 @@ private fun DeckHome(
                 loaded = entries != null && (visible.isNotEmpty() || entries.orEmpty().isEmpty()),
                 selected = sel,
                 favs = favs,
-                details = details,
-                onFavorite = { toggleFavorite() },
-                classic = !xmbStyle,
-                onMenu = { classicMenu = true },
                 onSelect = { selected = it },
-                mode = homeMode,
-                onMode = { homeMode = it },
-                xmbRows = xmbSc != null,
-                menuHidden = xmbNested,
-                launching = launchShown,
-                launchT = { launchT.value },
-                info = xmbInfo,
-                actions = actions,
-                cards = cards,
+                onOpen = { selected = it; gamePageOpen = true },
+                onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
+                onMenu = { i -> selected = i; classicMenu = true },
                 onAdd = { addModeMenu = true },
                 focus = heroFocus,
-                enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu,
+                enabled = shortcutSettingsFor == null && !classicMenu && !gamePageOpen,
             )
+            if (!portrait && gamePageOpen && current != null) {
+                BackHandler(enabled = shortcutSettingsFor == null && !classicMenu) { gamePageOpen = false }
+                DeckHubGamePage(
+                    entry = current,
+                    onBack = { gamePageOpen = false },
+                    onPlay = { gamePageOpen = false; playEntry(current) },
+                    onSettings = { gamePageOpen = false; openGameSettings(current) },
+                )
+            }
             if (portrait && portraitPageOpen && current != null) {
                 BackHandler(enabled = shortcutSettingsFor == null && !classicMenu) { portraitPageOpen = false }
                 PortraitGamePage(
@@ -1216,7 +1185,7 @@ private fun DeckHome(
             }
 
             // Shelves (L2/R2) top centre, status top right.
-            if (!portrait) DeckStretchyTabs(
+            if (!portrait && !gamePageOpen) DeckStretchyTabs(
                 labels = listOf("All", "Recent", "Favourites", "Store games"),
                 selected = shelf,
                 onSelect = { deckTabs.select(it) },
@@ -1225,7 +1194,7 @@ private fun DeckHome(
                 height = 30.dp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
-            if (!portrait) DeckStatusStrip(
+            if (!portrait && !gamePageOpen) DeckStatusStrip(
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },
             )
             AnimatedVisibility(
