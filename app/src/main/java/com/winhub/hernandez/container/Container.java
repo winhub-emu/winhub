@@ -475,6 +475,13 @@ public class Container {
         return extraData != null && extraData.has(name);
     }
 
+    // Marks a container created by the Deck "Cronos" add-game path (one game, its own container).
+    public static final String EXTRA_CRONOS = "cronos";
+
+    public boolean isCronos() {
+        return "1".equals(getExtra(EXTRA_CRONOS, ""));
+    }
+
     public void putExtra(String name, Object value) {
         if (extraData == null) extraData = new JSONObject();
         try {

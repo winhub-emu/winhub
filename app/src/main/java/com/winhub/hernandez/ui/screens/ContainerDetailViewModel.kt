@@ -135,7 +135,11 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
                     // Same conversion the editor's ColorPickerView does for its colorAsString, so the
                     // seeded desktop background colour reaches desktopTheme byte-identically.
                     String.format(Locale.ENGLISH, "#%06X", 0x00ffffff and vm.desktopBgColorInt),
-                )
+                ).also {
+                    // Only the Cronos add-game flows build containers this way: tag it so Storage
+                    // lists it under Cronos and keeps it out of the Containers tab.
+                    it.put("extraData", JSONObject().put(Container.EXTRA_CRONOS, "1"))
+                }
             }.getOrNull()
         }
     }

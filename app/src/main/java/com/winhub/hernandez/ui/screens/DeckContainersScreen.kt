@@ -150,6 +150,11 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
         cronos = withContext(Dispatchers.IO) { loadDeckCronos(context, containers) }
         cronosLoading = false
     }
+    // Cronos containers are only reachable through the Cronos tab.
+    val plainContainers = remember(containers, cronos) {
+        val cronosIds = cronos.map { it.container.id }.toSet()
+        containers.filter { it.id !in cronosIds }
+    }
 
     Box(
         modifier = Modifier
@@ -170,7 +175,7 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
             Spacer(Modifier.height(4.dp))
             Text(
                 text = if (subtab == 0) "${cronos.size} games on their own container"
-                else "${containers.size} installed",
+                else "${plainContainers.size} installed",
                 fontSize = 13.sp,
                 color = DeckPalette.onSurfaceVariant,
             )
@@ -221,7 +226,7 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                     )
                 } else {
                     DeckStorageContainersTab(
-                        containers = containers,
+                        containers = plainContainers,
                         onNew = { onEditContainer(-1) },
                         onDefaults = { onEditContainer(-2) },
                         onEdit = onEditContainer,
@@ -630,7 +635,11 @@ private fun DeckConfirmDialog(
     }
 }
 
-/** Builds the Cronos list: every container that holds exactly one game shortcut. */
+/**
+ * Builds the Cronos list: containers created by the Cronos flow (tagged [Container.EXTRA_CRONOS])
+ * that hold exactly one game shortcut. Containers made before the tag existed are recognised once
+ * by the Cronos shape (one shortcut named like its container) and tagged, so they keep showing here.
+ */
 private fun loadDeckCronos(context: Context, containers: List<Container>): List<DeckCronosItem> {
     return runCatching {
         val manager = ContainerManager(context).also { it.reloadContainers() }
@@ -644,6 +653,11 @@ private fun loadDeckCronos(context: Context, containers: List<Container>): List<
             val shortcut = list.singleOrNull() ?: return@mapNotNull null
             val container = shortcut.container ?: return@mapNotNull null
             val live = containers.firstOrNull { it.id == container.id } ?: container
+            if (!live.isCronos) {
+                if (!shortcut.name.equals(live.name, ignoreCase = true)) return@mapNotNull null
+                live.putExtra(Container.EXTRA_CRONOS, "1")
+                live.saveData()
+            }
             val store = deckStoreSource(shortcut)
             val gameDir = if (store.isNotEmpty()) {
                 runCatching {

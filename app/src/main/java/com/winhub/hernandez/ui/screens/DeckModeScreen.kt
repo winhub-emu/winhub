@@ -1404,7 +1404,7 @@ private fun DeckHome(
             pending?.let { (file, identity) ->
                 HubConfirmDialog(
                     file = file,
-                    containerNames = containers.map { it.name },
+                    containerNames = containers.filter { !it.isCronos }.map { it.name },
                     initialName = identity.name ?: file.nameWithoutExtension,
                     initialAppId = identity.appId,
                     mode = addMode,
@@ -1481,7 +1481,7 @@ private fun DeckHome(
                             }
                             return@HubConfirmDialog
                         }
-                        val container = containers.getOrNull(containerIndex)
+                        val container = containers.filter { !it.isCronos }.getOrNull(containerIndex)
                         if (container == null) {
                             Toast.makeText(context, "Create a container first", Toast.LENGTH_SHORT).show()
                             return@HubConfirmDialog

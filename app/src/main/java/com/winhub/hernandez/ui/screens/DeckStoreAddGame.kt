@@ -102,7 +102,7 @@ internal fun DeckStoreAddFlow(request: DeckAddRequest, onDismiss: () -> Unit) {
 
     HubConfirmDialog(
         file = File(path),
-        containerNames = containers.map { it.name },
+        containerNames = containers.filter { !it.isCronos }.map { it.name },
         initialName = request.title,
         initialAppId = request.appId,
         mode = picked,
@@ -133,7 +133,7 @@ internal fun DeckStoreAddFlow(request: DeckAddRequest, onDismiss: () -> Unit) {
                     }
                 }
             } else {
-                val container = containers.getOrNull(containerIndex)
+                val container = containers.filter { !it.isCronos }.getOrNull(containerIndex)
                 if (container == null) {
                     busy = false
                     Toast.makeText(context, "Create a container first", Toast.LENGTH_SHORT).show()
