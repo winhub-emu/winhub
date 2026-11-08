@@ -236,7 +236,7 @@ internal fun DeckStorePicker(
 
 /** What is downloading right now, as a card under the store picker; nothing shows when the queue is idle. */
 @Composable
-private fun DeckDownloadingNow() {
+internal fun DeckDownloadingNow() {
     val entries by DownloadRegistry.entries.collectAsState()
     val active = entries.filter { it.isActive }
     if (active.isEmpty()) return

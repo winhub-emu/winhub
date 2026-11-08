@@ -469,6 +469,13 @@ private fun DeckFeaturedOnSteam(context: Context, onCard: (DeckBrowseItem) -> Un
     }
 }
 
+/** The portrait Stores page's "Featured on Steam" row; a tap opens that title's store page. */
+@Composable
+internal fun PortraitFeaturedOnSteam() {
+    val context = LocalContext.current
+    DeckFeaturedOnSteam(context) { item -> item.open(context) }
+}
+
 /** A browseable storefront entry: cover art, title, price and how to open its detail page. */
 private data class DeckBrowseItem(
     val title: String,

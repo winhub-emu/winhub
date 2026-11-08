@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1100,27 +1101,24 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
     val cs = MaterialTheme.colorScheme
     val labels = listOf("On-Screen", "Controller", "Assign", "Device")
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(cs.surface)
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         labels.forEachIndexed { i, label ->
             val on = i == selected
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(20.dp))
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(24.dp))
                     .background(if (on) cs.primary.copy(alpha = 0.16f) else Color.Transparent)
                     .clickable { onSelect(i) }
-                    .padding(vertical = 8.dp),
+                    .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (on) cs.primary else cs.onSurfaceVariant,
                     maxLines = 1,

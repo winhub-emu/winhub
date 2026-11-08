@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +56,7 @@ private val portraitStores = listOf(
 @Composable
 internal fun PortraitStoresScreen() {
     val context = LocalContext.current
+    val signedIn = remember { portraitStores.associate { it.screen to deckSignedIn(context, it.screen) } }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -100,12 +102,19 @@ internal fun PortraitStoresScreen() {
                         }
                         Column {
                             Text(store.name, color = Deck.onBackground, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            Text(store.blurb, color = Deck.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                if (signedIn[store.screen] == true) "Signed in" else "Sign in",
+                                color = Deck.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
                     }
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
+        PortraitFeaturedOnSteam()
+        DeckDownloadingNow()
     }
 }

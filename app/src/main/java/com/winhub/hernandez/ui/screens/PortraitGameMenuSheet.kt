@@ -127,7 +127,27 @@ internal fun PortraitGameMenuSheet(
                         Icon(Icons.Filled.Close, contentDescription = "Close", tint = Deck.onBackground)
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 14.dp)) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(width = 54.dp, height = 72.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Deck.surfaceVariant),
+                    ) {
+                        if (cover != null) {
+                            val img = remember(cover) { cover.asImageBitmap() }
+                            Image(img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        } else {
+                            Icon(Icons.Filled.SportsEsports, contentDescription = null, tint = Deck.primary)
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(title, color = Deck.onBackground, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 14.sp, maxLines = 1)
+                    }
+                }
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()).padding(bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),

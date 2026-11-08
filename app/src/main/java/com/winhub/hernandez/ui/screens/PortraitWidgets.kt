@@ -157,6 +157,8 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
                         .clickable { onSelect(i) }
                         .padding(horizontal = 16.dp),
                 ) {
+                    Icon(portraitTabIcon(label), contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         label,
                         color = tint,
@@ -212,6 +214,7 @@ internal fun DeckPortraitTabStrip(
                     .heightIn(min = 48.dp)
                     .padding(horizontal = 16.dp),
             ) {
+                icons.getOrNull(i)?.let { Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
                 Text(label, color = tint, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
             }
         }
