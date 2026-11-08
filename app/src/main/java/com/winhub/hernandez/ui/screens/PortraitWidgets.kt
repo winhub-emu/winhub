@@ -153,13 +153,10 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
                         .then(if (equal) Modifier.weight(1f) else Modifier)
                         .height(48.dp)
                         .clip(shape)
-                        .background(if (on) Deck.primary.copy(alpha = 0.18f) else Deck.surface)
-                        .then(if (on) Modifier.border(1.5.dp, accent, shape) else Modifier.border(1.dp, Deck.line, shape))
+                        .background(if (on) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
                         .clickable { onSelect(i) }
                         .padding(horizontal = 16.dp),
                 ) {
-                    Icon(portraitTabIcon(label), contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
                     Text(
                         label,
                         color = tint,
@@ -170,8 +167,6 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        PortraitTabDivider()
         Spacer(Modifier.height(10.dp))
     }
 }
@@ -200,33 +195,28 @@ internal fun DeckPortraitTabStrip(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(cardShape)
-            .background(Deck.surface)
-            .border(1.dp, Deck.line, cardShape),
+            .clip(cardShape),
     ) {
         itemsIndexed(labels) { i, label ->
             val on = i == selected
             val source = remember { MutableInteractionSource() }
-            val shape = RoundedCornerShape(12.dp)
-            val tint = if (on) Deck.onPrimary else Deck.onSurfaceVariant
+            val shape = RoundedCornerShape(24.dp)
+            val tint = if (on) Deck.primary else Deck.onSurfaceVariant
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .clip(shape)
-                    .background(if (on) Deck.primary else Color.Transparent)
-                    .then(if (on) Modifier.border(1.5.dp, accent, shape) else Modifier)
+                    .background(if (on) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
                     .clickable(interactionSource = source, indication = null) { if (!on) onSelect(i) }
                     .heightIn(min = 48.dp)
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 16.dp),
             ) {
-                icons.getOrNull(i)?.let { Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) }
-                Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, maxLines = 1)
+                Text(label, color = tint, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
             }
         }
     }
     Spacer(Modifier.height(8.dp))
-    PortraitTabDivider()
     }
 }
 

@@ -1143,9 +1143,9 @@ internal fun DeckLaunchMethodDialog(
     var rememberChoice by remember(shortcut) { mutableStateOf(shortcut.getExtra("launchModeRemembered", "") == "1") }
 
     val methods = listOf(
-        Triple("RealSteam", "SteamLite", "Real Steam client - online, VAC, cloud saves"),
-        Triple("Goldberg", "Goldberg", "Offline Steam emulator - no login"),
-        Triple("Raw", "Raw .exe", "Run the game directly - no Steam layer"),
+        Triple("RealSteam", "SteamLite", "Real Steam client. Online play, VAC and cloud saves."),
+        Triple("Goldberg", "Goldberg", "Offline Steam emulator. No login needed."),
+        Triple("Raw", "Raw .exe", "Run the game directly with no Steam layer."),
     )
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {

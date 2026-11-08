@@ -211,13 +211,13 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "Contents",
+                        text = "Add-ons",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeckPalette.onBackground,
                     )
                     Text(
-                        text = "${installedKeys.size} installed - $archived archived",
+                        text = "${installedKeys.size} installed · $archived archived",
                         fontSize = 13.sp,
                         color = DeckPalette.onSurfaceVariant,
                     )

@@ -908,45 +908,32 @@ internal fun DeckEditorCategoryRail(
         labels.forEachIndexed { i, label ->
             val isSel = i == selected
             val bg by animateColorAsState(
-                targetValue = if (isSel) Deck.secondary.copy(alpha = 0.18f) else Color.Transparent,
+                targetValue = if (isSel) Deck.primary.copy(alpha = 0.16f) else Color.Transparent,
                 animationSpec = tween(220, easing = DeckEase),
                 label = "railItemBg",
-            )
-            val accent by animateDpAsState(
-                targetValue = if (isSel) 4.dp else 0.dp,
-                animationSpec = tween(240, easing = DeckEase),
-                label = "railItemAccent",
             )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(bg)
                     .focusProperties { canFocus = padFocus }
                     .then(if (isSel && selectedFocus != null) Modifier.focusRequester(selectedFocus) else Modifier)
                     .onFocusChanged { if (it.isFocused && selectOnFocus && !isSel) onSelect(i) }
                     .clickable { onSelect(i) }
-                    .padding(horizontal = 10.dp),
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(accent)
-                        .height(22.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Deck.secondary),
-                )
-                Spacer(Modifier.width(10.dp))
                 dots?.getOrNull(i)?.let { dot ->
                     Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
                     text = label,
-                    color = if (isSel) Deck.onBackground else Deck.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSel) Deck.primary else Deck.onSurfaceVariant,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                 )
             }
@@ -964,7 +951,7 @@ internal fun DeckEditorCategoryRow(
     onClick: () -> Unit,
 ) {
     val bg by animateColorAsState(
-        targetValue = if (selected) Deck.secondary.copy(alpha = 0.18f) else Deck.surface,
+        targetValue = if (selected) Deck.primary.copy(alpha = 0.16f) else Deck.surface,
         animationSpec = tween(220, easing = DeckEase),
         label = "pageItemBg",
     )
@@ -972,7 +959,7 @@ internal fun DeckEditorCategoryRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),

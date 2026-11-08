@@ -162,15 +162,14 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                 .padding(horizontal = 22.dp, vertical = 18.dp),
         ) {
             Text(
-                text = "Storage",
+                text = "My setups",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = DeckPalette.onBackground,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = if (subtab == 0) "${cronos.size} games on their own container"
-                else "${containers.size} installed",
+                text = "Each game runs inside one",
                 fontSize = 13.sp,
                 color = DeckPalette.onSurfaceVariant,
             )
@@ -180,10 +179,10 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 rail = {
                     if (LocalDeckPortrait.current) {
-                        DeckPortraitChips(listOf("Cronos", "Containers"), subtab) { tabs.select(it) }
+                        DeckPortraitChips(listOf("Game setups", "Shared setups"), subtab) { tabs.select(it) }
                     } else {
                         DeckEditorCategoryRail(
-                            labels = listOf("Cronos", "Containers"),
+                            labels = listOf("Game setups", "Shared setups"),
                             selected = subtab,
                             onSelect = { tabs.select(it) },
                             padFocus = false,

@@ -267,11 +267,11 @@ private class DeckSection(val key: String, val label: String, val icon: ImageVec
 
 private fun deckSections() = listOf(
     DeckSection("home", "Home", Icons.Filled.Apps),
-    DeckSection("containers", "Storage", Icons.Filled.Folder),
+    DeckSection("containers", "Setups", Icons.Filled.Folder),
     DeckSection("stores", "Stores", Icons.Filled.Storefront),
     DeckSection("file_manager", "Files", Icons.Filled.FolderOpen),
     DeckSection("input_controls", "Controls", Icons.Filled.SportsEsports),
-    DeckSection("contents", "Contents", Icons.Filled.Inventory2),
+    DeckSection("contents", "Add-ons", Icons.Filled.Inventory2),
     DeckSection("saves", "Saves", Icons.Filled.Save),
     DeckSection("social_hub", "Social", Icons.Filled.People),
     DeckSection("settings", "Settings", Icons.Filled.Settings),
@@ -1819,7 +1819,6 @@ private fun DeckBottomTabs(
         LaunchedEffect(index, viewportPx) {
             scroll.animateScrollTo((index * itemPx - (viewportPx - itemPx) / 2f).toInt().coerceAtLeast(0))
         }
-        val accent = deckAccentBrush()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1838,8 +1837,7 @@ private fun DeckBottomTabs(
                         .width(itemWidth)
                         .height(60.dp)
                         .clip(itemShape)
-                        .background(if (current) Deck.primary.copy(alpha = 0.14f) else Color.Transparent)
-                        .then(if (current) Modifier.border(1.5.dp, accent, itemShape) else Modifier)
+                        .background(if (current) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
                         .focusProperties { canFocus = false }
                         .clickable { onSelect(item.key) },
                 ) {

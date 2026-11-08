@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -109,7 +110,7 @@ internal fun PortraitGamePage(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
+                .height(300.dp)
                 .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
                 .drawWithContent {
                     drawContent()
@@ -131,15 +132,15 @@ internal fun PortraitGamePage(
             }
             val backSource = remember { MutableInteractionSource() }
             val backFocused by backSource.collectIsFocusedAsState()
-            val backShape = RoundedCornerShape(16.dp)
+            val backShape = CircleShape
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .padding(start = 16.dp, top = 16.dp)
-                    .size(52.dp)
+                    .size(48.dp)
                     .clip(backShape)
-                    .background(Color(0x99000000))
-                    .border(if (backFocused) 2.dp else 1.dp, if (backFocused) Deck.primary else Color(0x55FFFFFF), backShape)
+                    .background(Color(0x61000000))
+                    .then(if (backFocused) Modifier.border(2.dp, Deck.primary, backShape) else Modifier)
                     .clickable(interactionSource = backSource, indication = null, onClick = onBack),
             ) {
                 Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -154,19 +155,18 @@ internal fun PortraitGamePage(
                 Icon(Icons.Filled.Storefront, contentDescription = null, tint = Deck.primary, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    origin.uppercase(),
-                    color = Deck.primary,
-                    fontWeight = FontWeight.ExtraBold,
+                    origin,
+                    color = Deck.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
-                    letterSpacing = 2.sp,
                 )
             }
             Text(
                 entry.title,
                 color = Deck.onBackground,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 32.sp,
-                lineHeight = 36.sp,
+                fontWeight = FontWeight.Bold,
+                fontSize = 30.sp,
+                lineHeight = 33.sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -186,23 +186,15 @@ internal fun PortraitGamePage(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             ) {
-                PortraitPageButton("Play", Icons.Filled.PlayArrow, primary = true, onClick = onPlay, modifier = Modifier.weight(1f).focusRequester(playFocus))
+                PortraitPageButton("Play", Icons.Filled.PlayArrow, primary = true, onClick = onPlay, modifier = Modifier.weight(1.4f).focusRequester(playFocus))
                 PortraitPageButton("Settings", Icons.Filled.Tune, primary = false, onClick = onSettings, modifier = Modifier.weight(1f))
                 PortraitPageButton("Options", Icons.Filled.MoreVert, primary = false, onClick = onMenu, modifier = Modifier.weight(1f))
             }
             description?.takeIf { it.isNotBlank() }?.let { raw ->
-                val shape = RoundedCornerShape(16.dp)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(shape)
-                        .background(Deck.surface)
-                        .border(1.dp, Deck.line, shape)
-                        .padding(16.dp),
-                ) {
-                    Text("ABOUT THIS GAME", color = Deck.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Text(GameFacts.cleanText(raw), color = Deck.onSurfaceVariant, fontSize = 14.sp, lineHeight = 20.sp)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("About this game", color = Deck.onBackground, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    Text(GameFacts.cleanText(raw), color = Deck.onSurfaceVariant, fontSize = 15.sp, lineHeight = 22.sp)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -212,15 +204,14 @@ internal fun PortraitGamePage(
 
 @Composable
 private fun PortraitPill(text: String, icon: ImageVector) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(20.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
             .height(40.dp)
             .clip(shape)
-            .background(Deck.surface)
-            .border(1.dp, Deck.line, shape)
+            .background(Deck.surfaceVariant)
             .padding(horizontal = 14.dp),
     ) {
         Icon(icon, contentDescription = null, tint = Deck.onBackground, modifier = Modifier.size(18.dp))
@@ -230,16 +221,15 @@ private fun PortraitPill(text: String, icon: ImageVector) {
 
 @Composable
 private fun PortraitStat(label: String, value: String, modifier: Modifier) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(20.dp)
     Column(
         modifier = modifier
             .clip(shape)
-            .background(Deck.surfaceVariant)
-            .border(1.dp, Deck.line, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .background(Deck.surface)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        Text(label.uppercase(), color = Deck.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.1.sp)
-        Text(value, color = Deck.onBackground, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, color = Deck.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = Deck.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -254,19 +244,15 @@ private fun PortraitPageButton(
 ) {
     val source = remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(28.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .height(56.dp)
             .clip(shape)
-            .background(if (primary) Deck.primary else Deck.surface)
-            .border(
-                if (focused) 3.dp else 1.dp,
-                if (focused) Color.White else if (primary) Deck.primary else Deck.line,
-                shape,
-            )
+            .background(if (primary) Deck.primary else Deck.surfaceVariant)
+            .then(if (focused) Modifier.border(3.dp, Color.White, shape) else Modifier)
             .clickable(interactionSource = source, indication = null, onClick = onClick),
     ) {
         val tint = if (primary) Deck.onPrimary else Deck.onBackground

@@ -16,11 +16,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -49,7 +51,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.withFrameNanos
 
 /** One line saying what each game-menu row does (bannercode shows these under every row). */
-private fun menuHint(label: String): String? = when (label) {
+internal fun menuHint(label: String): String? = when (label) {
     "Play" -> "Starts the game with its saved launch choice."
     "Launch method" -> "Choose how this game starts and whether to remember it."
     "Settings" -> "Display, graphics, controls and more, for this game only."
@@ -89,7 +91,7 @@ internal fun PortraitGameMenuSheet(
         val rest = items.filter { it.label != "Play" && !it.danger }
         listOf(play, rest, danger).filter { it.isNotEmpty() }
     }
-    val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         BackHandler(onBack = onDismiss)
         Box(
@@ -103,8 +105,7 @@ internal fun PortraitGameMenuSheet(
                     .fillMaxWidth()
                     .fillMaxHeight(0.9f)
                     .clip(shape)
-                    .background(Deck.background)
-                    .border(1.dp, Deck.line, shape)
+                    .background(Deck.surface)
                     // Swallow taps so they don't reach the dismiss scrim behind the sheet.
                     .clickable(onClick = {}, indication = null, interactionSource = remember { MutableInteractionSource() })
                     .padding(horizontal = 20.dp, vertical = 18.dp),
@@ -113,54 +114,27 @@ internal fun PortraitGameMenuSheet(
                     Text("Game menu", color = Deck.onBackground, fontWeight = FontWeight.Bold, fontSize = 22.sp, modifier = Modifier.weight(1f))
                     val closeSource = remember { MutableInteractionSource() }
                     val closeFocused by closeSource.collectIsFocusedAsState()
-                    val closeShape = RoundedCornerShape(14.dp)
+                    val closeShape = CircleShape
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(48.dp)
                             .clip(closeShape)
+                            .background(Deck.surfaceVariant)
                             .border(if (closeFocused) 2.dp else 0.dp, if (closeFocused) Deck.primary else Color.Transparent, closeShape)
                             .clickable(interactionSource = closeSource, indication = null, onClick = onDismiss),
                     ) {
                         Icon(Icons.Filled.Close, contentDescription = "Close", tint = Deck.onBackground)
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 14.dp)) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(width = 54.dp, height = 76.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Deck.surfaceVariant),
-                    ) {
-                        if (cover != null) {
-                            val img = remember(cover) { cover.asImageBitmap() }
-                            Image(img, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                        } else {
-                            Icon(Icons.Filled.SportsEsports, contentDescription = null, tint = Deck.primary)
-                        }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(title, color = Deck.onBackground, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 14.sp, maxLines = 1)
-                    }
-                }
+                Spacer(Modifier.height(12.dp))
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()).padding(bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     groups.forEachIndexed { gi, group ->
-                        val cardShape = RoundedCornerShape(20.dp)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(cardShape)
-                                .background(Deck.surface)
-                                .border(1.dp, Deck.line, cardShape),
-                        ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             group.forEachIndexed { i, item ->
-                                if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 1.dp).background(Deck.line))
                                 MenuRow(
                                     item = item,
                                     modifier = if (gi == 0 && i == 0) Modifier.focusRequester(firstRequester) else Modifier,
@@ -181,20 +155,48 @@ private fun MenuRow(item: DeckConsoleItem, onClick: () -> Unit, modifier: Modifi
     val focused by source.collectIsFocusedAsState()
     val tint = if (item.danger) Deck.attention else Deck.onBackground
     val hint = menuHint(item.label)
+    // Play is the one primary action: a full-width accent pill instead of a row.
+    if (item.label == "Play") {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(Deck.primary)
+                .then(if (focused) Modifier.border(3.dp, Color.White, RoundedCornerShape(26.dp)) else Modifier)
+                .clickable(interactionSource = source, indication = null, onClick = onClick),
+        ) {
+            Icon(item.icon, contentDescription = null, tint = Deck.onPrimary, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(item.label, color = Deck.onPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+        return
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
             .background(if (focused) Deck.primary.copy(alpha = 0.16f) else Color.Transparent)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .heightIn(min = 60.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
-        Icon(item.icon, contentDescription = null, tint = if (item.danger) Deck.attention else Deck.primary, modifier = Modifier.size(24.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background((if (item.danger) Deck.attention else Deck.primary).copy(alpha = 0.16f)),
+        ) {
+            Icon(item.icon, contentDescription = null, tint = if (item.danger) Deck.attention else Deck.primary, modifier = Modifier.size(22.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.label, color = tint, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            if (hint != null) Text(hint, color = Deck.onSurfaceVariant, fontSize = 14.sp, lineHeight = 18.sp)
+            Text(item.label, color = tint, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            if (hint != null) Text(hint, color = Deck.onSurfaceVariant, fontSize = 13.sp, lineHeight = 17.sp)
         }
     }
 }
