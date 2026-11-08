@@ -74,14 +74,14 @@ private const val PATH_LABEL = "Windows path, e.g. F:\\Trainers\\Trainer.exe"
 
 private val DELAY_CHOICES = listOf(0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300)
 
-private fun delayLabel(seconds: Int): String = if (seconds == 0) "Right away" else "$seconds s"
+internal fun delayLabel(seconds: Int): String = if (seconds == 0) "Right away" else "$seconds s"
 
 /** The wait choices, plus the saved value when it is not one of them. */
-private fun delayOptions(current: String): List<Pair<String, String>> =
+internal fun delayOptions(current: String): List<Pair<String, String>> =
     (DELAY_CHOICES + listOfNotNull(current.toIntOrNull())).distinct().sorted()
         .map { it.toString() to delayLabel(it) }
 
-private fun programName(path: String): String = path.trim().substringAfterLast('\\').ifEmpty { "New program" }
+internal fun programName(path: String): String = path.trim().substringAfterLast('\\').ifEmpty { "New program" }
 
 /** Deck editor: add programs, set each one's path and wait, and open the whole list to reorder it. */
 @Composable

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
 import com.winhub.hernandez.R
 import com.winhub.hernandez.container.Container
@@ -131,7 +133,7 @@ private fun XmbScope.set(p: XmbPrefs, key: String, value: String?) { p.put(key, 
 private val GFX_KEYS = setOf(
     "hGfx", "gfxDriver", "gfxConfig", "wrappers",
     "dxWrapper", "dxConfig", "renderer", "vkNative", "vkColors", "vkPresent", "vkDriver", "renderScale",
-    "sdPerf", "sdRefresh", "sdBackPressure", "sdPrecise",
+    "sdPerf", "sdRefresh", "sdBackPressure", "sdPrecise", "hGl", "fastOpenGL", "glFpsHud", "glVsyncOff",
 )
 private val TV_KEYS = setOf("hTv", "tvDisplay", "tvLaunch", "tvModeId", "tvMatchRes", "tvHdr", "tvNoteUnplug", "tvNoteTouch")
 
@@ -141,7 +143,7 @@ internal fun xmbSettingsMenu(xmb: XmbScope, shortcut: Shortcut, host: XmbGameHos
         com.winhub.hernandez.display.ExternalDisplay.find(xmb.context) != null ||
             com.winhub.hernandez.display.ExternalDisplay.launchOnTv(shortcut)
     }.getOrDefault(false)
-    val titles = listOf("General", "Graphics", "Win Components", "Env Vars", "Advanced", "Controller") + if (tvOn) listOf("TV") else emptyList()
+    val titles = listOf("General", "Graphics", "Win Components", "Env Vars", "Advanced", "Controller", "Mods") + if (tvOn) listOf("TV") else emptyList()
     fun section(n: Int): XmbMenu = when (n) {
         0 -> xmbGeneralMenu(xmb, p, host)
         1 -> xmbGraphicsMenu(xmb, p, host)
@@ -149,12 +151,13 @@ internal fun xmbSettingsMenu(xmb: XmbScope, shortcut: Shortcut, host: XmbGameHos
         3 -> xmbEnvVarsMenu(xmb, shortcut)
         4 -> xmbAdvancedMenu(xmb, shortcut)
         5 -> xmbControllerMenu(xmb, p)
+        6 -> xmbModsMenu(xmb, shortcut)
         else -> xmbTvMenu(xmb, p, host)
     }.also { it.siblings = XmbSiblings(n, titles.size, ::section) { i -> "sec$i" } }
-    val icons = listOf(Icons.Filled.Settings, Icons.Filled.DesktopWindows, Icons.Filled.Widgets, Icons.Filled.Extension, Icons.Filled.Tune, Icons.Filled.Gamepad, Icons.Filled.Tv)
+    val icons = listOf(Icons.Filled.Settings, Icons.Filled.DesktopWindows, Icons.Filled.Widgets, Icons.Filled.Extension, Icons.Filled.Tune, Icons.Filled.Gamepad, Icons.Filled.Apps, Icons.Filled.Tv)
     val subs = listOf(
         "Game, display, frame generation, audio", "Driver, DX wrapper, renderer", "DirectX, VC++ runtimes…", "Environment variables",
-        "Box64 / FEXCore, CPU cores, ReShade…", "Input, player slots, motion aim", "External display",
+        "Box64 / FEXCore, CPU cores, ReShade…", "Input, player slots, motion aim", "Game mods, programs to start", "External display",
     )
     return XmbMenu("Settings", Icons.Filled.Settings) {
         titles.mapIndexed { n, t -> XmbRow.Link("sec$n", t, icons[n], subtitle = subs[n]) { section(n) } }
@@ -401,6 +404,34 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
         rows += XmbRow.Toggle("sdPrecise", "Precise presentation", Icons.Filled.Speed, sdFlag("surfaceDirectPrecisePresentation", c.isSurfaceDirectPrecisePresentation())) {
             xmb.set(p, "surfaceDirectPrecisePresentation", if (it) "true" else "false")
         }
+    }
+    // OpenGL (per game): each one is Auto (follow the container) / On / Off. Fast is locked to Auto,
+    // with the reason shown, when the game's driver or this build can't run it.
+    run {
+        val fpsSw = com.winhub.hernandez.core.FastOpenGL.FPS_HUD
+        val vsyncSw = com.winhub.hernandez.core.FastOpenGL.VSYNC_OFF
+        val driverVersion = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
+            .getVersion(p.ex("graphicsDriverConfig", c.getGraphicsDriverConfig())) ?: ""
+        val fastLocked = com.winhub.hernandez.core.FastOpenGL.unavailableReason(
+            com.winhub.hernandez.core.FastOpenGL.driverUsable(p.context, driverVersion),
+            com.winhub.hernandez.core.X11Egl.isBundled(p.context))
+        val values = com.winhub.hernandez.ui.components.OPENGL_OVERRIDES
+        fun glRow(key: String, title: String, icon: ImageVector, extra: String, autoOn: Boolean, hint: String, locked: String? = null) {
+            val labels = values.map { if (it.isEmpty()) "Auto (" + (if (autoOn) "On" else "Off") + ")" else if (it == "1") "On" else "Off" }
+            val cur = if (locked != null) "" else com.winhub.hernandez.core.FastOpenGL.normalize(p.ex(extra, "")) ?: ""
+            rows += XmbRow.Choice(key, title, icon, labels, labels[values.indexOf(cur).coerceAtLeast(0)],
+                subtitle = hint,
+                disabledReason = com.winhub.hernandez.ui.components.openGLFastNote(locked)?.replaceFirstChar { it.uppercase() }) { v ->
+                xmb.set(p, extra, values[labels.indexOf(v)].ifEmpty { null })
+            }
+        }
+        rows += XmbRow.Header("hGl", "OpenGL")
+        glRow("fastOpenGL", com.winhub.hernandez.core.FastOpenGL.TITLE, com.winhub.hernandez.ui.components.OPENGL_FAST_ICON,
+            com.winhub.hernandez.core.FastOpenGL.EXTRA, c.isFastOpenGL(), com.winhub.hernandez.core.FastOpenGL.HINT, fastLocked)
+        glRow("glFpsHud", fpsSw.title, com.winhub.hernandez.ui.components.OPENGL_FPS_ICON, fpsSw.extra,
+            fpsSw.containerOn(c.getExtra(fpsSw.extra)), fpsSw.hint)
+        glRow("glVsyncOff", vsyncSw.title, com.winhub.hernandez.ui.components.OPENGL_VSYNC_ICON, vsyncSw.extra,
+            vsyncSw.containerOn(c.getExtra(vsyncSw.extra)), vsyncSw.hint)
     }
     val fgEngines = listOf("off", "lsfg-native")
     val fgLabels = listOf(p.str(R.string.frame_generation_off), p.str(R.string.frame_generation_lsfg_native))
