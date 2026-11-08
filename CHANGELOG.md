@@ -1,5 +1,125 @@
 # 📜 WinHub Changelog
 
+## ✨ Version 1.2
+
+> Everything new since 1.1. **15 new Deck themes**, a **Deck-style Controls tab**, **OpenGL and Mods in the XMB game settings**, a rebuilt **fake-HDR look**, a tidier **Storage** tab, and **Unreal Engine HDR is gone**. 🚀
+
+**Jump to:** [🎨 New themes](#-15-new-deck-themes) · [🎮 Controls tab](#-deck-style-controls-tab) · [🕹️ XMB settings](#️-xmb-game-settings-opengl-and-mods) · [🌈 HDR](#-a-better-fake-hdr-look) · [🗄️ Storage](#️-storage-tab) · [🛒 Stores & Home](#-stores-and-home) · [🔄 Updates](#-update-check) · [🗑️ Removed](#️-removed-unreal-engine-hdr) · [🧱 Behind the scenes](#-behind-the-scenes-1)
+
+---
+
+### 🎨 15 new Deck themes
+
+The theme picker grows from **7 to 22**. Every new theme is dark, recolours the whole app (popups and touch controls included) and shows up in **Deck Settings → Theme**, **Appearance** and the **first-run wizard**.
+
+| | Theme | Accent | Look |
+|---|---|---|---|
+| 🌊 | **Ocean** | teal `#14B8A6` | deep navy-teal surfaces |
+| 🟡 | **Amber** | gold `#F59E0B` | warm brown-black, a "retro handheld" feel |
+| 🌇 | **Sunset** | rose `#FB7185` + violet | dusky plum surfaces, violet on toggles and chips |
+| ❄️ | **Nord** | frost blue `#88C0D0` | muted blue-grey, low contrast and easy on the eyes |
+| 🌌 | **Midnight** | indigo `#6366F1` | pure-black OLED background, very dark cards |
+| 🎄 | **Christmas** | red `#E11D48` + green | festive pair, in the style of Halloween |
+| 🧛 | **Dracula** | purple `#BD93F9` + pink | the classic dark purple-grey |
+| 🍂 | **Gruvbox** | orange `#FE8019` | warm retro browns with cream text |
+| 🌅 | **Solarized** | cyan `#2AA198` + yellow | dark teal base |
+| 🏙️ | **Tokyo Night** | blue `#7AA2F7` | cool navy surfaces |
+| 🐈 | **Catppuccin** | mauve `#CBA6F7` | soft pastel on a mocha base |
+| 🌹 | **Rose Pine** | rose `#EBBCBA` + lilac | dusky muted pastels |
+| 🤖 | **Cyberpunk** | neon yellow `#FCEE0A` + cyan | black surfaces |
+| 🎛️ | **Synthwave** | hot pink `#FF2E97` + cyan | deep violet surfaces |
+| 🌲 | **Forest** | moss `#84CC16` | dark olive-brown, different from the mint Green |
+
+- 🔤 Colours from Dracula, Gruvbox, Solarized, Nord, Tokyo Night, Catppuccin and Rose Pine are *inspired by* those well-known editor palettes.
+- 👁️ Text on every accent is picked for readability (dark ink on Amber, Ocean, Nord, Gruvbox and the other light accents, white on the rest).
+- 💾 **Your theme is kept.** The new themes were added before the hidden Custom slot, and a one-time remap makes sure anyone on **Custom** stays on Custom.
+
+---
+
+### 🎮 Deck-style Controls tab
+
+The Controls tab now looks and navigates like the rest of Deck mode instead of Material cards.
+
+- 🧱 **New layout:** a header, a rail (chips in portrait), a **Profile** group and Deck rows and buttons replace the Material cards and segmented tabs.
+- 🔁 **One index:** sections are driven by the Deck tab host, so **L1 / R1** and the rail always agree on which section is open.
+- 💬 **Deck dialogs and menus:** name prompts, confirmations, the import chooser, the profile download list and the layout preview all use the Deck dialog and Deck buttons. Profile and copy menus use the Deck colours.
+- 👥 **Assign tab:** each player slot is now a **Deck choice row**. The container and shortcut editors keep their existing slot editor unchanged.
+- 🖼️ A design mockup for the tab was added under `docs/`.
+
+---
+
+### 🕹️ XMB game settings: OpenGL and Mods
+
+Two things that existed in the pop-up and Deck game editors were missing from the XMB (the PSP-style game menu, landscape and portrait). They are there now: pick a game, then **Settings**.
+
+**Graphics → OpenGL** ⚡
+- ⚡ **Fast OpenGL**, 📊 **Show OpenGL FPS** and 🔓 **OpenGL vsync off**, each **Auto / On / Off** where Auto follows the container (and says what it would be, e.g. *Auto (On)*).
+- 🔒 Fast OpenGL greys out, with the reason, when the game's driver isn't a Turnip or this build has no X11 GL set.
+
+**Mods** 🧩 (a new section after Controller)
+- 🧩 **Game mods:** a switch for each mod the game's EXE can take (**REFramework** for RE Engine games, **Special K** for 32 and 64-bit Windows games). Switching one on downloads it the first time, with its state shown (*Downloading…*, *ready*, *download failed*).
+- 🏷️ **Special K DLL name:** pick the name it loads as, or leave it on *(auto)*.
+- ▶️ **Start with the game:** add programs by Windows path (a trainer, for example), then open one to change its path or **wait before starting**, move it **up or down**, or remove it. The first waits from the game launching, each next one after the one before it starts.
+- ✅ Everything is saved to the game's settings straight away, the same way the pop-up editor does it. Section list: General · Graphics · Win Components · Env Vars · Advanced · Controller · **Mods** · TV.
+
+---
+
+### 🌈 A better fake-HDR look
+
+The in-game **HDR** toggle is still the same one-tap on/off, but the effect behind it is rewritten.
+
+- ☀️ **Highlights only.** It works in linear light, lifts just the bright areas and adds a soft highlight-only bloom, instead of a gamma-space curve that clipped highlights and muddied colours.
+- 🎞️ **Soft shoulder.** Everything rolls off smoothly under SDR white, so nothing clips.
+- 🎨 **Depth and colour.** Mids and darks get a touch more depth and a small saturation boost, kept back in bright areas so they don't over-saturate.
+- 📏 **Same on any screen:** the glow is sized in pixels scaled to the picture, so it looks the same at any resolution.
+- 🛡️ **Safe by design:** it is still SDR in and SDR out. The display never switches mode and nothing about the swapchain changes. It is a nicer "HDR look", not real HDR, so it can't go brighter than SDR white.
+
+---
+
+### 🗄️ Storage tab
+
+- 🍷 **Container icon.** Containers in **Storage** and in the **add-game container picker** now show the same wine-glass container icon as the Containers tab, tinted with your Deck theme colour so it follows every theme.
+- 🧬 **Cronos containers stay in the Cronos tab.** Containers made by the Cronos add-game flow are now tagged and listed **only** in the **Cronos** tab. They no longer appear in the **Containers** tab or in the **Master Containers** pickers. Older single-game containers are tagged automatically the first time you open Storage.
+- 🎯 **Per-button focus rings.** On Storage and Saves cards, the ring now lights up the exact button you are on instead of the whole card, so a D-pad always shows where you are.
+
+---
+
+### 🛒 Stores and Home
+
+- 🔥 **Featured on Steam.** A new row on the **Stores** page (landscape picker and portrait list) shows Steam's featured titles. Tap one to open its store page. Nothing shows until the catalog answers, so there is never an empty box.
+- 👋 **Home greeting.** Portrait Home now says **Good morning / Good afternoon / Good evening** in place of "WinHub".
+- 🎮 **Stores L2 / R2.** Stores reports its pages to the Deck shell, so **L2 / R2** page through it without relying on Compose focus.
+
+---
+
+### 🔄 Update check
+
+- ⏱️ The update check on app open no longer hashes the installed APK, which made it time out and wrongly report "no update".
+- 🥇 It now runs **first**, before the background step, and always tells you the result: **Update available**, **No updates found** or **Couldn't check for updates**.
+
+---
+
+### 🗑️ Removed: Unreal Engine HDR
+
+The *Unreal Engine HDR* setting (Off / DirectX 12 fix / DirectX 11 NVAPI) is gone from the project.
+
+- ❌ Removed from the game settings, the XMB and the launch path, along with the bundled **dxvk-nvapi** and its download step in the build.
+- 🧹 Old `unrealHdr` entries in saved containers and shortcuts are simply ignored.
+- ℹ️ A prefix that ever ran the DirectX 11 mode keeps its two nvapi files. Nothing loads them any more, so they are harmless.
+
+---
+
+### 🧱 Behind the scenes
+
+- 🔢 **Version 1.2, versionCode 92.**
+- 🧪 Fake-HDR shader (`hdr.frag`) rewritten and its SPIR-V (`hdr_frag.h`) regenerated.
+- 🎨 15 presets added to `ThemePreset.kt`; a `preset_schema_v4` migration keeps Custom pointing at the right slot.
+- 🧩 New `XmbSettingsPhase2Mods.kt` for the XMB Mods section; the delay and program-name helpers of the Start programs editor are shared with it.
+- 🧰 Removed `core/UnrealHdr`, `core/DxvkNvapi`, `GpuSpoof.isNvidia` and the `dxvk-nvapi` assets and CI fetch.
+- 📚 The README now links to the **Telegram** and **Discord** communities.
+
+---
+
 ## ✨ Version 1.1
 
 > Everything new since 1.0. A **first-run setup wizard** for fresh installs, plus a fully **Deck-style Log Manager, log viewer and Report a problem dialog**. 🚀
