@@ -11,6 +11,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import com.winhub.hernandez.ui.screens.DeckChoiceRow
+import com.winhub.hernandez.ui.screens.DeckConfigNote
 import com.winhub.hernandez.ui.screens.MenuItemDivider
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
 import androidx.compose.material3.OutlinedTextField
@@ -84,9 +86,33 @@ fun PlayerSlotsEditor(
     savedOverridesJson: String,
     onOverridesChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    // Deck rows (label + hint + value chip) for callers that sit inside a DeckGroup; false keeps the
+    // Material look the container and shortcut editors use.
+    deck: Boolean = false,
 ) {
     // Keyed on the saved JSON so an external change (or the caller re-seeding) re-enumerates devices.
     val rows = remember(savedOverridesJson) { buildPlayerSlotEditorRows(savedOverridesJson) }
+
+    if (deck) {
+        Column(modifier.fillMaxWidth()) {
+            DeckConfigNote(
+                "Pin a controller (or the on-screen pad) to a player slot so the launch order is consistent. " +
+                    "Applied on launch; the in-game side menu still lets you change it live."
+            )
+            if (rows.isEmpty()) {
+                DeckConfigNote("No controllers detected. Connect a controller to assign it, or set a pin here to apply when it's plugged in.")
+            }
+            rows.forEach { row ->
+                DeckPlayerSlotRow(row) { newOverride ->
+                    val map = WinHandler.parseSlotOverridesJson(savedOverridesJson).toMutableMap()
+                    if (newOverride == SLOT_AUTO) map.remove(row.descriptor)
+                    else map[row.descriptor] = newOverride
+                    onOverridesChange(WinHandler.buildSlotOverridesJson(map))
+                }
+            }
+        }
+        return
+    }
 
     Column(modifier.fillMaxWidth()) {
         Text(
@@ -130,16 +156,7 @@ private fun PlayerSlotEditorRowItem(row: PlayerSlotEditorRow, onChange: (Int) ->
     }
     val selectedLabel = options.firstOrNull { it.second == row.override }?.first ?: "Auto"
 
-    val status = when {
-        row.override == SLOT_IGNORE -> "Ignored"
-        row.override >= 0 -> "Pinned to Player ${row.override + 1}"
-        else -> "Auto (assigned by launch order)"
-    }
-    val suffix = when {
-        row.isOnScreen -> " · on-screen controls"
-        !row.connected -> " · not connected (saved pin)"
-        else -> ""
-    }
+    val statusText = slotStatusText(row)
 
     var expanded by remember(row.descriptor, row.override) { mutableStateOf(false) }
 
@@ -153,7 +170,7 @@ private fun PlayerSlotEditorRowItem(row: PlayerSlotEditorRow, onChange: (Int) ->
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            status + suffix,
+            statusText,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -185,4 +202,40 @@ private fun PlayerSlotEditorRowItem(row: PlayerSlotEditorRow, onChange: (Int) ->
             }
         }
     }
+}
+
+private fun slotStatusText(row: PlayerSlotEditorRow): String {
+    val status = when {
+        row.override == SLOT_IGNORE -> "Ignored"
+        row.override >= 0 -> "Pinned to Player ${row.override + 1}"
+        else -> "Auto (assigned by launch order)"
+    }
+    val suffix = when {
+        row.isOnScreen -> " · on-screen controls"
+        !row.connected -> " · not connected (saved pin)"
+        else -> ""
+    }
+    return status + suffix
+}
+
+// Deck counterpart of PlayerSlotEditorRowItem: same options and callback, Deck choice row.
+@Composable
+private fun DeckPlayerSlotRow(row: PlayerSlotEditorRow, onChange: (Int) -> Unit) {
+    val options = remember {
+        buildList {
+            add(SLOT_AUTO.toString() to "Auto")
+            for (i in 0 until 4) add(i.toString() to "Player ${i + 1}")
+            add(SLOT_IGNORE.toString() to "Ignore")
+        }
+    }
+    DeckChoiceRow(
+        label = row.displayName,
+        hint = slotStatusText(row),
+        options = options,
+        selected = row.override.toString(),
+        onPick = { picked ->
+            val value = picked.toInt()
+            if (value != row.override) onChange(value)
+        },
+    )
 }

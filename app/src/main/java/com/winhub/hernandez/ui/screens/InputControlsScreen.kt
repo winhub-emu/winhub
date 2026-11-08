@@ -1350,15 +1350,14 @@ private fun GlobalPlayerSlotsSection() {
                 }
             },
         )
-        Box(Modifier.padding(12.dp)) {
-            PlayerSlotsEditor(
-                savedOverridesJson = slotOverridesJson,
-                onOverridesChange = {
-                    slotOverridesJson = it
-                    com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSlotOverridesJson(context, it)
-                },
-            )
-        }
+        PlayerSlotsEditor(
+            savedOverridesJson = slotOverridesJson,
+            onOverridesChange = {
+                slotOverridesJson = it
+                com.winhub.hernandez.ui.components.GlobalControllerPrefs.setSlotOverridesJson(context, it)
+            },
+            deck = true,
+        )
     }
 }
 
