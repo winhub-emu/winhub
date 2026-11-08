@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CloudDownload
@@ -778,7 +779,18 @@ fun InputControlsScreen() {
                                 )
                             } else AppUtils.showToast(context, R.string.no_profile_selected)
                         }
-                        Text("On-Screen Controls", color = MaterialTheme.colorScheme.onSurface,
+                        if (profiles.isNotEmpty()) {
+                            Text("Layouts", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            profiles.forEachIndexed { i, p ->
+                                LayoutProfileRow(
+                                    name = p.getName(),
+                                    active = selectedProfileIdx == i + 1,
+                                    onClick = { selectedProfileIdx = i + 1; loadProfile(i + 1) },
+                                )
+                            }
+                        }
+                        Text("On-Screen Controls", color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text("Touch overlay drawn on top of the game.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
@@ -1153,6 +1165,55 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
  * Device-level gyroscope calibration. Only the zero-rate bias lives here — it's a property of the
  * hardware, not of a game; sensitivity/target/activator/invert stay with the container.
  */
+/** One control profile as a row: icon tile, name and an Active pill; the one in use is outlined. */
+@Composable
+private fun LayoutProfileRow(name: String, active: Boolean, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(cs.surface)
+            .then(if (active) Modifier.border(2.dp, cs.primary, shape) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(46.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (active) cs.primary.copy(alpha = 0.16f) else cs.surfaceVariant),
+        ) {
+            Icon(
+                Icons.Default.SportsEsports,
+                contentDescription = null,
+                tint = if (active) cs.primary else cs.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text(name, color = cs.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            if (active) Text("In use", color = cs.onSurfaceVariant, fontSize = 13.sp)
+        }
+        if (active) {
+            Text(
+                "Active",
+                color = cs.primary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(cs.primary.copy(alpha = 0.16f))
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun GyroscopeSection() {
     val context = LocalContext.current
