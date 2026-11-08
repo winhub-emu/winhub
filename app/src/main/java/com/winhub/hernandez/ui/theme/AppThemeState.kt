@@ -130,6 +130,14 @@ object AppThemeState {
                 .putBoolean("preset_schema_v3", true)
                 .apply()
         }
+        // One-time remap: 15 themes were inserted before Custom, which was index 7 in the
+        // seven-theme list, so a saved 7 now has to follow Custom to its new last index.
+        if (!themePrefs.getBoolean("preset_schema_v4", false)) {
+            if (themePrefs.getInt("preset_index", DEFAULT_PRESET_INDEX) == 7) {
+                themePrefs.edit().putInt("preset_index", CUSTOM_PRESET_INDEX).apply()
+            }
+            themePrefs.edit().putBoolean("preset_schema_v4", true).apply()
+        }
         _presetIndex.value = themePrefs.getInt("preset_index", DEFAULT_PRESET_INDEX)
             .coerceIn(0, themePresets.size - 1)
         val savedAccent = themePrefs.getInt("custom_accent", Color(0xFF0055FF).toArgb())
