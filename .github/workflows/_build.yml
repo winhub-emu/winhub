@@ -229,7 +229,7 @@ jobs:
         D=app/src/main/assets/dxvk-nvapi
         M=$D/manifest.json
         URL=$(jq -r .source "$M"); SHA=$(jq -r .sha256 "$M"); VER=$(jq -r .version "$M")
-        curl -fsSL --retry 5 --retry-delay 5 -o /tmp/dxvk-nvapi.tar.gz "$URL"
+        curl -fsSL --retry 10 --retry-delay 15 --retry-all-errors -o /tmp/dxvk-nvapi.tar.gz "$URL"
         echo "$SHA  /tmp/dxvk-nvapi.tar.gz" | sha256sum -c -
         mkdir -p /tmp/dxvk-nvapi
         tar -xzf /tmp/dxvk-nvapi.tar.gz -C /tmp/dxvk-nvapi
