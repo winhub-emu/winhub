@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,10 +56,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import com.winhub.hernandez.ui.components.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -71,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -231,79 +230,41 @@ fun InputControlsScreen() {
 
     if (promptCreateName) {
         var name by remember { mutableStateOf("") }
-        OutlinedAlertDialog(
-            onDismissRequest = { promptCreateName = false },
-            title = { Text("Profile Name") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    singleLine = true,
-                    placeholder = { Text("Enter profile name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        currentProfile = manager.createProfile(name)
-                        refreshProfiles()
-                        refreshControllers()
-                        promptCreateName = false
-                    }
-                }) { Text("OK") }
-            },
-            dismissButton = { TextButton(onClick = { promptCreateName = false }) { Text("Cancel") } }
-        )
+        DeckConfigDialog(title = "New profile", onDismiss = { promptCreateName = false }, compact = true) {
+            DeckConfigTextField("Profile name", name, { name = it })
+            DeckDialogButtons("Create", enabled = name.isNotBlank(), onCancel = { promptCreateName = false }) {
+                currentProfile = manager.createProfile(name)
+                refreshProfiles()
+                refreshControllers()
+                promptCreateName = false
+            }
+        }
     }
 
     if (promptRenameOldName != null) {
         var name by remember { mutableStateOf(promptRenameOldName ?: "") }
-        OutlinedAlertDialog(
-            onDismissRequest = { promptRenameOldName = null },
-            title = { Text("Profile Name") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        currentProfile?.setName(name)
-                        currentProfile?.save()
-                        refreshProfiles()
-                        promptRenameOldName = null
-                    }
-                }) { Text("OK") }
-            },
-            dismissButton = { TextButton(onClick = { promptRenameOldName = null }) { Text("Cancel") } }
-        )
+        DeckConfigDialog(title = "Rename profile", onDismiss = { promptRenameOldName = null }, compact = true) {
+            DeckConfigTextField("Profile name", name, { name = it })
+            DeckDialogButtons("Save", enabled = name.isNotBlank(), onCancel = { promptRenameOldName = null }) {
+                currentProfile?.setName(name)
+                currentProfile?.save()
+                refreshProfiles()
+                promptRenameOldName = null
+            }
+        }
     }
 
     pendingConfirmation?.let { (messageRes, action) ->
-        OutlinedAlertDialog(
-            onDismissRequest = { pendingConfirmation = null },
-            text = { Text(stringResource(messageRes)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingConfirmation = null
-                    action()
-                }) { Text(stringResource(R.string.ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingConfirmation = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
+        DeckConfigDialog(title = "Are you sure?", onDismiss = { pendingConfirmation = null }, compact = true) {
+            DeckConfigNote(stringResource(messageRes))
+            DeckDialogButtons(stringResource(R.string.ok), onCancel = { pendingConfirmation = null }) {
+                pendingConfirmation = null
+                action()
+            }
+        }
     }
 
-    // Import source chooser: replaces the legacy android.app.AlertDialog.Builder list with the app's
-    // outlined Compose dialog. Open File = the in-app file manager (primary); system picker is secondary.
+    // Import source chooser. Open File = the in-app file manager (primary); system picker is secondary.
     if (showImportChooser) {
         val armImport = {
             importProfileCallback = { imported ->
@@ -312,12 +273,12 @@ fun InputControlsScreen() {
                 refreshControllers()
             }
         }
-        OutlinedAlertDialog(
-            onDismissRequest = { showImportChooser = false },
-            title = { Text(stringResource(R.string.import_control_profile)) },
-            text = {
-                // Scrollable so the rows never collide with the button bar in landscape.
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        DeckConfigDialog(
+            title = stringResource(R.string.import_control_profile),
+            onDismiss = { showImportChooser = false },
+            compact = true,
+        ) {
+            Column(Modifier.fillMaxWidth()) {
                     ImportSourceRow(
                         icon = Icons.Default.FolderOpen,
                         title = stringResource(R.string.open_file),
@@ -335,7 +296,7 @@ fun InputControlsScreen() {
                             )
                         }
                     }
-                    MenuItemDivider()
+                    DeckMenuDivider()
                     ImportSourceRow(
                         icon = Icons.Default.PhoneAndroid,
                         title = stringResource(R.string.pick_via_system),
@@ -345,7 +306,7 @@ fun InputControlsScreen() {
                         armImport()
                         importLauncher.launch(arrayOf("*/*"))
                     }
-                    MenuItemDivider()
+                    DeckMenuDivider()
                     ImportSourceRow(
                         icon = Icons.Default.CloudDownload,
                         title = stringResource(R.string.download_file),
@@ -354,11 +315,11 @@ fun InputControlsScreen() {
                         showImportChooser = false
                         showDownloadDialog = true
                     }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showImportChooser = false }) { Text(stringResource(R.string.cancel)) } },
-        )
+            }
+            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                DeckButton("Cancel", primary = false) { showImportChooser = false }
+            }
+        }
     }
 
     if (showDownloadDialog) {
@@ -379,23 +340,22 @@ fun InputControlsScreen() {
         }
 
         if (isLoadingList) {
-            OutlinedAlertDialog(
-                onDismissRequest = { showDownloadDialog = false },
-                title = { Text("Profiles") },
-                text = { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } },
-                confirmButton = {},
-                dismissButton = { TextButton(onClick = { showDownloadDialog = false }) { Text("Cancel") } }
-            )
+            DeckConfigDialog(title = "Profiles", onDismiss = { showDownloadDialog = false }, compact = true) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalArrangement = Arrangement.Center) {
+                    CircularProgressIndicator(color = DeckPalette.primary)
+                }
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    DeckButton("Cancel", primary = false) { showDownloadDialog = false }
+                }
+            }
         } else {
-            OutlinedAlertDialog(
-                onDismissRequest = { showDownloadDialog = false },
-                title = { Text("Download Profiles") },
-                text = {
-                    // Scroll the profile list inside the dialog: the list can be long
-                    // (dozens of .icp files), so without this the bottom rows overflow
-                    // the dialog's bounded height and overlap the Cancel/Download bar —
-                    // worst in landscape where there's even less vertical room.
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
+            // DeckConfigDialog is one scroll surface, so a long list never overlaps the button bar.
+            DeckConfigDialog(
+                title = "Download profiles",
+                subtitle = "Tick the profiles to import",
+                onDismiss = { showDownloadDialog = false },
+            ) {
+                    Column {
                         items.forEachIndexed { i, item ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -408,18 +368,20 @@ fun InputControlsScreen() {
                                     selectedItems = if (it) selectedItems + i else selectedItems - i
                                 })
                                 Spacer(Modifier.width(8.dp))
-                                Text(item, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text(item, color = DeckPalette.onBackground, fontSize = 14.sp, modifier = Modifier.weight(1f))
                                 // View example: fetch the .icp and draw its on-screen layout (no import).
-                                IconButton(onClick = { previewItem = item }, modifier = Modifier.size(36.dp)) {
+                                IconButton(onClick = { previewItem = item }, modifier = Modifier.size(48.dp)) {
                                     Icon(Icons.Default.Visibility, contentDescription = "View example",
-                                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                        tint = DeckPalette.primary, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
+                    DeckDialogButtons(
+                        "Download",
+                        enabled = selectedItems.isNotEmpty(),
+                        onCancel = { showDownloadDialog = false },
+                    ) {
                         if (selectedItems.isNotEmpty()) {
                             isDownloading = true
                             showDownloadDialog = false
@@ -455,10 +417,8 @@ fun InputControlsScreen() {
                                 }
                             }
                         }
-                    }) { Text("Download") }
-                },
-                dismissButton = { TextButton(onClick = { showDownloadDialog = false }) { Text("Cancel") } }
-            )
+                    }
+            }
         }
 
         // "View example" popover: stacks above the list. Fetches the community .icp once (cached), builds a
@@ -490,34 +450,28 @@ fun InputControlsScreen() {
                     }
                 }
             }
-            OutlinedAlertDialog(
-                onDismissRequest = { previewItem = null },
-                title = { Text(itemName.removeSuffix(".icpx").removeSuffix(".icp")) },
-                text = {
-                    // Scrollable + width-driven aspect box → fits portrait and landscape alike.
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                        Text("Preview — layout on the game screen (not imported yet)",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                        Spacer(Modifier.height(8.dp))
-                        val pp = previewProfile
-                        when {
-                            pp != null -> LayoutPreviewFrame(profile = pp, onTap = null)
-                            previewFailed -> Text(stringResource(R.string.unable_to_download_file),
-                                color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                            else -> Row(Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                                horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
-                        }
+            DeckConfigDialog(
+                title = itemName.removeSuffix(".icpx").removeSuffix(".icp"),
+                onDismiss = { previewItem = null },
+                compact = true,
+            ) {
+                DeckConfigNote("Preview of the layout on the game screen (not imported yet)")
+                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+                    val pp = previewProfile
+                    when {
+                        pp != null -> LayoutPreviewFrame(profile = pp, onTap = null)
+                        previewFailed -> Text(stringResource(R.string.unable_to_download_file),
+                            color = DeckPalette.error, fontSize = 13.sp)
+                        else -> Row(Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalArrangement = Arrangement.Center) { CircularProgressIndicator(color = DeckPalette.primary) }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val idx = items.indexOf(itemName)
-                        if (idx >= 0) selectedItems = selectedItems + idx
-                        previewItem = null
-                    }) { Text("Select") }
-                },
-                dismissButton = { TextButton(onClick = { previewItem = null }) { Text("Close") } },
-            )
+                }
+                DeckDialogButtons("Select", cancelLabel = "Close", onCancel = { previewItem = null }) {
+                    val idx = items.indexOf(itemName)
+                    if (idx >= 0) selectedItems = selectedItems + idx
+                    previewItem = null
+                }
+            }
         }
     }
 
@@ -688,14 +642,14 @@ fun InputControlsScreen() {
                                 DropdownMenu(
                                     expanded = showProfileDropdown,
                                     onDismissRequest = { showProfileDropdown = false },
-                                    modifier = Modifier.outlinedMenuCard(),
+                                    modifier = Modifier.background(DeckPalette.surfaceVariant),
                                 ) {
-                                    DropdownMenuItem(text = { Text("-- Select Profile --") }, onClick = {
+                                    DropdownMenuItem(text = { Text("-- Select Profile --", color = DeckPalette.onBackground) }, onClick = {
                                         selectedProfileIdx = 0; loadProfile(0); showProfileDropdown = false
                                     })
                                     profiles.forEachIndexed { i, p ->
-                                        MenuItemDivider()
-                                        DropdownMenuItem(text = { Text(p.getName()) }, onClick = {
+                                        DeckMenuDivider()
+                                        DropdownMenuItem(text = { Text(p.getName(), color = DeckPalette.onBackground) }, onClick = {
                                             selectedProfileIdx = i + 1; loadProfile(i + 1); showProfileDropdown = false
                                         })
                                     }
@@ -705,27 +659,27 @@ fun InputControlsScreen() {
                                 DropdownMenu(
                                     expanded = showOverflow,
                                     onDismissRequest = { showOverflow = false },
-                                    modifier = Modifier.outlinedMenuCard(),
+                                    modifier = Modifier.background(DeckPalette.surfaceVariant),
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("New profile") },
-                                        leadingIcon = { Icon(Icons.Default.Add, null) },
+                                        text = { Text("New profile", color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.Add, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = { showOverflow = false; promptCreateName = true },
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     DropdownMenuItem(
-                                        text = { Text("Rename") },
-                                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                        text = { Text("Rename", color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.Edit, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = {
                                             showOverflow = false
                                             if (currentProfile != null) promptRenameOldName = currentProfile?.getName()
                                             else AppUtils.showToast(context, R.string.no_profile_selected)
                                         },
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     DropdownMenuItem(
-                                        text = { Text("Duplicate") },
-                                        leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                                        text = { Text("Duplicate", color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = {
                                             showOverflow = false
                                             val profile = currentProfile
@@ -738,10 +692,10 @@ fun InputControlsScreen() {
                                             } else AppUtils.showToast(context, R.string.no_profile_selected)
                                         },
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     DropdownMenuItem(
-                                        text = { Text("Delete") },
-                                        leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                        text = { Text("Delete", color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = {
                                             showOverflow = false
                                             val profile = currentProfile
@@ -755,28 +709,28 @@ fun InputControlsScreen() {
                                             } else AppUtils.showToast(context, R.string.no_profile_selected)
                                         },
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     // Share / Transfer group header (disabled label, matches the app's grouped-menu idiom).
                                     DropdownMenuItem(
                                         enabled = false,
                                         text = {
                                             Text("Share / Transfer", fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                color = DeckPalette.onSurfaceVariant)
                                         },
                                         onClick = {},
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     // Arrow direction reads as data flow relative to the app: import = INTO the app (down),
                                     // export = OUT of the app (up).
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.import_control_profile)) },
-                                        leadingIcon = { Icon(Icons.Default.FileDownload, null) },
+                                        text = { Text(stringResource(R.string.import_control_profile), color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.FileDownload, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = { showOverflow = false; showImportChooser = true },
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.export_control_profile_icpx)) },
-                                        leadingIcon = { Icon(Icons.Default.FileUpload, null) },
+                                        text = { Text(stringResource(R.string.export_control_profile_icpx), color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.FileUpload, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = {
                                             showOverflow = false
                                             if (currentProfile != null) {
@@ -786,11 +740,11 @@ fun InputControlsScreen() {
                                             } else AppUtils.showToast(context, R.string.no_profile_selected)
                                         },
                                     )
-                                    MenuItemDivider()
+                                    DeckMenuDivider()
                                     // Legacy ICP export (was a tooltip'd OutlinedButton; the tooltip copy now reads as the item label).
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.export_control_profile_icp_legacy)) },
-                                        leadingIcon = { Icon(Icons.Default.FileUpload, null) },
+                                        text = { Text(stringResource(R.string.export_control_profile_icp_legacy), color = DeckPalette.onBackground) },
+                                        leadingIcon = { Icon(Icons.Default.FileUpload, null, tint = DeckPalette.onSurfaceVariant) },
                                         onClick = {
                                             showOverflow = false
                                             if (currentProfile != null) {
@@ -902,10 +856,9 @@ fun InputControlsScreen() {
                                                     DropdownMenu(
                                                         expanded = copyMenuForId == controller.getId(),
                                                         onDismissRequest = { copyMenuForId = null },
-                                                        // #333 polish: match the shared outlined-menu-card look.
-                                                        modifier = Modifier.outlinedMenuCard()
+                                                                                                                modifier = Modifier.background(DeckPalette.surfaceVariant)
                                                     ) {
-                                                        DropdownMenuItem(text = { Text("From Default / Any Controller") }, onClick = {
+                                                        DropdownMenuItem(text = { Text("From Default / Any Controller", color = DeckPalette.onBackground) }, onClick = {
                                                             // #333: reload from disk first (the editor saves to a separate profile
                                                             // instance), and never apply an EMPTY source — that would wipe the
                                                             // target's bindings.
@@ -919,8 +872,8 @@ fun InputControlsScreen() {
                                                         })
                                                         for (other in controllers) {
                                                             if (other.getId() == controller.getId() || other.getControllerBindingCount() == 0) continue
-                                                            MenuItemDivider()
-                                                            DropdownMenuItem(text = { Text("From ${other.getName()}") }, onClick = {
+                                                            DeckMenuDivider()
+                                                            DropdownMenuItem(text = { Text("From ${other.getName()}", color = DeckPalette.onBackground) }, onClick = {
                                                                 currentProfile?.loadControllers()
                                                                 val src = currentProfile?.getController(other.getId())
                                                                 if (src != null && src.getControllerBindingCount() > 0) {
@@ -1050,21 +1003,49 @@ private fun ImportSourceRow(
     subtitle: String,
     onClick: () -> Unit,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(10.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 12.dp),
+            .heightIn(min = 56.dp)
+            .deckOuterFocusStroke(interaction, shape)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        Icon(icon, null, tint = DeckPalette.primary, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp)
-            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            Text(title, color = DeckPalette.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = DeckPalette.onSurfaceVariant, fontSize = 12.sp)
         }
     }
+}
+
+/** Cancel + confirm pair at the foot of a Deck dialog; a disabled confirm stays visible but inert. */
+@Composable
+private fun DeckDialogButtons(
+    confirm: String,
+    onCancel: () -> Unit,
+    enabled: Boolean = true,
+    cancelLabel: String = "Cancel",
+    onConfirm: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+    ) {
+        DeckButton(cancelLabel, primary = false) { onCancel() }
+        Spacer(Modifier.width(8.dp))
+        DeckButton(confirm, modifier = Modifier.alpha(if (enabled) 1f else 0.42f)) { if (enabled) onConfirm() }
+    }
+}
+
+@Composable
+private fun DeckMenuDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(DeckPalette.line))
 }
 
 /** A small pill badge for the Profile bar (🖐 Layout / 🎮 N binds). Explicit fg/bg so callers pick
