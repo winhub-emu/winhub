@@ -436,6 +436,39 @@ private fun DeckGameCard(game: DeckOwnedGame, onClick: () -> Unit) {
     }
 }
 
+/** A row of Steam's featured titles under the store picker (nothing shows until the catalog answers). */
+@Composable
+private fun DeckFeaturedOnSteam(context: Context, onCard: (DeckBrowseItem) -> Unit) {
+    var items by remember { mutableStateOf<List<DeckBrowseItem>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        items = withContext(Dispatchers.IO) {
+            val data = deckFeatured(context, Screen.Steam)
+            (data.sections.firstOrNull { it.title == "Specials" }?.items ?: data.sections.firstOrNull()?.items).orEmpty().take(8)
+        }
+    }
+    if (items.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+        Text(
+            text = "Featured on Steam",
+            color = Deck.onBackground,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        DeckDragFrame(modifier = Modifier.fillMaxWidth()) {
+            LazyRow(
+                contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                itemsIndexed(items, key = { i, it -> "feat-$i-${it.title}" }) { index, item ->
+                    Box(Modifier.deckDragItem("feat-$index-${item.title}")) {
+                        DeckBrowseCard(item) { onCard(item) }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** A browseable storefront entry: cover art, title, price and how to open its detail page. */
 private data class DeckBrowseItem(
     val title: String,
@@ -997,7 +1030,14 @@ internal fun DeckStoresScreen() {
                     text = "Stores",
                     color = Deck.onBackground,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Black,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = "Your game libraries",
+                    color = Deck.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                 )
             }
@@ -1049,17 +1089,20 @@ internal fun DeckStoresScreen() {
             }
         } else {
             if (!inStore) {
-                DeckStorePicker(
-                    names = deckStores.map { it.chip },
-                    accents = deckStores.map { it.dot },
-                    logos = deckStores.map { deckStoreLogo(it.screen) },
-                    brands = deckStores.map { deckStoreBrand(it.screen) },
-                    signedIn = deckStores.map { signedInByStore[it.screen] == true },
-                    selected = deckStores.indexOfFirst { it.screen == selected }.coerceAtLeast(0),
-                    onSelect = { selected = deckStores[it].screen },
-                    onOpen = { selected = deckStores[it].screen; inStore = true },
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
+                Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    DeckStorePicker(
+                        names = deckStores.map { it.chip },
+                        accents = deckStores.map { it.dot },
+                        logos = deckStores.map { deckStoreLogo(it.screen) },
+                        brands = deckStores.map { deckStoreBrand(it.screen) },
+                        signedIn = deckStores.map { signedInByStore[it.screen] == true },
+                        selected = deckStores.indexOfFirst { it.screen == selected }.coerceAtLeast(0),
+                        onSelect = { selected = deckStores[it].screen },
+                        onOpen = { selected = deckStores[it].screen; inStore = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    DeckFeaturedOnSteam(context, onBrowseTap)
+                }
             } else {
                 val signed = signedInByStore[active.screen] == true
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {

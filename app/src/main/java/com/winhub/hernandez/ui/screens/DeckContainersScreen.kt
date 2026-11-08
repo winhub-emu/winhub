@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
@@ -63,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -428,11 +430,20 @@ private fun DeckStorageContainersTab(
                 ) {
                     items(containers, key = { it.id }) { container ->
                         Box(Modifier.deckDragItem("container-${container.id}")) {
+                            val gameCount by produceState(0, container.id) {
+                                value = withContext(Dispatchers.IO) {
+                                    container.desktopDir.listFiles { f -> f.name.endsWith(".desktop") }?.size ?: 0
+                                }
+                            }
+                            val usedBytes = rememberDeckDirSize(container.rootDir)
                             DeckContainerCard(
                                 name = container.name,
-                                subtitle = listOf(container.wineVersion, container.screenSize)
-                                    .filter { it.isNotEmpty() }
-                                    .joinToString(" · "),
+                                subtitle = listOf(
+                                    container.wineVersion,
+                                    if (gameCount == 1) "1 game" else "$gameCount games",
+                                    if (usedBytes >= 0) StringUtils.formatBytes(usedBytes) else "…",
+                                ).filter { it.isNotEmpty() }.joinToString(" · "),
+                                ready = gameCount > 0,
                                 onRun = { onRun(container) },
                                 onEdit = { onEdit(container.id) },
                                 onDuplicate = { onDuplicate(container) },
@@ -463,6 +474,7 @@ private fun DeckCronosCard(
     val store = item.store.isNotEmpty()
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    var menuOpen by remember { mutableStateOf(false) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -473,84 +485,101 @@ private fun DeckCronosCard(
             .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, DeckPalette.groupShape) else Modifier)
             .padding(12.dp),
     ) {
-        // Cover + details open the game; the remove buttons beside them are separate focus targets.
+        // Cover + details open the game; the actions button beside them is its own focus target.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .clickable(interactionSource = interaction, indication = null, onClick = onOpen),
         ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(width = 56.dp, height = 74.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(DeckPalette.surfaceVariant),
-        ) {
-            if (cover != null) {
-                Image(
-                    bitmap = cover,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Filled.SportsEsports,
-                    contentDescription = null,
-                    tint = DeckPalette.onSurfaceVariant,
-                    modifier = Modifier.size(36.dp),
-                )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(width = 46.dp, height = 61.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DeckPalette.surfaceVariant),
+            ) {
+                if (cover != null) {
+                    Image(
+                        bitmap = cover,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.SportsEsports,
+                        contentDescription = null,
+                        tint = DeckPalette.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
-        }
-
-        Spacer(Modifier.width(14.dp))
-
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = item.shortcut.name,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeckPalette.onBackground,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = item.container.name,
-                fontSize = 12.sp,
-                color = DeckPalette.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(8.dp))
-            if (store) {
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Game  " + if (gameSize >= 0) StringUtils.formatBytes(gameSize) else "…",
-                    fontSize = 12.5.sp,
+                    text = item.shortcut.name,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = DeckPalette.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = (if (store) "Game " + (if (gameSize >= 0) StringUtils.formatBytes(gameSize) else "…") + " · " else "") +
+                        "Setup " + (if (containerSize >= 0) StringUtils.formatBytes(containerSize) else "…"),
+                    fontSize = 13.sp,
+                    color = DeckPalette.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Text(
-                text = "Container  " + if (containerSize >= 0) StringUtils.formatBytes(containerSize) else "…",
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DeckPalette.onSurfaceVariant,
-            )
         }
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Box(
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(DeckPalette.primary.copy(alpha = 0.16f))
+                .padding(horizontal = 10.dp, vertical = 3.dp),
         ) {
-            DeckOutlineButton(if (store) "Uninstall Game" else "Remove Game", onRemoveGame)
-            DeckDangerButton("Remove Container", onRemoveContainer)
+            Text("Ready", color = DeckPalette.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.width(4.dp))
+        Box {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable { menuOpen = true },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = "Actions",
+                    tint = DeckPalette.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            // A dialog, not a dropdown: a popup window has no focus owner, so the D-pad could never walk its items.
+            if (menuOpen) Dialog(
+                onDismissRequest = { menuOpen = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth(0.5f)
+                        .heightIn(max = 320.dp)
+                        .clip(DeckPalette.groupShape)
+                        .background(DeckPalette.surfaceVariant)
+                        .deckDialogNav { menuOpen = false }
+                        .verticalScroll(rememberScrollState())
+                        .padding(vertical = 8.dp),
+                ) {
+                    DeckMenuItem(if (store) "Uninstall Game" else "Remove Game", Icons.Filled.Delete) { menuOpen = false; onRemoveGame() }
+                    DeckMenuItem("Remove Container", Icons.Filled.Delete) { menuOpen = false; onRemoveContainer() }
+                }
+            }
         }
     }
 }
@@ -765,6 +794,7 @@ private fun DeckContainerCard(
     onExport: () -> Unit,
     onInfo: () -> Unit,
     onBackupRestore: () -> Unit,
+    ready: Boolean = true,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
@@ -815,6 +845,21 @@ private fun DeckContainerCard(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(end = 8.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (ready) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+        ) {
+            Text(
+                if (ready) "Ready" else "Idle",
+                color = if (ready) DeckPalette.primary else DeckPalette.onSurfaceVariant,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
 
         // Run: the blue play pill (DroidDeck's PrimaryButton shape).

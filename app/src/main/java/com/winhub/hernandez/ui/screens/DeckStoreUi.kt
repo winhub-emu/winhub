@@ -21,9 +21,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import com.winhub.hernandez.store.download.DownloadRegistry
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -57,6 +61,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -179,65 +184,103 @@ internal fun DeckStorePicker(
         delay(50)
         runCatching { requesters[selected].requestFocus() }
     }
-    Row(
-        modifier = modifier.padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        names.forEachIndexed { i, name ->
-            val isSel = i == selected
-            // The logos sit on the store's brand colours, so the text is always light.
-            val ink = Color.White
-            val height by animateDpAsState(if (isSel) 200.dp else 148.dp, tween(220, easing = DeckEase), label = "storeTileH")
-            val brand = brands[i]
-            val shape = RoundedCornerShape(22.dp)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(height)
-                    .clip(shape)
-                    .border(3.dp, if (isSel) Deck.onBackground else Color.Transparent, shape)
-                    .focusRequester(requesters[i])
-                    .onFocusChanged { if (it.isFocused && !isSel) onSelect(i) }
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onOpen(i) },
-            ) {
+    Column(modifier = modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            names.forEachIndexed { i, name ->
+                val isSel = i == selected
+                val shape = RoundedCornerShape(24.dp)
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(3.dp)
-                        .clip(RoundedCornerShape(19.dp))
-                        .alpha(if (isSel) 1f else 0.82f)
-                        .background(Brush.verticalGradient(brand)),
+                        .weight(1f)
+                        .clip(shape)
+                        .background(Deck.surface)
+                        .then(if (isSel) Modifier.border(2.dp, Deck.primary, shape) else Modifier)
+                        .focusRequester(requesters[i])
+                        .onFocusChanged { if (it.isFocused && !isSel) onSelect(i) }
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onOpen(i) }
+                        .padding(12.dp),
                 ) {
                     val logo = rememberDeckLogo(logos[i])
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(72.dp)) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(38.dp).clip(RoundedCornerShape(14.dp)).background(Brush.verticalGradient(brands[i])),
+                    ) {
                         if (logo != null) {
                             Image(
                                 bitmap = logo,
                                 contentDescription = name,
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxSize(0.86f),
+                                modifier = Modifier.fillMaxSize(0.8f),
                             )
                         } else {
-                            Text(name.take(1).uppercase(), color = ink, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                            Text(name.take(1).uppercase(), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text(name, color = ink, fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(ink.copy(alpha = if (signedIn[i]) 1f else 0.4f)))
-                        Spacer(Modifier.width(6.dp))
+                    Column {
+                        Text(name, color = Deck.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         Text(
-                            if (signedIn[i]) "Logged in" else "Not logged in",
-                            color = ink.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            if (signedIn[i]) "Signed in" else "Sign in",
+                            color = Deck.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
                             maxLines = 1,
                         )
                     }
+                }
+            }
+        }
+        DeckDownloadingNow()
+    }
+}
+
+/** What is downloading right now, as a card under the store picker; nothing shows when the queue is idle. */
+@Composable
+private fun DeckDownloadingNow() {
+    val entries by DownloadRegistry.entries.collectAsState()
+    val active = entries.filter { it.isActive }
+    if (active.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Downloading now",
+            color = Deck.onSurfaceVariant,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Deck.surface)
+                .padding(16.dp),
+        ) {
+            active.take(3).forEach { e ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        e.name,
+                        color = Deck.onBackground,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "${e.pct}%" + if (e.speedBps > 0) " · " + String.format("%.1f MB/s", e.speedBps / 1048576f) else "",
+                        color = Deck.onSurfaceVariant,
+                        fontSize = 13.sp,
+                    )
+                }
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Deck.surfaceVariant)) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(e.pct.coerceIn(0, 100) / 100f)
+                            .fillMaxHeight()
+                            .background(Deck.primary),
+                    )
                 }
             }
         }
