@@ -22,7 +22,10 @@
   <a href="#-contents">Contents</a> •
   <a href="https://github.com/winhub-emu/winhub/releases">Download</a> •
   <a href="CHANGELOG.md">Changelog</a> •
-  <a href="#-credits">Credits</a>
+  <a href="#-credits">Credits</a> •
+  <a href="https://t.me/winhubchat">Telegram Chat</a> •
+  <a href="https://t.me/winhubemul">Telegram Server</a> •
+  <a href="https://discord.gg/KpwUbc2cby">Discord Server</a>
 </p>
 
 ---
