@@ -362,15 +362,10 @@ private fun DeckAction(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .heightIn(min = 44.dp)
-            .deckRing(interaction, RoundedCornerShape(20.dp))
+            .deckRing(interaction, RoundedCornerShape(24.dp))
             .alpha(if (enabled) 1f else 0.42f)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (primary) DeckPalette.primary else DeckPalette.surface)
-            .border(
-                1.dp,
-                if (primary) DeckPalette.primary else DeckPalette.line,
-                RoundedCornerShape(20.dp),
-            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (primary) DeckPalette.primary else DeckPalette.surfaceVariant)
             .then(
                 if (enabled) Modifier.clickable(
                     interactionSource = interaction,
@@ -399,9 +394,8 @@ private fun DeckDangerAction(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(DeckPalette.error.copy(alpha = 0.12f))
-            .border(1.dp, DeckPalette.error, RoundedCornerShape(20.dp))
-            .deckRing(interaction, RoundedCornerShape(20.dp))
+            .background(DeckPalette.error.copy(alpha = 0.16f))
+            .deckRing(interaction, RoundedCornerShape(24.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
@@ -412,15 +406,14 @@ private fun DeckDangerAction(text: String, onClick: () -> Unit) {
 @Composable
 internal fun DeckBadge(text: String, color: Color) {
     Text(
-        text = text.uppercase(),
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.6.sp,
+        text = text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
         color = color,
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = 7.dp, vertical = 2.dp),
+            .background(color.copy(alpha = 0.16f))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
     )
 }
 
@@ -811,10 +804,10 @@ private fun DeckCatalogCard(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(9.dp))
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(
-                        if (item.isDriver) DeckPalette.primary.copy(alpha = 0.14f)
+                        if (item.isDriver) DeckPalette.primary.copy(alpha = 0.16f)
                         else DeckPalette.surfaceVariant,
                     ),
             ) {
@@ -822,17 +815,16 @@ private fun DeckCatalogCard(
                     deckContentTypeIcon(item.type),
                     contentDescription = null,
                     tint = if (item.isDriver) DeckPalette.primary else DeckPalette.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 if (showSource) {
                     Text(
-                        text = item.sourceName.uppercase(),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
+                        text = item.sourceName,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = DeckPalette.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -840,8 +832,8 @@ private fun DeckCatalogCard(
                 }
                 Text(
                     text = title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = DeckPalette.onBackground,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
