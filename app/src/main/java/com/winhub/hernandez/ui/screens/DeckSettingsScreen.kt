@@ -415,8 +415,8 @@ internal fun DeckSettingsScreen() {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Identical to the Settings tab",
-                fontSize = 13.sp,
+                text = "Make WinHub yours",
+                fontSize = 14.sp,
                 color = DeckPalette.onSurfaceVariant,
             )
         }

@@ -164,18 +164,34 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                 .fillMaxSize()
                 .padding(horizontal = 22.dp, vertical = 18.dp),
         ) {
-            Text(
-                text = "My setups",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeckPalette.onBackground,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Each game runs inside one",
-                fontSize = 13.sp,
-                color = DeckPalette.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "My setups",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeckPalette.onBackground,
+                    )
+                    Text(
+                        text = "Each game runs inside one",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = DeckPalette.onSurfaceVariant,
+                    )
+                }
+                val newInteraction = remember { MutableInteractionSource() }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(DeckPalette.surface)
+                        .deckOuterFocusStroke(newInteraction, CircleShape)
+                        .clickable(interactionSource = newInteraction, indication = null) { onEditContainer(-1) },
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "New setup", tint = DeckPalette.onBackground)
+                }
+            }
             Spacer(Modifier.height(10.dp))
 
             DeckRailLayout(
@@ -343,6 +359,51 @@ private fun DeckCronosTab(
                         )
                     }
                 }
+                item(key = "used-space") { DeckUsedSpaceGroup(games.map { it.container }.distinctBy { it.id }) }
+            }
+        }
+    }
+}
+
+/** "Estimated used space": what the setups take on disk, against the device's total storage. */
+@Composable
+private fun DeckUsedSpaceGroup(containers: List<Container>) {
+    val ids = containers.map { it.id }
+    val used by produceState(-1L, ids) {
+        value = withContext(Dispatchers.IO) { containers.sumOf { c -> c.rootDir?.let { deckDirSize(it) } ?: 0L } }
+    }
+    val total = remember { runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path).totalBytes }.getOrDefault(0L) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+        Text(
+            text = "Estimated used space",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = DeckPalette.onSurfaceVariant,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(DeckPalette.groupShape)
+                .background(DeckPalette.surface)
+                .padding(16.dp),
+        ) {
+            Row {
+                Text(
+                    text = if (used >= 0) StringUtils.formatBytes(used) + " used" else "…",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DeckPalette.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+                if (total > 0) {
+                    Text(text = "of " + StringUtils.formatBytes(total), fontSize = 14.sp, color = DeckPalette.onSurfaceVariant)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(DeckPalette.surfaceVariant)) {
+                val fraction = if (used >= 0 && total > 0) (used.toFloat() / total).coerceIn(0.02f, 1f) else 0f
+                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(DeckPalette.primary))
             }
         }
     }
@@ -362,54 +423,6 @@ private fun DeckStorageContainersTab(
     onInfo: (Container) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DeckPalette.primary)
-                    .clickable { onNew() }
-                    .padding(horizontal = 16.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = DeckPalette.onPrimary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "New",
-                        color = DeckPalette.onPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DeckPalette.surface)
-                    .clickable { onDefaults() }
-                    .padding(horizontal = 16.dp),
-            ) {
-                Text(
-                    text = "Defaults",
-                    color = DeckPalette.onBackground,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-
         if (containers.isEmpty()) {
             Text(
                 text = "No containers yet.",
@@ -454,6 +467,35 @@ private fun DeckStorageContainersTab(
                             )
                         }
                     }
+                    item(key = "defaults") {
+                        val defaultsInteraction = remember { MutableInteractionSource() }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(DeckPalette.groupShape)
+                                .background(DeckPalette.surface)
+                                .deckOuterFocusStroke(defaultsInteraction, DeckPalette.groupShape)
+                                .clickable(interactionSource = defaultsInteraction, indication = null) { onDefaults() }
+                                .padding(14.dp),
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(DeckPalette.surfaceVariant),
+                            ) {
+                                Icon(Icons.Filled.Settings, contentDescription = null, tint = DeckPalette.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("Defaults", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = DeckPalette.onBackground)
+                                Text("Used for every new setup", fontSize = 13.sp, color = DeckPalette.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    item(key = "used-space") { DeckUsedSpaceGroup(containers) }
                 }
             }
         }

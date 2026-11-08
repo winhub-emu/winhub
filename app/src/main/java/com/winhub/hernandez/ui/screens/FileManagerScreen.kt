@@ -1114,7 +1114,7 @@ fun FileManagerScreen(
                 else Modifier.background(if (deckMode) DeckPalette.background else MaterialTheme.colorScheme.background)
             ),
     ) {
-        if (deckMode && !pickMode) PortraitScreenTitle("Files")
+        if (deckMode && !pickMode) PortraitScreenTitle("Files", "Browse your device and setups")
         // ── Pick-mode title ──
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(

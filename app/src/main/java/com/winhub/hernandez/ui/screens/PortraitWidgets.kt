@@ -262,6 +262,6 @@ internal fun rememberPortraitStrip(): Boolean =
 internal fun PortraitScreenTitle(title: String, subtitle: String? = null, horizontal: androidx.compose.ui.unit.Dp = 16.dp) {
     Column(Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = 8.dp, bottom = 10.dp)) {
         Text(title, color = Deck.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        if (subtitle != null) Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 13.sp)
+        if (subtitle != null) Text(subtitle, color = Deck.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

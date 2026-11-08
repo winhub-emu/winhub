@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -551,6 +552,25 @@ fun InputControlsScreen() {
             .fillMaxSize()
             .padding(16.dp),
     ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Controls", color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("How you play", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable { promptCreateName = true },
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "New profile", tint = MaterialTheme.colorScheme.onSurface)
+            }
+        }
         // ── Pinned Profile bar ──────────────────────────────────────
         val displayText = if (selectedProfileIdx > 0 && selectedProfileIdx - 1 < profiles.size)
             profiles[selectedProfileIdx - 1].getName() else "-- Select Profile --"
@@ -559,28 +579,28 @@ fun InputControlsScreen() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(22.dp))
                     .clickable { showProfileDropdown = true }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Accent avatar with the selected profile's initial.
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)),
+                        .size(46.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         if (hasProfile) displayText.trim().take(1).uppercase() else "?",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     )
                 }
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(displayText, color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     // Content badges: tell you what the selected profile HOLDS before you act on it.
                     if (hasProfile && (profileHasLayout || profileBinds > 0)) {
                         Spacer(Modifier.height(3.dp))
@@ -765,9 +785,10 @@ fun InputControlsScreen() {
                         Button(
                             onClick = openLayoutEditor,
                             // intentional: success green signals the primary "go/edit" action; kept off-theme by design
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Edit Layout", color = Color.White) } // intentional: white kept for contrast on the green fill
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(26.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                        ) { Text("Edit Layout", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold) }
 
                         // Live read-only preview — only when the selected profile actually has an overlay.
                         val cp = currentProfile
