@@ -4,7 +4,7 @@
 
 > Everything new since 1.1. **15 new Deck themes**, a **Deck-style Controls tab**, **OpenGL and Mods in the XMB game settings**, a rebuilt **fake-HDR look**, a tidier **Storage** tab, and **Unreal Engine HDR is gone**. 🚀
 
-**Jump to:** [🎨 New themes](#-15-new-deck-themes) · [🎮 Controls tab](#-deck-style-controls-tab) · [🕹️ XMB settings](#️-xmb-game-settings-opengl-and-mods) · [🌈 HDR](#-a-better-fake-hdr-look) · [🗄️ Storage](#️-storage-tab) · [🛒 Stores & Home](#-stores-and-home) · [🔄 Updates](#-update-check) · [🗑️ Removed](#️-removed-unreal-engine-hdr) · [🧱 Behind the scenes](#-behind-the-scenes-1)
+**Jump to:** [🎨 New themes](#-15-new-deck-themes) · [🎮 Controls tab](#-deck-style-controls-tab) · [🕹️ XMB settings](#️-xmb-game-settings-opengl-and-mods) · [🌈 HDR](#-a-better-fake-hdr-look) · [🗄️ Storage](#️-storage-tab) · [🛒 Stores & Home](#-stores-and-home) · [🔄 Updates](#-update-check) · [🗑️ Removed](#️-removed-unreal-engine-hdr) · [🧱 Behind the scenes](#-behind-the-scenes)
 
 ---
 
@@ -124,7 +124,7 @@ The *Unreal Engine HDR* setting (Off / DirectX 12 fix / DirectX 11 NVAPI) is gon
 
 > Everything new since 1.0. A **first-run setup wizard** for fresh installs, plus a fully **Deck-style Log Manager, log viewer and Report a problem dialog**. 🚀
 
-**Jump to:** [🧭 Setup wizard](#-first-run-setup-wizard) · [🗂️ Log Manager](#️-deck-style-log-manager) · [🔍 Log viewer](#-deck-style-log-viewer) · [📝 Report a problem](#-report-a-problem) · [🧱 Behind the scenes](#-behind-the-scenes)
+**Jump to:** [🧭 Setup wizard](#-first-run-setup-wizard) · [🗂️ Log Manager](#️-deck-style-log-manager) · [🔍 Log viewer](#-deck-style-log-viewer) · [📝 Report a problem](#-report-a-problem) · [🧱 Behind the scenes](#-behind-the-scenes-1)
 
 ---
 
@@ -193,7 +193,7 @@ In Deck mode, Settings now opens a themed Log Manager instead of the classic dia
 
 > Everything new since 0.1-beta. The big ones: a brand new **controller engine (Hermes)**, a rebuilt **Fusion HUD**, **Fast OpenGL**, a **Sync selector**, a **Music Player**, and a lot of portrait and Deck polish. 🚀
 
-**Jump to:** [🎮 Controllers](#-controllers-hermes) · [📊 Fusion HUD](#-fusion-hud) · [🖼️ Graphics](#️-graphics-and-opengl) · [⚙️ Containers](#️-containers-and-games) · [🎵 Music Player](#-music-player) · [📱 Portrait](#-portrait-mode) · [🪟 Deck UI](#-deck-ui-polish) · [🧱 Behind the scenes](#-behind-the-scenes) · [🗑️ Removed in 1.0](#️-removed-in-10)
+**Jump to:** [🎮 Controllers](#-controllers-hermes) · [📊 Fusion HUD](#-fusion-hud) · [🖼️ Graphics](#️-graphics-and-opengl) · [⚙️ Containers](#️-containers-and-games) · [🎵 Music Player](#-music-player) · [📱 Portrait](#-portrait-mode) · [🪟 Deck UI](#-deck-ui-polish) · [🧱 Behind the scenes](#-behind-the-scenes-2) · [🗑️ Removed in 1.0](#️-removed-in-10)
 
 ---
 
