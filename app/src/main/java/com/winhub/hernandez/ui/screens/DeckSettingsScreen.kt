@@ -399,7 +399,7 @@ internal fun DeckSettingsScreen() {
         saved = true
     }
 
-    DeckDragFrame(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(12.dp)) {
+    DeckDragFrame(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(20.dp)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1087,7 +1087,7 @@ internal fun DeckSettingsScreen() {
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .height(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(DeckPalette.primary)
                     .deckDragItem("settings-save")
                     .clickable { save() }

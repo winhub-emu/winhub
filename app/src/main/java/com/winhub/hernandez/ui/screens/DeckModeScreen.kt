@@ -1713,11 +1713,15 @@ private fun DeckTopTabs(
     var placedAt by remember { mutableStateOf(Float.NaN) }
     var lastIndex by remember { mutableIntStateOf(-1) }
     val accent = Deck.primary
-    BoxWithConstraints(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .background(Deck.surface.copy(alpha = barOpacity)),
+            .background(Deck.surface.copy(alpha = barOpacity))
+            .padding(horizontal = 16.dp),
     ) {
+    DeckBarWordmark()
+    BoxWithConstraints(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
         val index = sections.indexOfFirst { it.key == selected }.coerceAtLeast(0)
         val padPx = with(density) { 8.dp.toPx() }
         // The selected tab is wider (it carries its name); the total weight never changes, so the
@@ -1793,6 +1797,8 @@ private fun DeckTopTabs(
                 }
             }
         }
+    }
+    DeckBarClockAvatar()
     }
 }
 

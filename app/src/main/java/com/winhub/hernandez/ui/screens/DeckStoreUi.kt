@@ -74,7 +74,7 @@ internal fun Modifier.deckFocusScale(interaction: InteractionSource, scale: Floa
 
 /** A looping shimmer placeholder shown while a pane loads. */
 @Composable
-internal fun DeckShimmer(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(10.dp)) {
+internal fun DeckShimmer(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(16.dp)) {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val phase by transition.animateFloat(
         initialValue = 0f,
@@ -107,7 +107,7 @@ internal fun DeckLibrarySkeleton() {
         repeat(5) {
             DeckShimmer(
                 Modifier.weight(1f).height(160.dp),
-                RoundedCornerShape(10.dp),
+                RoundedCornerShape(16.dp),
             )
         }
     }
@@ -117,10 +117,10 @@ internal fun DeckLibrarySkeleton() {
 @Composable
 internal fun DeckStoreSkeleton() {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        DeckShimmer(Modifier.fillMaxWidth().height(200.dp), RoundedCornerShape(14.dp))
+        DeckShimmer(Modifier.fillMaxWidth().height(200.dp), RoundedCornerShape(22.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             repeat(5) {
-                DeckShimmer(Modifier.weight(1f).height(150.dp), RoundedCornerShape(10.dp))
+                DeckShimmer(Modifier.weight(1f).height(150.dp), RoundedCornerShape(16.dp))
             }
         }
     }
@@ -271,7 +271,7 @@ internal fun DeckStoreHeader(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Brush.verticalGradient(brand)),
             ) {
                 Image(
@@ -328,7 +328,7 @@ internal fun DeckStoreSideTabs(
                 tween(200, easing = DeckEase),
                 label = "sideTabBg",
             )
-            val shape = RoundedCornerShape(12.dp)
+            val shape = RoundedCornerShape(20.dp)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -383,7 +383,7 @@ internal fun DeckHintBar(hints: List<Pair<String, String>>, modifier: Modifier =
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Deck.surface.copy(alpha = 0.75f))
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {

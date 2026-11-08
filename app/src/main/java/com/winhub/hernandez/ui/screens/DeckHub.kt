@@ -1148,116 +1148,89 @@ internal fun DeckLaunchMethodDialog(
         Triple("Raw", "Raw .exe", "Run the game directly with no Steam layer."),
     )
 
+    val portrait = LocalDeckPortrait.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
-                .fillMaxWidth(0.92f)
+                .then(if (portrait) Modifier.fillMaxWidth(0.94f) else Modifier.width(620.dp))
                 .heightIn(max = 560.dp)
                 .verticalScroll(rememberScrollState())
-                .clip(DeckPalette.groupShape)
+                .clip(RoundedCornerShape(30.dp))
                 .background(DeckPalette.surface)
                 .deckDialogNav(onDismiss)
                 .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                shortcut.name,
-                color = DeckPalette.onBackground,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                heading,
-                color = DeckPalette.onSurfaceVariant,
-                fontSize = 12.5.sp,
-                modifier = Modifier.padding(top = 2.dp, bottom = 16.dp),
-            )
-            methods.forEach { (mode, title, desc) ->
-                val picked = method == mode
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(if (picked) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
-                        .then(if (picked) Modifier.border(2.dp, DeckPalette.primary, RoundedCornerShape(20.dp)) else Modifier)
-                        .clickable { method = mode }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = if (picked) DeckPalette.primary else DeckPalette.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            title,
-                            color = if (picked) DeckPalette.primary else DeckPalette.onBackground,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            desc,
-                            color = DeckPalette.onSurfaceVariant,
-                            fontSize = 11.5.sp,
-                            modifier = Modifier.padding(top = 1.dp),
-                        )
+            Text(heading, color = DeckPalette.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("You can change this later in the game menu.", color = DeckPalette.onSurfaceVariant, fontSize = 14.sp)
+            if (portrait) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    methods.forEach { (mode, title, desc) ->
+                        LaunchOptionCard(title, desc, method == mode, { method = mode }, Modifier.fillMaxWidth())
                     }
-                    if (picked) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = DeckPalette.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    methods.forEach { (mode, title, desc) ->
+                        LaunchOptionCard(title, desc, method == mode, { method = mode }, Modifier.weight(1f))
                     }
                 }
             }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { rememberChoice = !rememberChoice }
-                    .padding(vertical = 10.dp),
-            ) {
-                Box(
-                    Modifier
-                        .size(20.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (rememberChoice) DeckPalette.primary else Color.Transparent)
-                        .border(1.dp, if (rememberChoice) DeckPalette.primary else DeckPalette.line, RoundedCornerShape(6.dp)),
-                ) {
-                    if (rememberChoice) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = DeckPalette.onPrimary,
-                            modifier = Modifier
-                                .size(14.dp)
-                                .align(Alignment.Center),
-                        )
-                    }
-                }
-                Spacer(Modifier.width(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     "Remember this choice",
-                    color = DeckPalette.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    modifier = Modifier.align(Alignment.CenterVertically),
+                    color = DeckPalette.onBackground,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                DeckToggle(rememberChoice) { rememberChoice = it }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                DeckButton("Cancel", primary = false, modifier = Modifier.weight(1f), onClick = onDismiss)
+                HubGradientButton(
+                    confirmLabel,
+                    onClick = { onLaunch(method, if (method == "Goldberg") goldbergMode else null, rememberChoice) },
+                    modifier = Modifier.weight(1f),
                 )
             }
-            Spacer(Modifier.height(14.dp))
-            HubGradientButton(
-                confirmLabel,
-                onClick = { onLaunch(method, if (method == "Goldberg") goldbergMode else null, rememberChoice) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text("Cancel", color = DeckPalette.onSurfaceVariant)
+        }
+    }
+}
+
+/** One launch-method choice: a radio dot, the name and what it does; the picked one is tinted and outlined. */
+@Composable
+private fun LaunchOptionCard(title: String, desc: String, picked: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .clip(shape)
+            .background(if (picked) DeckPalette.primary.copy(alpha = 0.16f) else DeckPalette.surfaceVariant)
+            .then(if (picked) Modifier.border(2.dp, DeckPalette.primary, shape) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+    ) {
+        Box(
+            Modifier
+                .padding(top = 1.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .border(2.dp, if (picked) DeckPalette.primary else DeckPalette.onSurfaceVariant, CircleShape),
+        ) {
+            if (picked) {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(DeckPalette.primary),
+                )
             }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = DeckPalette.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(desc, color = DeckPalette.onSurfaceVariant, fontSize = 13.sp, lineHeight = 17.sp)
         }
     }
 }

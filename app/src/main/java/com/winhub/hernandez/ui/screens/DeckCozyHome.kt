@@ -33,6 +33,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -57,6 +61,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winhub.hernandez.store.SocialHubStore
+import com.winhub.hernandez.store.rememberShownAvatar
+import com.winhub.hernandez.ui.AccountAvatar
+import kotlinx.coroutines.delay
+import java.util.Date
 
 /** Games per row in the "All games" grid. */
 private const val GRID_COLUMNS = 5
@@ -349,5 +358,39 @@ private fun CozyAddTile(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             Icon(Icons.Filled.Add, contentDescription = null, tint = Deck.primary, modifier = Modifier.size(30.dp))
             Text("Add game", color = Deck.primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
         }
+    }
+}
+
+/** "Win" + accent "Hub", the wordmark at the left of the landscape top bar. */
+@Composable
+internal fun DeckBarWordmark() {
+    Row {
+        Text("Win", color = Deck.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("Hub", color = Deck.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** The clock and the Social Hub account's avatar, at the right of the landscape top bar. */
+@Composable
+internal fun DeckBarClockAvatar() {
+    val context = LocalContext.current
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        SocialHubStore.init(context)
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val time = remember(now) { android.text.format.DateFormat.getTimeFormat(context).format(Date(now)) }
+    val gh by SocialHubStore.account.collectAsState()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(time, color = Deck.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(12.dp))
+        AccountAvatar(
+            avatarUrl = gh?.let { rememberShownAvatar(it.login, it.avatarUrl) },
+            size = 32.dp,
+            fallbackTint = Deck.onSurfaceVariant,
+        )
     }
 }

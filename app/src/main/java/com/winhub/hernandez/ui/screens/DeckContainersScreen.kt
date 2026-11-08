@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -483,8 +484,8 @@ private fun DeckCronosCard(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(width = 84.dp, height = 112.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .size(width = 56.dp, height = 74.dp)
+                .clip(RoundedCornerShape(14.dp))
                 .background(DeckPalette.surfaceVariant),
         ) {
             if (cover != null) {
@@ -777,6 +778,16 @@ private fun DeckContainerCard(
             .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, DeckPalette.groupShape) else Modifier)
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(46.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(DeckPalette.primary.copy(alpha = 0.16f)),
+        ) {
+            Icon(Icons.Filled.Layers, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(14.dp))
         // Only the name area opens the editor: a clickable on the whole card would swallow Play and
         // the actions button, which D-pad focus could then never reach.
         Column(
@@ -788,7 +799,7 @@ private fun DeckContainerCard(
         ) {
             Text(
                 text = name,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = DeckPalette.onBackground,
                 maxLines = 1,
@@ -797,7 +808,7 @@ private fun DeckContainerCard(
             if (subtitle.isNotEmpty()) {
                 Text(
                     text = subtitle,
-                    fontSize = 12.5.sp,
+                    fontSize = 13.sp,
                     color = DeckPalette.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -811,7 +822,7 @@ private fun DeckContainerCard(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(width = 52.dp, height = 40.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(20.dp))
                 .background(DeckPalette.primary)
                 .clickable { onRun() },
         ) {

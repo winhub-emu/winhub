@@ -606,7 +606,7 @@ private fun LogTabs(selected: LogTab, gameCount: Int, onSelect: (LogTab) -> Unit
     ) {
         LogTab.values().forEach { t ->
             val sel = t == selected
-            val shape = RoundedCornerShape(12.dp)
+            val shape = RoundedCornerShape(20.dp)
             val interaction = remember { MutableInteractionSource() }
             Box(
                 contentAlignment = Alignment.Center,
@@ -671,7 +671,7 @@ private fun PrefSwitchRow(
 
 @Composable
 private fun LogInfoDot(onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(16.dp)
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -695,7 +695,7 @@ private fun LogAction(
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(20.dp)
     val primary = kind == LogActionKind.PRIMARY
     Box(
         contentAlignment = Alignment.Center,
@@ -748,7 +748,7 @@ private fun DeckGameLogCard(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(DeckPalette.surfaceVariant),
             ) {
                 Icon(
@@ -783,7 +783,7 @@ private fun DeckGameLogCard(
                     fontSize = 12.sp,
                 )
             }
-            val shape = RoundedCornerShape(10.dp)
+            val shape = RoundedCornerShape(16.dp)
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier

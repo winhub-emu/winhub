@@ -374,7 +374,7 @@ private fun DeckLibraryPane(screen: Screen, context: Context, onGameClick: (Deck
 /** A library block: the cover fills the tile, a gradient fade grounds the title at its foot. */
 @Composable
 private fun DeckGameCard(game: DeckOwnedGame, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(20.dp)
     val interaction = remember { MutableInteractionSource() }
     val badge = when {
         game.gog != null -> deckStores[0].dot
@@ -727,7 +727,7 @@ private fun DeckHeroCarousel(items: List<DeckBrowseItem>, onCard: (DeckBrowseIte
 @Composable
 private fun DeckBrowseCard(item: DeckBrowseItem, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = Modifier
             .width(150.dp)
@@ -1219,7 +1219,7 @@ private fun DeckSignInCard(tile: DeckStoreTile, context: Context) {
 /** The sign-in hero's background: the store's brand wall, tilted like DroidDeck's capsule wall. */
 @Composable
 private fun DeckTiltedWall(tile: DeckStoreTile) {
-    val capsule = RoundedCornerShape(10.dp)
+    val capsule = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
             .fillMaxSize()
