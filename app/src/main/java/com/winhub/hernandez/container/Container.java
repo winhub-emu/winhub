@@ -536,21 +536,6 @@ public class Container {
         putExtra("displayBackend", DISPLAY_BACKEND_X11);
     }
 
-    // --- Unreal Engine HDR (per-container), stored in extraData. ---
-    // "dx12" = DXVK_ENABLE_NVAPI=1 (DXVK stops switching HDR off for UE4 games run with -dx12);
-    // "dx11" = that plus the bundled dxvk-nvapi in the prefix (core.UnrealHdr, core.DxvkNvapi).
-    // Default OFF (absent). A shortcut overrides with the same-named extra ("off" / "dx12" / "dx11";
-    // absent or "" = this).
-    public String getUnrealHdr() {
-        return com.winhub.hernandez.core.UnrealHdr.containerMode(this);
-    }
-
-    public void setUnrealHdr(String mode) {
-        String m = com.winhub.hernandez.core.UnrealHdr.normalize(mode);
-        putExtra(com.winhub.hernandez.core.UnrealHdr.EXTRA,
-                m.isEmpty() || m.equals(com.winhub.hernandez.core.UnrealHdr.OFF) ? null : m);
-    }
-
     // --- bionic-fg frame generation (per-container), stored in extraData ---
     // The on/off flag is set in the container settings; multiplier & flow scale
     // are tuned live from the in-game side menu (both hot-reload via conf.toml).

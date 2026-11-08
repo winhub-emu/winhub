@@ -218,29 +218,6 @@ jobs:
         path: app/src/main/assets/imagefs.tar.zst
         key: imagefs-${{ steps.imagefs-pin.outputs.sha }}
 
-    # dxvk-nvapi (jp7677/dxvk-nvapi, MIT) for "Unreal Engine HDR: DirectX 11" (core/DxvkNvapi). The
-    # release, the tarball's sha256 and each dll's sha256 are pinned in
-    # app/src/main/assets/dxvk-nvapi/manifest.json (the one place to bump); the two dlls land next to it.
-    # Binaries are never committed (.gitignore), so every build fetches them here (~5 MB), and any hash
-    # mismatch fails the build instead of shipping a dll nobody checked.
-    - name: Fetch dxvk-nvapi (pinned, sha256-checked) into assets
-      run: |
-        set -euo pipefail
-        D=app/src/main/assets/dxvk-nvapi
-        M=$D/manifest.json
-        URL=$(jq -r .source "$M"); SHA=$(jq -r .sha256 "$M"); VER=$(jq -r .version "$M")
-        curl -fsSL --retry 10 --retry-delay 15 --retry-all-errors -o /tmp/dxvk-nvapi.tar.gz "$URL"
-        echo "$SHA  /tmp/dxvk-nvapi.tar.gz" | sha256sum -c -
-        mkdir -p /tmp/dxvk-nvapi
-        tar -xzf /tmp/dxvk-nvapi.tar.gz -C /tmp/dxvk-nvapi
-        jq -r '.files[] | [.from, .asset, .sha256] | @tsv' "$M" | while IFS=$'\t' read -r FROM ASSET FSHA; do
-          cp "/tmp/dxvk-nvapi/$FROM" "$D/$ASSET"
-          echo "$FSHA  $D/$ASSET" | sha256sum -c -
-        done
-        cmp -s /tmp/dxvk-nvapi/LICENSE "$D/LICENSE" \
-          || echo "::warning::the dxvk-nvapi $VER LICENSE differs from the copy committed in $D"
-        echo "dxvk-nvapi $VER bundled:"; ls -l "$D"
-
     # --- hermes: the controller-input transport (Rust, app/src/main/cpp/hermes) -------------------
     # The guest-side static library for the bionic libfakeinput.so (linked by CMake in the Gradle
     # build below, which needs it to exist) and the app-side JNI writer libhermes.so into jniLibs.

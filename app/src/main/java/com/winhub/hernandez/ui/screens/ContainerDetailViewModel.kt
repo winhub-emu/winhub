@@ -246,9 +246,6 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
 
     // Display backend: always X11.
     var displayBackend by mutableStateOf(Container.DISPLAY_BACKEND_X11)
-    // Unreal Engine HDR (extra "unrealHdr": off | dx12 | dx11, absent = off).
-    // See core.UnrealHdr.
-    var unrealHdr by mutableStateOf(com.winhub.hernandez.core.UnrealHdr.OFF)
     // Fast OpenGL (extra "fastOpenGL": "1" / "0", absent = on; core.FastOpenGL). fastOpenGL is the
     // stored switch. Any layer can use it (the launch picks the EGL or GLX route), so availability is
     // judged in the screen from the picked driver alone.
@@ -689,7 +686,6 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         surfaceDirectBackPressure         = seed?.isSurfaceDirectBackPressure() ?: false
         surfaceDirectPrecisePresentation  = seed?.isSurfaceDirectPrecisePresentation() ?: false
         displayBackend           = Container.DISPLAY_BACKEND_X11
-        unrealHdr                = seed?.getUnrealHdr() ?: com.winhub.hernandez.core.UnrealHdr.OFF
         fastOpenGL               = seed?.isFastOpenGL() ?: true
         glFpsHud                 = seed?.isGlFpsHud() ?: false
         glVsyncOff               = seed?.isGlVsyncOff() ?: false
@@ -1260,7 +1256,6 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setSurfaceDirectBackPressure(surfaceDirectBackPressure)
         c.setSurfaceDirectPrecisePresentation(surfaceDirectPrecisePresentation)
         c.setDisplayBackend(Container.DISPLAY_BACKEND_X11)
-        c.setUnrealHdr(unrealHdr)                   // off clears the extra
         c.setFastOpenGL(fastOpenGL)                 // kept as chosen, also while the driver makes it unavailable
         c.setGlFpsHud(glFpsHud)
         c.setGlVsyncOff(glVsyncOff)

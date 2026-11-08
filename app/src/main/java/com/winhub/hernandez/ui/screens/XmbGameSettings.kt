@@ -129,7 +129,7 @@ private fun XmbScope.set(p: XmbPrefs, key: String, value: String?) { p.put(key, 
 // The sections follow the pop-up editor's tabs: General, Graphics, Win Components, Env Vars, Advanced, Controller (+ TV while a
 // screen is plugged in or the game launches on one). General, Graphics and TV share one row builder and split it by key.
 private val GFX_KEYS = setOf(
-    "hGfx", "gfxDriver", "gfxConfig", "wrappers", com.winhub.hernandez.core.UnrealHdr.EXTRA, "unrealHdrNvidia",
+    "hGfx", "gfxDriver", "gfxConfig", "wrappers",
     "dxWrapper", "dxConfig", "renderer", "vkNative", "vkColors", "vkPresent", "vkDriver", "renderScale",
     "sdPerf", "sdRefresh", "sdBackPressure", "sdPrecise",
 )
@@ -347,29 +347,6 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
     rows += XmbRow.Link("gfxConfig", "Driver configuration", Icons.Filled.Tune,
         subtitle = "Vulkan version, BCn, present modes…") { xmbDriverConfigMenu(xmb, s) }
     rows += XmbRow.External("wrappers", "Manage wrappers", Icons.Filled.Cloud, subtitle = "Import or remove wrapper drivers") { host.openWrapperManager() }
-    // Unreal Engine HDR (per-game override of the container's unrealHdr; "" = container default), both
-    // backends — same options as the pop-up editors (core.UnrealHdr). DirectX 11 while no NVIDIA GPU
-    // name spoof is set gets the optional hint row.
-    run {
-        val cMode = com.winhub.hernandez.core.UnrealHdr.containerMode(c)
-        val uValues = listOf("") + com.winhub.hernandez.core.UnrealHdr.MODES
-        val uLabels = uValues.map {
-            if (it.isEmpty()) "Container default (" + com.winhub.hernandez.core.UnrealHdr.label(cMode) + ")"
-            else com.winhub.hernandez.core.UnrealHdr.label(it)
-        }
-        val uOverride = com.winhub.hernandez.core.UnrealHdr.shortcutChoice(s)
-        rows += XmbRow.Choice(com.winhub.hernandez.core.UnrealHdr.EXTRA, com.winhub.hernandez.core.UnrealHdr.TITLE, Icons.Filled.HdrOn,
-            uLabels, uLabels[uValues.indexOf(uOverride).coerceAtLeast(0)],
-            subtitle = com.winhub.hernandez.core.UnrealHdr.HELP_SHORT) { v ->
-            xmb.set(p, com.winhub.hernandez.core.UnrealHdr.EXTRA, uValues[uLabels.indexOf(v)].ifEmpty { null })
-        }
-        val spoof = com.winhub.hernandez.core.GpuSpoof.gpuNameOf(p.ex("graphicsDriverConfig", c.getGraphicsDriverConfig()))
-        if (uOverride.ifEmpty { cMode } == com.winhub.hernandez.core.UnrealHdr.DX11 &&
-            !com.winhub.hernandez.core.GpuSpoof.isNvidia(p.context, spoof)) {
-            rows += XmbRow.Info("unrealHdrNvidia", "No NVIDIA GPU is reported", Icons.Filled.Info,
-                subtitle = com.winhub.hernandez.core.UnrealHdr.nvidiaHint(false))
-        }
-    }
     val dxEntries = p.arr(R.array.dxwrapper_entries)
     val dxId = p.ex("dxwrapper", c.getDXWrapper())
     rows += XmbRow.Choice("dxWrapper", "DX wrapper", Icons.Filled.Layers, dxEntries, p.labelFor(dxEntries, dxId)) { v ->

@@ -120,11 +120,6 @@ public final class GpuSpoof {
                 device >= 0 && device <= 0xffff ? (int) device : -1);
     }
 
-    /** True when the spoof names an NVIDIA GPU (UE4 takes its NVAPI path only then). */
-    public static boolean isNvidia(Context context, String gpuName) {
-        return vendor(context, gpuName) == VENDOR_NVIDIA;
-    }
-
     /** The PCI vendor the spoof reports, or -1 for "Device" / unknown. */
     public static int vendor(Context context, String gpuName) {
         if (!isSpoofing(gpuName)) return -1;

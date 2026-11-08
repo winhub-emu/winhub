@@ -894,9 +894,6 @@ private fun TopLevelFields(
             )
         }
         Spacer(Modifier.height(8.dp))
-
-        // Unreal Engine HDR removed from the editor (useless): the extra and core.UnrealHdr launch
-        // plumbing still resolve a stored mode, but there is no control to set one.
         }
         if (tab == "GRAPHICS") {
         if (showWrapperManager) WrapperManagerDialog(onDismiss = {
@@ -2521,44 +2518,6 @@ private fun CompactDropdown(
             }
         }
     }
-}
-
-/**
- * Notes under an "Unreal Engine HDR" picker set to DirectX 11: a hint to spoof an NVIDIA GPU while
- * none is reported (UE4 takes its NVAPI path only on one; never forced), and a build that carries no
- * dxvk-nvapi. Both facts are read off the main thread.
- */
-@Composable
-internal fun UnrealHdrDx11Notes(gpuName: String) {
-    val context = LocalContext.current
-    var nvidia by remember(gpuName) { mutableStateOf(true) }
-    var bundled by remember { mutableStateOf<String?>("") } // "" = not read yet, null = not in this build
-    LaunchedEffect(gpuName) {
-        val facts = withContext(Dispatchers.IO) {
-            com.winhub.hernandez.core.GpuSpoof.isNvidia(context, gpuName) to
-                com.winhub.hernandez.core.DxvkNvapi.bundledVersion(context)
-        }
-        nvidia = facts.first
-        bundled = facts.second
-    }
-    when (val b = bundled) {
-        null -> Text(
-            "This build carries no dxvk-nvapi: DirectX 11 mode installs nothing and only the DirectX 12 fix applies.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error
-        )
-        "" -> {}
-        else -> Text(
-            "Bundled: dxvk-nvapi $b.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-    if (!nvidia) Text(
-        com.winhub.hernandez.core.UnrealHdr.nvidiaHint(false),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.primary
-    )
 }
 
 @Composable

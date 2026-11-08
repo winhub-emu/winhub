@@ -6310,9 +6310,6 @@ internal fun ShortcutSettingsDialogScreen(
 
 
     // Deck mode is only turned on through a warning that says what it breaks.
-    // Unreal Engine HDR override (per-game, same extra name as the container's): "" = the container's,
-    // else off / dx12 / dx11. Both backends; see core.UnrealHdr.
-    var unrealHdrOverride by remember { mutableStateOf(com.winhub.hernandez.core.UnrealHdr.shortcutChoice(shortcut)) }
 
     // ── TV tab (display.ExternalDisplay) — per game only, deliberately with NO container default: which
     // screen a game belongs on is a property of the game. Launching the session ON the TV is what opens
@@ -6874,8 +6871,6 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("screenAlignment", screenAlignment.ifEmpty { null })
             putExtra("graphicsDriver", StringUtils.parseIdentifier(selectedGfxDriver))
             putExtra("graphicsDriverConfig", graphicsDriverConfig)
-            // Unreal Engine HDR override: "" clears the extra (container default).
-            putExtra(com.winhub.hernandez.core.UnrealHdr.EXTRA, unrealHdrOverride.ifEmpty { null })
             // TV tab (display.ExternalDisplay) — per game, no container fallback, so these are always
             // written as a plain "1"/"0" (there is no inherit sentinel to preserve). tvModeId 0 = leave
             // the TV on whatever output mode it is already running.
@@ -7002,7 +6997,6 @@ internal fun ShortcutSettingsDialogScreen(
                 // The Wine/X11 graphics stack is not registered for a Linux entry, so the D-pad
                 // cursor can never land on a row that isn't drawn (see the render conditionals).
                 if (!isLinuxEntry) {
-                    add(com.winhub.hernandez.core.UnrealHdr.EXTRA)
                     if (panelRates.isNotEmpty()) add("refresh")
                 }
                 add("frameGen"); add("fpsLimiter"); add("audio")
@@ -7622,13 +7616,11 @@ internal fun ShortcutSettingsDialogScreen(
                     }
 
                     // Everything from here to the Frame Generation row is Wine-side rendering: the
-                    // Unreal HDR fix swaps DLLs in the prefix, the DX wrapper and its config are the
-                    // prefix's D3D translation, and Renderer / render scale / in-game refresh belong to
+                    // DX wrapper and its config are the prefix's D3D translation, and Renderer / render scale / in-game refresh belong to
                     // the X server and its Wine registry keys. A gamescope session has no prefix and no
                     // X server, and the Linux runtime brings its own D3D stack.
                     if (!isLinuxEntry) {
 
-                    // Unreal Engine HDR removed from the editor (useless): the per-game extra and
                     // In-game refresh rate — single per-game override of the container default. Options:
                     // Use container default (inherit) / Locked (60) / <rate> Hz / Unlimited. Drives the
                     // two underlying extras (unlock + cap) together; empty = inherit.
@@ -8559,8 +8551,6 @@ internal fun DeckShortcutSettingsScreen(
             else -> "Vulkan"
         })
     }
-    var unrealHdrOverride by remember { mutableStateOf(com.winhub.hernandez.core.UnrealHdr.shortcutChoice(shortcut)) }
-
     var vkNative by remember {
         mutableStateOf(shortcut.getExtra("native",
             if (shortcut.container.isRendererNative()) "true" else "false") == "true")
@@ -8981,7 +8971,6 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("screenAlignment", screenAlignment.ifEmpty { null })
             putExtra("graphicsDriver", StringUtils.parseIdentifier(selectedGfxDriver))
             putExtra("graphicsDriverConfig", graphicsDriverConfig)
-            putExtra(com.winhub.hernandez.core.UnrealHdr.EXTRA, unrealHdrOverride.ifEmpty { null })
             putExtra(com.winhub.hernandez.display.ExternalDisplay.EXTRA_LAUNCH, if (tvLaunch) "1" else "0")
             putExtra(com.winhub.hernandez.display.ExternalDisplay.EXTRA_MODE_ID, tvModeId.toString())
             putExtra(com.winhub.hernandez.display.ExternalDisplay.EXTRA_MATCH_RES, if (tvMatchRes) "1" else "0")

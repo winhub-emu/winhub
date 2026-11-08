@@ -6860,15 +6860,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
             }
         }
 
-        // Unreal Engine HDR, DirectX 11 mode: the bundled dxvk-nvapi into this prefix, or the prefix's
-        // own nvapi files back when the game isn't in that mode (core.DxvkNvapi). Every launch, after
-        // the DX wrapper step above so a DXVK package carrying its own nvapi can't undo it; idempotent,
-        // and it finishes or undoes whatever an interrupted launch left half-done. setupXEnvironment
-        // sets the matching env and writes the session log line.
-        unrealHdrMode = com.winhub.hernandez.core.UnrealHdr.effective(shortcut, container);
-        nvapiSync = com.winhub.hernandez.core.DxvkNvapi.sync(this, new File(imageFs.getRootDir(), ImageFs.WINEPREFIX),
-                com.winhub.hernandez.core.UnrealHdr.usesDxvkNvapi(unrealHdrMode));
-
         // Direct XInput (HERMES): the HERMES-XInput dlls into this prefix (system32 + syswow64), or
         // the prefix's own xinput dlls back when the setting is off (core.HermesXInput). Every launch,
         // idempotent, finishes or undoes an interrupted one; setupXEnvironment adds the
@@ -7153,10 +7144,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
         return v != null && (v.equals("1") || v.equalsIgnoreCase("true"));
     }
 
-    /** This launch's Unreal Engine HDR mode (core.UnrealHdr) and what setupWineSystemFiles did to the
-     *  prefix for it (core.DxvkNvapi); both are read by setupXEnvironment on the same launch thread. */
-    private String unrealHdrMode = com.winhub.hernandez.core.UnrealHdr.OFF;
-    private com.winhub.hernandez.core.DxvkNvapi.Result nvapiSync;
     private com.winhub.hernandez.core.HermesXInput.Result hxinputSync;
     /** XInput DLL names this game ships that Wine's builtin serves this launch (=b), for the toast and Pad. */
     private final java.util.List<String> hxinputGameBuiltin = new ArrayList<>();
@@ -7471,64 +7458,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
         Log.i("XServerDisplayActivity", area + ": " + line);
         if (wineDebugWriter != null) {
             wineDebugWriter.println("Bannerlator " + area + ": " + line);
-        }
-    }
-
-    /** {@code key=value} into the launch env unless the user's own env vars set {@code key} (theirs wins);
-     *  either way one "key=value" note for the log. */
-    private static void putUnlessUsers(EnvVars envVars, String key, String value, java.util.List<String> said) {
-        if (envVars.has(key)) {
-            said.add(key + "=" + envVars.get(key) + " (yours, kept)");
-        } else {
-            envVars.put(key, value);
-            said.add(key + "=" + value);
-        }
-    }
-
-    /** The session's Unreal Engine HDR environment (core.UnrealHdr; launch worker thread, after the
-     *  user's env vars are merged, both backends). The DirectX 12 fix and DirectX 11 both export
-     *  DXVK_ENABLE_NVAPI=1, once; DirectX 11 adds dxvk-nvapi's WINEDLLOVERRIDES entry and
-     *  DXVK_NVAPI_ALLOW_OTHER_DRIVERS=1 when setupWineSystemFiles put it in the prefix. One "nvapi" line
-     *  in the session log: the mode, the files, the env, and anything that will still stop it working.
-     *  Off exports nothing and logs only when this launch put the prefix's own files back. */
-    private void applyUnrealHdrEnv(EnvVars envVars) {
-        try {
-            String mode = unrealHdrMode;
-            com.winhub.hernandez.core.DxvkNvapi.Result sync = nvapiSync;
-            if (!com.winhub.hernandez.core.UnrealHdr.exportsEnableNvapi(mode)) {
-                if (sync != null && sync.detail != null)
-                    logSessionLine("nvapi", "Unreal Engine HDR off: " + sync.detail);
-                return;
-            }
-            boolean dx11 = com.winhub.hernandez.core.UnrealHdr.usesDxvkNvapi(mode);
-            java.util.List<String> env = new ArrayList<>();
-            putUnlessUsers(envVars, com.winhub.hernandez.core.DxvkNvapi.ENV_DXVK_ENABLE_NVAPI, "1", env);
-            if (dx11 && sync != null && sync.installed) {
-                putUnlessUsers(envVars, com.winhub.hernandez.core.DxvkNvapi.ENV_ALLOW_OTHER_DRIVERS, "1", env);
-                java.util.List<String> kept = new ArrayList<>();
-                String before = envVars.has("WINEDLLOVERRIDES") ? envVars.get("WINEDLLOVERRIDES") : "";
-                String after = com.winhub.hernandez.core.DxvkNvapi.withDllOverrides(before, kept);
-                if (!after.equals(before)) envVars.put("WINEDLLOVERRIDES", after);
-                env.add(kept.isEmpty() ? "WINEDLLOVERRIDES+=nvapi,nvapi64=n"
-                        : "WINEDLLOVERRIDES: yours kept for " + String.join(",", kept));
-            }
-            StringBuilder line = new StringBuilder("Unreal Engine HDR ")
-                    .append(com.winhub.hernandez.core.UnrealHdr.label(mode)).append(": ");
-            if (dx11) line.append(sync != null && sync.detail != null ? sync.detail : "dxvk-nvapi not installed").append("; ");
-            else if (sync != null && sync.detail != null) line.append(sync.detail).append("; "); // back from DirectX 11
-            line.append("env ").append(String.join(" ", env));
-            // What will still stop it, so the log answers "why no HDR" on its own.
-            String dxvkVersion = dxwrapperConfig != null ? dxwrapperConfig.get("version") : "";
-            boolean dxvk = dxwrapper != null && (dxwrapper.contains("dxvk") || dxwrapper.contains("vegas"));
-            if (!dxvk) line.append("; the DX wrapper isn't DXVK, so this does nothing");
-            else if (dx11 && dxvkVersion != null && !dxvkVersion.isEmpty() && compareVersion(dxvkVersion, "2.6") < 0)
-                line.append("; DXVK ").append(dxvkVersion).append(" is older than 2.6 (HDR through NVAPI needs 2.3, in practice 2.6)");
-            line.append("; X11 has no HDR output");
-            if (dx11 && !com.winhub.hernandez.core.GpuSpoof.isNvidia(this, graphicsDriverConfig != null ? graphicsDriverConfig.get("gpuName") : null))
-                line.append("; no NVIDIA GPU name spoof, so Unreal Engine won't take its NVAPI path");
-            logSessionLine("nvapi", line.toString());
-        } catch (Throwable t) {
-            Log.w("XServerDisplayActivity", "Unreal Engine HDR environment failed", t);
         }
     }
 
@@ -7892,10 +7821,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
             if (shortcut != null) envVars.putAll(shortcut.getExtra("envVars"));
 
-            // Unreal Engine HDR: after both user env merges, so a DXVK_ENABLE_NVAPI /
-            // WINEDLLOVERRIDES / DXVK_CONFIG entry of the user's wins and the log line can say
-            // whether DXVK_HDR is on.
-            applyUnrealHdrEnv(envVars);
             applyHermesXInputEnv(envVars);
             applyControllerLogEnv(envVars);
             applyGameModsEnv(envVars);

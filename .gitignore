@@ -36,10 +36,6 @@ scratchpad/
 /app/src/main/cpp/hermes/xinput/feeder/Cargo.lock
 /app/src/main/assets/hermes-xinput/
 
-# dxvk-nvapi dlls: fetched and sha256-checked by _build.yml from the release pinned in
-# app/src/main/assets/dxvk-nvapi/manifest.json, never committed.
-app/src/main/assets/dxvk-nvapi/*.dll
-
 # Built by CI from app/src/main/cpp/winlator/fakeinput.cpp (glibc aarch64) for the Linux runtime.
 app/src/main/assets/linuxfs/libfakeinput.so
 app/src/main/assets/linuxfs/libblsession.so
