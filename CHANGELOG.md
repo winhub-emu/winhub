@@ -1,5 +1,74 @@
 # 📜 WinHub Changelog
 
+## ✨ Version 1.1
+
+> Everything new since 1.0. A **first-run setup wizard** for fresh installs, plus a fully **Deck-style Log Manager, log viewer and Report a problem dialog**. 🚀
+
+**Jump to:** [🧭 Setup wizard](#-first-run-setup-wizard) · [🗂️ Log Manager](#️-deck-style-log-manager) · [🔍 Log viewer](#-deck-style-log-viewer) · [📝 Report a problem](#-report-a-problem) · [🧱 Behind the scenes](#-behind-the-scenes)
+
+---
+
+### 🧭 First-run setup wizard
+
+A fresh install no longer starts downloading straight away. WinHub first walks you through a five-step wizard, then installs everything behind the usual setup overlay.
+
+- 🪜 **Five steps, one progress bar:** Layout → Theme → Contents → Social Hub → Install, with a "STEP n OF 5" header and a step strip so you always know where you are.
+- 📐 **Layout.** *How do you play?* Choose **Landscape** (the Deck home with its rail) or **Portrait** (one hand on a phone: chips replace the rail, big touch targets). A live preview shows the Deck home in the layout you pick. Change it any time in **Settings → App Orientation**.
+- 🎨 **Theme.** *Pick your look.* The whole app, including the wizard itself, follows the theme as you try them. Change it any time in Settings.
+- 📦 **Contents.** The same browser as the Contents tab, with a checkbox per release, search, and family → repository → release navigation. **Proton 9 arm64ec, DXVK 2.4.1 gplasync, FEXCore 2610 PPA unix and VKD3D 3.0.1 are always installed** and carry an **Included** badge. Tick anything else you want now, or add it later from Contents.
+- 💬 **Social Hub.** *Connect to Social Hub* with GitHub (device code: open the link on any device and enter the code). Shows *Connected as @you* when done, or **Not now** to skip and connect later from the Social tab. It explains what you get: import configs in one tap, share your own, and join in with posts, replies and votes. Sign-in problems show a message and a **Try again**.
+- ⬇️ **Install.** An **Install plan** lists every item (system files, the four included components and your extras), the item count, and a reminder that it needs an internet connection and Wi-Fi is recommended.
+- 📊 **Setup overlay.** The install list now shows each chosen extra as its own row, and scrolls so a long list never pushes the button off screen. The progress is split into equal slices, one for the system files and one per component.
+- 🎮 **Controller first.** **A** selects, **B** goes back a step, **LB / RB** switch steps, with on-screen button hints in the footer. Back and Next / Install buttons work by touch too.
+- 🔁 **Only on a fresh install.** Updates that only need a newer ImageFS skip the wizard, and it only runs once.
+- 🛠️ **Fix: Deck follows your layout.** Deck reads the orientation preference once when it starts, and it used to start behind the wizard, so picking Portrait left it on the landscape layout rotated upright. The shell is now held back until the wizard finishes, and the shown orientation is saved even if you never tap a choice.
+- 🔒 The permission prompts wait until you tap **Proceed**, so nothing interrupts the wizard.
+
+---
+
+### 🗂️ Deck-style Log Manager
+
+In Deck mode, Settings now opens a themed Log Manager instead of the classic dialog. It uses the same preferences and log inventory as before, so nothing you set is lost.
+
+- 💾 **Storage meter** at the top showing how much space logs use, and the folder logs are saved to.
+- 🔀 **Four sections:** **Capture**, **Storage**, **Game logs** and **Tools**. Switch with **LB / RB**.
+- 🎙️ **Capture.** Switches for Wine debug (with a channel picker and *Browse all channels*), DXVK and VKD3D logs, **Controller input**, SteamLite, **Android logcat**, **Crash reports** and **Exit reasons** (auto-save on launch, Android 11+). Each has a short plain-language hint about what it costs, and an **ⓘ** that explains it.
+- 📁 **Where logs go.** Log location (default, custom folder or *Choose folder…*), **Folder for each game**, and **Keep last** (how many runs to keep, or no history).
+- 🧹 **Storage.** Total size, **Clear all** (with a confirmation that only files WinHub wrote are removed) and a **Biggest folders** list, with a delete confirmation for the app and crash logs.
+- 🎮 **Game logs.** Every game's logs in one place, with a helpful empty state: *Turn on a log in Capture, then launch a game.*
+- 🧰 **Tools.** **Capture logcat now**, **Read last crash** (why Android ended the app last time, saved with your logs), the **Native engines** switches (Rust engine for Epic, GOG and Amazon downloads), a **Store download speed** ceiling, and **Explain the log types**.
+- 🎮 **Controller friendly** with focus rings on every row and action.
+
+---
+
+### 🔍 Deck-style log viewer
+
+- 🎨 Opens in the **Deck palette** from the Deck Log Manager, with 44dp actions and clear focus rings.
+- 🔎 **Find**, **Copy** and **Share** actions along the bottom, plus a follow switch for live logs.
+- 🔗 A shortcut's **View logs** opens the same Deck viewer when you are in Deck mode.
+- 🧱 The classic Log Manager and viewer are unchanged when Deck mode is off, and the shortcut editor still uses the classic look.
+
+---
+
+### 📝 Report a problem
+
+- 🪟 Now a **Deck dialog with controller-editable fields**: *What went wrong?* and *Details* (optional).
+- 📎 A **Will be attached** list shows exactly which logs go into the report, with a toggle to also include the app logcat and crash reports.
+- 🔐 The report is saved as a **zip in Downloads**. E-mail addresses, auth tokens and your Steam account name are stripped; file paths are kept so they stay useful, so glance over them if a folder name identifies you.
+- 🌐 **Continue on GitHub** opens a prefilled issue. GitHub can't take a file from a link, so attach the zip with the paperclip once the form opens. If there is no browser, you get a clear message instead of a crash.
+- ⚡ Building the report runs off the main thread, with a *Working…* state on the button.
+
+---
+
+### 🧱 Behind the scenes
+
+- ⏱️ The release workflow now **times out the patches job after 15 minutes**, so a hung flavor cannot hold up a release. A flavor that times out just ships full-size updates without `.wh` patches.
+- 🧩 The Contents browser pieces (category cards, badges, icons) are shared between the Contents tab and the wizard, instead of copied.
+- 📚 Release notes use the WinHub logo, and the default repo for release notes is `winhub-emu/winhub`.
+
+---
+
+
 ## 🏆 Version 1.0
 
 > Everything new since 0.1-beta. The big ones: a brand new **controller engine (Hermes)**, a rebuilt **Fusion HUD**, **Fast OpenGL**, a **Sync selector**, a **Music Player**, and a lot of portrait and Deck polish. 🚀
