@@ -2048,8 +2048,7 @@ private fun DeckCapsule(cover: DeckCover, shape: RoundedCornerShape, modifier: M
         Box(
             modifier
                 .clip(shape)
-                .background(Brush.linearGradient(listOf(Deck.surface, Deck.background)))
-                .border(1.dp, Deck.line, shape),
+                .background(Brush.linearGradient(listOf(Deck.surface, Deck.background))),
         )
         return
     }
@@ -2058,8 +2057,7 @@ private fun DeckCapsule(cover: DeckCover, shape: RoundedCornerShape, modifier: M
         Box(
             modifier
                 .clip(shape)
-                .background(Deck.surface)
-                .border(1.dp, Deck.line.copy(alpha = 0.6f), shape),
+                .background(Deck.surface),
         ) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
@@ -2081,8 +2079,7 @@ private fun DeckCapsule(cover: DeckCover, shape: RoundedCornerShape, modifier: M
                         Color.hsv((hue + 0.12f) % 1f, 0.70f, 0.55f),
                     ),
                 ),
-            )
-            .border(1.dp, Deck.line.copy(alpha = 0.6f), shape),
+            ),
     ) {
         Text(
             text = cover.name,

@@ -749,8 +749,7 @@ private fun DeckGameLogCard(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(DeckPalette.surfaceVariant)
-                    .border(1.dp, DeckPalette.line2, RoundedCornerShape(14.dp)),
+                    .background(DeckPalette.surfaceVariant),
             ) {
                 Icon(
                     when {

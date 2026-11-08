@@ -469,7 +469,7 @@ private fun DeckCronosCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .border(1.dp, if (focused) DeckPalette.primary else DeckPalette.line, DeckPalette.groupShape)
+            .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, DeckPalette.groupShape) else Modifier)
             .padding(12.dp),
     ) {
         // Cover + details open the game; the remove buttons beside them are separate focus targets.
@@ -484,7 +484,7 @@ private fun DeckCronosCard(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(width = 84.dp, height = 112.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(DeckPalette.surfaceVariant),
         ) {
             if (cover != null) {
@@ -561,9 +561,9 @@ private fun DeckOutlineButton(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(DeckPalette.surfaceVariant)
-            .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
+            .deckOuterFocusStroke(interaction, RoundedCornerShape(20.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {
@@ -584,10 +584,9 @@ private fun DeckDangerButton(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(DeckPalette.error.copy(alpha = 0.12f))
-            .border(1.dp, DeckPalette.error, RoundedCornerShape(12.dp))
-            .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(DeckPalette.error.copy(alpha = 0.16f))
+            .deckOuterFocusStroke(interaction, RoundedCornerShape(20.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
     ) {
@@ -775,11 +774,7 @@ private fun DeckContainerCard(
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
             .background(DeckPalette.surface)
-            .border(
-                1.dp,
-                if (focused) DeckPalette.primary else DeckPalette.line,
-                DeckPalette.groupShape,
-            )
+            .then(if (focused) Modifier.border(2.dp, DeckPalette.primary, DeckPalette.groupShape) else Modifier)
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
         // Only the name area opens the editor: a clickable on the whole card would swallow Play and

@@ -739,8 +739,7 @@ private fun DeckBrowseCard(item: DeckBrowseItem, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .height(200.dp)
                 .clip(shape)
-                .background(Deck.surface)
-                .border(1.dp, Deck.line, shape),
+                .background(Deck.surface),
         ) {
             val art = item.art
             if (art != null) {
@@ -1165,8 +1164,7 @@ private fun DeckSignInCard(tile: DeckStoreTile, context: Context) {
             .fillMaxWidth()
             .height(320.dp)
             .clip(shape)
-            .background(Deck.background)
-            .border(1.dp, Deck.line, shape),
+            .background(Deck.background),
     ) {
         DeckTiltedWall(tile)
         // The words get the dark: side-lit from the right, weighted at the foot.

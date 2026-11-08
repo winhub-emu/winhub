@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -308,12 +309,21 @@ private fun DeckQuickMenu(onDismiss: () -> Unit, onGo: (String) -> Unit) {
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val dialogView = LocalView.current
+        // A panel on the right edge over a dim; a tap on the dim closes it.
+        Box(
+            contentAlignment = Alignment.CenterEnd,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+        ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.8f)
-                .widthIn(max = 460.dp)
-                .clip(DeckPalette.groupShape)
+                .width(330.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(topStart = 30.dp, bottomStart = 30.dp))
                 .background(DeckPalette.surface)
+                .pointerInput(Unit) { detectTapGestures { } }
                 // A dialog window never sees the Activity's A -> DPAD_CENTER rewrite, so activate from here.
                 .onPreviewKeyEvent { e ->
                     if (e.type == KeyEventType.KeyDown && e.key == Key.ButtonA) {
@@ -359,6 +369,7 @@ private fun DeckQuickMenu(onDismiss: () -> Unit, onGo: (String) -> Unit) {
             QuickRow("Close", Icons.Filled.Close, onDismiss)
             Text("B  Back", color = Deck.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
+        }
     }
 }
 
@@ -370,7 +381,7 @@ private fun applyBrightness(window: android.view.Window?, value: Float) {
 @Composable
 private fun QuickRow(label: String, icon: ImageVector, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(20.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -390,7 +401,7 @@ private fun QuickRow(label: String, icon: ImageVector, onClick: () -> Unit) {
 
 @Composable
 private fun QuickLevelRow(label: String, icon: ImageVector, level: Float, onMinus: () -> Unit, onPlus: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(20.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

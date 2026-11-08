@@ -1139,8 +1139,7 @@ private fun DeckSavedFolder(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, shape),
+            .background(DeckPalette.surface),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1451,8 +1450,7 @@ private fun DeckInstalledComponents(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp)),
+            .background(DeckPalette.surface),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

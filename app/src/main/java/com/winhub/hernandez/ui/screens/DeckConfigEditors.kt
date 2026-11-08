@@ -142,8 +142,7 @@ internal fun DeckConfigPanel(title: String, content: @Composable ColumnScope.() 
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(DeckPalette.surface)
-                .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp)),
+                .background(DeckPalette.surface),
             content = content,
         )
     }

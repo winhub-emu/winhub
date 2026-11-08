@@ -2024,7 +2024,7 @@ private fun FileItemRow(
     // wallpaper/icon). Coil sizes the decode to the 36dp slot and caches it, so scrolling stays smooth.
     val isImage = !isDir && file.extension.lowercase() in IMAGE_THUMB_EXTS
     val deck = LocalDeckMode.current
-    val rowShape = RoundedCornerShape(if (deck) 14.dp else 10.dp)
+    val rowShape = RoundedCornerShape(if (deck) 20.dp else 10.dp)
     // One focus stroke, not two: the Deck ring is drawn outside the card, so the card's own
     // hairline border hides while focused and the generic focus indication is suppressed.
     val rowInteraction = remember { MutableInteractionSource() }
@@ -2068,7 +2068,7 @@ private fun FileItemRow(
             when {
                 deck && rowFocused -> Color.Transparent
                 selected -> DeckPalette.primary
-                deck -> DeckPalette.line
+                deck -> Color.Transparent
                 else -> MaterialTheme.colorScheme.outline
             },
         ),
@@ -2261,7 +2261,7 @@ private fun FavoriteCard(
 ) {
     val (badgeBg, badgeFg) = badgeColors(loc)
     val deck = LocalDeckMode.current
-    val favShape = RoundedCornerShape(if (deck) 14.dp else 10.dp)
+    val favShape = RoundedCornerShape(if (deck) 20.dp else 10.dp)
     val favInteraction = remember { MutableInteractionSource() }
     val favFocused by favInteraction.collectIsFocusedAsState()
     val favIndication = LocalIndication.current
@@ -2406,7 +2406,7 @@ private fun FileGridTile(
     val isDir = file.isDirectory
     val isImage = !isDir && file.extension.lowercase() in IMAGE_THUMB_EXTS
     val deck = LocalDeckMode.current
-    val tileShape = RoundedCornerShape(if (deck) 14.dp else 10.dp)
+    val tileShape = RoundedCornerShape(if (deck) 20.dp else 10.dp)
     val tileInteraction = remember { MutableInteractionSource() }
     val tileFocused by tileInteraction.collectIsFocusedAsState()
     val tileIndication = LocalIndication.current
@@ -2444,7 +2444,7 @@ private fun FileGridTile(
                 when {
                     deck && tileFocused -> Color.Transparent
                     selected -> DeckPalette.primary
-                    deck -> DeckPalette.line
+                    deck -> Color.Transparent
                     else -> MaterialTheme.colorScheme.outline
                 },
             ),

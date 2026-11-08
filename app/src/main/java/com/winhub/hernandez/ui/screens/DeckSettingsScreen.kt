@@ -1201,8 +1201,7 @@ private fun ThemePreviewDots(preset: ThemePreset) {
                 Modifier
                     .size(18.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(color)
-                    .border(1.dp, DeckPalette.line2, RoundedCornerShape(5.dp)),
+                    .background(color),
             )
         }
     }

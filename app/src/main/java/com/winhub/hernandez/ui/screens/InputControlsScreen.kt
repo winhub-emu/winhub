@@ -558,8 +558,7 @@ fun InputControlsScreen() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(14.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(20.dp))
                     .clickable { showProfileDropdown = true }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -998,9 +997,8 @@ private fun LayoutPreviewFrame(profile: ControlsProfile?, onTap: (() -> Unit)?) 
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(aspect)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF0F0C0B)) // dark "game screen" ground
-            .border(1.dp, cs.outline, RoundedCornerShape(12.dp)),
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF0F0C0B)), // dark "game screen" ground
     ) {
         if (profile != null) {
             AndroidView(
@@ -1104,9 +1102,8 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(cs.surfaceContainerHigh)
-            .border(1.dp, cs.outline, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .background(cs.surface)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -1115,8 +1112,8 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) cs.primary else Color.Transparent)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (on) cs.primary.copy(alpha = 0.16f) else Color.Transparent)
                     .clickable { onSelect(i) }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center,
@@ -1125,7 +1122,7 @@ private fun InputControlsTabs(selected: Int, onSelect: (Int) -> Unit) {
                     label,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (on) cs.onPrimary else cs.onSurfaceVariant,
+                    color = if (on) cs.primary else cs.onSurfaceVariant,
                     maxLines = 1,
                 )
             }
