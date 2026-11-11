@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stick tuning - plan</title>
+<style>
+:root{
+  --bg:#0A0B0D; --surface:#121417; --surface2:#1A1D22; --line:#262A31; --line2:#343A43;
+  --ink:#F2F4F7; --muted:#9AA3AF; --primary:#1A9FFF; --on-primary:#03111F;
+  --good:#5FC98A; --bad:#FF8A80; --warn:#F0B44C; --code:#0E1013;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#F5F6F8; --surface:#FFFFFF; --surface2:#EEF0F3; --line:#D8DCE2; --line2:#C3C9D2;
+    --ink:#14171C; --muted:#5A6472; --primary:#0A6FD1; --on-primary:#FFFFFF;
+    --good:#1E8E4E; --bad:#C0392B; --warn:#A8700A; --code:#EEF0F3;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.55;padding:0 16px 80px}
+.wrap{max-width:980px;margin:0 auto}
+header.top{padding:32px 0 8px}
+header.top h1{font-size:30px;line-height:1.15;margin:0 0 6px}
+header.top p{margin:0;color:var(--muted);max-width:70ch}
+.pill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:999px;border:1px solid var(--line2);color:var(--muted);margin-right:6px}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+nav.toc{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin:18px -16px 0;padding:8px 16px;display:flex;gap:6px;overflow-x:auto;white-space:nowrap}
+nav.toc a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid transparent}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--ink);border-color:var(--line2);outline:none}
+section{margin-top:40px}
+h2{font-size:22px;margin:0 0 4px}
+h2 .n{color:var(--primary);margin-right:8px}
+h3{font-size:16px;margin:22px 0 6px}
+p.lead{color:var(--muted);margin:0 0 14px;max-width:75ch}
+p,li{max-width:80ch}
+code{font-family:var(--mono);font-size:12.5px;background:var(--code);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+pre{font-family:var(--mono);font-size:12.5px;background:var(--code);border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto;margin:10px 0;line-height:1.5}
+pre code{background:none;border:0;padding:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+.tag{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:6px}
+.tag.now{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.tag.after{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.tag.keep{background:var(--surface2);color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0;display:block;overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.ok{color:var(--good)} .no{color:var(--bad)} .wr{color:var(--warn)}
+ul,ol{padding-left:22px;margin:8px 0}
+li{margin:4px 0}
+.callout{border-left:4px solid var(--warn);background:var(--surface);border-radius:0 12px 12px 0;padding:12px 14px;margin:14px 0}
+.callout.good{border-left-color:var(--good)}
+.callout.bad{border-left-color:var(--bad)}
+.callout b.h{display:block;margin-bottom:2px}
+
+/* flow diagrams */
+.flow{display:flex;flex-direction:column;gap:0;margin:12px 0}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;position:relative}
+.step + .step{margin-top:22px}
+.step + .step::before{content:"";position:absolute;left:28px;top:-22px;height:22px;border-left:2px solid var(--line2)}
+.step + .step::after{content:"";position:absolute;left:23px;top:-8px;border:6px solid transparent;border-top:8px solid var(--line2);border-bottom:0}
+.step b{display:block}
+.step small{color:var(--muted);display:block}
+.step.hot{border-color:var(--primary)}
+.step.bad{border-color:var(--bad)}
+.step.new{border-color:var(--good)}
+.step .ref{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+/* playground */
+.lab{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px}
+.lab-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.lab-row{grid-template-columns:1fr}}
+.pad{background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}
+.pad svg{width:100%;max-width:280px;height:auto;touch-action:none;cursor:crosshair;display:block;margin:0 auto}
+.pad h4{margin:0 0 6px;font-size:13px}
+.readout{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:6px}
+.readout b{color:var(--ink)}
+.ctrl{display:grid;grid-template-columns:130px 1fr 54px;gap:10px;align-items:center;margin:8px 0}
+.ctrl label{font-size:13px}
+.ctrl output{font-family:var(--mono);font-size:13px;text-align:right}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--primary)}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.seg button{background:var(--surface2);color:var(--ink);border:0;min-height:44px;padding:0 16px;font:inherit;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--primary);color:var(--on-primary);font-weight:700}
+.seg button:focus-visible,.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.btn{background:var(--surface2);color:var(--ink);border:1px solid var(--line2);border-radius:12px;min-height:44px;padding:0 16px;font:inherit;cursor:pointer}
+select{background:var(--surface2);color:var(--ink);border:1px solid var(--line2);border-radius:12px;min-height:44px;padding:0 10px;font:inherit}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+svg text{fill:var(--muted);font-family:var(--font);font-size:10px}
+.chart{width:100%;height:auto;background:var(--surface2);border:1px solid var(--line);border-radius:14px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;margin:6px 0}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid;vertical-align:middle;margin-right:6px}
+
+/* ui mock */
+.mock{background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:14px;max-width:460px}
+.mock h5{margin:0 0 2px;font-size:17px}
+.mock small{color:var(--muted);display:block;margin-bottom:8px}
+.mrow{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
+.mrow.focus{border-color:var(--primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--primary) 40%,transparent)}
+.mrow .t{display:flex;justify-content:space-between;font-size:14px}
+.mrow .t span:last-child{font-family:var(--mono)}
+.bar{height:8px;border-radius:99px;background:var(--surface2);margin-top:8px;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--primary)}
+.hints{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.hints b{display:inline-block;min-width:22px;text-align:center;background:var(--surface2);border:1px solid var(--line2);border-radius:6px;color:var(--ink);padding:0 5px;margin-right:4px}
+footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <span class="pill">Plan</span><span class="pill warn">Not implemented yet</span>
+  <h1>Left / right stick sensitivity and deadzone</h1>
+  <p>Requested by a tester. This page shows how sticks behave today, how they will behave after the change, how the data flows, what gets touched, and how it gets tested. The playground in section 4 runs the real formulas, so you can feel the difference before any code is written.</p>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <a href="#tldr">1 Summary</a>
+  <a href="#now">2 Now</a>
+  <a href="#after">3 After</a>
+  <a href="#lab">4 Playground</a>
+  <a href="#table">5 Numbers</a>
+  <a href="#ui">6 UI</a>
+  <a href="#ctrl">7 Controller</a>
+  <a href="#compat">8 Compatibility</a>
+  <a href="#files">9 Files</a>
+  <a href="#edge">10 Edge cases</a>
+  <a href="#tests">11 Tests</a>
+  <a href="#risks">12 Risks</a>
+  <a href="#open">13 Decisions</a>
+</nav>
+
+<!-- 1 ------------------------------------------------------------------>
+<section id="tldr">
+  <h2><span class="n">1</span>Summary</h2>
+  <p class="lead">Every physical gamepad stick is currently gated by one fixed number, 15%, hard coded, per axis, with no scaling. After the change each stick has its own deadzone and sensitivity, per container with a per-game override, and a new edge style that removes the jump at the deadzone border.</p>
+  <div class="grid3">
+    <div class="card"><b>Per stick</b><br>Left and right have their own deadzone (0 to 50%) and sensitivity (0.50x to 2.00x).</div>
+    <div class="card"><b>Per container + per game</b><br>Stored the same way gyro settings are stored. A game can override the container, or inherit it.</div>
+    <div class="card"><b>Nothing changes by default</b><br>Defaults are 15%, 1.00x and the Classic edge style. Output is identical to today until a user touches a slider.</div>
+  </div>
+  <div class="callout">
+    <b class="h">Correction to my earlier chat message</b>
+    I wrote that a sensitivity below 1 would be "more responsive". That was backwards for how people read the word. In this plan <b>higher sensitivity = stick reacts more for the same push</b>. 0.50x is finer and slower, 2.00x is quicker. The playground uses this meaning.
+  </div>
+</section>
+
+<!-- 2 ------------------------------------------------------------------>
+<section id="now">
+  <h2><span class="n">2</span>How it works now <span class="tag now">now</span></h2>
+  <p class="lead">Verified in the source. File names are relative to <code>app/src/main/java/com/winhub/hernandez/</code>.</p>
+
+  <h3>The pipeline today (physical gamepad)</h3>
+  <div class="flow">
+    <div class="step"><b>Android delivers a MotionEvent</b><small>Axes X, Y (left stick) and Z, RZ (right stick). Values are -1.0 to 1.0. May include several historical samples per event.</small></div>
+    <div class="step hot"><b>Hardware "flat" gate</b><small>If |value| is within the controller's own reported flat range, it becomes 0.</small><span class="ref">inputcontrols/ExternalController.java : getCenteredAxis (line 352 to 370)</span></div>
+    <div class="step bad"><b>Fixed 0.15 hard cut, per axis</b><small>If |value| &lt; 0.15 the axis becomes 0, otherwise the raw value passes through unchanged. X and Y are judged separately, so the dead area is a square, not a circle. Constant: <code>ControlElement.STICK_DEAD_ZONE = 0.15f</code>.</small><span class="ref">ExternalController.java:368 and inputcontrols/ControlElement.java:31</span></div>
+    <div class="step"><b>Written to the gamepad state</b><small><code>state.thumbLX / LY / RX / RY</code></small><span class="ref">ExternalController.java:148 to 151 (processJoystickInput)</span></div>
+    <div class="step bad"><b>Second 0.15 gate in the remap path</b><small>When bindings are in play the same numbers are gated again with the same constant.</small><span class="ref">widget/InputControlsView.java:859, 953, 1678, 1716</span></div>
+    <div class="step"><b>Sent to the game</b><small>Scaled to 16-bit and written by the input writers.</small><span class="ref">inputcontrols/FakeInputWriter.java:625, inputcontrols/HermesWriter.java:378</span></div>
+  </div>
+  <p>Two more places use the same fixed number: the D-pad suppression test (<code>ExternalController.java:157 to 160 and 203 to 212</code>, "hat only counts when the stick is idle") and the Steam Controller backend (<code>inputcontrols/SteamControllerBackend.java:402 to 405, 517 to 519</code>, its own copy of the same cut).</p>
+
+  <h3>What is wrong with it</h3>
+  <table>
+    <tr><th>#</th><th>Problem</th><th>What the player feels</th></tr>
+    <tr><td>1</td><td>Not configurable. 15% is baked in.</td><td>Worn or drifty sticks need more, precise sticks need less. Nobody can change it. This is the tester's request.</td></tr>
+    <tr><td>2</td><td>No rescale. Output jumps from 0 to 0.15 the moment the cut is crossed.</td><td>A dead patch, then a sudden step. Slow aiming or slow walking feels notchy.</td></tr>
+    <tr><td>3</td><td>Square deadzone (per axis).</td><td>Pushing diagonally near centre can move one axis and not the other, so slow diagonals "snap" to a straight line.</td></tr>
+    <tr><td>4</td><td>No response curve.</td><td>Output is exactly linear. A game with a twitchy or a sluggish curve cannot be compensated for.</td></tr>
+    <tr><td>5</td><td>Left and right share one value.</td><td>Left stick for movement and right stick for camera usually want different settings.</td></tr>
+    <tr><td>6</td><td>The cut is applied twice on the remap path.</td><td>Today harmless because both are 0.15. Once the first one is configurable, the second would silently override it (see risk R1).</td></tr>
+  </table>
+  <div class="callout good"><b class="h">What already works and stays</b>The on-screen (touch) sticks have their own per-element <code>deadZone</code> (<code>ControlElement.setDeadZone</code>, saved in the controls profile). They are not touched. Gyro settings are not touched.</div>
+</section>
+
+<!-- 3 ------------------------------------------------------------------>
+<section id="after">
+  <h2><span class="n">3</span>How it will work <span class="tag after">after</span></h2>
+
+  <h3>The pipeline after the change</h3>
+  <div class="flow">
+    <div class="step"><b>Android delivers a MotionEvent</b><small>Unchanged.</small></div>
+    <div class="step"><b>Hardware "flat" gate</b><small>Unchanged. <code>getCenteredAxis</code> keeps its public signature, but no longer applies the 0.15 cut itself.</small></div>
+    <div class="step new"><b>NEW: StickShaper (one pure function per stick)</b><small>Takes the stick's raw X and Y together, applies that stick's deadzone, the edge style and the sensitivity curve, returns the shaped X and Y. No state, no allocation per call, safe to call for every historical sample.</small><span class="ref">inputcontrols/StickShaper.java (new)</span></div>
+    <div class="step"><b>Written to the gamepad state</b><small>Same fields as today. Everything downstream just receives better numbers.</small></div>
+    <div class="step new"><b>Remap path gate becomes "shaped value is non zero"</b><small>The values are already shaped, so a second hidden threshold would fight the user's setting. With default settings this is provably the same as today, because shaped values are either 0 or at least 0.15.</small><span class="ref">widget/InputControlsView.java (overload with explicit threshold, old signatures kept)</span></div>
+    <div class="step"><b>Sent to the game</b><small>Unchanged.</small></div>
+  </div>
+
+  <h3>The maths (exactly what the code will do)</h3>
+  <p>Inputs: raw stick <code>(x, y)</code> in -1..1, deadzone <code>dz</code> in 0..0.50, sensitivity <code>s</code> in 0.50..2.00. Output: <code>(x', y')</code>.</p>
+  <table>
+    <tr><th>Edge style</th><th>Steps</th></tr>
+    <tr>
+      <td><b>Classic</b><br><span class="ok">default</span></td>
+      <td>Per axis, exactly like today but with your numbers:<br>
+<code>a = |v|</code>; if <code>a &lt; dz</code> then <code>0</code>; else <code>sign(v) * min(1, a)^(1/s)</code>.<br>
+With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
+    </tr>
+    <tr>
+      <td><b>Smooth</b><br><span class="wr">opt in</span></td>
+      <td>Radial, both axes together:<br>
+<code>m = hypot(x, y)</code>; if <code>m &lt; dz</code> then <code>(0, 0)</code>;<br>
+<code>t = clamp((m - dz) / (1 - dz), 0, 1)</code> (starts at 0 just past the edge, reaches 1.0 at full push);<br>
+<code>t' = t^(1/s)</code>; output <code>(x/m * t', y/m * t')</code>.</td>
+    </tr>
+  </table>
+  <ul>
+    <li><b>Sensitivity is a response curve, not a multiplier.</b> A plain "x 1.5" would clip at full push and lose the top end. With the exponent, full push is always exactly 1.0 and zero is always 0. s &gt; 1 lifts the middle (more reaction for small pushes). s &lt; 1 flattens it (finer control).</li>
+    <li><b>Direction is never changed</b> in Smooth mode: the output points the same way as the raw stick, only its length is reshaped. That is what removes the "snapping to a line" problem.</li>
+    <li>Output length is clamped to 1.0. Square-gate controllers that report up to about 1.41 on diagonals cannot overshoot.</li>
+    <li>Non-finite input (NaN, infinity) returns (0, 0). Settings outside range are clamped on read.</li>
+  </ul>
+
+  <h3>The settings</h3>
+  <table>
+    <tr><th>Key (container extra and shortcut extra)</th><th>Range</th><th>Default</th><th>Meaning</th></tr>
+    <tr><td><code>stickLDeadzone</code></td><td>0.00 to 0.50</td><td>0.15</td><td>Left stick dead area</td></tr>
+    <tr><td><code>stickLSensitivity</code></td><td>0.50 to 2.00</td><td>1.00</td><td>Left stick response curve</td></tr>
+    <tr><td><code>stickRDeadzone</code></td><td>0.00 to 0.50</td><td>0.15</td><td>Right stick dead area</td></tr>
+    <tr><td><code>stickRSensitivity</code></td><td>0.50 to 2.00</td><td>1.00</td><td>Right stick response curve</td></tr>
+    <tr><td><code>stickEdgeStyle</code></td><td>0 = Classic, 1 = Smooth</td><td>0</td><td>Applies to both sticks</td></tr>
+  </table>
+  <p>Stored as strings in <code>Container</code> extras with clamping getters and setters, copied from the pattern of <code>getGyroSensitivity / setGyroSensitivity</code> (<code>container/Container.java:954 to 977</code>). Missing, empty or unparsable values fall back to the default.</p>
+
+  <h3>Where the numbers come from at launch</h3>
+  <div class="flow">
+    <div class="step"><b>Container extras</b><small>Edited in the container editor.</small></div>
+    <div class="step"><b>Shortcut extras (optional)</b><small>If the shortcut has the key, it wins. If not, it inherits the container. Same rule as gyro sensitivity in <code>XServerDisplayActivity.java</code> around 2538 to 2566.</small></div>
+    <div class="step new"><b>Resolved once when the game session starts</b><small>The five numbers are handed to each <code>ExternalController</code> through one setter (<code>setStickTuning</code>). Controllers that connect later get them on attach, so a pad plugged in mid game is tuned too. The fields are <code>volatile</code>, because input arrives on the UI thread and the writers read on another.</small></div>
+    <div class="step new"><b>Steam Controller backend</b><small>Its raw floats go through the same shaper using the pad's <code>ExternalController</code>, so both paths behave identically and the duplicate <code>deadZone()</code> is no longer used for sticks.</small></div>
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------------>
+<section id="lab">
+  <h2><span class="n">4</span>Playground</h2>
+  <p class="lead">Drag inside either circle, or plug in a gamepad (the page reads it live). Left circle is today's behaviour and cannot be changed. Right circle uses the sliders. Grey dot = raw stick, coloured dot = what the game receives. Dashed ring = deadzone.</p>
+
+  <div class="lab">
+    <div class="row">
+      <span>Stick:</span>
+      <div class="seg" role="group" aria-label="Which stick settings to edit">
+        <button type="button" id="sideL" aria-pressed="true">Left</button>
+        <button type="button" id="sideR" aria-pressed="false">Right</button>
+      </div>
+      <span style="margin-left:12px">Edge style:</span>
+      <div class="seg" role="group" aria-label="Edge style">
+        <button type="button" id="styleC" aria-pressed="false">Classic</button>
+        <button type="button" id="styleS" aria-pressed="true">Smooth</button>
+      </div>
+      <button type="button" class="btn" id="resetBtn">Reset</button>
+    </div>
+
+    <div class="ctrl"><label for="dz">Deadzone</label><input type="range" id="dz" min="0" max="50" step="1" value="15"><output id="dzo">15%</output></div>
+    <div class="ctrl"><label for="sens">Sensitivity</label><input type="range" id="sens" min="50" max="200" step="5" value="100"><output id="so">1.00x</output></div>
+
+    <div class="lab-row">
+      <div class="pad"><h4><span class="tag now">now</span> fixed 15%, per axis, linear</h4>
+        <svg id="padNow" viewBox="-120 -120 240 240" role="img" aria-label="Stick pad, current behaviour"></svg>
+        <div class="readout" id="roNow"></div></div>
+      <div class="pad"><h4><span class="tag after">after</span> <span id="afterLbl"></span></h4>
+        <svg id="padAfter" viewBox="-120 -120 240 240" role="img" aria-label="Stick pad, new behaviour"></svg>
+        <div class="readout" id="roAfter"></div></div>
+    </div>
+    <div class="readout" id="gpStatus" style="margin-top:8px">Gamepad: none detected (mouse or touch works too)</div>
+
+    <h3>Response curve (push one axis from centre to full)</h3>
+    <svg id="chart" class="chart" viewBox="0 0 320 200" role="img" aria-label="Output versus push for current and new behaviour"></svg>
+    <div class="legend"><span><i style="border-color:#E5484D"></i>now</span><span><i style="border-color:#3DD68C"></i>after</span><span style="color:var(--muted)">horizontal = how far the stick is pushed, vertical = what the game receives</span></div>
+  </div>
+</section>
+
+<!-- 5 ------------------------------------------------------------------>
+<section id="table">
+  <h2><span class="n">5</span>The numbers, side by side</h2>
+  <p class="lead">Straight push along one axis, using the sliders above for the "after" column (selected stick). Updates live.</p>
+  <table id="numTable"></table>
+  <p>Diagonal slow push (x = y, so length is 1.41 times each):</p>
+  <table id="diagTable"></table>
+</section>
+
+<!-- 6 ------------------------------------------------------------------>
+<section id="ui">
+  <h2><span class="n">6</span>The UI</h2>
+  <p class="lead">A new "Sticks" block placed next to the existing Gyro block in the container editor and in the per-game shortcut editor. It reuses the same slider row and help icon components that the Gyro block uses, so it looks the same and works the same.</p>
+  <div class="grid2">
+    <div class="mock">
+      <h5>Sticks</h5><small>Container default. Games can override.</small>
+      <div class="mrow focus"><div class="t"><span>Left deadzone</span><span>15%</span></div><div class="bar"><i style="width:30%"></i></div></div>
+      <div class="mrow"><div class="t"><span>Left sensitivity</span><span>1.00x</span></div><div class="bar"><i style="width:33%"></i></div></div>
+      <div class="mrow"><div class="t"><span>Right deadzone</span><span>15%</span></div><div class="bar"><i style="width:30%"></i></div></div>
+      <div class="mrow"><div class="t"><span>Right sensitivity</span><span>1.00x</span></div><div class="bar"><i style="width:33%"></i></div></div>
+      <div class="mrow"><div class="t"><span>Edge style</span><span>Classic</span></div></div>
+      <div class="hints"><span><b>A</b>Select</span><span><b>&#9664; &#9654;</b>Adjust</span><span><b>Y</b>Reset row</span><span><b>B</b>Back</span></div>
+    </div>
+    <div class="mock">
+      <h5>Sticks (this game)</h5><small>Off = uses the container values.</small>
+      <div class="mrow"><div class="t"><span>Override container</span><span>On</span></div></div>
+      <div class="mrow focus"><div class="t"><span>Left deadzone</span><span>8%</span></div><div class="bar"><i style="width:16%"></i></div></div>
+      <div class="mrow"><div class="t"><span>Right sensitivity</span><span>1.40x</span></div><div class="bar"><i style="width:60%"></i></div></div>
+      <div class="mrow"><div class="t"><span>Edge style</span><span>Smooth</span></div></div>
+      <div class="hints"><span><b>A</b>Select</span><span><b>&#9664; &#9654;</b>Adjust</span><span><b>Y</b>Reset row</span><span><b>X</b>Reset all</span><span><b>B</b>Back</span></div>
+    </div>
+  </div>
+  <ul>
+    <li>Each row shows its current value as text, never colour only. A help icon (48 dp target) explains the setting in plain words, same as the gyro help.</li>
+    <li>Sliders step 1% for deadzone and 0.05x for sensitivity. Values are written to the model on change and saved with the existing save action, nothing new to remember.</li>
+    <li>Reset row restores that row's default. Reset all restores all five.</li>
+    <li>If a shortcut has no override, the shortcut screen shows the inherited values greyed with the text "from container".</li>
+    <li>All new text goes in <code>res/values/strings.xml</code> and into every translated <code>strings.xml</code> that exists for the gyro labels, so no screen shows a missing or English only label by accident.</li>
+    <li>The existing controller test screen will show the shaped values (and the raw ones next to them) using the container's settings, so a tester can see the effect without launching a game.</li>
+  </ul>
+</section>
+
+<!-- 7 ------------------------------------------------------------------>
+<section id="ctrl">
+  <h2><span class="n">7</span>Controller first behaviour</h2>
+  <table>
+    <tr><th>Button</th><th>On a Sticks row</th></tr>
+    <tr><td>D-pad up / down</td><td>Move between rows, focused row is highlighted and scrolled into view</td></tr>
+    <tr><td>D-pad left / right</td><td>Adjust the value one step. Holding repeats and accelerates</td></tr>
+    <tr><td>LT / RT</td><td>Adjust by 10 steps (coarse)</td></tr>
+    <tr><td>A</td><td>Toggle (edge style, override switch) or open the help for the row</td></tr>
+    <tr><td>Y</td><td>Reset the focused row</td></tr>
+    <tr><td>X</td><td>Reset the whole Sticks block (asks nothing, undo is just moving the sliders)</td></tr>
+    <tr><td>B</td><td>Back one level, never exits the app</td></tr>
+  </table>
+  <p>Default focus on entering the block is the first row. Focus returns to the same row after the help dialog closes. No gesture is required anywhere.</p>
+  <div class="callout"><b class="h">Chicken and egg warning</b>If a tester sets the left deadzone to 50% and then needs the left stick to leave the screen, they can still use the D-pad and A/B to navigate, because menu navigation uses the D-pad and face buttons and the hat is not shaped. The UI also always accepts touch.</div>
+</section>
+
+<!-- 8 ------------------------------------------------------------------>
+<section id="compat">
+  <h2><span class="n">8</span>Compatibility and safety</h2>
+  <ul>
+    <li><b>Existing users see no change.</b> No key present = defaults = Classic, 15%, 1.00x = today's exact output (a unit test asserts this for a grid of inputs).</li>
+    <li><b>Old containers and shortcuts</b> load as before. Unknown extras are already preserved. No migration, no schema change, no Room change.</li>
+    <li><b>Downgrade safe:</b> an older app version simply ignores the five extras.</li>
+    <li><b>Sharing:</b> the five keys are added to the config export lists (<code>communityconfigs/ConfigExporter.kt</code>, <code>communityconfigs/ShortcutExporter.kt</code>) so a shared config carries the tuning. Imports of configs without the keys keep working.</li>
+    <li><b>Threading:</b> settings fields are <code>volatile</code>, the shaper is a pure static function, nothing allocates per event beyond what the code does today.</li>
+    <li><b>No new permissions, libraries, network calls or native code.</b> Wine, box64, drivers and the rootfs are untouched.</li>
+    <li><b>Not touched:</b> touch overlay sticks, gyro, triggers, D-pad hat values, binding maps, controls profiles format.</li>
+  </ul>
+</section>
+
+<!-- 9 ------------------------------------------------------------------>
+<section id="files">
+  <h2><span class="n">9</span>File by file</h2>
+  <table>
+    <tr><th>File</th><th>Change</th><th></th></tr>
+    <tr><td><code>inputcontrols/StickShaper.java</code></td><td>NEW. Pure function: <code>shape(x, y, dz, sens, smooth, out[2])</code> plus clamp helpers and the constants (defaults, ranges).</td><td><span class="tag after">new</span></td></tr>
+    <tr><td><code>inputcontrols/ExternalController.java</code></td><td>Add volatile tuning fields and <code>setStickTuning(...)</code>. <code>processJoystickInput</code> reads raw X/Y/Z/RZ and shapes each stick as a pair. <code>getCenteredAxis</code> keeps its signature and flat gate but drops the fixed 0.15. D-pad suppression test (lines 157 to 160, 203 to 212) becomes "stick shaped value is zero" (identical at defaults). New <code>applyRawSticks(lx, ly, rx, ry)</code> used by Steam.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>inputcontrols/SteamControllerBackend.java</code></td><td>Lines 402 to 405 call the controller's shaper instead of the private <code>deadZone()</code>.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>widget/InputControlsView.java</code></td><td>Lines 859, 953, 1678, 1716: add overloads that take an explicit threshold (0 for shaped sticks). Old method signatures stay and delegate with <code>STICK_DEAD_ZONE</code>, so existing callers and tests behave the same. Triggers (875, 882) are not touched.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>container/Container.java</code></td><td>Five extras with clamping getters/setters and default constants, next to the gyro ones.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>XServerDisplayActivity.java</code></td><td>Resolve container + shortcut values near the gyro block (about 2538 to 2566) and hand them to the controllers, including controllers attached later.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>ui/screens/ContainerDetailViewModel.kt</code>, <code>ContainerDetailScreen.kt</code></td><td>State fields, load/save, new "Sticks" block after Gyro.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>ui/screens/ShortcutsScreen.kt</code></td><td>Override state, load/save, new block, and the per-game key lists. The file has two gyro editors (around lines 6384 and 8862) and a key list (around 7047). Each gets the same treatment.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>communityconfigs/ConfigExporter.kt</code>, <code>ShortcutExporter.kt</code></td><td>Add the five keys to the exported lists.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>MainActivity.kt</code> / controller test</td><td>Give the test controller the container's tuning and show raw next to shaped.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>res/values*/strings.xml</code></td><td>New labels and help text, plus translations wherever the gyro strings are translated.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>src/test/.../StickShaperTest.kt</code></td><td>NEW unit tests (see section 11). Written, not run.</td><td><span class="tag after">new</span></td></tr>
+  </table>
+  <p>Order of work: shaper + tests, then Container extras, then controller wiring, then the remap-path overloads, then Steam backend, then UI, then export lists and the controller test screen. Each step compiles on its own.</p>
+</section>
+
+<!-- 10 ----------------------------------------------------------------->
+<section id="edge">
+  <h2><span class="n">10</span>Edge cases</h2>
+  <table>
+    <tr><th>Case</th><th>Behaviour</th></tr>
+    <tr><td>Deadzone 0%</td><td>Everything past the hardware flat gate passes. Fine for good sticks. Drift is then the controller's problem, and the help text says so.</td></tr>
+    <tr><td>Deadzone 50%</td><td>Upper limit. In Smooth mode the usable range is 0.5 to 1.0, still reaches full output. Never 100%, so full push can never be unreachable.</td></tr>
+    <tr><td>Sensitivity 0.50x / 2.00x</td><td>Curve exponent 2.0 and 0.5. Zero stays zero, full stays one.</td></tr>
+    <tr><td>Controller with a huge hardware flat</td><td>The hardware gate runs first, then ours. They do not add up in a visible way unless the flat is bigger than our deadzone, in which case the larger one wins.</td></tr>
+    <tr><td>Square gate reporting 1.41 on diagonal</td><td>Smooth clamps the length to 1.0. Classic clamps each axis to 1.0.</td></tr>
+    <tr><td>Controller sends many historical samples</td><td>Shaper is stateless, called per sample, no ordering problem.</td></tr>
+    <tr><td>Two controllers at once</td><td>Each <code>ExternalController</code> holds its own copy of the same numbers. Both are tuned.</td></tr>
+    <tr><td>Hot plug / unplug</td><td>Tuning applied on attach. Nothing is stored on the device object that outlives it.</td></tr>
+    <tr><td>Corrupt extra ("abc", "", "NaN", "9999")</td><td>Falls back to default or is clamped. Never throws.</td></tr>
+    <tr><td>Shortcut with override off</td><td>The shortcut extras are absent, so the container values are used.</td></tr>
+    <tr><td>Process death mid edit</td><td>Values only exist in the editor until saved, same as every other setting in those screens.</td></tr>
+    <tr><td>Rotating the device in the editor</td><td>State lives in the ViewModel / remembered state like the gyro sliders.</td></tr>
+  </table>
+</section>
+
+<!-- 11 ----------------------------------------------------------------->
+<section id="tests">
+  <h2><span class="n">11</span>How it gets tested</h2>
+  <p class="lead">I cannot build or run anything in this setup, so the unit tests are written for you to run, and the manual list is for your testers.</p>
+  <h3>Unit tests (new, JUnit, no Android classes needed)</h3>
+  <ul>
+    <li><b>Identity at defaults:</b> for a grid of x, y from -1 to 1 in 0.01 steps, Classic with 0.15 and 1.00x equals today's <code>abs(v) &gt;= 0.15 ? v : 0</code> per axis.</li>
+    <li><b>Zero stays zero, full stays one</b> for every sensitivity from 0.50 to 2.00.</li>
+    <li><b>Monotonic:</b> output length never decreases as push increases (all styles, all settings).</li>
+    <li><b>Smooth is continuous at the border:</b> just inside gives 0, just outside gives roughly 0.</li>
+    <li><b>Direction preserved</b> in Smooth mode (angle in equals angle out).</li>
+    <li><b>Clamp and garbage:</b> NaN, infinity, out of range settings, 1.41 diagonal.</li>
+    <li><b>Remap overload equivalence:</b> old gate and new gate give identical results on any value the old pipeline could produce.</li>
+    <li><b>Container getters:</b> missing, empty, bad and out of range extras.</li>
+  </ul>
+  <h3>Manual list for testers</h3>
+  <ol>
+    <li>Fresh install and an existing install: sticks feel exactly as before without touching anything.</li>
+    <li>Controller test screen: left deadzone to 30%, small pushes show 0, shaped column matches the playground.</li>
+    <li>Same game, left 8% and right 25%: movement is sensitive, camera ignores drift.</li>
+    <li>Switch to Smooth: slow walk has no step at the start.</li>
+    <li>Per-game override on/off, then relaunch: correct values each time.</li>
+    <li>Plug a second pad mid game: it uses the same tuning.</li>
+    <li>Steam Controller (if available): same feel as a normal pad.</li>
+    <li>Remap sticks to keys or other gamepad buttons: a 5% deadzone really activates at 5%.</li>
+    <li>Export a config, import it on another device: the five values come across.</li>
+    <li>Whole UI with the controller only, no touch.</li>
+  </ol>
+</section>
+
+<!-- 12 ----------------------------------------------------------------->
+<section id="risks">
+  <h2><span class="n">12</span>Risks, and what I do about each</h2>
+  <table>
+    <tr><th>#</th><th>Risk</th><th>Plan</th></tr>
+    <tr><td>R1</td><td class="no">The second 0.15 gate in <code>InputControlsView</code> (remap path) would silently override a smaller user deadzone and double up a larger one.</td><td>Threshold overloads, old signatures kept, equivalence unit test. This is the riskiest touch point, so it gets the most careful review.</td></tr>
+    <tr><td>R2</td><td class="wr">I have not yet traced every consumer of the values in the remap map (buttons or other sources might also feed it).</td><td>Before editing I grep all callers of the four methods. If any non-stick source flows through, that source keeps the old threshold.</td></tr>
+    <tr><td>R3</td><td class="wr">Controllers created in places I have not listed (for example the controller test and the bindings screen each have their own instance).</td><td>Grep every <code>new ExternalController</code> and every <code>updateStateFromMotionEvent</code> caller. Each either gets tuning or deliberately keeps defaults.</td></tr>
+    <tr><td>R4</td><td class="wr">Users picking silly values and thinking the app is broken.</td><td>Ranges are capped, help text names the symptom ("stick drifts: raise deadzone"), reset buttons are one press.</td></tr>
+    <tr><td>R5</td><td class="wr">Games that apply their own deadzone on top.</td><td>Documented in the help text. Users who want pure raw input can set 0%.</td></tr>
+    <tr><td>R6</td><td class="wr">I cannot build. A compile error would waste your CI run.</td><td>Mental compile pass (imports, nullability, every signature and call site) plus a re-read of the full diff before I hand it over.</td></tr>
+  </table>
+</section>
+
+<!-- 13 ----------------------------------------------------------------->
+<section id="open">
+  <h2><span class="n">13</span>Decisions and out of scope</h2>
+  <h3>Decisions I still need from you (recommended answer first)</h3>
+  <ol>
+    <li><b>Per-game override as well as container?</b> Recommended: yes.</li>
+    <li><b>Adjust from the in-game drawer, like gyro?</b> Recommended: not now. It is extra work (live apply + persist), the editors already cover it.</li>
+    <li><b>Touch overlay sticks?</b> Recommended: leave alone, they already have a per-element deadzone.</li>
+    <li><b>Default edge style.</b> Recommended: Classic, so nothing changes silently. Switch to Smooth by default later once testers confirm they like it.</li>
+  </ol>
+  <h3>Ideas I am not putting in this change</h3>
+  <ul>
+    <li>Outer deadzone / max range (for sticks that never reach 1.0).</li>
+    <li>Per axis invert, swap sticks, trigger deadzone.</li>
+    <li>Per controller (by device id) profiles instead of per container.</li>
+  </ul>
+</section>
+
+<footer>Generated plan. Nothing in this document has been built or run. File and line references were checked against the source at the time of writing and will drift as the code changes.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var NOW_DZ = 0.15;
+  var S = { side:"L", smooth:true, L:{dz:0.15,s:1.0}, R:{dz:0.15,s:1.0} };
+  var raw = { x:0, y:0 };
+  var NS = "http://www.w3.org/2000/svg";
+
+  function nowShape(x, y){
+    function f(v){ return Math.abs(v) >= NOW_DZ ? v : 0; }
+    return [f(x), f(y)];
+  }
+  function afterShape(x, y, dz, s, smooth){
+    if (!isFinite(x) || !isFinite(y)) return [0, 0];
+    var inv = 1 / s;
+    if (!smooth){
+      var f = function(v){
+        var a = Math.abs(v);
+        if (a < dz) return 0;
+        return (v < 0 ? -1 : 1) * Math.pow(Math.min(1, a), inv);
+      };
+      return [f(x), f(y)];
+    }
+    var m = Math.hypot(x, y);
+    if (m < dz || m === 0) return [0, 0];
+    var t = Math.min(1, Math.max(0, (m - dz) / Math.max(1e-6, 1 - dz)));
+    t = Math.pow(t, inv);
+    return [x / m * t, y / m * t];
+  }
+  function cur(){ return S[S.side]; }
+  function shapeAfter(x, y){ var c = cur(); return afterShape(x, y, c.dz, c.s, S.smooth); }
+
+  function el(name, attrs, parent){
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  var R = 100;
+  function buildPad(svg){
+    var o = {};
+    el("circle", {cx:0, cy:0, r:R, fill:"none", stroke:"var(--line2)", "stroke-width":2}, svg);
+    el("line", {x1:-R, y1:0, x2:R, y2:0, stroke:"var(--line)", "stroke-width":1}, svg);
+    el("line", {x1:0, y1:-R, x2:0, y2:R, stroke:"var(--line)", "stroke-width":1}, svg);
+    o.dz = el("circle", {cx:0, cy:0, r:0, fill:"none", stroke:"var(--warn)", "stroke-width":1.5, "stroke-dasharray":"4 3"}, svg);
+    o.sq = el("rect", {x:0, y:0, width:0, height:0, fill:"none", stroke:"var(--warn)", "stroke-width":1.5, "stroke-dasharray":"4 3"}, svg);
+    o.rawDot = el("circle", {cx:0, cy:0, r:6, fill:"var(--muted)", opacity:0.7}, svg);
+    o.link = el("line", {x1:0, y1:0, x2:0, y2:0, stroke:"var(--muted)", "stroke-width":1, opacity:0.5}, svg);
+    o.outDot = el("circle", {cx:0, cy:0, r:8, fill:"var(--primary)"}, svg);
+    return o;
+  }
+  var padNow = buildPad(document.getElementById("padNow"));
+  var padAfter = buildPad(document.getElementById("padAfter"));
+  padNow.outDot.setAttribute("fill", "#E5484D");
+  padAfter.outDot.setAttribute("fill", "#3DD68C");
+
+  function setZone(pad, dz, smooth){
+    if (smooth){
+      pad.dz.setAttribute("r", dz * R); pad.dz.style.display = "";
+      pad.sq.style.display = "none";
+    } else {
+      pad.dz.style.display = "none";
+      pad.sq.style.display = "";
+      pad.sq.setAttribute("x", -dz * R); pad.sq.setAttribute("y", -dz * R);
+      pad.sq.setAttribute("width", dz * R * 2); pad.sq.setAttribute("height", dz * R * 2);
+    }
+  }
+  function place(pad, out){
+    pad.rawDot.setAttribute("cx", raw.x * R); pad.rawDot.setAttribute("cy", raw.y * R);
+    pad.outDot.setAttribute("cx", out[0] * R); pad.outDot.setAttribute("cy", out[1] * R);
+    pad.link.setAttribute("x1", raw.x * R); pad.link.setAttribute("y1", raw.y * R);
+    pad.link.setAttribute("x2", out[0] * R); pad.link.setAttribute("y2", out[1] * R);
+  }
+  function fmt(v){ return (v >= 0 ? "+" : "-") + Math.abs(v).toFixed(2); }
+  function ro(id, o){
+    document.getElementById(id).innerHTML =
+      "raw <b>" + fmt(raw.x) + ", " + fmt(raw.y) + "</b> &rarr; game <b>" + fmt(o[0]) + ", " + fmt(o[1]) +
+      "</b> &nbsp; length <b>" + Math.hypot(o[0], o[1]).toFixed(2) + "</b>";
+  }
+
+  function draw(){
+    var n = nowShape(raw.x, raw.y);
+    var a = shapeAfter(raw.x, raw.y);
+    setZone(padNow, NOW_DZ, false);
+    setZone(padAfter, cur().dz, S.smooth);
+    place(padNow, n); place(padAfter, a);
+    ro("roNow", n); ro("roAfter", a);
+    document.getElementById("afterLbl").textContent =
+      (S.side === "L" ? "left" : "right") + " stick, " + Math.round(cur().dz * 100) + "%, " +
+      cur().s.toFixed(2) + "x, " + (S.smooth ? "smooth" : "classic");
+    drawChart(); drawTables();
+  }
+
+  function drawChart(){
+    var svg = document.getElementById("chart");
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var X0 = 34, Y0 = 170, W = 270, H = 150;
+    for (var i = 0; i <= 4; i++){
+      var gx = X0 + W * i / 4, gy = Y0 - H * i / 4;
+      el("line", {x1:gx, y1:Y0, x2:gx, y2:Y0 - H, stroke:"var(--line)", "stroke-width":1}, svg);
+      el("line", {x1:X0, y1:gy, x2:X0 + W, y2:gy, stroke:"var(--line)", "stroke-width":1}, svg);
+      var tx = el("text", {x:gx, y:Y0 + 13, "text-anchor":"middle"}, svg); tx.textContent = (i / 4).toFixed(2);
+      var ty = el("text", {x:X0 - 5, y:gy + 3, "text-anchor":"end"}, svg); ty.textContent = (i / 4).toFixed(2);
+    }
+    el("line", {x1:X0, y1:Y0, x2:X0 + W, y2:Y0 - H, stroke:"var(--line2)", "stroke-width":1, "stroke-dasharray":"3 3"}, svg);
+    var dN = "", dA = "";
+    for (var p = 0; p <= 1.0001; p += 0.0025){
+      var px = X0 + W * p;
+      var yn = nowShape(p, 0)[0];
+      var ya = shapeAfter(p, 0)[0];
+      dN += (dN ? "L" : "M") + px.toFixed(2) + " " + (Y0 - H * yn).toFixed(2);
+      dA += (dA ? "L" : "M") + px.toFixed(2) + " " + (Y0 - H * ya).toFixed(2);
+    }
+    el("path", {d:dN, fill:"none", stroke:"#E5484D", "stroke-width":2.2}, svg);
+    el("path", {d:dA, fill:"none", stroke:"#3DD68C", "stroke-width":2.2}, svg);
+  }
+
+  function drawTables(){
+    var pushes = [0.05, 0.10, 0.14, 0.15, 0.16, 0.20, 0.30, 0.50, 0.75, 1.00];
+    var h = "<tr><th>Push</th><th class='num'>Now</th><th class='num'>After</th><th>What changes</th></tr>";
+    pushes.forEach(function(p){
+      var n = nowShape(p, 0)[0], a = shapeAfter(p, 0)[0];
+      var note = n === a ? "same" : (n === 0 && a > 0 ? "responds earlier" : (n > 0 && a === 0 ? "ignored now" : (a > n ? "stronger" : "softer")));
+      h += "<tr><td class='num'>" + p.toFixed(2) + "</td><td class='num'>" + n.toFixed(3) + "</td><td class='num'>" + a.toFixed(3) + "</td><td>" + note + "</td></tr>";
+    });
+    document.getElementById("numTable").innerHTML = h;
+
+    var diag = [0.08, 0.11, 0.15, 0.25, 0.50, 0.71];
+    var d = "<tr><th>x = y =</th><th class='num'>Now (x, y)</th><th class='num'>After (x, y)</th><th>What changes</th></tr>";
+    diag.forEach(function(v){
+      var n = nowShape(v, v), a = shapeAfter(v, v);
+      var same = n[0].toFixed(3) === a[0].toFixed(3) && n[1].toFixed(3) === a[1].toFixed(3);
+      var note = same ? "same" : (n[0] !== n[1] ? "axes disagree" : (n[0] === 0 && a[0] > 0 ? "responds earlier" : (n[0] > 0 && a[0] === 0 ? "ignored now" : "reshaped")));
+      d += "<tr><td class='num'>" + v.toFixed(2) + "</td><td class='num'>" + n[0].toFixed(2) + ", " + n[1].toFixed(2) + "</td><td class='num'>" + a[0].toFixed(2) + ", " + a[1].toFixed(2) + "</td><td>" + note + "</td></tr>";
+    });
+    document.getElementById("diagTable").innerHTML = d;
+  }
+
+  /* pointer input */
+  var pointerActive = false;
+  function setFromEvent(e, svg){
+    var r = svg.getBoundingClientRect();
+    var vb = svg.viewBox.baseVal;
+    var px = (e.clientX - r.left) / r.width * vb.width + vb.x;
+    var py = (e.clientY - r.top) / r.height * vb.height + vb.y;
+    var x = px / R, y = py / R;
+    var m = Math.hypot(x, y);
+    if (m > 1){ x /= m; y /= m; }
+    raw.x = x; raw.y = y; draw();
+  }
+  ["padNow", "padAfter"].forEach(function(id){
+    var svg = document.getElementById(id);
+    svg.addEventListener("pointerdown", function(e){ pointerActive = true; svg.setPointerCapture(e.pointerId); setFromEvent(e, svg); });
+    svg.addEventListener("pointermove", function(e){ if (pointerActive) setFromEvent(e, svg); });
+    var end = function(){ pointerActive = false; raw.x = 0; raw.y = 0; draw(); };
+    svg.addEventListener("pointerup", end);
+    svg.addEventListener("pointercancel", end);
+  });
+
+  /* gamepad (read only) */
+  var gpSeen = false;
+  function poll(){
+    var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    var gp = null;
+    for (var i = 0; i < pads.length; i++){ if (pads[i]) { gp = pads[i]; break; } }
+    if (gp && !pointerActive){
+      var ax = S.side === "L" ? 0 : 2, ay = S.side === "L" ? 1 : 3;
+      var x = gp.axes[ax] || 0, y = gp.axes[ay] || 0;
+      if (x !== raw.x || y !== raw.y){ raw.x = x; raw.y = y; draw(); }
+      if (!gpSeen){ gpSeen = true; document.getElementById("gpStatus").textContent = "Gamepad: " + gp.id; }
+    } else if (!gp && gpSeen){
+      gpSeen = false; document.getElementById("gpStatus").textContent = "Gamepad: none detected (mouse or touch works too)";
+    }
+    requestAnimationFrame(poll);
+  }
+
+  /* controls */
+  var dzIn = document.getElementById("dz"), sIn = document.getElementById("sens");
+  function syncControls(){
+    dzIn.value = Math.round(cur().dz * 100);
+    sIn.value = Math.round(cur().s * 100);
+    document.getElementById("dzo").textContent = Math.round(cur().dz * 100) + "%";
+    document.getElementById("so").textContent = cur().s.toFixed(2) + "x";
+    document.getElementById("sideL").setAttribute("aria-pressed", S.side === "L");
+    document.getElementById("sideR").setAttribute("aria-pressed", S.side === "R");
+    document.getElementById("styleC").setAttribute("aria-pressed", !S.smooth);
+    document.getElementById("styleS").setAttribute("aria-pressed", S.smooth);
+  }
+  dzIn.addEventListener("input", function(){ cur().dz = dzIn.value / 100; syncControls(); draw(); });
+  sIn.addEventListener("input", function(){ cur().s = sIn.value / 100; syncControls(); draw(); });
+  document.getElementById("sideL").addEventListener("click", function(){ S.side = "L"; syncControls(); draw(); });
+  document.getElementById("sideR").addEventListener("click", function(){ S.side = "R"; syncControls(); draw(); });
+  document.getElementById("styleC").addEventListener("click", function(){ S.smooth = false; syncControls(); draw(); });
+  document.getElementById("styleS").addEventListener("click", function(){ S.smooth = true; syncControls(); draw(); });
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    S.L = {dz:0.15, s:1.0}; S.R = {dz:0.15, s:1.0}; S.smooth = true; syncControls(); draw();
+  });
+
+  syncControls(); draw(); poll();
+})();
+</script>
+</body>
+</html>
