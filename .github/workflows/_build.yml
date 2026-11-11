@@ -223,9 +223,7 @@ jobs:
     # build below, which needs it to exist) and the app-side JNI writer libhermes.so into jniLibs.
     # ci/build.sh link-probes the static library the way the interposer links it and fails if it would
     # pull in anything beyond libc/libdl/pthread (liblog on Android) or export any of its symbols.
-    # The glibc build of the same library is built, probed and linked inside the Linux-runtime
-    # fakeinput step below, which installs the aarch64 cross compiler. Host tests and the loom model
-    # check run in hermes-check.yml.
+    # Host tests and the loom model check run in hermes-check.yml.
     - name: hermes toolchain
       id: hermes-rust
       run: |
@@ -267,108 +265,6 @@ jobs:
 
     - name: Build HERMES-XInput DLLs into assets
       run: app/src/main/cpp/hermes/xinput/build.sh dlls app/src/main/assets/hermes-xinput
-
-    # --- fake evdev for the Linux runtime session -------------------------------------------
-    # NOT the jniLibs libfakeinput.so: that one is built from winlator/fakeinput.cpp against bionic
-    # and preloaded into Wine. This is the client's own source, winlator/fakeinput_steam.cpp.
-    # The Steam client's own copy, built against glibc for the Linux runtime rootfs. A SEPARATE source
-    # from the bionic one preloaded into Wine, so a change for the client cannot reach a Windows game.
-    # The native Steam client has no Wine and no XInput, so a pad only reaches it as a real
-    # /dev/input/eventN — which is what this serves from the app's HERMES pad files. It goes in
-    # assets rather than the rootfs asset so an existing installed runtime picks it up on the next
-    # launch instead of waiting on a ~790MB runtime release. Built from source here, never
-    # committed, so it cannot drift from the bionic copy.
-    - name: Build libfakeinput.so for the Linux runtime (glibc aarch64)
-      timeout-minutes: 20
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        set -euo pipefail
-        export DEBIAN_FRONTEND=noninteractive
-        APT="sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::ftp::Timeout=30"
-        $APT update -qq
-        $APT install -y -qq g++-aarch64-linux-gnu >/dev/null
-        D=app/src/main/assets/linuxfs
-        mkdir -p "$D"
-        # Statically linked C++ runtime: this is preloaded into every Steam process, and Steam ships
-        # its own libstdc++ while rewriting LD_LIBRARY_PATH. Pulling the system one in ahead of it is
-        # a version-conflict waiting to happen, and it also makes the library independent of what the
-        # rootfs carries. Costs ~1.4MB; only libc.so.6 is left as a dependency.
-        aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare -pthread -std=c++17 -static-libstdc++ -static-libgcc \
-          -o "$D/libfakeinput.so" app/src/main/cpp/winlator/fakeinput_steam.cpp -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$D/libfakeinput.so"
-        NEED=$(aarch64-linux-gnu-readelf -d "$D/libfakeinput.so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p')
-        echo "NEEDED: $NEED"
-        # Only the C++ runtime matters here. Steam ships its own libstdc++ and rewrites
-        # LD_LIBRARY_PATH, so a preload pulling the system one in ahead of it is a version conflict;
-        # libc and libm are the same library either way and vary only with the toolchain version.
-        for bad in libstdc++.so.6 libgcc_s.so.1; do
-          if printf '%s\n' "$NEED" | grep -qx "$bad"; then
-            echo "::error::libfakeinput.so links $bad — the C++ runtime must stay static"
-            exit 1
-          fi
-        done
-        # The interposers are the whole point: if any is missing the client sees no controller.
-        SYMS=$(aarch64-linux-gnu-nm -D --defined-only "$D/libfakeinput.so" | awk '{print $NF}')
-        for sym in open openat ioctl read close poll ppoll select stat fstat access scandir; do
-          grep -qx "$sym" <<<"$SYMS" \
-            || { echo "::error::libfakeinput.so does not export $sym"; exit 1; }
-        done
-        ls -l "$D/libfakeinput.so"
-        # The session shim as well, from the same sources the rootfs builds it from. It is what
-        # /etc/ld.so.preload names in every runtime since r5, so refreshing it from the app is how a
-        # fix inside it reaches a runtime that is already installed - the netlink stand-in in
-        # udevmon.c is exactly that, and the device that needs it cannot take a new runtime image.
-        $APT install -y -qq gcc-aarch64-linux-gnu >/dev/null
-        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-          -o "$D/libblsession.so" tools/linuxfs/preload/*.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$D/libblsession.so"
-        for sym in socket bind getsockname setsockopt statfs statvfs; do
-          aarch64-linux-gnu-nm -D --defined-only "$D/libblsession.so" | awk '{print $NF}' | grep -qx "$sym" \
-            || { echo "::error::libblsession.so does not export $sym"; exit 1; }
-        done
-        ls -l "$D/libblsession.so"
-        # The session's scripts too, so a fix in one reaches an installed runtime the same way.
-        for script in tools/linuxfs/overlay/usr/local/bin/bannerlator-*; do
-          install -Dm644 "$script" "$D/usr/local/bin/$(basename "$script")"
-        done
-        # The SteamOS helpers the client calls in Deck mode, as no-op stubs (see each file).
-        for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
-          [ -f "$f" ] && install -Dm644 "$f" "$D/${f#tools/linuxfs/overlay/}"
-        done
-        # The patched gamescope, only once a build of it has been published: tools/gamescope/release.env names the release and the archive's sha256 (see tools/gamescope/PATCHES.md).
-        # Without that file nothing is fetched, the apk carries no gamescope, and sessions keep the runtime's own.
-        if [ -f tools/gamescope/release.env ]; then
-          . tools/gamescope/release.env
-          curl -fsSL -o gamescope.tzst "${GAMESCOPE_URL}"
-          echo "${GAMESCOPE_SHA256}  gamescope.tzst" | sha256sum -c -
-          tar --use-compress-program=unzstd -xf gamescope.tzst -C "$D"
-          test -f "$D/usr/local/bin/gamescope"
-          rm gamescope.tzst
-          echo "patched gamescope staged from ${GAMESCOPE_TAG}"
-        else
-          echo "no tools/gamescope/release.env: the apk carries no gamescope of its own"
-        fi
-        # Valve's aarch64 mangoapp for Deck mode's performance overlay, plus the five libraries the runtime lacks, pinned by sha256 in tools/mangoapp/packages.txt.
-        # Each library is stored under the SONAME it is loaded by, as a real file, because assets cannot carry symlinks.
-        M="$D/usr/local/lib/mangoapp"
-        mkdir -p "$M" mango-pkgs
-        grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do
-          [ -n "$url" ] || continue
-          # Valve's package servers sometimes reset a connection, and plain --retry does not retry that, so every error is retried.
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o mango-pkgs/pkg.tar.zst "$url"
-          echo "$sum  mango-pkgs/pkg.tar.zst" | sha256sum -c -
-          tar --use-compress-program=unzstd -xf mango-pkgs/pkg.tar.zst -C mango-pkgs
-          rm mango-pkgs/pkg.tar.zst
-        done
-        install -m644 mango-pkgs/usr/bin/mangoapp "$M/mangoapp"
-        for so in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1 libtracefs.so.1; do
-          cp -L "mango-pkgs/usr/lib/$so" "$M/$so"
-        done
-        install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
-        rm -rf mango-pkgs
-        ls -l "$M"
-        ls -l "$D/usr/local/bin/"
 
     # The PulseAudio sink that sends the Steam client's own sound through the DirectAudio relay (tools/aaudio-sink, from The412Banner/SteamDeck).
     # It is compiled against upstream PulseAudio 13 headers and the app's own libpulse*, and added to the audio bundle the apk carries.
