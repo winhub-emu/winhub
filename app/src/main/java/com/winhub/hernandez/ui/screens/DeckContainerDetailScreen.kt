@@ -114,6 +114,23 @@ internal fun DeckContainerDetailScreen(
     // Which inline config section is expanded (null = all collapsed). One at a time, so a row's
     // editor pushes the rows below it down without stacking several open at once.
     var openSection by remember { mutableStateOf<String?>(null) }
+    // Wayland: the graphics driver the compositor (and, on the adapter, the game) runs on, the game driver
+    // choices, and the adapter settings dialog (same one the pop-up editors open).
+    var waylandCompositorChoices by remember { mutableStateOf<List<String>>(emptyList()) }
+    var waylandGameDriverValues by remember { mutableStateOf<List<String>>(emptyList()) }
+    var waylandAutoPick by remember { mutableStateOf(com.winhub.hernandez.core.WaylandGameDriver.autoVariantIfKnown()) }
+    var showWaylandAdapterDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(viewModel.isWaylandBackend) {
+        if (!viewModel.isWaylandBackend) return@LaunchedEffect
+        waylandCompositorChoices = compositorDriverChoices(context)
+        waylandGameDriverValues = com.winhub.hernandez.core.WaylandGameDriver.optionValues(context)
+        waylandAutoPick = waylandAutoVariant(context)
+    }
+    if (showWaylandAdapterDialog) WaylandDriverSettingsDialog(
+        initialConfig = viewModel.graphicsDriverConfig,
+        onConfirm = { viewModel.graphicsDriverConfig = it; showWaylandAdapterDialog = false },
+        onDismiss = { showWaylandAdapterDialog = false },
+    )
     // VEGAS stock-config sheet (Deck-native; VEGAS wrappers only).
     var showStockConfigSheet by remember { mutableStateOf(false) }
     // Deck-native component download sheets for DXVK / VKD3D / D7VK.
@@ -348,6 +365,43 @@ internal fun DeckContainerDetailScreen(
 
                     1 -> {
                         DeckGroup("Graphics Driver") {
+                        if (viewModel.isWaylandBackend) {
+                            // Wayland: one Turnip pick for the compositor (and the game, on the adapter).
+                            val waylandVersion = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
+                                .getVersion(viewModel.graphicsDriverConfig) ?: ""
+                            DeckChoiceRow(
+                                label = "Graphics Driver",
+                                hint = if (compositorDriverUnusable(waylandVersion, waylandCompositorChoices, waylandCompositorChoices.isNotEmpty()))
+                                    "Wayland needs a Turnip driver here; \"System\" or a missing driver shows a black screen"
+                                else "Turnip the Wayland compositor (and the adapter) runs on",
+                                options = waylandCompositorChoices.map { it to it },
+                                selected = compositorDriverLabel(waylandVersion, waylandCompositorChoices, waylandCompositorChoices.isNotEmpty()),
+                                onPick = { viewModel.onCompositorDriverPicked(it) },
+                            )
+                            val storedGameDriver = viewModel.waylandGameDriver
+                            val shownGameDriver = com.winhub.hernandez.core.WaylandGameDriver.editorChoice(context, storedGameDriver)
+                            val gameValues = if (shownGameDriver in waylandGameDriverValues) waylandGameDriverValues
+                                else waylandGameDriverValues + shownGameDriver
+                            DeckChoiceRow(
+                                label = "Wayland Game Driver",
+                                hint = "What the game renders on; the adapter uses the Graphics Driver above",
+                                options = gameValues.map { it to com.winhub.hernandez.core.WaylandGameDriver.optionLabel(context, it, waylandAutoPick) },
+                                selected = shownGameDriver,
+                                onPick = { viewModel.waylandGameDriver = it },
+                            )
+                            DeckRow(
+                                label = "Wayland Adapter Settings",
+                                hint = "Profile, switches, GPU name spoof, memory cap",
+                            ) {
+                                DeckValueChip(text = "Open", open = false, onClick = { showWaylandAdapterDialog = true })
+                            }
+                            DeckRow(
+                                label = com.winhub.hernandez.display.WaylandHdr.TITLE,
+                                hint = com.winhub.hernandez.display.WaylandHdr.unavailableReason(context)
+                                    ?: "HDR10 output on a screen that supports it",
+                                control = { DeckToggle(viewModel.waylandHdr) { viewModel.waylandHdr = it } },
+                            )
+                        } else {
                         DeckChoiceRow(
                             label = "Graphics Driver",
                             hint = "Turnip / system Vulkan driver for Direct3D",
@@ -355,7 +409,8 @@ internal fun DeckContainerDetailScreen(
                             selected = viewModel.selectedGraphicsDriver,
                             onPick = { viewModel.selectedGraphicsDriver = it },
                         )
-                        DeckConfigSection(
+                        }
+                        if (!viewModel.isWaylandBackend) DeckConfigSection(
                             label = "Driver Config",
                             hint = "Turnip / BCn / wrapper tuning",
                             title = "Driver Config",
@@ -505,7 +560,7 @@ internal fun DeckContainerDetailScreen(
                                 "Wayland" to Container.DISPLAY_BACKEND_WAYLAND,
                             ),
                             selected = viewModel.displayBackend,
-                            onPick = { viewModel.displayBackend = it },
+                            onPick = { viewModel.onDisplayBackendChanged(it) },
                         )
                         DeckChoiceRow(
                             label = "Fullscreen",

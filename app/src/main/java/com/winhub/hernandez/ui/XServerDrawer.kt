@@ -3095,6 +3095,7 @@ private fun ControlsContent(state: XServerDrawerState) {
     val moveCursorToTouch by state.moveCursorToTouchpoint.collectAsState()
     val isRelativeMouse by state.isRelativeMouseMovement.collectAsState()
     val isWaylandSession by state.isWaylandMode.collectAsState()
+    val cursorAutoHide by state.cursorAutoHide.collectAsState()
     val isMouseDisabled by state.isMouseDisabled.collectAsState()
     val initOverlayOpacity by state.overlayOpacity.collectAsState()
     val controlsFollowTheme by state.controlsFollowTheme.collectAsState()
@@ -3261,9 +3262,25 @@ private fun ControlsContent(state: XServerDrawerState) {
                     ToggleChipItem("Disable Mouse", isMouseDisabled) {
                         state.onDisableMouse?.run()
                     },
-                ),
+                ) + (if (isWaylandSession) listOf(
+                    ToggleChipItem("Auto-hide Cursor", cursorAutoHide) {
+                        state.setCursorAutoHide(it); state.onCursorAutoHideChange?.run()
+                    },
+                ) else emptyList()),
                 perRow = 3
             )
+
+            if (isWaylandSession && cursorAutoHide) {
+                val initHideMs by state.cursorAutoHideMs.collectAsState()
+                var hideMs by remember(initHideMs) { mutableIntStateOf(initHideMs) }
+                IntSlider("Hide After (ms)", hideMs, 500..10000,
+                    onValueChange = { hideMs = it },
+                    onValueChangeFinished = {
+                        state.setCursorAutoHideMs(hideMs); state.onCursorAutoHideChange?.run()
+                    },
+                    steps = 18
+                )
+            }
 
             if (isWaylandSession) {
                 Spacer(Modifier.height(4.dp))
