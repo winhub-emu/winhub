@@ -23,6 +23,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -67,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -88,6 +91,7 @@ import com.winhub.hernandez.XrActivity
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.container.ContainerManager
 import com.winhub.hernandez.container.Shortcut
+import com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
 import com.winhub.hernandez.core.FileUtils
 import com.winhub.hernandez.core.StringUtils
 import com.winhub.hernandez.core.WinePath
@@ -440,6 +444,7 @@ private fun DeckStorageContainersTab(
                                 subtitle = listOf(container.wineVersion, container.screenSize)
                                     .filter { it.isNotEmpty() }
                                     .joinToString(" · "),
+                                chips = deckContainerChips(container),
                                 onRun = { onRun(container) },
                                 onEdit = { onEdit(container.id) },
                                 onDuplicate = { onDuplicate(container) },
@@ -454,6 +459,43 @@ private fun DeckStorageContainersTab(
             }
         }
     }
+}
+
+/** Graphics driver, DXVK, VKD3D and x86 backend of a container, each in its own colour (same as the game cards). */
+private fun deckContainerChips(container: Container): List<Pair<String, Color>> = buildList {
+    val driver = GraphicsDriverConfigDialog.getVersion(container.getGraphicsDriverConfig().orEmpty())
+        ?.takeIf { it.isNotBlank() } ?: container.getGraphicsDriver()
+    if (!driver.isNullOrBlank()) add("Driver $driver" to ChipDriverColor)
+    val (dxvk, vkd3d) = parseDxwrapperConfig(container.getDXWrapperConfig().orEmpty())
+    if (dxvk.isNotEmpty()) {
+        val name = if (container.getDXWrapper().orEmpty().contains("vegas")) "Vegas" else "DXVK"
+        add("$name $dxvk" to ChipDxvkColor)
+    }
+    if (vkd3d.isNotEmpty() && !vkd3d.equals("none", ignoreCase = true)) add("VKD3D $vkd3d" to ChipVkd3dColor)
+    val emulator = container.getEmulator().orEmpty()
+    val fexVersion = container.getFEXCoreVersion()
+    if (emulator.equals("fexcore", ignoreCase = true) && !fexVersion.isNullOrBlank()) {
+        add("FEX $fexVersion" to ChipCpuColor)
+    } else if (emulator.isNotEmpty()) {
+        add(emulator to ChipCpuColor)
+    }
+}
+
+/** Tinted pill for one component; 12sp so it stays readable from the couch. */
+@Composable
+private fun DeckSpecChip(text: String, color: Color) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+    )
 }
 
 /** One Cronos game: cover, title, store size + container size, remove/uninstall actions. */
@@ -773,10 +815,12 @@ private fun deckDirSize(dir: File): Long {
 }
 
 /** One container as a DroidDeck card: 14dp surface, name + subtitle, blue play pill, overflow. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DeckContainerCard(
     name: String,
     subtitle: String,
+    chips: List<Pair<String, Color>>,
     onRun: () -> Unit,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
@@ -831,6 +875,15 @@ private fun DeckContainerCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
                 )
+            }
+            if (chips.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    chips.forEach { (text, color) -> DeckSpecChip(text, color) }
+                }
             }
         }
 
