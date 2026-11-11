@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -73,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.preference.PreferenceManager
 import coil.compose.AsyncImage
 import com.winhub.hernandez.R
+import com.winhub.hernandez.communityconfigs.ConfigLibrary
 import com.winhub.hernandez.communityconfigs.DeviceIdentity
 import com.winhub.hernandez.communityconfigs.GameMatcher
 import com.winhub.hernandez.communityconfigs.SocialConfigs
@@ -221,10 +223,29 @@ private fun SocialConfigsContent() {
     var importing by remember { mutableStateOf<ImportUi?>(null) }
     // The config waiting for the user to pick the game's exe.
     var pendingImport by remember { mutableStateOf<Post?>(null) }
+    // Curated library (configs/ in the Social Hub repo): games first, then that game's configs.
+    var libraryTab by rememberSaveable { mutableStateOf(true) }
+    var libGames by remember { mutableStateOf<List<ConfigLibrary.Game>?>(null) }
+    var libLoading by remember { mutableStateOf(false) }
+    var libFailed by remember { mutableStateOf(false) }
+    var libGameId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingLibrary by remember { mutableStateOf<Pair<ConfigLibrary.Game, ConfigLibrary.Entry>?>(null) }
+
+    fun loadLibrary(force: Boolean) {
+        libLoading = true
+        scope.launch {
+            val r = ConfigLibrary.load(ctx, force)
+            r.onSuccess { libGames = it }
+            // Keep a list that is already on screen when a refresh fails.
+            libFailed = r.isFailure && libGames == null
+            libLoading = false
+        }
+    }
 
     LaunchedEffect(Unit) {
         SocialHubStore.init(ctx)
         SocialHubStore.refreshConfigs()
+        loadLibrary(false)
     }
     LaunchedEffect(Unit) {
         userHw = withContext(Dispatchers.IO) { DeviceIdentity.soc() to DeviceIdentity.gpu(ctx) }
@@ -253,17 +274,13 @@ private fun SocialConfigsContent() {
         }
     }
 
-    val pickExeTitle = stringResource(R.string.social_hub_configs_pick_exe)
-    val pickExe = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val post = pendingImport
-        pendingImport = null
-        val path = if (result.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedPath(result.data) else null
-        val json = SocialHubFormat.configJson(post?.body)
-        if (post == null || path == null || json == null) return@rememberLauncherForActivityResult
-        importing = ImportUi(post.title, "", done = false, ok = false)
+    fun startImport(title: String, exe: File, loadJson: suspend () -> String?) {
+        importing = ImportUi(title, "", done = false, ok = false)
         scope.launch {
             val outcome = try {
-                SocialConfigs.importAsCronos(ctx, json, post.title, File(path)) { line ->
+                val json = loadJson()
+                if (json == null) SocialConfigs.ImportOutcome(false, "Couldn't download that config. Check your connection and try again.")
+                else SocialConfigs.importAsCronos(ctx, json, title, exe) { line ->
                     importing = importing?.copy(status = line)
                 }
             } catch (e: CancellationException) {
@@ -272,7 +289,24 @@ private fun SocialConfigsContent() {
                 Log.w(TAG, "import failed", e)
                 SocialConfigs.ImportOutcome(false, e.message ?: "Import failed.")
             }
-            importing = ImportUi(post.title, outcome.message, done = true, ok = outcome.ok)
+            importing = ImportUi(title, outcome.message, done = true, ok = outcome.ok)
+        }
+    }
+
+    val pickExeTitle = stringResource(R.string.social_hub_configs_pick_exe)
+    val pickExe = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val post = pendingImport
+        val lib = pendingLibrary
+        pendingImport = null
+        pendingLibrary = null
+        val path = if (result.resultCode == Activity.RESULT_OK) InAppFilePicker.pickedPath(result.data) else null
+        if (path == null) return@rememberLauncherForActivityResult
+        if (post != null) {
+            val json = SocialHubFormat.configJson(post.body) ?: return@rememberLauncherForActivityResult
+            startImport(post.title, File(path)) { json }
+        } else if (lib != null) {
+            val (game, entry) = lib
+            startImport(game.name, File(path)) { ConfigLibrary.fetchConfig(game.id, entry.file) }
         }
     }
 
@@ -306,7 +340,7 @@ private fun SocialConfigsContent() {
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { SocialHubStore.refreshConfigs() }, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = { SocialHubStore.refreshConfigs(); loadLibrary(true) }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Filled.Refresh,
                         contentDescription = stringResource(R.string.social_hub_refresh),
@@ -319,42 +353,72 @@ private fun SocialConfigsContent() {
                     Text(stringResource(R.string.social_hub_configs_upload), fontSize = 14.sp)
                 }
             }
-            if (account == null) {
-                Text(
-                    stringResource(R.string.social_hub_configs_sign_in_hint),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ToggleChip(
+                    text = stringResource(R.string.social_hub_configs_tab_library),
+                    checked = libraryTab,
+                    onClick = { libraryTab = true },
+                )
+                ToggleChip(
+                    text = stringResource(R.string.social_hub_configs_tab_shared),
+                    checked = !libraryTab,
+                    onClick = { libraryTab = false },
                 )
             }
             Spacer(Modifier.height(8.dp))
-            SocialSearchField(query = query, onQueryChange = { query = it }, hint = R.string.social_hub_configs_search_hint)
-            Spacer(Modifier.height(6.dp))
-            ToggleChip(
-                text = stringResource(R.string.social_hub_configs_matches_device),
-                checked = matchesMyDevice,
-                onClick = { matchesMyDevice = !matchesMyDevice },
-            )
-            Spacer(Modifier.height(8.dp))
+            if (libraryTab) {
+                LibraryBody(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    games = libGames,
+                    loading = libLoading,
+                    failed = libFailed,
+                    openId = libGameId,
+                    onOpen = { libGameId = it },
+                    userHw = userHw,
+                    onImport = { game, entry ->
+                        pendingLibrary = game to entry
+                        pickExe.launch(InAppFilePicker.buildIntent(ctx, InAppFilePicker.SHORTCUT, pickExeTitle))
+                    },
+                )
+            } else {
+                if (account == null) {
+                    Text(
+                        stringResource(R.string.social_hub_configs_sign_in_hint),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                SocialSearchField(query = query, onQueryChange = { query = it }, hint = R.string.social_hub_configs_search_hint)
+                Spacer(Modifier.height(6.dp))
+                ToggleChip(
+                    text = stringResource(R.string.social_hub_configs_matches_device),
+                    checked = matchesMyDevice,
+                    onClick = { matchesMyDevice = !matchesMyDevice },
+                )
+                Spacer(Modifier.height(8.dp))
 
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when {
-                    loading && configs.isEmpty() -> Column(
-                        Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(10.dp))
-                        Text(stringResource(R.string.social_hub_configs_loading), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    configs.isEmpty() -> EmptyNote(R.string.social_hub_configs_empty, R.string.social_hub_configs_empty_hint)
-                    visible.isEmpty() -> EmptyNote(R.string.social_hub_configs_no_match, R.string.social_hub_configs_no_match_hint)
-                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                        items(visible, key = { it.number }) { post ->
-                            ConfigRow(post) {
-                                detailNumber = post.number
-                                SocialHubStore.openPost(post.number)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when {
+                        loading && configs.isEmpty() -> Column(
+                            Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(10.dp))
+                            Text(stringResource(R.string.social_hub_configs_loading), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        configs.isEmpty() -> EmptyNote(R.string.social_hub_configs_empty, R.string.social_hub_configs_empty_hint)
+                        visible.isEmpty() -> EmptyNote(R.string.social_hub_configs_no_match, R.string.social_hub_configs_no_match_hint)
+                        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+                            items(visible, key = { it.number }) { post ->
+                                ConfigRow(post) {
+                                    detailNumber = post.number
+                                    SocialHubStore.openPost(post.number)
+                                }
                             }
                         }
                     }
@@ -483,6 +547,195 @@ private fun EmptyNote(@androidx.annotation.StringRes title: Int, @androidx.annot
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+/**
+ * The curated library: first the games (searchable), then that game's configs with the ones that
+ * match this device on top. [onImport] hands the pick back so the host can ask for the game's exe.
+ */
+@Composable
+private fun LibraryBody(
+    modifier: Modifier,
+    games: List<ConfigLibrary.Game>?,
+    loading: Boolean,
+    failed: Boolean,
+    openId: String?,
+    onOpen: (String?) -> Unit,
+    userHw: Pair<String?, String?>?,
+    onImport: (ConfigLibrary.Game, ConfigLibrary.Entry) -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    var matchesMyDevice by rememberSaveable { mutableStateOf(false) }
+    val open = openId?.let { id -> games?.firstOrNull { it.id == id } }
+    BackHandler(enabled = open != null) { onOpen(null) }
+
+    fun matches(entry: ConfigLibrary.Entry): Boolean =
+        userHw?.let { (mySoc, myGpu) -> GameMatcher.hardwareMatchesUser(mySoc, myGpu, listOf(entry.device, entry.soc)) } ?: false
+
+    Column(modifier) {
+        when {
+            games == null && (loading || !failed) -> Column(
+                Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                CircularProgressIndicator()
+                Spacer(Modifier.height(10.dp))
+                Text(stringResource(R.string.social_hub_configs_library_loading), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            games == null ->
+                EmptyNote(R.string.social_hub_configs_library_error, R.string.social_hub_configs_library_error_hint)
+            open != null -> {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = { onOpen(null) }, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.social_hub_configs_back),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            open.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            stringResource(R.string.social_hub_configs_library_count, open.configs.size),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                // This device's matches first; the rest keep the index order (grouped by chipset).
+                val ordered = remember(open.id, userHw) { open.configs.sortedByDescending { matches(it) } }
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+                    items(ordered, key = { it.file }) { entry ->
+                        LibraryConfigRow(entry, matches(entry)) { onImport(open, entry) }
+                    }
+                }
+            }
+            else -> {
+                SocialSearchField(query = query, onQueryChange = { query = it }, hint = R.string.social_hub_configs_search_hint)
+                Spacer(Modifier.height(6.dp))
+                ToggleChip(
+                    text = stringResource(R.string.social_hub_configs_matches_device),
+                    checked = matchesMyDevice,
+                    onClick = { matchesMyDevice = !matchesMyDevice },
+                )
+                Spacer(Modifier.height(8.dp))
+                val visible = remember(games, query, matchesMyDevice, userHw) {
+                    val tokens = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+                    games.filter { g ->
+                        val textOk = tokens.all { g.name.lowercase().contains(it) || g.id.lowercase().replace('_', ' ').contains(it) }
+                        textOk && (!matchesMyDevice || g.configs.any(::matches))
+                    }
+                }
+                if (visible.isEmpty()) {
+                    EmptyNote(R.string.social_hub_configs_no_match, R.string.social_hub_configs_no_match_hint)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
+                        items(visible, key = { it.id }) { game -> LibraryGameRow(game) { onOpen(game.id) } }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryGameRow(game: ConfigLibrary.Game, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    val chips = remember(game.id) {
+        game.configs.map { it.soc.replace(" (TM)", "") }.filter { it.isNotBlank() }.distinct().take(3).joinToString(" • ")
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
+            .deckDragSelf()
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+    ) {
+        Text(
+            game.name,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            stringResource(R.string.social_hub_configs_library_count, game.configs.size) +
+                if (chips.isNotEmpty()) "  •  $chips" else "",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun LibraryConfigRow(entry: ConfigLibrary.Entry, matchesDevice: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    val hw = listOf(entry.device, entry.soc).filter { it.isNotBlank() }.joinToString(" • ")
+    val parts = listOf(
+        entry.driver.takeIf { it.isNotBlank() }?.let { "Driver $it" },
+        entry.dxvk.takeIf { it.isNotBlank() }?.let { "DXVK $it" },
+        entry.vkd3d.takeIf { it.isNotBlank() }?.let { "VKD3D $it" },
+        entry.fex.takeIf { it.isNotBlank() }?.let { "FEX $it" },
+    ).filterNotNull()
+    val line = listOf(entry.proton, entry.resolution).filter { it.isNotBlank() }.joinToString(" • ")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .border(
+                if (matchesDevice) 2.dp else 1.dp,
+                if (matchesDevice) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                shape,
+            )
+            .deckDragSelf()
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+    ) {
+        if (matchesDevice) {
+            Text(
+                "✓ " + stringResource(R.string.social_hub_configs_library_match),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Text(
+            hw.ifBlank { "Unknown device" },
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (line.isNotEmpty()) {
+            Text(line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (parts.isNotEmpty()) {
+            Text(
+                parts.joinToString(" • "),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

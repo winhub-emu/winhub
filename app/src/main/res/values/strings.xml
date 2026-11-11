@@ -2647,6 +2647,13 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="social_hub_configs_stats">%1$d likes • %2$d replies</string>
     <string name="social_hub_configs_like">Like (%1$d)</string>
     <string name="social_hub_configs_liked">Liked (%1$d)</string>
+    <string name="social_hub_configs_tab_library">Library</string>
+    <string name="social_hub_configs_tab_shared">Shared</string>
+    <string name="social_hub_configs_library_loading">Loading the config library…</string>
+    <string name="social_hub_configs_library_error">Couldn\'t load the library</string>
+    <string name="social_hub_configs_library_error_hint">Check your connection, then tap refresh.</string>
+    <string name="social_hub_configs_library_count">%1$d configs</string>
+    <string name="social_hub_configs_library_match">Matches your device</string>
     <string name="xbox_saving_on_exit">Saving and uploading your Xbox save…</string>
 
     <!-- Controller input (HERMES): identity, DirectInput, Direct XInput, stick updates -->
