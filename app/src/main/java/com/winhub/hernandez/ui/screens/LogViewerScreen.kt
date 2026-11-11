@@ -116,7 +116,10 @@ private fun LogViewerBody(entry: LogInventory.Entry, onClose: () -> Unit) {
     // launches sitting in previous/ — showing only the newest would hide exactly the run a user
     // is comparing against.
     val runs = remember(entry.dir) { LogInventory.runsIn(entry.dir) }
-    var selectedRun by remember { mutableStateOf(runs.firstOrNull()) }
+    // Open on the first run that has files: a game played with Wine logging off may only have Wayland logs.
+    var selectedRun by remember {
+        mutableStateOf(runs.firstOrNull { LogInventory.filesIn(it.dir).isNotEmpty() } ?: runs.firstOrNull())
+    }
     val files = remember(selectedRun) { LogInventory.filesIn(selectedRun?.dir ?: entry.dir) }
     var selected by remember(selectedRun) { mutableStateOf(files.firstOrNull()) }
     var following by remember { mutableStateOf(false) }
@@ -179,13 +182,13 @@ private fun LogViewerBody(entry: LogInventory.Entry, onClose: () -> Unit) {
                 ) {
                     runs.forEach { r ->
                         FileChip(
-                            if (r.current) "Current" else runLabel(r.millis),
+                            if (r.current) "Current" else if (r.wayland) "Wayland" else runLabel(r.millis),
                             r == selectedRun
                         ) {
                             selectedRun = r
                             query = ""
                             // Following a finished run would poll a file that can never change.
-                            if (!r.current) following = false
+                            if (!r.current && !r.wayland) following = false
                         }
                     }
                 }

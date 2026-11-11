@@ -11749,6 +11749,12 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
     // Mali only: hidden extensions + PANVK_* driver variables. After the two settings above so the
     // extension hide builds on the user's blacklist and present-wait choice (returns at once elsewhere).
+    // Wayland: Mali mode's adapter switches first (it may set bcnEmulation=none for the BCn block below).
+    if (waylandMode) {
+        String maliWayland = com.winhub.hernandez.core.MaliPanvk.applyWaylandMode(this, envVars, graphicsDriverConfig,
+                adrenoToolsDriverId);
+        if (maliWayland != null && wineDebugWriter != null) wineDebugWriter.println("XServerVulkan: " + maliWayland);
+    }
     String maliApplied = com.winhub.hernandez.core.MaliPanvk.applyToLaunchEnv(envVars, graphicsDriverConfig);
     if (maliApplied != null && wineDebugWriter != null) wineDebugWriter.println("XServerVulkan: " + maliApplied);
 

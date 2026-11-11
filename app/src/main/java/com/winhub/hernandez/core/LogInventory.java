@@ -128,8 +128,18 @@ public final class LogInventory {
         for (File f : files) {
             if (f.isFile() && isOurs(f.getName())) return true;   // isOurs covers crash reports too
             if (f.isDirectory() && LogRotation.ARCHIVE_DIR.equals(f.getName())) return true;
+            if (f.isDirectory() && LogRotation.WAYLAND_DIR.equals(f.getName()) && !waylandLogs(f).isEmpty()) return true;
         }
         return false;
+    }
+
+    /** The Wayland session logs in a game folder's {@code wayland/} (only {@link LogRotation#isOurWaylandLog} names), newest first. */
+    private static List<File> waylandLogs(File waylandDir) {
+        List<File> out = new ArrayList<>();
+        File[] files = waylandDir == null ? null : waylandDir.listFiles();
+        if (files != null) for (File f : files) if (f.isFile() && LogRotation.isOurWaylandLog(f.getName())) out.add(f);
+        Collections.sort(out, (a, b) -> b.getName().compareTo(a.getName()));
+        return out;
     }
 
     private static Entry describe(File dir, boolean appBucket) {
@@ -144,6 +154,8 @@ public final class LogInventory {
                         File[] runs = f.listFiles(File::isDirectory);
                         archives = runs == null ? 0 : runs.length;
                         bytes += sizeOfTree(f);
+                    } else if (LogRotation.WAYLAND_DIR.equals(f.getName())) {
+                        for (File w : waylandLogs(f)) { bytes += w.length(); newest = Math.max(newest, w.lastModified()); }
                     }
                     continue;
                 }
@@ -162,11 +174,18 @@ public final class LogInventory {
         public final boolean current;
         /** When the run happened, from the archive folder's timestamp name. */
         public final long millis;
+        /** The {@code wayland/} folder: its files are the Wayland session logs, newest first. */
+        public final boolean wayland;
 
         Run(File dir, boolean current, long millis) {
+            this(dir, current, millis, false);
+        }
+
+        Run(File dir, boolean current, long millis, boolean wayland) {
             this.dir = dir;
             this.current = current;
             this.millis = millis;
+            this.wayland = wayland;
         }
     }
 
@@ -180,6 +199,10 @@ public final class LogInventory {
         List<Run> out = new ArrayList<>();
         if (groupDir == null || !groupDir.isDirectory()) return out;
         out.add(new Run(groupDir, true, groupDir.lastModified()));
+        // The game's Wayland session logs: one entry, listed after the current run.
+        File wl = new File(groupDir, LogRotation.WAYLAND_DIR);
+        List<File> wlLogs = waylandLogs(wl);
+        if (!wlLogs.isEmpty()) out.add(new Run(wl, false, wlLogs.get(0).lastModified(), true));
 
         File[] archived = new File(groupDir, LogRotation.ARCHIVE_DIR).listFiles(File::isDirectory);
         if (archived == null) return out;
@@ -206,6 +229,7 @@ public final class LogInventory {
 
     /** Current-run log files in a group, newest first. Archives are not included. */
     public static List<File> filesIn(File dir) {
+        if (dir != null && LogRotation.WAYLAND_DIR.equals(dir.getName())) return waylandLogs(dir);
         List<File> out = new ArrayList<>();
         File[] files = dir == null ? null : dir.listFiles();
         if (files != null) for (File f : files) if (f.isFile() && isOurs(f.getName())) out.add(f);
@@ -236,6 +260,13 @@ public final class LogInventory {
                 if (f.isDirectory()) {
                     // Only our own archive folder, never an arbitrary subdirectory.
                     if (LogRotation.ARCHIVE_DIR.equals(f.getName())) deleted += deleteTree(f);
+                    else if (LogRotation.WAYLAND_DIR.equals(f.getName())) {
+                        // Only the session logs the compositor wrote; the folder goes once it is empty.
+                        for (File w : waylandLogs(f)) if (w.delete()) deleted++;
+                        File[] left = f.listFiles();
+                        if (left != null && left.length == 0) //noinspection ResultOfMethodCallIgnored
+                            f.delete();
+                    }
                     continue;
                 }
                 if (isOurs(f.getName()) && f.delete()) deleted++;
@@ -259,6 +290,7 @@ public final class LogInventory {
             for (File f : files) {
                 if (f.isDirectory()) {
                     if (LogRotation.ARCHIVE_DIR.equals(f.getName())) n += countTree(f);
+                    else if (LogRotation.WAYLAND_DIR.equals(f.getName())) n += waylandLogs(f).size();
                 } else if (isOurs(f.getName())) n++;
             }
         }
@@ -280,6 +312,8 @@ public final class LogInventory {
     private static boolean isOurs(String name) {
         String n = name.toLowerCase(Locale.US);
         if (LogRotation.isOurRunLog(n)) return true;
+        // Wayland session logs (wayland/ folder; its own exact name pattern, not part of the run rotation).
+        if (LogRotation.isOurWaylandLog(n)) return true;
         // Crash reports are ours and are .txt, which the run-log allowlist deliberately excludes.
         return n.startsWith("crash_") && n.endsWith(".txt");
     }

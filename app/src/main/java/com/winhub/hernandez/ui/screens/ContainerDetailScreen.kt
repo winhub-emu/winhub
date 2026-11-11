@@ -3016,6 +3016,9 @@ internal fun WaylandDriverSettingsDialog(
 
     var helpRes by remember { mutableStateOf<Int?>(null) }
     helpRes?.let { HelpDialog(it) { helpRes = null } }
+    // Mali (PanVK) section: Arm Mali GPUs only (vendor 0x13B5); every other GPU sees and writes nothing new.
+    val isMali = remember { com.winhub.hernandez.core.MaliPanvk.isMaliGpu() }
+    val mali = remember(initialConfig) { if (isMali) MaliPanvkSettingsState(context, cfg) else null }
     var advancedOpen by remember { mutableStateOf(adapterKeys.any { it != profileKey && !(adapter[it] ?: "").isEmpty() }) }
 
     OutlinedAlertDialog(
@@ -3201,6 +3204,7 @@ internal fun WaylandDriverSettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                mali?.let { MaliPanvkSection(it) { res -> helpRes = res } }
             }
         },
         confirmButton = {
@@ -3212,7 +3216,7 @@ internal fun WaylandDriverSettingsDialog(
                             "gpuName" to gpuName,
                             "maxDeviceMemory" to StringUtils.parseNumber(memoryEntry),
                             "fdDevFeatures" to if (fdDevFeatures) "1" else "0",
-                        ) + adapter
+                        ) + adapter + (mali?.keys() ?: emptyMap())
                     )
                 )
             }) { Text(stringResource(android.R.string.ok)) }

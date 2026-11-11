@@ -19,6 +19,7 @@ import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.contents.AdrenotoolsManager
 import com.winhub.hernandez.contents.WrapperManager
 import com.winhub.hernandez.contents.WrapperSettingsDictionary
+import com.winhub.hernandez.core.MaliPanvk
 import com.winhub.hernandez.core.DefaultVersion
 import com.winhub.hernandez.core.FileUtils
 import com.winhub.hernandez.core.GPUInformation
@@ -421,8 +422,85 @@ internal fun xmbWaylandDriverConfigMenu(xmb: XmbScope, shortcut: Shortcut): XmbM
             subtitle = "FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1: corrupt textures on Samsung / Xiaomi") { on ->
             write("fdDevFeatures", if (on) "1" else "0")
         }
+        if (MaliPanvk.isMaliGpu()) rows += xmbMaliPanvkRows(xmb, cfg, { rawCfg() }) { values ->
+            p2Put(xmb, shortcut, "graphicsDriverConfig", withGraphicsDriverKeys(rawCfg(), values))
+        }
         rows
     }
+}
+
+/**
+ * The gear's "Mali (PanVK)" section (MaliPanvkSection), Arm Mali GPUs only: the mode switch (writing
+ * bcnEmulation=none with it on, like the pop-up), the BCn emulation pick with its warning, and the
+ * adapter sub-switches + PANVK_* variables under a link. Same keys and rules as MaliPanvkSettingsState.
+ */
+private fun xmbMaliPanvkRows(
+    xmb: XmbScope, cfg: Map<String, String>, raw: () -> String, write: (Map<String, String>) -> Unit,
+): List<XmbRow> {
+    val ctx = xmb.context
+    val storedBcn = cfg["bcnEmulation"]?.ifEmpty { null } ?: "auto"
+    val stored = cfg[MaliPanvk.KEY_MODE]?.ifEmpty { null }
+    val on = MaliPanvk.modeOn(ctx, cfg, cfg["version"])
+    val bcn = if (stored == null && on) "none" else storedBcn
+    val rows = mutableListOf<XmbRow>()
+    rows += XmbRow.Info("maliHelp", ctx.getString(R.string.mali_panvk_section), Icons.Filled.Info,
+        subtitle = "For FristOneRR's PanVK driver (MIT); credit FristOneRR for the driver and these tweaks.")
+    rows += XmbRow.Toggle("maliMode", ctx.getString(R.string.mali_panvk_mode), Icons.Filled.DeveloperBoard, on,
+        subtitle = ctx.getString(R.string.mali_panvk_mode_hint)) { v ->
+        write(mapOf(MaliPanvk.KEY_MODE to if (v) "1" else "0", "bcnEmulation" to if (v) "none" else storedBcn))
+    }
+    if (on) {
+        val entries = ctx.resources.getStringArray(R.array.bcn_emulation_entries).toList()
+        rows += XmbRow.Choice("maliBcn", ctx.getString(R.string.graphics_driver_bcn_emulation), Icons.Filled.Layers,
+            entries, bcn, subtitle = ctx.getString(R.string.mali_panvk_bcn_warning)) { v ->
+            write(mapOf(MaliPanvk.KEY_MODE to "1", "bcnEmulation" to v))
+        }
+    }
+    rows += XmbRow.Link("panvkAdvanced", ctx.getString(R.string.mali_panvk_advanced), Icons.Filled.Science) {
+        XmbMenu(ctx.getString(R.string.mali_panvk_advanced), Icons.Filled.Science) {
+            val c = raw().split(";").associate { elem ->
+                val parts = elem.split("=")
+                parts[0] to if (parts.size > 1) parts[1] else ""
+            }
+            val auto = ctx.getString(R.string.mali_panvk_default)
+            val noWaits = MaliPanvk.subOn(c, MaliPanvk.KEY_NO_SUBMIT_WAITS)
+            val subRows = if (!MaliPanvk.modeOn(ctx, c, c["version"])) emptyList() else listOf(
+                XmbRow.Toggle(MaliPanvk.KEY_HIDE_EXTS, ctx.getString(R.string.mali_panvk_hide_exts), Icons.Filled.Extension,
+                    MaliPanvk.subOn(c, MaliPanvk.KEY_HIDE_EXTS)) { v -> write(mapOf(MaliPanvk.KEY_HIDE_EXTS to if (v) "1" else "0")) },
+                XmbRow.Toggle(MaliPanvk.KEY_NO_SUBMIT_WAITS, ctx.getString(R.string.mali_panvk_no_submit_waits), Icons.Filled.Speed,
+                    noWaits, subtitle = ctx.getString(R.string.mali_panvk_sync_hint)) { v ->
+                    write(mapOf(MaliPanvk.KEY_NO_SUBMIT_WAITS to if (v) "1" else "0"))
+                },
+                XmbRow.Toggle(MaliPanvk.KEY_NO_ACQUIRE_SIGNAL, ctx.getString(R.string.mali_panvk_no_acquire_signal), Icons.Filled.Speed,
+                    noWaits && MaliPanvk.subOn(c, MaliPanvk.KEY_NO_ACQUIRE_SIGNAL),
+                    subtitle = ctx.getString(R.string.mali_panvk_sync_hint),
+                    disabledReason = if (noWaits) null else "Needs Skip GPU submit waits") { v ->
+                    write(mapOf(MaliPanvk.KEY_NO_ACQUIRE_SIGNAL to if (v) "1" else "0"))
+                },
+            )
+            fun mb(key: String, label: Int, hint: Int, min: Int, max: Int) =
+                XmbRow.Text(key, ctx.getString(label), Icons.Filled.Memory, c[key] ?: "",
+                    subtitle = ctx.getString(hint), placeholder = auto, numeric = true) { v ->
+                    write(mapOf(key to (MaliPanvk.validMb(v, min, max) ?: "")))
+                }
+            subRows + listOf(
+                mb(MaliPanvk.KEY_HEAP, R.string.mali_panvk_heap, R.string.mali_panvk_heap_hint, MaliPanvk.HEAP_MIN, MaliPanvk.HEAP_MAX),
+                mb(MaliPanvk.KEY_TILER_HEAP, R.string.mali_panvk_tiler_heap, R.string.mali_panvk_tiler_heap_hint,
+                    MaliPanvk.TILER_HEAP_MIN, MaliPanvk.TILER_HEAP_MAX),
+                mb(MaliPanvk.KEY_POLY_HEAP, R.string.mali_panvk_poly_heap, R.string.mali_panvk_poly_heap_hint,
+                    MaliPanvk.POLY_HEAP_MIN, MaliPanvk.POLY_HEAP_MAX),
+                XmbRow.Choice(MaliPanvk.KEY_ATOM_STRIDE, ctx.getString(R.string.mali_panvk_atom_stride), Icons.Filled.Tune,
+                    listOf(auto) + MaliPanvk.ATOM_STRIDES,
+                    c[MaliPanvk.KEY_ATOM_STRIDE]?.takeIf { it in MaliPanvk.ATOM_STRIDES } ?: auto,
+                    subtitle = ctx.getString(R.string.mali_panvk_atom_stride_hint)) { v ->
+                    write(mapOf(MaliPanvk.KEY_ATOM_STRIDE to if (v == auto) "" else v))
+                },
+                XmbRow.Toggle(MaliPanvk.KEY_TRACE, ctx.getString(R.string.mali_panvk_trace), Icons.Filled.Science,
+                    c[MaliPanvk.KEY_TRACE] == "1") { v -> write(mapOf(MaliPanvk.KEY_TRACE to if (v) "1" else "")) },
+            )
+        }
+    }
+    return rows
 }
 
 /** ExtensionPickerDialog: every probed extension, on = offered to games (off = blacklisted). */

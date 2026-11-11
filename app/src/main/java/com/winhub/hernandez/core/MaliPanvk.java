@@ -1,6 +1,9 @@
 package com.winhub.hernandez.core;
 
+import android.content.Context;
 import android.util.Log;
+
+import com.winhub.hernandez.contents.AdrenotoolsManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +27,17 @@ public final class MaliPanvk {
     public static final String KEY_TRACE = "panvkTrace";
     /** "1" = hide the extensions PanVK handles badly (see {@link #HIDDEN_EXTENSIONS}). Opt-in. */
     public static final String KEY_HIDE_EXTS = "maliHideExts";
+    /**
+     * Wayland adapter "Mali mode" ("1"/"0"; absent = on when the driver's name contains "panvk"). Its
+     * sub-switches: KEY_HIDE_EXTS ("0" = off, anything else = on) and the two below ("0" = off).
+     */
+    public static final String KEY_MODE = "maliMode";
+    public static final String KEY_NO_SUBMIT_WAITS = "maliNoSubmitWaits";
+    public static final String KEY_NO_ACQUIRE_SIGNAL = "maliNoAcquireSignal";
+    /** Every key Mali mode owns (dialogs that rebuild graphicsDriverConfig carry these through). */
+    public static final List<String> KEYS = Arrays.asList(
+            KEY_MODE, KEY_HIDE_EXTS, KEY_NO_SUBMIT_WAITS, KEY_NO_ACQUIRE_SIGNAL,
+            KEY_HEAP, KEY_TILER_HEAP, KEY_POLY_HEAP, KEY_ATOM_STRIDE, KEY_TRACE);
 
     private static final String[] HIDDEN_EXTENSIONS = {
         "VK_KHR_present_id", "VK_KHR_present_wait", "VK_KHR_dynamic_rendering"
@@ -62,6 +76,56 @@ public final class MaliPanvk {
             vendorId = v;
         }
         return v == VENDOR_ARM;
+    }
+
+    /** Whether the AdrenoTools driver {@code driverId} (its id or meta.json name) mentions "panvk". */
+    public static boolean looksLikePanvk(Context context, String driverId) {
+        if (driverId == null || driverId.isEmpty()) return false;
+        if (driverId.toLowerCase().contains("panvk")) return true;
+        try {
+            String name = new AdrenotoolsManager(context).getDriverName(driverId);
+            return name != null && name.toLowerCase().contains("panvk");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Mali mode for this config: the stored switch, else on for a PanVK driver. */
+    public static boolean modeOn(Context context, Map<String, String> cfg, String driverId) {
+        String v = cfg.get(KEY_MODE);
+        if ("1".equals(v)) return true;
+        if ("0".equals(v)) return false;
+        return looksLikePanvk(context, driverId);
+    }
+
+    /** A sub-switch's state: on unless stored "0". */
+    public static boolean subOn(Map<String, String> cfg, String key) {
+        return !"0".equals(cfg.get(key));
+    }
+
+    /**
+     * Wayland launch env for Mali mode: the Wayland adapter's three Mali switches (BANNER_MALI_*), each
+     * with its own sub-switch. Mali only. With no stored mode switch it also sets bcnEmulation=none in
+     * {@code cfg} before the BCn block reads it. Returns what was applied, or null when nothing was.
+     */
+    public static String applyWaylandMode(Context context, EnvVars envVars, Map<String, String> cfg, String driverId) {
+        if (!isMaliGpu() || !modeOn(context, cfg, driverId)) return null;
+        List<String> applied = new ArrayList<>();
+        boolean hide = subOn(cfg, KEY_HIDE_EXTS);
+        boolean noWaits = subOn(cfg, KEY_NO_SUBMIT_WAITS);
+        boolean noAcquire = noWaits && subOn(cfg, KEY_NO_ACQUIRE_SIGNAL);
+        if (hide) envVars.put("BANNER_MALI_HIDE_EXTS", "1");
+        if (noWaits) envVars.put("BANNER_MALI_NO_SUBMIT_WAITS", "1");
+        if (noAcquire) envVars.put("BANNER_MALI_NO_ACQUIRE_SIGNAL", "1");
+        applied.add("mali mode (HIDE_EXTS=" + (hide ? 1 : 0) + " NO_SUBMIT_WAITS=" + (noWaits ? 1 : 0)
+                + " NO_ACQUIRE_SIGNAL=" + (noAcquire ? 1 : 0) + ")");
+        if (cfg.get(KEY_MODE) == null || cfg.get(KEY_MODE).isEmpty()) {
+            cfg.put("bcnEmulation", "none");
+            applied.add("bcnEmulation=none (default)");
+        }
+        String summary = "Mali (PanVK): " + String.join(", ", applied) + " (driver " + driverId + ")";
+        Log.i(TAG, summary);
+        return summary;
     }
 
     /** {@code value} when it is a whole number within [min, max], else null. */
