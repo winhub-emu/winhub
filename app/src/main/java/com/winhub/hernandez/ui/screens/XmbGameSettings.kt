@@ -388,7 +388,8 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
                 xmb.refresh()
             }
         }
-        val turnips = ((xmbBundledDriverVersions ?: emptyList()) + importedDriverVersions(p.context)).distinct()
+        val turnips = ((if (com.winhub.hernandez.core.MaliPanvk.isMaliGpu()) listOf("System") else emptyList()) +
+            (xmbBundledDriverVersions ?: emptyList()) + importedDriverVersions(p.context)).distinct()
         val turnipsLoaded = xmbBundledDriverVersions != null
         // One driver pick on Wayland: with the game driver on "adapter" it drives the game too.
         val wgdEffective = p.ex("waylandGameDriver", "").ifEmpty { c.waylandGameDriver }

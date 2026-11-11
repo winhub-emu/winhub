@@ -8964,7 +8964,21 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // extensions either and gave a fresh install the very same black screen, device-seen
         // 2026-09-22) so a clean install boots. (The problem is WinNative's c01a89f0; it
         // downloads a driver, we already ship several.)
-        if (libraryName == null || libraryName.isEmpty()) {
+        // Except on a Mali GPU where "System" was picked on purpose (the picker offers it there,
+        // see ContainerDetailScreen.maliSystemChoice): the user asked for the phone's own driver.
+        boolean maliSystemPick = false;
+        try {
+            String gdcPick = (shortcut != null)
+                    ? shortcut.getExtra("graphicsDriverConfig", container.getGraphicsDriverConfig())
+                    : container.getGraphicsDriverConfig();
+            maliSystemPick = "System".equals(com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.getVersion(gdcPick))
+                    && com.winhub.hernandez.core.MaliPanvk.isMaliGpu();
+        } catch (Exception ignored) {}
+        if (maliSystemPick) {
+            Log.w("XServerDisplayActivity", "wayland: Mali with \"System\" picked: the compositor uses the system "
+                    + "Vulkan driver (experimental; no bundled Turnip fallback)");
+        }
+        if (!maliSystemPick && (libraryName == null || libraryName.isEmpty())) {
             try {
                 com.winhub.hernandez.contents.AdrenotoolsManager atm =
                         new com.winhub.hernandez.contents.AdrenotoolsManager(this);
