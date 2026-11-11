@@ -114,23 +114,6 @@ internal fun DeckContainerDetailScreen(
     // Which inline config section is expanded (null = all collapsed). One at a time, so a row's
     // editor pushes the rows below it down without stacking several open at once.
     var openSection by remember { mutableStateOf<String?>(null) }
-    // Wayland: the graphics driver the compositor (and, on the adapter, the game) runs on, the game driver
-    // choices, and the adapter settings dialog (same one the pop-up editors open).
-    var waylandCompositorChoices by remember { mutableStateOf<List<String>>(emptyList()) }
-    var waylandGameDriverValues by remember { mutableStateOf<List<String>>(emptyList()) }
-    var waylandAutoPick by remember { mutableStateOf(com.winhub.hernandez.core.WaylandGameDriver.autoVariantIfKnown()) }
-    var showWaylandAdapterDialog by remember { mutableStateOf(false) }
-    LaunchedEffect(viewModel.isWaylandBackend) {
-        if (!viewModel.isWaylandBackend) return@LaunchedEffect
-        waylandCompositorChoices = compositorDriverChoices(context)
-        waylandGameDriverValues = com.winhub.hernandez.core.WaylandGameDriver.optionValues(context)
-        waylandAutoPick = waylandAutoVariant(context)
-    }
-    if (showWaylandAdapterDialog) WaylandDriverSettingsDialog(
-        initialConfig = viewModel.graphicsDriverConfig,
-        onConfirm = { viewModel.graphicsDriverConfig = it; showWaylandAdapterDialog = false },
-        onDismiss = { showWaylandAdapterDialog = false },
-    )
     // VEGAS stock-config sheet (Deck-native; VEGAS wrappers only).
     var showStockConfigSheet by remember { mutableStateOf(false) }
     // Deck-native component download sheets for DXVK / VKD3D / D7VK.
@@ -153,6 +136,23 @@ internal fun DeckContainerDetailScreen(
     // Category-navigation layout — a setting (Settings → Appearance → Container Editor Layout).
     // "rail" = animated left rail (default), "pages" = full-page list.
     val context = LocalContext.current
+    // Wayland: the graphics driver the compositor (and, on the adapter, the game) runs on, the game driver
+    // choices, and the adapter settings dialog (same one the pop-up editors open).
+    var waylandCompositorChoices by remember { mutableStateOf<List<String>>(emptyList()) }
+    var waylandGameDriverValues by remember { mutableStateOf<List<String>>(emptyList()) }
+    var waylandAutoPick by remember { mutableStateOf(com.winhub.hernandez.core.WaylandGameDriver.autoVariantIfKnown()) }
+    var showWaylandAdapterDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(viewModel.isWaylandBackend) {
+        if (!viewModel.isWaylandBackend) return@LaunchedEffect
+        waylandCompositorChoices = compositorDriverChoices(context)
+        waylandGameDriverValues = com.winhub.hernandez.core.WaylandGameDriver.optionValues(context)
+        waylandAutoPick = waylandAutoVariant(context)
+    }
+    if (showWaylandAdapterDialog) WaylandDriverSettingsDialog(
+        initialConfig = viewModel.graphicsDriverConfig,
+        onConfirm = { viewModel.graphicsDriverConfig = it; showWaylandAdapterDialog = false },
+        onDismiss = { showWaylandAdapterDialog = false },
+    )
     val portraitUi = LocalDeckPortrait.current
     val portraitStrip = rememberPortraitStrip()
     val layoutPref = remember {
