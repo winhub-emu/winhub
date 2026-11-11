@@ -441,8 +441,9 @@ private fun DeckStorageContainersTab(
                         Box(Modifier.deckDragItem("container-${container.id}", selfOnly = true)) {
                             DeckContainerCard(
                                 name = container.name,
-                                // Proton version and resolution are chips now, so the plain subtitle stays empty.
-                                subtitle = "",
+                                subtitle = listOf(container.wineVersion, container.screenSize)
+                                    .filter { it.isNotEmpty() }
+                                    .joinToString(" · "),
                                 chips = deckContainerChips(container),
                                 onRun = { onRun(container) },
                                 onEdit = { onEdit(container.id) },
@@ -460,10 +461,8 @@ private fun DeckStorageContainersTab(
     }
 }
 
-/** Proton, resolution, graphics driver, DXVK, VKD3D and x86 backend of a container, each in its own colour (same as the game cards). */
+/** Graphics driver, DXVK, VKD3D and x86 backend of a container, each in its own colour (same as the game cards). */
 private fun deckContainerChips(container: Container): List<Pair<String, Color>> = buildList {
-    container.wineVersion?.takeIf { it.isNotBlank() }?.let { add(it to ChipRendColor) }
-    container.screenSize?.takeIf { it.isNotBlank() }?.let { add(it to ChipFgColor) }
     val driver = GraphicsDriverConfigDialog.getVersion(container.getGraphicsDriverConfig().orEmpty())
         ?.takeIf { it.isNotBlank() } ?: container.getGraphicsDriver()
     if (!driver.isNullOrBlank()) add("Driver $driver" to ChipDriverColor)
