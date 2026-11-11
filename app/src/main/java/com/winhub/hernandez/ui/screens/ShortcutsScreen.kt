@@ -116,6 +116,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
@@ -1091,6 +1092,7 @@ fun ShortcutsScreen(
     val xmbActionsFor: (Shortcut) -> List<XmbAction> = { shortcut ->
         buildList {
             add(XmbAction("Settings", Icons.Filled.Settings, "Display, graphics, controller…", menu = { xmbSettingsMenu(it, shortcut, xmbHost) }))
+            add(XmbAction("Game Doctor", Icons.Filled.Healing, "Why it won't run, and what to try", menu = { xmbGameDoctorMenu(it, shortcut) }))
             add(XmbAction("Game Details", Icons.Filled.Edit, "Name, genres, year, description", menu = { xmbGameDetailsMenu(it, shortcut) }))
             if (isSteamOriginShortcut(shortcut)) {
                 add(XmbAction("Cloud Saves", Icons.Filled.CloudSync, "Steam Cloud sync — opens its own screen") { launchSaveManager(context, steamAppIdOf(shortcut)) })
