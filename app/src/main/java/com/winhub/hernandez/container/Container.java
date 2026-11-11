@@ -15,6 +15,7 @@ import com.winhub.hernandez.core.KeyValueSet;
 import com.winhub.hernandez.core.WineInfo;
 import com.winhub.hernandez.core.WineThemeManager;
 import com.winhub.hernandez.fexcore.FEXCorePreset;
+import com.winhub.hernandez.inputcontrols.StickShaper;
 import com.winhub.hernandez.winhandler.WinHandler;
 import com.winhub.hernandez.xenvironment.ImageFs;
 
@@ -976,6 +977,53 @@ public class Container {
 
     public void setGyroDeadzone(float deadzone) {
         putExtra("gyroDeadzone", String.valueOf(Math.min(0.5f, Math.max(0.0f, deadzone))));
+    }
+
+    // --- Physical stick tuning (deadzone / sensitivity per stick, edge style). Missing, empty or
+    // unparsable extras read as the StickShaper defaults, which reproduce the old fixed 15% gate. ---
+    public float getStickLeftDeadzone() {
+        return StickShaper.parseDeadzone(getExtra(StickShaper.KEY_LEFT_DEADZONE), StickShaper.DEADZONE_DEFAULT);
+    }
+
+    public void setStickLeftDeadzone(float v) {
+        putExtra(StickShaper.KEY_LEFT_DEADZONE, String.valueOf(StickShaper.clampDeadzone(v)));
+    }
+
+    public float getStickLeftSensitivity() {
+        return StickShaper.parseSensitivity(getExtra(StickShaper.KEY_LEFT_SENSITIVITY), StickShaper.SENSITIVITY_DEFAULT);
+    }
+
+    public void setStickLeftSensitivity(float v) {
+        putExtra(StickShaper.KEY_LEFT_SENSITIVITY, String.valueOf(StickShaper.clampSensitivity(v)));
+    }
+
+    public float getStickRightDeadzone() {
+        return StickShaper.parseDeadzone(getExtra(StickShaper.KEY_RIGHT_DEADZONE), StickShaper.DEADZONE_DEFAULT);
+    }
+
+    public void setStickRightDeadzone(float v) {
+        putExtra(StickShaper.KEY_RIGHT_DEADZONE, String.valueOf(StickShaper.clampDeadzone(v)));
+    }
+
+    public float getStickRightSensitivity() {
+        return StickShaper.parseSensitivity(getExtra(StickShaper.KEY_RIGHT_SENSITIVITY), StickShaper.SENSITIVITY_DEFAULT);
+    }
+
+    public void setStickRightSensitivity(float v) {
+        putExtra(StickShaper.KEY_RIGHT_SENSITIVITY, String.valueOf(StickShaper.clampSensitivity(v)));
+    }
+
+    public boolean isStickSmoothEdge() {
+        return StickShaper.parseSmoothEdge(getExtra(StickShaper.KEY_SMOOTH_EDGE), StickShaper.SMOOTH_EDGE_DEFAULT);
+    }
+
+    public void setStickSmoothEdge(boolean smooth) {
+        putExtra(StickShaper.KEY_SMOOTH_EDGE, smooth ? "1" : "0");
+    }
+
+    public StickShaper.Tuning getStickTuning() {
+        return new StickShaper.Tuning(getStickLeftDeadzone(), getStickLeftSensitivity(),
+                getStickRightDeadzone(), getStickRightSensitivity(), isStickSmoothEdge());
     }
 
     public float getGyroSmoothing() {

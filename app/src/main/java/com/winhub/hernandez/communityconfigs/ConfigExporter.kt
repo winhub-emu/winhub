@@ -65,6 +65,8 @@ object ConfigExporter {
         // the device, not the game, and stay container-scoped (matching the launch resolver).
         "gyroEnabled", "gyroTarget", "gyroActivator", "gyroActivationMode", "gyroMode",
         "gyroSensitivity", "gyroInvertX", "gyroInvertY",
+        // Physical stick deadzone / sensitivity per stick and the edge style (inputcontrols.StickShaper).
+        "stickLDeadzone", "stickLSensitivity", "stickRDeadzone", "stickRSensitivity", "stickEdgeStyle",
         // In-game refresh cap (both keys; unlock resolved to 1/0, cap 0 = no ceiling).
         "maxGameRefreshRate", "unlockGameRefreshRate",
         // #168 custom startup service set (only consumed when startupSelection = Custom); frame-gen

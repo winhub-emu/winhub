@@ -1090,6 +1090,19 @@
     <string name="gyro_invert_x">Invert X</string>
     <string name="gyro_invert_y">Invert Y</string>
 
+    <!-- Physical gamepad stick deadzone / sensitivity (container editor + per-game override). -->
+    <string name="stick_tuning_title">Sticks</string>
+    <string name="stick_tuning_hint">Deadzone ignores small stick movement; raise it if a stick drifts. Sensitivity above 1.00x reacts more for the same push, below 1.00x is finer.</string>
+    <string name="stick_left_deadzone">Left stick deadzone</string>
+    <string name="stick_left_sensitivity">Left stick sensitivity</string>
+    <string name="stick_right_deadzone">Right stick deadzone</string>
+    <string name="stick_right_sensitivity">Right stick sensitivity</string>
+    <string name="stick_smooth_edge">Smooth edge</string>
+    <string name="stick_smooth_edge_hint">Output starts at zero just past the deadzone instead of jumping. Off keeps the classic behavior.</string>
+    <string name="stick_tuning_reset">Reset sticks</string>
+    <string name="stick_tuning_override">Override container sticks</string>
+    <string name="stick_tuning_inherit_hint">Off uses the container\'s stick settings.</string>
+
     <!-- In-game drawer (Controls tab) gyro section. Separate from the editor strings above because
          the drawer is a cramped overlay: short chip-sized labels, no "Enable Motion Aim" sentences. -->
     <string name="gyro_drawer_title">Gyro</string>

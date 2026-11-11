@@ -69,6 +69,10 @@ public class InputControlsView extends View {
     // dimness the old 0.4 produced under the previous 0.5+0.7*opacity curve.
     public static final float DEFAULT_OVERLAY_OPACITY = 0.75f;
     private static final byte MOUSE_WHEEL_DELTA = 120;
+    // Physical stick values reaching the remap code are already shaped by StickShaper (the user's own
+    // deadzone), so any non-zero value is active. A fixed 0.15 here would silently override a smaller
+    // deadzone the user chose.
+    private static final float MAPPED_STICK_ACTIVE_THRESHOLD = 0f;
     private boolean editMode = false;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
@@ -856,7 +860,7 @@ public class InputControlsView extends View {
         if (pulseState != null) pulseState.currentSources.clear();
         for (int i = 0; i < axes.length; i++) {
             float value = values[i];
-            byte activeSign = Math.abs(value) > ControlElement.STICK_DEAD_ZONE ? Mathf.sign(value) : 0;
+            byte activeSign = Math.abs(value) > MAPPED_STICK_ACTIVE_THRESHOLD ? Mathf.sign(value) : 0;
             for (byte sign = -1; sign <= 1; sign += 2) {
                 int keyCode = ExternalControllerBinding.getKeyCodeForAxis(axes[i], sign);
                 ExternalControllerBinding controllerBinding = controller.getControllerBinding(keyCode);
@@ -896,11 +900,11 @@ public class InputControlsView extends View {
                     pulseState, keyCode, binding, active);
         }
 
-        applyMappedGamepadState(controller.remappedState, mappedAxes);
+        applyMappedGamepadState(controller.remappedState, mappedAxes, MAPPED_STICK_ACTIVE_THRESHOLD);
         float controllerMouseX = getMappedDirectionalAxis(
-                mappedAxes, Binding.MOUSE_MOVE_LEFT, Binding.MOUSE_MOVE_RIGHT);
+                mappedAxes, Binding.MOUSE_MOVE_LEFT, Binding.MOUSE_MOVE_RIGHT, MAPPED_STICK_ACTIVE_THRESHOLD);
         float controllerMouseY = getMappedDirectionalAxis(
-                mappedAxes, Binding.MOUSE_MOVE_UP, Binding.MOUSE_MOVE_DOWN);
+                mappedAxes, Binding.MOUSE_MOVE_UP, Binding.MOUSE_MOVE_DOWN, MAPPED_STICK_ACTIVE_THRESHOLD);
         synchronized (controllerMouseMoveOffsets) {
             if (controllerMouseX == 0 && controllerMouseY == 0)
                 controllerMouseMoveOffsets.remove(controller);
@@ -950,7 +954,7 @@ public class InputControlsView extends View {
         for (Map.Entry<Binding, Float> input : mappedInputs.entrySet()) {
             Binding binding = input.getKey();
             if (!binding.isGamepad() && !isMomentaryBinding(binding)
-                    && Math.abs(input.getValue()) > ControlElement.STICK_DEAD_ZONE) {
+                    && Math.abs(input.getValue()) > MAPPED_STICK_ACTIVE_THRESHOLD) {
                 currentBindings.add(binding);
             }
         }
@@ -1670,12 +1674,17 @@ public class InputControlsView extends View {
     }
 
     public static void applyMappedGamepadState(GamepadState state, Map<Binding, Float> mappedInputs) {
+        applyMappedGamepadState(state, mappedInputs, ControlElement.STICK_DEAD_ZONE);
+    }
+
+    public static void applyMappedGamepadState(
+            GamepadState state, Map<Binding, Float> mappedInputs, float activeThreshold) {
         state.reset();
         for (Map.Entry<Binding, Float> input : mappedInputs.entrySet()) {
             Binding binding = input.getKey();
             float value = input.getValue();
             if (binding == null || !binding.isGamepad()
-                    || Math.abs(value) <= ControlElement.STICK_DEAD_ZONE) continue;
+                    || Math.abs(value) <= activeThreshold) continue;
 
             float magnitude = Math.min(1f, Math.abs(value));
             int buttonIdx = binding.ordinal() - Binding.GAMEPAD_BUTTON_A.ordinal();
@@ -1711,10 +1720,15 @@ public class InputControlsView extends View {
 
     public static float getMappedDirectionalAxis(
             Map<Binding, Float> mappedInputs, Binding negative, Binding positive) {
+        return getMappedDirectionalAxis(mappedInputs, negative, positive, ControlElement.STICK_DEAD_ZONE);
+    }
+
+    public static float getMappedDirectionalAxis(
+            Map<Binding, Float> mappedInputs, Binding negative, Binding positive, float activeThreshold) {
         float negativeValue = Math.abs(mappedInputs.getOrDefault(negative, 0f));
         float positiveValue = Math.abs(mappedInputs.getOrDefault(positive, 0f));
-        if (negativeValue <= ControlElement.STICK_DEAD_ZONE) negativeValue = 0;
-        if (positiveValue <= ControlElement.STICK_DEAD_ZONE) positiveValue = 0;
+        if (negativeValue <= activeThreshold) negativeValue = 0;
+        if (positiveValue <= activeThreshold) positiveValue = 0;
         return Mathf.clamp(positiveValue - negativeValue, -1, 1);
     }
 

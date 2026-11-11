@@ -117,7 +117,7 @@ footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid va
 <div class="wrap">
 
 <header class="top">
-  <span class="pill">Plan</span><span class="pill warn">Not implemented yet</span>
+  <span class="pill">Plan</span><span class="pill warn">Implemented, not built or run</span>
   <h1>Left / right stick sensitivity and deadzone</h1>
   <p>Requested by a tester. This page shows how sticks behave today, how they will behave after the change, how the data flows, what gets touched, and how it gets tested. The playground in section 4 runs the real formulas, so you can feel the difference before any code is written.</p>
 </header>
@@ -146,6 +146,16 @@ footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid va
     <div class="card"><b>Per stick</b><br>Left and right have their own deadzone (0 to 50%) and sensitivity (0.50x to 2.00x).</div>
     <div class="card"><b>Per container + per game</b><br>Stored the same way gyro settings are stored. A game can override the container, or inherit it.</div>
     <div class="card"><b>Nothing changes by default</b><br>Defaults are 15%, 1.00x and the Classic edge style. Output is identical to today until a user touches a slider.</div>
+  </div>
+  <div class="callout good">
+    <b class="h">Where the implementation differs from the first draft of this plan</b>
+    <ul>
+      <li>The tuning is one <b>process-wide immutable snapshot</b> (<code>StickShaper.getActive()</code>), set when a game session starts and cleared when it ends. Controllers are created in many places (profiles, Steam pads, binding screens), so per-controller fields would not have reached them all.</li>
+      <li>A shortcut's <b>Override container sticks</b> switch decides whether its five stick keys are written. Off removes them, so the shortcut inherits the container (true inherit, not a snapshot).</li>
+      <li>Exported configs carry a game's stick values <b>only when that game overrides them</b>, so importing never overwrites the importer's own container preference.</li>
+      <li>The controller test screen is not tuned separately (it uses whatever is active), and the XMB per-game menu has no stick rows yet.</li>
+      <li>Controller navigation uses each editor's existing widgets: D-pad up/down moves, left/right adjusts a slider, A toggles. There are no extra LT/RT/X/Y shortcuts.</li>
+    </ul>
   </div>
   <div class="callout">
     <b class="h">Correction to my earlier chat message</b>
@@ -236,7 +246,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
   <div class="flow">
     <div class="step"><b>Container extras</b><small>Edited in the container editor.</small></div>
     <div class="step"><b>Shortcut extras (optional)</b><small>If the shortcut has the key, it wins. If not, it inherits the container. Same rule as gyro sensitivity in <code>XServerDisplayActivity.java</code> around 2538 to 2566.</small></div>
-    <div class="step new"><b>Resolved once when the game session starts</b><small>The five numbers are handed to each <code>ExternalController</code> through one setter (<code>setStickTuning</code>). Controllers that connect later get them on attach, so a pad plugged in mid game is tuned too. The fields are <code>volatile</code>, because input arrives on the UI thread and the writers read on another.</small></div>
+    <div class="step new"><b>Resolved once when the game session starts</b><small>The five numbers are published as one immutable <code>StickShaper.Tuning</code> in a <code>volatile</code> static (<code>StickShaper.setActive</code>). Every <code>ExternalController</code> reads it on each event, so a pad plugged in mid game is tuned too. It is cleared in <code>onDestroy</code> when the activity is really finishing.</small></div>
     <div class="step new"><b>Steam Controller backend</b><small>Its raw floats go through the same shaper using the pad's <code>ExternalController</code>, so both paths behave identically and the duplicate <code>deadZone()</code> is no longer used for sticks.</small></div>
   </div>
 </section>
@@ -301,7 +311,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
       <div class="mrow"><div class="t"><span>Right deadzone</span><span>15%</span></div><div class="bar"><i style="width:30%"></i></div></div>
       <div class="mrow"><div class="t"><span>Right sensitivity</span><span>1.00x</span></div><div class="bar"><i style="width:33%"></i></div></div>
       <div class="mrow"><div class="t"><span>Edge style</span><span>Classic</span></div></div>
-      <div class="hints"><span><b>A</b>Select</span><span><b>&#9664; &#9654;</b>Adjust</span><span><b>Y</b>Reset row</span><span><b>B</b>Back</span></div>
+      <div class="hints"><span><b>A</b>Select</span><span><b>&#9664; &#9654;</b>Adjust</span><span><b>B</b>Back</span></div>
     </div>
     <div class="mock">
       <h5>Sticks (this game)</h5><small>Off = uses the container values.</small>
@@ -309,17 +319,16 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
       <div class="mrow focus"><div class="t"><span>Left deadzone</span><span>8%</span></div><div class="bar"><i style="width:16%"></i></div></div>
       <div class="mrow"><div class="t"><span>Right sensitivity</span><span>1.40x</span></div><div class="bar"><i style="width:60%"></i></div></div>
       <div class="mrow"><div class="t"><span>Edge style</span><span>Smooth</span></div></div>
-      <div class="hints"><span><b>A</b>Select</span><span><b>&#9664; &#9654;</b>Adjust</span><span><b>Y</b>Reset row</span><span><b>X</b>Reset all</span><span><b>B</b>Back</span></div>
+      <div class="hints"><span><b>A</b>Select</span><span><b>&#9664; &#9654;</b>Adjust</span><span><b>B</b>Back</span></div>
     </div>
   </div>
   <ul>
     <li>Each row shows its current value as text, never colour only. A help icon (48 dp target) explains the setting in plain words, same as the gyro help.</li>
     <li>Sliders step 1% for deadzone and 0.05x for sensitivity. Values are written to the model on change and saved with the existing save action, nothing new to remember.</li>
-    <li>Reset row restores that row's default. Reset all restores all five.</li>
-    <li>If a shortcut has no override, the shortcut screen shows the inherited values greyed with the text "from container".</li>
+    <li>A "Reset sticks" button restores all five values to their defaults.</li>
+    <li>If a shortcut has no override, the switch is off and no stick values are shown or saved for it.</li>
     <li>All new text goes in <code>res/values/strings.xml</code> and into every translated <code>strings.xml</code> that exists for the gyro labels, so no screen shows a missing or English only label by accident.</li>
-    <li>The existing controller test screen will show the shaped values (and the raw ones next to them) using the container's settings, so a tester can see the effect without launching a game.</li>
-  </ul>
+      </ul>
 </section>
 
 <!-- 7 ------------------------------------------------------------------>
@@ -329,10 +338,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
     <tr><th>Button</th><th>On a Sticks row</th></tr>
     <tr><td>D-pad up / down</td><td>Move between rows, focused row is highlighted and scrolled into view</td></tr>
     <tr><td>D-pad left / right</td><td>Adjust the value one step. Holding repeats and accelerates</td></tr>
-    <tr><td>LT / RT</td><td>Adjust by 10 steps (coarse)</td></tr>
-    <tr><td>A</td><td>Toggle (edge style, override switch) or open the help for the row</td></tr>
-    <tr><td>Y</td><td>Reset the focused row</td></tr>
-    <tr><td>X</td><td>Reset the whole Sticks block (asks nothing, undo is just moving the sliders)</td></tr>
+    <tr><td>A</td><td>Toggle (smooth edge, override switch) or press Reset sticks</td></tr>
     <tr><td>B</td><td>Back one level, never exits the app</td></tr>
   </table>
   <p>Default focus on entering the block is the first row. Focus returns to the same row after the help dialog closes. No gesture is required anywhere.</p>
@@ -346,7 +352,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
     <li><b>Existing users see no change.</b> No key present = defaults = Classic, 15%, 1.00x = today's exact output (a unit test asserts this for a grid of inputs).</li>
     <li><b>Old containers and shortcuts</b> load as before. Unknown extras are already preserved. No migration, no schema change, no Room change.</li>
     <li><b>Downgrade safe:</b> an older app version simply ignores the five extras.</li>
-    <li><b>Sharing:</b> the five keys are added to the config export lists (<code>communityconfigs/ConfigExporter.kt</code>, <code>communityconfigs/ShortcutExporter.kt</code>) so a shared config carries the tuning. Imports of configs without the keys keep working.</li>
+    <li><b>Sharing:</b> the five keys are added to the config export lists (<code>communityconfigs/ConfigExporter.kt</code>, <code>communityconfigs/ShortcutExporter.kt</code>). Only a game's own overrides are exported. Imports of configs without the keys keep working.</li>
     <li><b>Threading:</b> settings fields are <code>volatile</code>, the shaper is a pure static function, nothing allocates per event beyond what the code does today.</li>
     <li><b>No new permissions, libraries, network calls or native code.</b> Wine, box64, drivers and the rootfs are untouched.</li>
     <li><b>Not touched:</b> touch overlay sticks, gyro, triggers, D-pad hat values, binding maps, controls profiles format.</li>
@@ -359,7 +365,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
   <table>
     <tr><th>File</th><th>Change</th><th></th></tr>
     <tr><td><code>inputcontrols/StickShaper.java</code></td><td>NEW. Pure function: <code>shape(x, y, dz, sens, smooth, out[2])</code> plus clamp helpers and the constants (defaults, ranges).</td><td><span class="tag after">new</span></td></tr>
-    <tr><td><code>inputcontrols/ExternalController.java</code></td><td>Add volatile tuning fields and <code>setStickTuning(...)</code>. <code>processJoystickInput</code> reads raw X/Y/Z/RZ and shapes each stick as a pair. <code>getCenteredAxis</code> keeps its signature and flat gate but drops the fixed 0.15. D-pad suppression test (lines 157 to 160, 203 to 212) becomes "stick shaped value is zero" (identical at defaults). New <code>applyRawSticks(lx, ly, rx, ry)</code> used by Steam.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>inputcontrols/ExternalController.java</code></td><td>Reads <code>StickShaper.getActive()</code>. <code>processJoystickInput</code> reads raw X/Y/Z/RZ and shapes each stick as a pair. <code>getCenteredAxis</code> keeps its signature and flat gate but drops the fixed 0.15. D-pad suppression test (lines 157 to 160, 203 to 212) becomes "stick shaped value is zero" (identical at defaults). New <code>applyRawSticks(lx, ly, rx, ry)</code> used by Steam.</td><td><span class="tag keep">edit</span></td></tr>
     <tr><td><code>inputcontrols/SteamControllerBackend.java</code></td><td>Lines 402 to 405 call the controller's shaper instead of the private <code>deadZone()</code>.</td><td><span class="tag keep">edit</span></td></tr>
     <tr><td><code>widget/InputControlsView.java</code></td><td>Lines 859, 953, 1678, 1716: add overloads that take an explicit threshold (0 for shaped sticks). Old method signatures stay and delegate with <code>STICK_DEAD_ZONE</code>, so existing callers and tests behave the same. Triggers (875, 882) are not touched.</td><td><span class="tag keep">edit</span></td></tr>
     <tr><td><code>container/Container.java</code></td><td>Five extras with clamping getters/setters and default constants, next to the gyro ones.</td><td><span class="tag keep">edit</span></td></tr>
@@ -367,8 +373,8 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
     <tr><td><code>ui/screens/ContainerDetailViewModel.kt</code>, <code>ContainerDetailScreen.kt</code></td><td>State fields, load/save, new "Sticks" block after Gyro.</td><td><span class="tag keep">edit</span></td></tr>
     <tr><td><code>ui/screens/ShortcutsScreen.kt</code></td><td>Override state, load/save, new block, and the per-game key lists. The file has two gyro editors (around lines 6384 and 8862) and a key list (around 7047). Each gets the same treatment.</td><td><span class="tag keep">edit</span></td></tr>
     <tr><td><code>communityconfigs/ConfigExporter.kt</code>, <code>ShortcutExporter.kt</code></td><td>Add the five keys to the exported lists.</td><td><span class="tag keep">edit</span></td></tr>
-    <tr><td><code>MainActivity.kt</code> / controller test</td><td>Give the test controller the container's tuning and show raw next to shaped.</td><td><span class="tag keep">edit</span></td></tr>
     <tr><td><code>res/values*/strings.xml</code></td><td>New labels and help text, plus translations wherever the gyro strings are translated.</td><td><span class="tag keep">edit</span></td></tr>
+    <tr><td><code>ui/screens/StickTuningFormat.kt</code></td><td>NEW. Slider ranges, step counts and value text shared by the three editors.</td><td><span class="tag after">new</span></td></tr>
     <tr><td><code>src/test/.../StickShaperTest.kt</code></td><td>NEW unit tests (see section 11). Written, not run.</td><td><span class="tag after">new</span></td></tr>
   </table>
   <p>Order of work: shaper + tests, then Container extras, then controller wiring, then the remap-path overloads, then Steam backend, then UI, then export lists and the controller test screen. Each step compiles on its own.</p>
@@ -431,7 +437,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
     <tr><th>#</th><th>Risk</th><th>Plan</th></tr>
     <tr><td>R1</td><td class="no">The second 0.15 gate in <code>InputControlsView</code> (remap path) would silently override a smaller user deadzone and double up a larger one.</td><td>Threshold overloads, old signatures kept, equivalence unit test. This is the riskiest touch point, so it gets the most careful review.</td></tr>
     <tr><td>R2</td><td class="wr">I have not yet traced every consumer of the values in the remap map (buttons or other sources might also feed it).</td><td>Before editing I grep all callers of the four methods. If any non-stick source flows through, that source keeps the old threshold.</td></tr>
-    <tr><td>R3</td><td class="wr">Controllers created in places I have not listed (for example the controller test and the bindings screen each have their own instance).</td><td>Grep every <code>new ExternalController</code> and every <code>updateStateFromMotionEvent</code> caller. Each either gets tuning or deliberately keeps defaults.</td></tr>
+    <tr><td>R3</td><td class="wr">Controllers are created in many places.</td><td>Resolved: the tuning is a process-wide snapshot, so every instance uses it. Side effect: screens opened while a game is running use that game's tuning.</td></tr>
     <tr><td>R4</td><td class="wr">Users picking silly values and thinking the app is broken.</td><td>Ranges are capped, help text names the symptom ("stick drifts: raise deadzone"), reset buttons are one press.</td></tr>
     <tr><td>R5</td><td class="wr">Games that apply their own deadzone on top.</td><td>Documented in the help text. Users who want pure raw input can set 0%.</td></tr>
     <tr><td>R6</td><td class="wr">I cannot build. A compile error would waste your CI run.</td><td>Mental compile pass (imports, nullability, every signature and call site) plus a re-read of the full diff before I hand it over.</td></tr>

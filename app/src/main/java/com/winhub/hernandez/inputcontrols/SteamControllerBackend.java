@@ -399,10 +399,8 @@ public final class SteamControllerBackend {
             }
 
             GamepadState s = pad.controller.state;
-            s.thumbLX = deadZone(floats[base + F_LX]);
-            s.thumbLY = deadZone(floats[base + F_LY]);
-            s.thumbRX = deadZone(floats[base + F_RX]);
-            s.thumbRY = deadZone(floats[base + F_RY]);
+            pad.controller.applyRawSticks(floats[base + F_LX], floats[base + F_LY],
+                    floats[base + F_RX], floats[base + F_RY]);
             s.triggerL = lt;
             s.triggerR = rt;
             s.setPressed(ExternalController.IDX_BUTTON_A, bit(effective, B_A));
@@ -512,10 +510,6 @@ public final class SteamControllerBackend {
 
     private static boolean bit(int buttons, int b) {
         return (buttons & (1 << b)) != 0;
-    }
-
-    private static float deadZone(float v) {
-        return Math.abs(v) >= ControlElement.STICK_DEAD_ZONE ? v : 0.0f;
     }
 
     private static native boolean nativeInit(boolean bluetooth);

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
+import com.winhub.hernandez.inputcontrols.StickShaper
 import com.winhub.hernandez.ui.components.TextButton
 import com.winhub.hernandez.ui.components.OutlinedButton
 import com.winhub.hernandez.ui.components.Button
@@ -2242,6 +2243,80 @@ private fun AdvancedTab(
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.gyro_invert_y), modifier = Modifier.weight(1f))
                 }
+            }
+        }
+
+        // Physical stick tuning — what a session launches with unless the shortcut overrides it.
+        SectionBox(title = stringResource(R.string.stick_tuning_title)) {
+            Text(
+                stringResource(R.string.stick_tuning_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${stringResource(R.string.stick_left_deadzone)}: ${stickDeadzoneText(viewModel.stickLeftDeadzone)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Slider(
+                value = viewModel.stickLeftDeadzone,
+                onValueChange = { viewModel.stickLeftDeadzone = it },
+                valueRange = STICK_DEADZONE_RANGE,
+                steps = STICK_DEADZONE_STEPS
+            )
+            Text(
+                "${stringResource(R.string.stick_left_sensitivity)}: ${stickSensitivityText(viewModel.stickLeftSensitivity)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Slider(
+                value = viewModel.stickLeftSensitivity,
+                onValueChange = { viewModel.stickLeftSensitivity = it },
+                valueRange = STICK_SENSITIVITY_RANGE,
+                steps = STICK_SENSITIVITY_STEPS
+            )
+            Text(
+                "${stringResource(R.string.stick_right_deadzone)}: ${stickDeadzoneText(viewModel.stickRightDeadzone)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Slider(
+                value = viewModel.stickRightDeadzone,
+                onValueChange = { viewModel.stickRightDeadzone = it },
+                valueRange = STICK_DEADZONE_RANGE,
+                steps = STICK_DEADZONE_STEPS
+            )
+            Text(
+                "${stringResource(R.string.stick_right_sensitivity)}: ${stickSensitivityText(viewModel.stickRightSensitivity)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Slider(
+                value = viewModel.stickRightSensitivity,
+                onValueChange = { viewModel.stickRightSensitivity = it },
+                valueRange = STICK_SENSITIVITY_RANGE,
+                steps = STICK_SENSITIVITY_STEPS
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(
+                    checked = viewModel.stickSmoothEdge,
+                    onCheckedChange = { viewModel.stickSmoothEdge = it }
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.stick_smooth_edge), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        stringResource(R.string.stick_smooth_edge_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            TextButton(onClick = {
+                viewModel.stickLeftDeadzone = StickShaper.DEADZONE_DEFAULT
+                viewModel.stickLeftSensitivity = StickShaper.SENSITIVITY_DEFAULT
+                viewModel.stickRightDeadzone = StickShaper.DEADZONE_DEFAULT
+                viewModel.stickRightSensitivity = StickShaper.SENSITIVITY_DEFAULT
+                viewModel.stickSmoothEdge = StickShaper.SMOOTH_EDGE_DEFAULT
+            }) {
+                Text(stringResource(R.string.stick_tuning_reset))
             }
         }
 

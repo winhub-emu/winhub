@@ -107,6 +107,7 @@ import com.winhub.hernandez.inputcontrols.ControlsProfile;
 import com.winhub.hernandez.inputcontrols.ExternalController;
 import com.winhub.hernandez.inputcontrols.InputControlsManager;
 import com.winhub.hernandez.inputcontrols.SteamControllerBackend;
+import com.winhub.hernandez.inputcontrols.StickShaper;
 import com.winhub.hernandez.inputcontrols.VisualStyle;
 import com.winhub.hernandez.math.Mathf;
 import com.winhub.hernandez.math.XForm;
@@ -2567,6 +2568,20 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // Only now is it safe to let samples in (registerGyroSensor used to run in onCreate, long
         // before the container existed, so the first few hundred ms ran on the built-in defaults).
         registerGyroSensor();
+
+        // Stick deadzone / sensitivity: the container value, with a shortcut's own extra winning key by
+        // key. Resolved once here (Container.getExtra parses JSON) and published as one immutable
+        // snapshot that every ExternalController reads; cleared again in onDestroy.
+        StickShaper.Tuning stickTuning = container.getStickTuning();
+        if (shortcut != null) {
+            stickTuning = new StickShaper.Tuning(
+                StickShaper.parseDeadzone(shortcut.getExtra(StickShaper.KEY_LEFT_DEADZONE), stickTuning.leftDeadzone),
+                StickShaper.parseSensitivity(shortcut.getExtra(StickShaper.KEY_LEFT_SENSITIVITY), stickTuning.leftSensitivity),
+                StickShaper.parseDeadzone(shortcut.getExtra(StickShaper.KEY_RIGHT_DEADZONE), stickTuning.rightDeadzone),
+                StickShaper.parseSensitivity(shortcut.getExtra(StickShaper.KEY_RIGHT_SENSITIVITY), stickTuning.rightSensitivity),
+                StickShaper.parseSmoothEdge(shortcut.getExtra(StickShaper.KEY_SMOOTH_EDGE), stickTuning.smoothEdge));
+        }
+        StickShaper.setActive(stickTuning);
 
         // VEGAS runs its own native DLLs from vegas-<ver>.tzst — no alias to DXVK.
 
@@ -6581,6 +6596,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
             inGameControlsEditor = null;
         }
         modKeyHandler.removeCallbacksAndMessages(null);
+        // Not on a config-change recreate: the new instance has already (or is about to) publish its own.
+        if (isFinishing()) StickShaper.reset();
         com.winhub.hernandez.core.MusicPlayer.INSTANCE.setInGame(false);
         if (startProgramsExecutor != null) {
             startProgramsExecutor.shutdownNow();

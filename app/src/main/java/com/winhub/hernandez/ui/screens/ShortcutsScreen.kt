@@ -267,6 +267,7 @@ import com.winhub.hernandez.fexcore.FEXCorePreset
 import com.winhub.hernandez.fexcore.FEXCorePresetManager
 import com.winhub.hernandez.inputcontrols.ControlsProfile
 import com.winhub.hernandez.inputcontrols.InputControlsManager
+import com.winhub.hernandez.inputcontrols.StickShaper
 import com.winhub.hernandez.midi.MidiManager
 import com.winhub.hernandez.store.GoldbergComponent
 import com.winhub.hernandez.store.GoldbergMode
@@ -6394,6 +6395,30 @@ internal fun ShortcutSettingsDialogScreen(
             if (shortcut.container.isGyroInvertY) "1" else "0") == "1")
     }
 
+    // Per-game stick override: ON writes the five stick extras on save, OFF clears them so the shortcut
+    // re-inherits the container (a true inherit, not a snapshot).
+    var stickOverride by remember {
+        mutableStateOf(listOf(
+            StickShaper.KEY_LEFT_DEADZONE, StickShaper.KEY_LEFT_SENSITIVITY, StickShaper.KEY_RIGHT_DEADZONE,
+            StickShaper.KEY_RIGHT_SENSITIVITY, StickShaper.KEY_SMOOTH_EDGE,
+        ).any { shortcut.hasExtra(it) })
+    }
+    var stickLeftDeadzone by remember {
+        mutableStateOf(StickShaper.parseDeadzone(shortcut.getExtra(StickShaper.KEY_LEFT_DEADZONE), shortcut.container.stickLeftDeadzone))
+    }
+    var stickLeftSensitivity by remember {
+        mutableStateOf(StickShaper.parseSensitivity(shortcut.getExtra(StickShaper.KEY_LEFT_SENSITIVITY), shortcut.container.stickLeftSensitivity))
+    }
+    var stickRightDeadzone by remember {
+        mutableStateOf(StickShaper.parseDeadzone(shortcut.getExtra(StickShaper.KEY_RIGHT_DEADZONE), shortcut.container.stickRightDeadzone))
+    }
+    var stickRightSensitivity by remember {
+        mutableStateOf(StickShaper.parseSensitivity(shortcut.getExtra(StickShaper.KEY_RIGHT_SENSITIVITY), shortcut.container.stickRightSensitivity))
+    }
+    var stickSmoothEdge by remember {
+        mutableStateOf(StickShaper.parseSmoothEdge(shortcut.getExtra(StickShaper.KEY_SMOOTH_EDGE), shortcut.container.isStickSmoothEdge))
+    }
+
     // Vulkan renderer per-game overrides (native / Colors=swapRB / present mode) — default to the
     // container's values; only shown + relevant when this shortcut runs on the Vulkan renderer.
     // Stored via the same "native"/"swapRB"/"presentMode" extras the launch resolver reads.
@@ -6903,6 +6928,12 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("gyroSensitivity", gyroSensitivity.toString())
             putExtra("gyroInvertX", if (gyroInvertX) "1" else "0")
             putExtra("gyroInvertY", if (gyroInvertY) "1" else "0")
+            // Stick tuning: override off clears the keys so the shortcut inherits the container.
+            putExtra(StickShaper.KEY_LEFT_DEADZONE, if (stickOverride) stickExtraText(stickLeftDeadzone) else null)
+            putExtra(StickShaper.KEY_LEFT_SENSITIVITY, if (stickOverride) stickExtraText(stickLeftSensitivity) else null)
+            putExtra(StickShaper.KEY_RIGHT_DEADZONE, if (stickOverride) stickExtraText(stickRightDeadzone) else null)
+            putExtra(StickShaper.KEY_RIGHT_SENSITIVITY, if (stickOverride) stickExtraText(stickRightSensitivity) else null)
+            putExtra(StickShaper.KEY_SMOOTH_EDGE, if (stickOverride) (if (stickSmoothEdge) "1" else "0") else null)
             // Vulkan per-game overrides (read by resolvedRendererNative/SwapRB/PresentMode at launch).
             putExtra("native", if (vkNative) "true" else "false")
             putExtra("swapRB", if (vkSwapRB) "true" else "false")
@@ -7045,6 +7076,11 @@ internal fun ShortcutSettingsDialogScreen(
                     add("gyroMode"); add("gyroTarget"); add("gyroActivator")
                     if (gyroActivator != Container.GYRO_ACTIVATOR_ALWAYS) add("gyroActivationMode")
                     add("gyroSensitivity"); add("gyroInvertX"); add("gyroInvertY")
+                }
+                add("stickOverride")
+                if (stickOverride) {
+                    add("stickLDeadzone"); add("stickLSensitivity"); add("stickRDeadzone"); add("stickRSensitivity")
+                    add("stickSmoothEdge"); add("stickReset")
                 }
             }
             5 -> { // TV — only reachable while the tab exists (see tvTabVisible)
@@ -8222,6 +8258,68 @@ internal fun ShortcutSettingsDialogScreen(
                                 Text(stringResource(R.string.gyro_invert_y), modifier = Modifier.weight(1f))
                             }
                         }
+
+                        // Physical stick deadzone / sensitivity. Off = inherit the container's values.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            DpSwitch(dp, "stickOverride", checked = stickOverride, onCheckedChange = { stickOverride = it })
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.stick_tuning_override))
+                                Text(
+                                    stringResource(R.string.stick_tuning_inherit_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (stickOverride) {
+                            Text("${stringResource(R.string.stick_left_deadzone)}: ${stickDeadzoneText(stickLeftDeadzone)}", style = MaterialTheme.typography.bodyMedium)
+                            DpSlider(
+                                dp, "stickLDeadzone", value = stickLeftDeadzone, onValueChange = { stickLeftDeadzone = it },
+                                valueRange = STICK_DEADZONE_RANGE, step = 0.01f, steps = STICK_DEADZONE_STEPS,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("${stringResource(R.string.stick_left_sensitivity)}: ${stickSensitivityText(stickLeftSensitivity)}", style = MaterialTheme.typography.bodyMedium)
+                            DpSlider(
+                                dp, "stickLSensitivity", value = stickLeftSensitivity, onValueChange = { stickLeftSensitivity = it },
+                                valueRange = STICK_SENSITIVITY_RANGE, step = 0.05f, steps = STICK_SENSITIVITY_STEPS,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("${stringResource(R.string.stick_right_deadzone)}: ${stickDeadzoneText(stickRightDeadzone)}", style = MaterialTheme.typography.bodyMedium)
+                            DpSlider(
+                                dp, "stickRDeadzone", value = stickRightDeadzone, onValueChange = { stickRightDeadzone = it },
+                                valueRange = STICK_DEADZONE_RANGE, step = 0.01f, steps = STICK_DEADZONE_STEPS,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("${stringResource(R.string.stick_right_sensitivity)}: ${stickSensitivityText(stickRightSensitivity)}", style = MaterialTheme.typography.bodyMedium)
+                            DpSlider(
+                                dp, "stickRSensitivity", value = stickRightSensitivity, onValueChange = { stickRightSensitivity = it },
+                                valueRange = STICK_SENSITIVITY_RANGE, step = 0.05f, steps = STICK_SENSITIVITY_STEPS,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                DpSwitch(dp, "stickSmoothEdge", checked = stickSmoothEdge, onCheckedChange = { stickSmoothEdge = it })
+                                Spacer(Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.stick_smooth_edge))
+                                    Text(
+                                        stringResource(R.string.stick_smooth_edge_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            val resetSticks = {
+                                stickLeftDeadzone = StickShaper.DEADZONE_DEFAULT
+                                stickLeftSensitivity = StickShaper.SENSITIVITY_DEFAULT
+                                stickRightDeadzone = StickShaper.DEADZONE_DEFAULT
+                                stickRightSensitivity = StickShaper.SENSITIVITY_DEFAULT
+                                stickSmoothEdge = StickShaper.SMOOTH_EDGE_DEFAULT
+                            }
+                            DpButton(dp, "stickReset", onActivate = resetSticks) {
+                                TextButton(onClick = resetSticks) { Text(stringResource(R.string.stick_tuning_reset)) }
+                            }
+                        }
                     }
 
                             }
@@ -8869,6 +8967,28 @@ internal fun DeckShortcutSettingsScreen(
         mutableStateOf(shortcut.getExtra("gyroInvertY", if (shortcut.container.isGyroInvertY) "1" else "0") == "1")
     }
 
+    var stickOverride by remember {
+        mutableStateOf(listOf(
+            StickShaper.KEY_LEFT_DEADZONE, StickShaper.KEY_LEFT_SENSITIVITY, StickShaper.KEY_RIGHT_DEADZONE,
+            StickShaper.KEY_RIGHT_SENSITIVITY, StickShaper.KEY_SMOOTH_EDGE,
+        ).any { shortcut.hasExtra(it) })
+    }
+    var stickLeftDeadzone by remember {
+        mutableStateOf(StickShaper.parseDeadzone(shortcut.getExtra(StickShaper.KEY_LEFT_DEADZONE), shortcut.container.stickLeftDeadzone))
+    }
+    var stickLeftSensitivity by remember {
+        mutableStateOf(StickShaper.parseSensitivity(shortcut.getExtra(StickShaper.KEY_LEFT_SENSITIVITY), shortcut.container.stickLeftSensitivity))
+    }
+    var stickRightDeadzone by remember {
+        mutableStateOf(StickShaper.parseDeadzone(shortcut.getExtra(StickShaper.KEY_RIGHT_DEADZONE), shortcut.container.stickRightDeadzone))
+    }
+    var stickRightSensitivity by remember {
+        mutableStateOf(StickShaper.parseSensitivity(shortcut.getExtra(StickShaper.KEY_RIGHT_SENSITIVITY), shortcut.container.stickRightSensitivity))
+    }
+    var stickSmoothEdge by remember {
+        mutableStateOf(StickShaper.parseSmoothEdge(shortcut.getExtra(StickShaper.KEY_SMOOTH_EDGE), shortcut.container.isStickSmoothEdge))
+    }
+
     fun applyIconFromUri(uri: Uri) {
         runCatching {
             val bitmap = context.contentResolver.openInputStream(uri)?.use { stream ->
@@ -8999,6 +9119,12 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("gyroSensitivity", gyroSensitivity.toString())
             putExtra("gyroInvertX", if (gyroInvertX) "1" else "0")
             putExtra("gyroInvertY", if (gyroInvertY) "1" else "0")
+            // Stick tuning: override off clears the keys so the shortcut inherits the container.
+            putExtra(StickShaper.KEY_LEFT_DEADZONE, if (stickOverride) stickExtraText(stickLeftDeadzone) else null)
+            putExtra(StickShaper.KEY_LEFT_SENSITIVITY, if (stickOverride) stickExtraText(stickLeftSensitivity) else null)
+            putExtra(StickShaper.KEY_RIGHT_DEADZONE, if (stickOverride) stickExtraText(stickRightDeadzone) else null)
+            putExtra(StickShaper.KEY_RIGHT_SENSITIVITY, if (stickOverride) stickExtraText(stickRightSensitivity) else null)
+            putExtra(StickShaper.KEY_SMOOTH_EDGE, if (stickOverride) (if (stickSmoothEdge) "1" else "0") else null)
             putExtra("native", if (vkNative) "true" else "false")
             putExtra("swapRB", if (vkSwapRB) "true" else "false")
             putExtra("presentMode", vkPresentMode)
@@ -9778,6 +9904,59 @@ internal fun DeckShortcutSettingsScreen(
                                     }
                                     DeckRow(stringResource(R.string.gyro_invert_y)) {
                                         DeckToggle(checked = gyroInvertY, onChange = { gyroInvertY = it })
+                                    }
+                                }
+                            }
+                            DeckGroup(stringResource(R.string.stick_tuning_title)) {
+                                DeckRow(
+                                    stringResource(R.string.stick_tuning_override),
+                                    hint = stringResource(R.string.stick_tuning_inherit_hint),
+                                ) {
+                                    DeckToggle(checked = stickOverride, onChange = { stickOverride = it })
+                                }
+                                if (stickOverride) {
+                                    DeckSliderRow(
+                                        label = stringResource(R.string.stick_left_deadzone),
+                                        value = stickLeftDeadzone,
+                                        range = STICK_DEADZONE_RANGE,
+                                        format = { stickDeadzoneText(it) },
+                                        onChange = { stickLeftDeadzone = it },
+                                    )
+                                    DeckSliderRow(
+                                        label = stringResource(R.string.stick_left_sensitivity),
+                                        value = stickLeftSensitivity,
+                                        range = STICK_SENSITIVITY_RANGE,
+                                        format = { stickSensitivityText(it) },
+                                        onChange = { stickLeftSensitivity = it },
+                                    )
+                                    DeckSliderRow(
+                                        label = stringResource(R.string.stick_right_deadzone),
+                                        value = stickRightDeadzone,
+                                        range = STICK_DEADZONE_RANGE,
+                                        format = { stickDeadzoneText(it) },
+                                        onChange = { stickRightDeadzone = it },
+                                    )
+                                    DeckSliderRow(
+                                        label = stringResource(R.string.stick_right_sensitivity),
+                                        value = stickRightSensitivity,
+                                        range = STICK_SENSITIVITY_RANGE,
+                                        format = { stickSensitivityText(it) },
+                                        onChange = { stickRightSensitivity = it },
+                                    )
+                                    DeckRow(
+                                        stringResource(R.string.stick_smooth_edge),
+                                        hint = stringResource(R.string.stick_smooth_edge_hint),
+                                    ) {
+                                        DeckToggle(checked = stickSmoothEdge, onChange = { stickSmoothEdge = it })
+                                    }
+                                    DeckRow(stringResource(R.string.stick_tuning_reset)) {
+                                        DeckButton(stringResource(R.string.stick_tuning_reset), primary = false) {
+                                            stickLeftDeadzone = StickShaper.DEADZONE_DEFAULT
+                                            stickLeftSensitivity = StickShaper.SENSITIVITY_DEFAULT
+                                            stickRightDeadzone = StickShaper.DEADZONE_DEFAULT
+                                            stickRightSensitivity = StickShaper.SENSITIVITY_DEFAULT
+                                            stickSmoothEdge = StickShaper.SMOOTH_EDGE_DEFAULT
+                                        }
                                     }
                                 }
                             }

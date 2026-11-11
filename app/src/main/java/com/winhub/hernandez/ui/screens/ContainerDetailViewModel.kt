@@ -16,6 +16,7 @@ import com.winhub.hernandez.box64.Box64Preset
 import com.winhub.hernandez.box64.Box64PresetManager
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.container.ContainerManager
+import com.winhub.hernandez.inputcontrols.StickShaper
 import com.winhub.hernandez.contents.ContentProfile
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.contents.WrapperManager
@@ -434,6 +435,14 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     var gyroInvertX by mutableStateOf(Container.GYRO_INVERT_X_DEFAULT)
     var gyroInvertY by mutableStateOf(Container.GYRO_INVERT_Y_DEFAULT)
 
+    // Physical stick tuning (deadzone 0-50%, sensitivity 0.5-2.0x per stick, Classic/Smooth edge).
+    // The defaults reproduce the old fixed 15% gate. Shortcuts can override these per game.
+    var stickLeftDeadzone by mutableStateOf(StickShaper.DEADZONE_DEFAULT)
+    var stickLeftSensitivity by mutableStateOf(StickShaper.SENSITIVITY_DEFAULT)
+    var stickRightDeadzone by mutableStateOf(StickShaper.DEADZONE_DEFAULT)
+    var stickRightSensitivity by mutableStateOf(StickShaper.SENSITIVITY_DEFAULT)
+    var stickSmoothEdge by mutableStateOf(StickShaper.SMOOTH_EDGE_DEFAULT)
+
     // "Run as administrator" (default ON): ON -> EnableLUA=0 (UAC off / full admin),
     // OFF -> EnableLUA=1. Stored in the container's .wine/system.reg (source of truth); on
     // create it's threaded through the createContainerAsync data flag, on edit it's read/written
@@ -772,6 +781,12 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         gyroSmoothing   = seed?.getGyroSmoothing() ?: Container.GYRO_SMOOTHING_DEFAULT
         gyroInvertX     = seed?.isGyroInvertX() ?: Container.GYRO_INVERT_X_DEFAULT
         gyroInvertY     = seed?.isGyroInvertY() ?: Container.GYRO_INVERT_Y_DEFAULT
+
+        stickLeftDeadzone = seed?.getStickLeftDeadzone() ?: StickShaper.DEADZONE_DEFAULT
+        stickLeftSensitivity = seed?.getStickLeftSensitivity() ?: StickShaper.SENSITIVITY_DEFAULT
+        stickRightDeadzone = seed?.getStickRightDeadzone() ?: StickShaper.DEADZONE_DEFAULT
+        stickRightSensitivity = seed?.getStickRightSensitivity() ?: StickShaper.SENSITIVITY_DEFAULT
+        stickSmoothEdge = seed?.isStickSmoothEdge() ?: StickShaper.SMOOTH_EDGE_DEFAULT
 
         // (Box64/FEXCore version + preset are arch-dependent → seeded by seedArchDependentDefaults.)
 
@@ -1245,6 +1260,11 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         c.setGyroSmoothing(gyroSmoothing)
         c.setGyroInvertX(gyroInvertX)
         c.setGyroInvertY(gyroInvertY)
+        c.setStickLeftDeadzone(stickLeftDeadzone)
+        c.setStickLeftSensitivity(stickLeftSensitivity)
+        c.setStickRightDeadzone(stickRightDeadzone)
+        c.setStickRightSensitivity(stickRightSensitivity)
+        c.setStickSmoothEdge(stickSmoothEdge)
         c.setRenderer(StringUtils.parseIdentifier(selectedRenderer))
         c.setRendererNative(rendererNative)
         c.setRendererPresentMode(rendererPresentMode)

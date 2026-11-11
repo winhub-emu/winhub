@@ -122,6 +122,15 @@ object ShortcutExporter {
         put(effective, "gyroSensitivity", orDefault(shortcut, "gyroSensitivity", container?.getGyroSensitivity()?.toString()))
         put(effective, "gyroInvertX", orDefault(shortcut, "gyroInvertX", container?.let { if (it.isGyroInvertX()) "1" else "0" }))
         put(effective, "gyroInvertY", orDefault(shortcut, "gyroInvertY", container?.let { if (it.isGyroInvertY()) "1" else "0" }))
+        // Stick deadzone / sensitivity: only this game's own override is carried (put skips blank), so
+        // a config that never touched them doesn't overwrite the importer's container preference.
+        for (key in listOf(
+            com.winhub.hernandez.inputcontrols.StickShaper.KEY_LEFT_DEADZONE,
+            com.winhub.hernandez.inputcontrols.StickShaper.KEY_LEFT_SENSITIVITY,
+            com.winhub.hernandez.inputcontrols.StickShaper.KEY_RIGHT_DEADZONE,
+            com.winhub.hernandez.inputcontrols.StickShaper.KEY_RIGHT_SENSITIVITY,
+            com.winhub.hernandez.inputcontrols.StickShaper.KEY_SMOOTH_EDGE,
+        )) put(effective, key, shortcut.getExtra(key))
         // In-game refresh cap — effective shortcut-or-container (tri-state unlock resolved to 1/0).
         put(effective, "maxGameRefreshRate", orDefault(shortcut, "maxGameRefreshRate", container?.getMaxGameRefreshRate()?.toString()))
         put(effective, "unlockGameRefreshRate", orDefault(shortcut, "unlockGameRefreshRate", container?.let { if (it.isUnlockGameRefreshRate()) "1" else "0" }))

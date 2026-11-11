@@ -34,6 +34,7 @@ public class ExternalController {
     private final ArrayList<ExternalControllerBinding> controllerBindings = new ArrayList<>();
     public final GamepadState state = new GamepadState();
     public final GamepadState remappedState = new GamepadState();
+    private final float[] shapedStick = new float[2];
     public String getName() {
         return name;
     }
@@ -145,20 +146,37 @@ public class ExternalController {
     }
 
     private void processJoystickInput(MotionEvent event, int historyPos) {
-        state.thumbLX = getCenteredAxis(event, MotionEvent.AXIS_X, historyPos);
-        state.thumbLY = getCenteredAxis(event, MotionEvent.AXIS_Y, historyPos);
-        state.thumbRX = getCenteredAxis(event, MotionEvent.AXIS_Z, historyPos);
-        state.thumbRY = getCenteredAxis(event, MotionEvent.AXIS_RZ, historyPos);
+        applyRawSticks(
+                getCenteredAxis(event, MotionEvent.AXIS_X, historyPos),
+                getCenteredAxis(event, MotionEvent.AXIS_Y, historyPos),
+                getCenteredAxis(event, MotionEvent.AXIS_Z, historyPos),
+                getCenteredAxis(event, MotionEvent.AXIS_RZ, historyPos));
 
         if (historyPos == -1) {
             float axisX = getCenteredAxis(event, MotionEvent.AXIS_HAT_X, historyPos);
             float axisY = getCenteredAxis(event, MotionEvent.AXIS_HAT_Y, historyPos);
 
-            state.dpad[0] = axisY == -1.0f && Math.abs(state.thumbLY) < ControlElement.STICK_DEAD_ZONE;
-            state.dpad[1] = axisX == 1.0f && Math.abs(state.thumbLX) < ControlElement.STICK_DEAD_ZONE;
-            state.dpad[2] = axisY == 1.0f && Math.abs(state.thumbLY) < ControlElement.STICK_DEAD_ZONE;
-            state.dpad[3] = axisX == -1.0f && Math.abs(state.thumbLX) < ControlElement.STICK_DEAD_ZONE;
+            // The hat only counts while the left stick is idle (shaped value 0).
+            state.dpad[0] = axisY == -1.0f && state.thumbLY == 0f;
+            state.dpad[1] = axisX == 1.0f && state.thumbLX == 0f;
+            state.dpad[2] = axisY == 1.0f && state.thumbLY == 0f;
+            state.dpad[3] = axisX == -1.0f && state.thumbLX == 0f;
         }
+    }
+
+    /**
+     * Runs the raw stick axes through the active deadzone / sensitivity tuning (see
+     * {@link StickShaper}) and stores the result in {@link #state}. Synchronized because the shared
+     * scratch array is reused on every call.
+     */
+    public synchronized void applyRawSticks(float leftX, float leftY, float rightX, float rightY) {
+        StickShaper.Tuning t = StickShaper.getActive();
+        StickShaper.shape(leftX, leftY, t.leftDeadzone, t.leftSensitivity, t.smoothEdge, shapedStick);
+        state.thumbLX = shapedStick[0];
+        state.thumbLY = shapedStick[1];
+        StickShaper.shape(rightX, rightY, t.rightDeadzone, t.rightSensitivity, t.smoothEdge, shapedStick);
+        state.thumbRX = shapedStick[0];
+        state.thumbRY = shapedStick[1];
     }
 
 
@@ -200,16 +218,16 @@ public class ExternalController {
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP:
-                state.dpad[0] = pressed && Math.abs(state.thumbLY) < ControlElement.STICK_DEAD_ZONE;
+                state.dpad[0] = pressed && state.thumbLY == 0f;
                 return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                state.dpad[1] = pressed && Math.abs(state.thumbLX) < ControlElement.STICK_DEAD_ZONE;
+                state.dpad[1] = pressed && state.thumbLX == 0f;
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
-                state.dpad[2] = pressed && Math.abs(state.thumbLY) < ControlElement.STICK_DEAD_ZONE;
+                state.dpad[2] = pressed && state.thumbLY == 0f;
                 return true;
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                state.dpad[3] = pressed && Math.abs(state.thumbLX) < ControlElement.STICK_DEAD_ZONE;
+                state.dpad[3] = pressed && state.thumbLX == 0f;
                 return true;
         }
         return false;
@@ -364,8 +382,10 @@ public class ExternalController {
 
         if (Math.abs(value) <= flat) return 0.0f;
 
+        // Stick axes come back unshaped: the user's deadzone and sensitivity are applied to the X/Y
+        // pair together in applyRawSticks.
         if (axis == MotionEvent.AXIS_X || axis == MotionEvent.AXIS_Y || axis == MotionEvent.AXIS_Z || axis == MotionEvent.AXIS_RZ) {
-             return Math.abs(value) >= ControlElement.STICK_DEAD_ZONE ? value : 0.0f;
+             return value;
         }
 
         return 0.0f;
