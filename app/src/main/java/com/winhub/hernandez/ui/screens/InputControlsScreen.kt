@@ -535,6 +535,8 @@ fun InputControlsScreen() {
         } else AppUtils.showToast(context, R.string.no_profile_selected)
     }
 
+    // The frame draws the shared sliding focus ring that every other Deck page has.
+    DeckDragFrame(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(12.dp)) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -917,6 +919,7 @@ fun InputControlsScreen() {
                 }
             }
         }
+    }
     }
 }
 
@@ -1372,7 +1375,7 @@ private fun DeckHeroCard(title: String, subtitle: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(shape)
             .background(DeckPalette.primary)
-            .deckOuterFocusStroke(interaction, shape, focusColor = DeckPalette.onPrimary)
+            .deckRing(interaction, shape, focusColor = DeckPalette.onPrimary)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(14.dp),
     ) {
@@ -1400,7 +1403,7 @@ private fun DeckPadRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .deckOuterFocusStroke(interaction, shape)
+            .deckRing(interaction, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {

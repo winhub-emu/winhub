@@ -9148,6 +9148,7 @@ internal fun DeckShortcutSettingsScreen(
                         DeckEditorCategoryRow(
                             label = tabTitles[i],
                             selected = id == selectedTab,
+                            icon = shortcutTabIcon(tabTitles[i]),
                             onClick = { selectedTab = id; pagesCategoryOpen = true },
                         )
                     }
@@ -9158,6 +9159,7 @@ internal fun DeckShortcutSettingsScreen(
                 if (layoutPref == "rail") {
                     DeckEditorCategoryRail(
                         labels = tabTitles,
+                        icons = tabTitles.map { shortcutTabIcon(it) },
                         selected = tabIndices.indexOf(selectedTab).coerceAtLeast(0),
                         onSelect = { selectedTab = tabIndices[it] },
                         modifier = Modifier

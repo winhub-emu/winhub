@@ -48,6 +48,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -892,6 +893,8 @@ internal fun DeckEditorCategoryRail(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     dots: List<Color>? = null,
+    // Per-row glyph; null falls back to the same label-based set the portrait chips use.
+    icons: List<ImageVector>? = null,
     // Landing on a row selects it (D-pad browsing), and the selected row can be refocused by L2/R2.
     selectOnFocus: Boolean = false,
     selectedFocus: FocusRequester? = null,
@@ -942,6 +945,13 @@ internal fun DeckEditorCategoryRail(
                     Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
                     Spacer(Modifier.width(8.dp))
                 }
+                Icon(
+                    imageVector = icons?.getOrNull(i) ?: portraitTabIcon(label),
+                    contentDescription = null,
+                    tint = if (isSel) Deck.primary else Deck.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
                 Text(
                     text = label,
                     color = if (isSel) Deck.onBackground else Deck.onSurfaceVariant,
@@ -962,6 +972,7 @@ internal fun DeckEditorCategoryRow(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    icon: ImageVector = portraitTabIcon(label),
 ) {
     val bg by animateColorAsState(
         targetValue = if (selected) Deck.secondary.copy(alpha = 0.18f) else Deck.surface,
@@ -978,6 +989,13 @@ internal fun DeckEditorCategoryRow(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (selected) Deck.primary else Deck.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(14.dp))
         Text(
             text = label,
             color = if (selected) Deck.onBackground else Deck.onSurfaceVariant,

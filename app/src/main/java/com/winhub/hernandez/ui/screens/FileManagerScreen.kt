@@ -1853,6 +1853,7 @@ fun FileManagerScreen(
                 if (deckLocations.size > 1 && !LocalDeckPortrait.current) {
                     DeckEditorCategoryRail(
                         labels = deckLocations.map { it.label },
+                        icons = deckLocations.map { it.icon },
                         selected = deckLocations.indexOfFirst { it.selected },
                         onSelect = { deckLocations.getOrNull(it)?.onClick?.invoke() },
                         selectOnFocus = true,

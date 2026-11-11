@@ -249,10 +249,14 @@ internal fun Modifier.deckDragSelf(): Modifier = deckDragItem(remember { Any() }
  * frame of THIS window, otherwise (dialogs, un-framed screens) the static stroke of the same look.
  */
 @Composable
-internal fun Modifier.deckRing(interaction: InteractionSource, shape: RoundedCornerShape): Modifier {
+internal fun Modifier.deckRing(
+    interaction: InteractionSource,
+    shape: RoundedCornerShape,
+    focusColor: Color = DeckPalette.primary,
+): Modifier {
     val registry = LocalDeckDrag.current
     val view = LocalView.current
-    return if (registry != null && registry.view === view) deckDragSelf() else deckOuterFocusStroke(interaction, shape)
+    return if (registry != null && registry.view === view) deckDragSelf() else deckOuterFocusStroke(interaction, shape, focusColor = focusColor)
 }
 
 private fun Rect.translate(dx: Float, dy: Float): Rect =
@@ -1335,7 +1339,7 @@ internal fun DeckButton(
                 color = if (primary) DeckPalette.primary else DeckPalette.line,
                 shape = RoundedCornerShape(12.dp),
             )
-            .deckOuterFocusStroke(
+            .deckRing(
                 interaction = interaction,
                 shape = RoundedCornerShape(12.dp),
                 focusColor = if (primary) DeckPalette.onPrimary else DeckPalette.primary,

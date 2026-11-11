@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.winhub.hernandez.ui.screens.deckOuterFocusStroke
+import com.winhub.hernandez.ui.screens.deckRing
 
 /*
  * Drop-in replacements for the Material controls that draw their own ripple (IconButton, Checkbox,
@@ -33,7 +34,7 @@ fun IconButton(
 ) {
     androidx.compose.material3.IconButton(
         onClick = onClick,
-        modifier = modifier.deckOuterFocusStroke(
+        modifier = modifier.deckRing(
             interactionSource, RoundedCornerShape(percent = 50),
         ),
         enabled = enabled,

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import com.winhub.hernandez.core.AppOrientation
@@ -19,6 +20,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.view.HapticFeedbackConstants
 import android.view.InputDevice
+import android.view.WindowManager
 import androidx.compose.animation.Crossfade
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.ui.draw.blur
@@ -399,6 +401,18 @@ internal fun DeckModeScreen() {
         val previousOrientation = activity?.requestedOrientation
         if (!portrait) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         val controller = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
+        // Landscape: without this the notch side is letterboxed as a black bar. Draw under the cutout
+        // (the shell's background fills it) and pad the content clear of it instead.
+        val window = activity?.window
+        val previousCutoutMode = if (Build.VERSION.SDK_INT >= 28) window?.attributes?.layoutInDisplayCutoutMode else null
+        if (!portrait && window != null) {
+            if (Build.VERSION.SDK_INT >= 28) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+        }
         if (controller != null && !portrait) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
@@ -406,6 +420,12 @@ internal fun DeckModeScreen() {
         onDispose {
             controller?.show(WindowInsetsCompat.Type.systemBars())
             previousOrientation?.let { activity?.requestedOrientation = it }
+            if (!portrait && window != null) {
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                if (Build.VERSION.SDK_INT >= 28 && previousCutoutMode != null) {
+                    window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = previousCutoutMode }
+                }
+            }
         }
     }
 
@@ -451,7 +471,7 @@ internal fun DeckModeScreen() {
                     if (portrait && section in liquidSections && !PortraitPageState.open && !PortraitPageState.editor &&
                         !(section == "containers" && deckDetail != null)) Modifier.liquidBackdrop(glows = section == "home") else Modifier
                 )
-                .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
+                .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.windowInsetsPadding(WindowInsets.displayCutout))
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->
                     // Portrait is touch-only: gamepad and D-pad keys do nothing here (landscape keeps both).
@@ -521,6 +541,7 @@ internal fun DeckModeScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(Deck.background)
+            .windowInsetsPadding(WindowInsets.displayCutout)
             .deckTouchTracker()
             .onPreviewKeyEvent { e ->
                 if (DeckConsole.boot) {

@@ -28,10 +28,12 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Widgets
@@ -231,11 +233,14 @@ internal fun DeckPortraitTabStrip(
 }
 
 /** Glyph for a portrait tab, by its label (same Material set the shortcut editor uses). */
-private fun portraitTabIcon(label: String): ImageVector = when (label) {
+internal fun portraitTabIcon(label: String): ImageVector = when (label) {
     "Graphics" -> Icons.Filled.Memory
     "Performance" -> Icons.Filled.Speed
     "CPU", "System" -> Icons.Filled.DeveloperBoard
-    "Input" -> Icons.Filled.SportsEsports
+    "Input", "Controller" -> Icons.Filled.SportsEsports
+    "On-Screen" -> Icons.Filled.TouchApp
+    "Assign" -> Icons.Filled.People
+    "Device" -> Icons.Filled.Sensors
     "Environment" -> Icons.Filled.Extension
     "Wine" -> Icons.Filled.Widgets
     "Browse" -> Icons.Filled.Search
