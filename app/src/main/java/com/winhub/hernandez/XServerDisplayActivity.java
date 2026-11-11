@@ -1555,9 +1555,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private final Runnable waylandHudSample = () -> {
         waylandHudSampleQueued.set(false);
         if (frameRatingWindowId == -1 || !hudCounterEnabled) return;
-        if (frameRating != null) frameRating.update();
-        if (frameRatingHorizontal != null) frameRatingHorizontal.update();
-        if (perfHud != null) perfHud.update();
+        // The Fusion HUD refreshes itself; only the frame count (fpsCounter.tick) is fed from the compositor.
     };
     private android.view.SurfaceView waylandSurfaceView;
     private android.widget.ImageView waylandCursorView;
@@ -7964,15 +7962,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
         return imageFs != null && imageFs.wineprefix != null ? new File(imageFs.wineprefix, "drive_c") : null;
     }
 
-    /** One line for this session's log under {@code area}: the Wine debug log when the Log Manager
-     *  has it open; logcat always. */
-    private void logSessionLine(String area, String line) {
-        Log.i("XServerDisplayActivity", area + ": " + line);
-        if (wineDebugWriter != null) {
-            wineDebugWriter.println("Bannerlator " + area + ": " + line);
-        }
-    }
-
     /** The dxvk.conf this session generates, in the container's own directory. Rewritten every launch,
      *  and pointed at with DXVK_CONFIG_FILE — an absolute Android path, which is what DXVK opens (the
      *  same kind of path WINEPREFIX and DXVK_STATE_CACHE_PATH already carry). */
@@ -8727,10 +8716,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     frameRatingWindowId = -1;
                     fpsCounter.reset();
                     runOnUiThread(() -> {
-                        if (frameRating != null) { frameRating.setVisibility(View.GONE); frameRating.reset(); }
-                        if (frameRatingHorizontal != null) { frameRatingHorizontal.setVisibility(View.GONE); frameRatingHorizontal.reset(); }
-                        if (perfHud != null) perfHud.setVisibility(View.GONE);
-                        if (gameNativeHud != null) gameNativeHud.setVisibility(View.GONE);
                         if (fusionHud != null) fusionHud.setVisibility(View.GONE);
                     });
                     return;
@@ -8741,9 +8726,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     hudGpuName = com.winhub.hernandez.core.GPUInformation.extractModelName(gpuName);
                 runOnUiThread(() -> {
                     if (hudGpuName != null) {
-                        if (frameRating != null) frameRating.setGpuName(hudGpuName);
-                        if (perfHud != null) perfHud.setGpuModel(hudGpuName);
-                        if (gameNativeHud != null) gameNativeHud.setGpuModel(hudGpuName);
                         if (fusionHud != null) fusionHud.setGpuModel(hudGpuName);
                     }
                     // The name above is the adapter the COMPOSITOR is really on. When the session got a
@@ -8752,14 +8734,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     if (fusionHud != null) fusionHud.setGpuSpoofName(deliveredGpuSpoofName);
                     // Respect the master toggle, like the _MESA_DRV binding does.
                     if (!hudCounterEnabled) return;
-                    if (perfHud != null) perfHud.setVisibility(View.VISIBLE);
-                    if (gameNativeHud != null) gameNativeHud.setVisibility(View.VISIBLE);
                     if (fusionHud != null) fusionHud.setVisibility(View.VISIBLE);
-                    if (fpsHudHorizontal) {
-                        if (frameRatingHorizontal != null) frameRatingHorizontal.setVisibility(View.VISIBLE);
-                    } else {
-                        if (frameRating != null) frameRating.setVisibility(View.VISIBLE);
-                    }
                 });
             }
             @Override public void onGameFrame() {
