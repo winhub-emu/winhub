@@ -102,6 +102,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,6 +122,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -191,7 +193,7 @@ private val FileTypeIcon: Map<String, ImageVector> = mapOf(
 )
 
 // Image extensions that get a real thumbnail (via Coil) instead of the generic file icon.
-private val IMAGE_THUMB_EXTS = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
+internal val IMAGE_THUMB_EXTS = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
 
 // Color-only sweep: the former card-fill / card-stroke / divider / icon-blue / icon-white
 // constants were rerouted onto MaterialTheme.colorScheme tokens (surface / outline / primary /
@@ -216,7 +218,7 @@ private const val DOSATTRIB_XATTR = "user.DOSATTRIB"
 // Snapshot of a file's two toggleable attributes. hiddenSupported is false when the underlying
 // filesystem can't store the DOSATTRIB xattr (the FUSE /storage volumes) — the Hidden toggle is then
 // disabled while Read-only keeps working.
-private data class FileAttrState(
+internal data class FileAttrState(
     val readOnly: Boolean,
     val hidden: Boolean,
     val hiddenSupported: Boolean,
@@ -234,7 +236,7 @@ private fun parseDosAttrib(raw: ByteArray): Int {
 
 // Read the current read-only + Wine-hidden state. Never throws: an xattr-unsupported filesystem
 // comes back hiddenSupported=false (Hidden toggle disabled), Read-only always resolves.
-private fun readFileAttrs(file: File): FileAttrState {
+internal fun readFileAttrs(file: File): FileAttrState {
     val path = file.absolutePath
     // Read-only reflects the OWNER write bit — that's what Wine maps to FILE_ATTRIBUTE_READONLY.
     val readOnly = runCatching {
@@ -259,7 +261,7 @@ private fun readFileAttrs(file: File): FileAttrState {
 // read-only clears owner/group/other write (so Wine sees FILE_ATTRIBUTE_READONLY regardless of which
 // write bit it checks); clearing it restores owner write. Falls back to File.setWritable if chmod is
 // somehow refused. Returns true on success.
-private fun setReadOnly(file: File, readOnly: Boolean): Boolean = runCatching {
+internal fun setReadOnly(file: File, readOnly: Boolean): Boolean = runCatching {
     val path = file.absolutePath
     val mode = android.system.Os.stat(path).st_mode
     val writeBits = android.system.OsConstants.S_IWUSR or
@@ -274,7 +276,7 @@ private fun setReadOnly(file: File, readOnly: Boolean): Boolean = runCatching {
 // (archive/system/read-only) already encoded there, and synthesizing a minimal value when absent.
 // Writes Wine's own "0x%x" format, which Wine reads back natively. Returns false when the fs can't
 // store the xattr, so the caller can disable just the Hidden toggle.
-private fun setHidden(file: File, hidden: Boolean): Boolean = try {
+internal fun setHidden(file: File, hidden: Boolean): Boolean = try {
     val path = file.absolutePath
     var attr = try {
         parseDosAttrib(android.system.Os.getxattr(path, DOSATTRIB_XATTR))
@@ -347,7 +349,7 @@ fun describeLocation(file: File, containers: List<Container>, imagefsDir: File):
 
 // Semantic identity colours for the favourite-card drive badge. Intentionally NOT theme
 // accent colours — they identify the storage source at a glance. Returns (background, foreground).
-private fun badgeColors(loc: FavLocation): Pair<Color, Color> {
+internal fun badgeColors(loc: FavLocation): Pair<Color, Color> {
     val white = Color(0xFFFFFFFF)
     return when {
         loc.storage == FavStorage.INTERNAL -> Color(0xFF2E5FB0) to white   // blue
@@ -477,6 +479,9 @@ fun FileManagerScreen(
     // favTick is bumped on any add/remove/toggle so the favorites view + per-row star recompute.
     var showFavorites by remember { mutableStateOf(false) }
     var favTick by remember { mutableIntStateOf(0) }
+    // Deck states: a listing in flight (no "Empty" flash) and a folder Android refused to list.
+    var dirLoading by remember { mutableStateOf(false) }
+    var dirUnreadable by remember { mutableStateOf(false) }
 
     // resetScroll: jump to the top of the list (true for navigation; false for in-place reloads
     // after delete/paste/rename/refresh so the user keeps their scroll position).
@@ -484,9 +489,12 @@ fun FileManagerScreen(
         currentDir = dir
         // Remember the browsed directory so the next pick resumes here.
         if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
+        dirLoading = true
         scope.launch {
+            val raw = withContext(Dispatchers.IO) { dir.listFiles() }
+            dirUnreadable = raw == null
             val list = withContext(Dispatchers.IO) {
-                dir.listFiles()?.toList()
+                raw?.toList()
                     // Dir-pick mode: folders only. File-pick: folders + matching files. Else: all.
                     ?.filter { if (pickDirMode) it.isDirectory else !pickMode || it.isDirectory || matchesPickExt(it) }
                     // Dotfiles are noise in a storage root (.aya, .$recycle_bin$) but occasionally
@@ -495,6 +503,7 @@ fun FileManagerScreen(
                     ?.sortedWith(comparatorFor(sortBy, sortDesc)) ?: emptyList()
             }
             entries = list
+            dirLoading = false
             if (resetScroll) listState.scrollToItem(0)
         }
     }
@@ -845,7 +854,24 @@ fun FileManagerScreen(
 
     if (showNewFolderDialog) {
         var folderName by remember { mutableStateOf("") }
-        OutlinedAlertDialog(
+        val createNow = {
+            showNewFolderDialog = false
+            if (folderName.isNotBlank()) createFolder(currentDir, folderName)
+        }
+        if (deckMode) DeckFmDialog(
+            title = "New folder",
+            onDismiss = { showNewFolderDialog = false },
+            confirmLabel = "Create",
+            onConfirm = createNow,
+        ) {
+            DeckConfigTextField(
+                label = "Folder name",
+                value = folderName,
+                onValueChange = { folderName = it },
+                imeAction = ImeAction.Done,
+                onImeAction = createNow,
+            )
+        } else OutlinedAlertDialog(
             onDismissRequest = { showNewFolderDialog = false },
             title = { Text("New Folder") },
             text = {
@@ -868,7 +894,26 @@ fun FileManagerScreen(
 
     if (renameTarget != null) {
         var newName by remember(renameTarget) { mutableStateOf(renameTarget?.name ?: "") }
-        OutlinedAlertDialog(
+        val renameNow = {
+            val file = renameTarget
+            renameTarget = null
+            if (file != null && newName.isNotBlank()) performRename(file, newName)
+        }
+        if (deckMode) DeckFmDialog(
+            title = "Rename",
+            subtitle = renameTarget?.name,
+            onDismiss = { renameTarget = null },
+            confirmLabel = "Rename",
+            onConfirm = renameNow,
+        ) {
+            DeckConfigTextField(
+                label = "New name",
+                value = newName,
+                onValueChange = { newName = it },
+                imeAction = ImeAction.Done,
+                onImeAction = renameNow,
+            )
+        } else OutlinedAlertDialog(
             onDismissRequest = { renameTarget = null },
             title = { Text("Rename") },
             text = {
@@ -891,7 +936,11 @@ fun FileManagerScreen(
     }
 
     propertiesTarget?.let { file ->
-        FilePropertiesDialog(
+        if (deckMode) DeckFmPropertiesDialog(
+            file = file,
+            onDismiss = { propertiesTarget = null },
+            onChanged = { loadDirectory(currentDir, resetScroll = false) },
+        ) else FilePropertiesDialog(
             file = file,
             onDismiss = { propertiesTarget = null },
             // Attribute changes affect Hidden/read-only which the listing filters/sorts on, so refresh
@@ -902,7 +951,18 @@ fun FileManagerScreen(
 
     if (selectedEntry != null && selectedEntry != showMenuFor) {
         val file = selectedEntry ?: return
-        OutlinedAlertDialog(
+        if (deckMode) DeckFmDialog(
+            title = "Delete?",
+            onDismiss = { selectedEntry = null },
+            confirmLabel = "Delete",
+            danger = true,
+            onConfirm = {
+                selectedEntry = null
+                performDelete(file)
+            },
+        ) {
+            DeckConfigNote("Delete \"${file.name}\" permanently?")
+        } else OutlinedAlertDialog(
             onDismissRequest = { selectedEntry = null },
             title = { Text("Delete?") },
             text = { Text("Delete \"${file.name}\" permanently?") },
@@ -918,7 +978,37 @@ fun FileManagerScreen(
 
     if (pendingBulkDelete.isNotEmpty()) {
         val victims = pendingBulkDelete
-        OutlinedAlertDialog(
+        val bulkDeleteNow: () -> Unit = {
+            pendingBulkDelete = emptyList()
+            selectionMode = false
+            selectedPaths = emptySet()
+            operationJob = scope.launch {
+                isOperationRunning = true
+                var failed = 0
+                victims.forEachIndexed { i, f ->
+                    operationLabel = "Deleting ${i + 1}/${victims.size} — ${f.name}"
+                    if (!withContext(Dispatchers.IO) { FileUtils.delete(f) }) failed++
+                }
+                isOperationRunning = false
+                operationJob = null
+                loadDirectory(currentDir, resetScroll = false)
+                if (failed > 0) {
+                    Toast.makeText(context, "$failed couldn't be deleted", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        if (deckMode) DeckFmDialog(
+            title = "Delete ${victims.size} item${if (victims.size == 1) "" else "s"}?",
+            onDismiss = { pendingBulkDelete = emptyList() },
+            confirmLabel = "Delete",
+            danger = true,
+            onConfirm = bulkDeleteNow,
+        ) {
+            DeckConfigNote("This can't be undone.")
+            // Name a few so an accidental Select-All is obvious before it's too late.
+            victims.take(5).forEach { DeckConfigNote("• ${it.name}") }
+            if (victims.size > 5) DeckConfigNote("…and ${victims.size - 5} more")
+        } else OutlinedAlertDialog(
             onDismissRequest = { pendingBulkDelete = emptyList() },
             title = { Text("Delete ${victims.size} item${if (victims.size == 1) "" else "s"}?") },
             text = {
@@ -939,25 +1029,7 @@ fun FileManagerScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    pendingBulkDelete = emptyList()
-                    selectionMode = false
-                    selectedPaths = emptySet()
-                    operationJob = scope.launch {
-                        isOperationRunning = true
-                        var failed = 0
-                        victims.forEachIndexed { i, f ->
-                            operationLabel = "Deleting ${i + 1}/${victims.size} — ${f.name}"
-                            if (!withContext(Dispatchers.IO) { FileUtils.delete(f) }) failed++
-                        }
-                        isOperationRunning = false
-                        operationJob = null
-                        loadDirectory(currentDir, resetScroll = false)
-                        if (failed > 0) {
-                            Toast.makeText(context, "$failed couldn't be deleted", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = bulkDeleteNow) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { pendingBulkDelete = emptyList() }) { Text("Cancel") } },
         )
@@ -966,7 +1038,14 @@ fun FileManagerScreen(
     // Paste conflict — one per colliding item, with "apply to all" for a long batch.
     pendingConflict?.let { conflict ->
         val isDir = conflict.isDirectory
-        OutlinedAlertDialog(
+        if (deckMode) DeckFmConflictDialog(
+            conflict = conflict,
+            batch = clipboardFiles.size > 1,
+            applyToAll = conflictApplyToAll,
+            onApplyToAll = { conflictApplyToAll = it },
+            onChoice = { conflictChoice = it; pendingConflict = null },
+            onCancel = { conflictChoice = ConflictChoice.SKIP; pendingConflict = null },
+        ) else OutlinedAlertDialog(
             onDismissRequest = { pendingConflict = null },
             title = { Text("\"${conflict.name}\" already exists") },
             text = {
@@ -1011,7 +1090,15 @@ fun FileManagerScreen(
     }
 
     if (showContainerPicker) {
-        OutlinedAlertDialog(
+        if (deckMode) DeckFmChoiceDialog(
+            title = "Choose container",
+            labels = containers.map { it.name },
+            onPick = { i ->
+                showContainerPicker = false
+                containers.getOrNull(i)?.let { openDrive(File(it.rootDir, ".wine/drive_c")) }
+            },
+            onDismiss = { showContainerPicker = false },
+        ) else OutlinedAlertDialog(
             onDismissRequest = { showContainerPicker = false },
             title = { Text("Choose container") },
             text = {
@@ -1042,7 +1129,16 @@ fun FileManagerScreen(
 
     if (pendingRun != null) {
         val file = pendingRun
-        OutlinedAlertDialog(
+        if (deckMode) DeckFmChoiceDialog(
+            title = "Run in which container?",
+            labels = containers.map { it.name },
+            onPick = { i ->
+                pendingRun = null
+                val target = containers.getOrNull(i)
+                if (file != null && target != null) runFileInContainer(file, target)
+            },
+            onDismiss = { pendingRun = null },
+        ) else OutlinedAlertDialog(
             onDismissRequest = { pendingRun = null },
             title = { Text("Run in which container?") },
             text = {
@@ -1074,7 +1170,16 @@ fun FileManagerScreen(
 
     if (pendingAddShortcut != null) {
         val file = pendingAddShortcut
-        OutlinedAlertDialog(
+        if (deckMode) DeckFmChoiceDialog(
+            title = "Add to which container?",
+            labels = containers.map { it.name },
+            onPick = { i ->
+                pendingAddShortcut = null
+                val target = containers.getOrNull(i)
+                if (file != null && target != null) addShortcutInContainer(file, target)
+            },
+            onDismiss = { pendingAddShortcut = null },
+        ) else OutlinedAlertDialog(
             onDismissRequest = { pendingAddShortcut = null },
             title = { Text("Add to which container?") },
             text = {
@@ -1105,6 +1210,289 @@ fun FileManagerScreen(
     }
 
     CompositionLocalProvider(LocalDeckMode provides deckMode) {
+    // Shared collapsible rail: landscape expanded by default, portrait collapsed icon-only. Not
+    // shown in pick mode (the themed picker keeps its slim layout). Built each recompose (cheap)
+    // so it tracks the current drive/favourites without stale click lambdas.
+    val fmRailState = rememberRailState("filemanager")
+    fun locItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
+        RailItem(label, icon, !showFavorites && currentRoot.absolutePath == dir.absolutePath) {
+            showFavorites = false; openDrive(dir)
+        }
+    val storageItems = buildList {
+        add(locItem("Internal", Icons.Filled.Smartphone, File("/storage/emulated/0")))
+        drives.filter { it.removable }.forEach { d ->
+            add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
+                showFavorites = false; if (d.readable) openDrive(d.dir)
+            })
+        }
+        // Add-a-game-from-C: (add-game flow only). openDrive() pins currentRoot = drive_c so
+        // up/back is bounded at C:\ and the user can't wander up into the Linux prefix. RailItem
+        // carries no per-item colour — C: gets the standard accent highlight like Internal/SD
+        // (the amber Drive C: identity lives on the Favorites badge, not the rail).
+        driveCPath?.takeIf { it.isDirectory }?.let { dc ->
+            add(locItem("Drive C:", Icons.Filled.Storage, dc))
+        }
+    }
+    // Quick locations are shortcuts INTO internal storage, not drives: jump there but keep the
+    // floor at the storage root so the user can still climb out of Download/Games/Pictures.
+    fun quickItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
+        RailItem(label, icon, !showFavorites && currentDir.absolutePath == dir.absolutePath) {
+            showFavorites = false; jumpTo(dir)
+        }
+    val quickItems = buildList {
+        File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(quickItem("Downloads", Icons.Filled.Download, it)) }
+        File("/storage/emulated/0/Winlator/Games").takeIf { it.isDirectory }?.let { add(quickItem("Games", Icons.Filled.SportsEsports, it)) }
+        File("/storage/emulated/0/Pictures").takeIf { it.isDirectory }?.let { add(quickItem("Pictures", Icons.Filled.Image, it)) }
+    }
+    val favItems = remember(favTick) { FavoritesStore.list(context).map(::File).filter { it.exists() } }
+        .map { d -> RailItem(d.name, Icons.Filled.Star, false) { showFavorites = false; jumpTo(d) } }
+    val locationSections = buildList {
+        add(RailSection("STORAGE", storageItems))
+        if (quickItems.isNotEmpty()) add(RailSection("QUICK", quickItems))
+        if (favItems.isNotEmpty()) add(RailSection("★ FAVORITES", favItems))
+    }
+    if (deckMode) {
+        // New Deck file manager: this screen owns every behaviour, DeckFileManagerContent only draws it.
+        val deckSections = buildList<RailSection> {
+            add(
+                RailSection(
+                    "STORAGE",
+                    buildList<RailItem> {
+                        addAll(storageItems)
+                        // The drive menu of the classic screen: a container's C: and the shared Z:.
+                        if (driveCPath == null && containers.isNotEmpty()) {
+                            add(
+                                RailItem(
+                                    "Drive C:", Icons.Filled.Storage,
+                                    !showFavorites && currentRoot.absolutePath.endsWith("/.wine/drive_c"),
+                                ) {
+                                    showFavorites = false
+                                    if (containers.size == 1) openDrive(File(containers.first().rootDir, ".wine/drive_c"))
+                                    else { showContainerPicker = true }
+                                },
+                            )
+                        }
+                        if (imagefsDir.isDirectory) add(locItem("Drive Z:", Icons.Filled.Storage, imagefsDir))
+                    },
+                ),
+            )
+            if (quickItems.isNotEmpty()) add(RailSection("QUICK", quickItems))
+            if (favItems.isNotEmpty()) add(RailSection("★ FAVORITES", favItems))
+        }
+        val freeSpace = remember(currentDir.absolutePath, entries) { runCatching { currentDir.usableSpace }.getOrDefault(0L) }
+        val totalSpace = remember(currentDir.absolutePath, entries) { runCatching { currentDir.totalSpace }.getOrDefault(0L) }
+        // describeLocation labels C: by matching the container list, which is empty in the picker.
+        val driveLabel = if (driveCPath != null && isWithin(currentDir, driveCPath)) "Drive C:"
+            else describeLocation(currentDir, containers, imagefsDir).driveLabel
+        val shownEntries = if (searchQuery.isBlank()) entries
+        else entries.filter { it.name.contains(searchQuery, ignoreCase = true) }
+
+        fun toggleSelected(file: File) {
+            selectedPaths = if (file.absolutePath in selectedPaths) selectedPaths - file.absolutePath
+            else selectedPaths + file.absolutePath
+        }
+        fun toggleFavoriteOf(file: File) {
+            val nowFav = FavoritesStore.toggle(context, file.absolutePath)
+            favTick++
+            showMenuFor = null
+            Toast.makeText(
+                context,
+                if (nowFav) "Added \"${file.name}\" to Favorites" else "Removed \"${file.name}\" from Favorites",
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+
+        // B on a pad: close what is open, else go up one level. Nothing left to close = not consumed.
+        val deckBack: () -> Boolean = {
+            when {
+                selectionMode -> { selectionMode = false; selectedPaths = emptySet(); true }
+                showSearch -> { showSearch = false; searchQuery = ""; true }
+                showFavorites -> { showFavorites = false; true }
+                currentDir != currentRoot -> { goUp(); true }
+                else -> false
+            }
+        }
+        val latestDeckBack by rememberUpdatedState(deckBack)
+        val deckBackLayer = LocalDeckBack.current
+        DisposableEffect(deckBackLayer) {
+            deckBackLayer.onBack = { latestDeckBack() }
+            onDispose { deckBackLayer.onBack = null }
+        }
+
+        showMenuFor?.let { menuFile ->
+            DeckFmContextMenu(
+                file = menuFile,
+                isFavorite = remember(menuFile.absolutePath, favTick) { FavoritesStore.isFavorite(context, menuFile.absolutePath) },
+                a = DeckFmMenuActions(
+                    select = { selectionMode = true; selectedPaths = selectedPaths + menuFile.absolutePath; showMenuFor = null },
+                    properties = { propertiesTarget = menuFile; showMenuFor = null },
+                    toggleFavorite = { toggleFavoriteOf(menuFile) },
+                    run = { runFile(menuFile) },
+                    addToShortcuts = { addToShortcuts(menuFile) },
+                    unpack = { launchUnpack(menuFile) },
+                    fastExtract = { launchFastExtract(menuFile) },
+                    rename = { renameTarget = menuFile; showMenuFor = null },
+                    copy = { clipboardFiles = listOf(menuFile); isCutOperation = false; showMenuFor = null },
+                    cut = { clipboardFiles = listOf(menuFile); isCutOperation = true; showMenuFor = null },
+                    delete = { selectedEntry = menuFile; showMenuFor = null },
+                ),
+                onDismiss = { showMenuFor = null },
+            )
+        }
+        if (showSortMenu) {
+            DeckFmOptionsDialog(
+                sortBy = sortBy,
+                sortDesc = sortDesc,
+                gridView = gridView,
+                compactRows = compactRows,
+                showHidden = showHidden,
+                onSort = { key ->
+                    // Tapping the active field flips direction; a different field switches to it ascending.
+                    if (sortBy == key) sortDesc = !sortDesc else { sortBy = key; sortDesc = false }
+                    browsePrefs.edit().putString("fmSortBy", sortBy).putBoolean("fmSortDesc", sortDesc).apply()
+                    loadDirectory(currentDir, resetScroll = false)
+                },
+                onGrid = {
+                    gridView = !gridView
+                    browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
+                },
+                onCompact = {
+                    compactRows = !compactRows
+                    browsePrefs.edit().putBoolean("fmCompactRows", compactRows).apply()
+                },
+                onHidden = {
+                    showHidden = !showHidden
+                    browsePrefs.edit().putBoolean("fmShowHidden", showHidden).apply()
+                    loadDirectory(currentDir, resetScroll = false)
+                },
+                onRefresh = { loadDirectory(currentDir, resetScroll = false) },
+                onDismiss = { showSortMenu = false },
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                // The picker has no shell behind it, so it keeps its own background in portrait too.
+                .then(
+                    if (!pickMode && LocalDeckPortrait.current) Modifier
+                    else Modifier.background(DeckPalette.background)
+                ),
+        ) {
+            DeckFileManagerContent(
+                ui = DeckFmUi(
+                    pickMode = pickMode,
+                    pickDirMode = pickDirMode,
+                    pickerTitle = pickerTitle,
+                    currentDir = currentDir,
+                    currentRoot = currentRoot,
+                    entries = entries,
+                    shown = shownEntries,
+                    loading = dirLoading,
+                    unreadable = dirUnreadable,
+                    sections = deckSections,
+                    showFavorites = showFavorites,
+                    favTick = favTick,
+                    containers = containers,
+                    imagefsDir = imagefsDir,
+                    driveLabel = driveLabel,
+                    freeSpace = freeSpace,
+                    totalSpace = totalSpace,
+                    searchQuery = searchQuery,
+                    showSearch = showSearch,
+                    gridView = gridView,
+                    compactRows = compactRows,
+                    selectionMode = selectionMode,
+                    selectedPaths = selectedPaths,
+                    clipboard = clipboardFiles,
+                    isCut = isCutOperation,
+                    busy = isOperationRunning,
+                    busyLabel = operationLabel,
+                    busyDeterminate = operationDeterminate,
+                    busyProgress = operationProgress,
+                    cancellable = operationJob != null,
+                    listState = listState,
+                    pullState = pullState,
+                ),
+                act = DeckFmActions(
+                    goUp = { goUp() },
+                    open = { dir -> loadDirectory(dir) },
+                    tap = { file ->
+                        // In selection mode a tap toggles, so you can rattle through a folder.
+                        if (selectionMode) toggleSelected(file)
+                        else if (file.isDirectory) loadDirectory(file)
+                        else if (pickMode) {
+                            if (matchesPickExt(file)) {
+                                pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
+                                onPick?.invoke(file)
+                            }
+                        }
+                        else if (canRun(file)) runFile(file)
+                        else { showMenuFor = file }
+                    },
+                    longPress = { file ->
+                        if (!pickMode) {
+                            if (selectionMode) toggleSelected(file) else { showMenuFor = file }
+                        }
+                    },
+                    openMenu = { file -> if (!pickMode) showMenuFor = file },
+                    toggleSelectAll = {
+                        selectedPaths = if (selectedPaths.size == entries.size) emptySet()
+                        else entries.map { it.absolutePath }.toSet()
+                    },
+                    copySelected = {
+                        clipboardFiles = entries.filter { it.absolutePath in selectedPaths }
+                        isCutOperation = false
+                        selectionMode = false
+                        selectedPaths = emptySet()
+                    },
+                    cutSelected = {
+                        clipboardFiles = entries.filter { it.absolutePath in selectedPaths }
+                        isCutOperation = true
+                        selectionMode = false
+                        selectedPaths = emptySet()
+                    },
+                    deleteSelected = { pendingBulkDelete = entries.filter { it.absolutePath in selectedPaths } },
+                    endSelection = { selectionMode = false; selectedPaths = emptySet() },
+                    paste = { performPaste() },
+                    clearClipboard = { clipboardFiles = emptyList(); isCutOperation = false },
+                    cancelOperation = {
+                        operationJob?.cancel()
+                        operationJob = null
+                        isOperationRunning = false
+                        operationDeterminate = false
+                        loadDirectory(currentDir, resetScroll = false)
+                    },
+                    newFolder = { showNewFolderDialog = true },
+                    setSearch = { searchQuery = it },
+                    toggleSearch = { showSearch = !showSearch; if (!showSearch) searchQuery = "" },
+                    toggleGrid = {
+                        gridView = !gridView
+                        browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
+                    },
+                    openOptions = { showSortMenu = true },
+                    openFavorites = { showFavorites = true },
+                    closeFavorites = { showFavorites = false },
+                    pinCurrent = {
+                        FavoritesStore.add(context, currentDir.absolutePath)
+                        favTick++
+                        Toast.makeText(context, "Added \"${currentDir.name}\" to Favorites", Toast.LENGTH_SHORT).show()
+                    },
+                    jumpTo = { dir ->
+                        showFavorites = false
+                        jumpTo(dir)
+                    },
+                    unpin = { dir ->
+                        FavoritesStore.remove(context, dir.absolutePath)
+                        favTick++
+                        Toast.makeText(context, "Removed \"${dir.name}\" from Favorites", Toast.LENGTH_SHORT).show()
+                    },
+                    refresh = { loadDirectory(currentDir, resetScroll = false) },
+                    pickHere = { onPick?.invoke(currentDir) },
+                ),
+            )
+        }
+    } else
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1127,47 +1515,6 @@ fun FileManagerScreen(
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
-        }
-        // Shared collapsible rail: landscape expanded by default, portrait collapsed icon-only. Not
-        // shown in pick mode (the themed picker keeps its slim layout). Built each recompose (cheap)
-        // so it tracks the current drive/favourites without stale click lambdas.
-        val fmRailState = rememberRailState("filemanager")
-        fun locItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
-            RailItem(label, icon, !showFavorites && currentRoot.absolutePath == dir.absolutePath) {
-                showFavorites = false; openDrive(dir)
-            }
-        val storageItems = buildList {
-            add(locItem("Internal", Icons.Filled.Smartphone, File("/storage/emulated/0")))
-            drives.filter { it.removable }.forEach { d ->
-                add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
-                    showFavorites = false; if (d.readable) openDrive(d.dir)
-                })
-            }
-            // Add-a-game-from-C: (add-game flow only). openDrive() pins currentRoot = drive_c so
-            // up/back is bounded at C:\ and the user can't wander up into the Linux prefix. RailItem
-            // carries no per-item colour — C: gets the standard accent highlight like Internal/SD
-            // (the amber Drive C: identity lives on the Favorites badge, not the rail).
-            driveCPath?.takeIf { it.isDirectory }?.let { dc ->
-                add(locItem("Drive C:", Icons.Filled.Storage, dc))
-            }
-        }
-        // Quick locations are shortcuts INTO internal storage, not drives: jump there but keep the
-        // floor at the storage root so the user can still climb out of Download/Games/Pictures.
-        fun quickItem(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dir: File) =
-            RailItem(label, icon, !showFavorites && currentDir.absolutePath == dir.absolutePath) {
-                showFavorites = false; jumpTo(dir)
-            }
-        val quickItems = buildList {
-            File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(quickItem("Downloads", Icons.Filled.Download, it)) }
-            File("/storage/emulated/0/Winlator/Games").takeIf { it.isDirectory }?.let { add(quickItem("Games", Icons.Filled.SportsEsports, it)) }
-            File("/storage/emulated/0/Pictures").takeIf { it.isDirectory }?.let { add(quickItem("Pictures", Icons.Filled.Image, it)) }
-        }
-        val favItems = remember(favTick) { FavoritesStore.list(context).map(::File).filter { it.exists() } }
-            .map { d -> RailItem(d.name, Icons.Filled.Star, false) { showFavorites = false; jumpTo(d) } }
-        val locationSections = buildList {
-            add(RailSection("STORAGE", storageItems))
-            if (quickItems.isNotEmpty()) add(RailSection("QUICK", quickItems))
-            if (favItems.isNotEmpty()) add(RailSection("★ FAVORITES", favItems))
         }
         // Portrait Deck: the locations (storage, quick folders, favourites) run across the top as a tab strip.
         if (deckMode && LocalDeckPortrait.current && (!pickMode || driveCPath != null)) {

@@ -630,7 +630,7 @@ private fun DeckOutlineButton(text: String, onClick: () -> Unit) {
 
 /** Red-tinted destructive action (Remove Container). */
 @Composable
-private fun DeckDangerButton(text: String, onClick: () -> Unit) {
+internal fun DeckDangerButton(text: String, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     Box(
         contentAlignment = Alignment.Center,
