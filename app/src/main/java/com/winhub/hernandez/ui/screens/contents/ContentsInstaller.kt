@@ -413,9 +413,37 @@ object ContentsInstaller {
 
     // ── Blocking installers (Activity-free; never touch runOnUiThread) ──────────
 
-    /** Install an AdrenoTools driver zip. */
-    private suspend fun installDriverBlocking(context: Context, uri: Uri): Boolean =
-        runCatching { AdrenotoolsManager(context).installDriver(uri).isNotEmpty() }.getOrDefault(false)
+    /**
+     * A driver zip, routed to the manager that can actually use it. "GPU driver" is three different
+     * things now and only one of them is an AdrenoTools package: the zip's own meta.json says which
+     * ("kind"), so a "-Wayland" (bionic ICD, Wine on Wayland) zip is installed where it belongs
+     * instead of landing in the Android display-driver list, where it can never be loaded.
+     */
+    private suspend fun installDriverBlocking(context: Context, uri: Uri): Boolean = runCatching {
+        val name = uri.lastPathSegment?.substringAfterLast('/') ?: "driver.zip"
+        when (driverZipKind(context, uri)) {
+            "wayland-game-driver" ->
+                com.winhub.hernandez.contents.WaylandGameDriverManager(context).installDriver(uri, name).isNotEmpty()
+            else -> AdrenotoolsManager(context).installDriver(uri).isNotEmpty()
+        }
+    }.getOrDefault(false)
+
+    /** The zip's meta.json "kind", or "" when it has none (every AdrenoTools driver). Never throws. */
+    private fun driverZipKind(context: Context, uri: Uri): String = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            java.util.zip.ZipInputStream(input).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory && File(entry.name).name == "meta.json") {
+                        val text = zis.readBytes().toString(Charsets.UTF_8)
+                        return@runCatching org.json.JSONObject(text).optString("kind", "")
+                    }
+                    entry = zis.nextEntry
+                }
+            }
+        }
+        ""
+    }.getOrDefault("")
 
     private suspend fun installComponentBlocking(
         context: Context,

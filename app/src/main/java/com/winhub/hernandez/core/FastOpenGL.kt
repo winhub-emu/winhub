@@ -34,9 +34,10 @@ object FastOpenGL {
     const val HINT = "Faster OpenGL games, and DirectDraw / older Direct3D games through WineD3D."
     const val NEEDS_TURNIP = "Needs a Turnip driver"
     const val NOT_BUNDLED = "Not in this build"
+    const val WAYLAND_ALWAYS_ON = "Always on with Wayland"
 
     // Two plain OpenGL launch switches that sit with Fast OpenGL in the editors. Independent of it:
-    // both reach Mesa on either path (GLX or EGL), so they are never greyed.
+    // both reach Mesa on either path (GLX or EGL) and on Wayland, so they are never greyed.
     /** "Show OpenGL FPS": GALLIUM_HUD=fps, Mesa's fps counter in the game's top-left corner. */
     @JvmField val FPS_HUD = GlLaunchSwitch(
         "glFpsHud", "Show OpenGL FPS", "Mesa's fps counter in the corner of OpenGL games.",

@@ -16,7 +16,8 @@ import com.winhub.hernandez.core.StringUtils
  * overlay so the two can never drift. Public (not internal) so the Java XServerDisplayActivity can
  * call it at launch time as `SpecCardComponentsKt`-style static.
  *
- * Takes a [context] for the string resources.
+ * Takes a [context] (not just Resources) because the renderer chip has to ask whether this game
+ * effectively runs on Wayland, which needs the container's layer probed.
  */
 fun buildLaunchSpec(shortcut: Shortcut, context: Context): PreloaderSpec {
     val res = context.resources
@@ -27,7 +28,9 @@ fun buildLaunchSpec(shortcut: Shortcut, context: Context): PreloaderSpec {
     val dxwrapperCfg = shortcut.getExtra("dxwrapperConfig", container?.getDXWrapperConfig() ?: "")
     val (dxvkVersion, vkd3dVersion) = parseDxwrapperConfig(dxwrapperCfg)
 
-    val rendererLabel = rendererLabelOf(shortcut.getExtra("renderer", container?.renderer ?: ""))
+    // Renderer chip: on Wayland the stored id is the (unused) X11 setting — the compositor renders.
+    val wayland = com.winhub.hernandez.core.WineWaylandSupport.runsOnWayland(context, shortcut)
+    val rendererLabel = rendererLabelOf(shortcut.getExtra("renderer", container?.renderer ?: ""), wayland)
     val frameGenLabel = frameGenLabelOf(shortcut.getExtra("frameGenEngine", container?.frameGenEngine ?: "off"))
     val backendLabel = run {
         val id = shortcut.getExtra("emulator", container?.emulator ?: "")

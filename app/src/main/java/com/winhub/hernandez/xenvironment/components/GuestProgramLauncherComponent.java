@@ -92,6 +92,11 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
     public Container getContainer() { return this.container; }
     public void setContainer(Container container) { this.container = container; }
 
+    // When true, the guest uses the Wayland display path (winewayland.drv → embedded compositor)
+    // instead of the X11 server. Set by XServerDisplayActivity in wayland_mode.
+    private boolean waylandMode = false;
+    public void setWaylandMode(boolean v) { this.waylandMode = v; }
+
     private void extractBox64Files() {
         ImageFs imageFs = environment.getImageFs();
         Context context = environment.getContext();
@@ -422,7 +427,26 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         envVars.put("WRAPPER_CACHE_PATH", rootDir.getPath() + "/usr/var/cache");
         envVars.put("WINE_NO_DUPLICATE_EXPLORER", "1");
         envVars.put("PREFIX", rootDir.getPath() + "/usr");
-        envVars.put("DISPLAY", ":0");
+        if (waylandMode) {
+            // Wayland display path: point Wine at the embedded compositor's socket. winewayland's
+            // unixlib runs host-side (no chroot — the guest uses full /data paths), so XDG_RUNTIME_DIR
+            // must be the FULL host path where XServerDisplayActivity created the socket
+            // (imagefs/tmp/wayland-0), not a bare "/tmp". Skip DISPLAY (winex11.drv is hidden anyway).
+            envVars.put("WAYLAND_DISPLAY", "wayland-0");
+            // Must match XServerDisplayActivity.startWaylandCompositor: filesDir/.wayland-rt (NOT
+            // imagefs/tmp, which setupXEnvironment clears out from under the compositor's socket).
+            envVars.put("XDG_RUNTIME_DIR", new File(context.getFilesDir(), ".wayland-rt").getPath());
+            // winewayland.so's DT_NEEDED libwayland-client/-egl/xkbcommon/xkbregistry are bundled in
+            // the Proton wcp's lib/ with the exact sonames winewayland was linked against (unversioned,
+            // e.g. "libxkbcommon.so"). imagefs/usr/lib ships versioned sonames ("libxkbcommon.so.0"),
+            // which bionic rejects with a verneed mismatch. So prepend the wcp lib/ to LD_LIBRARY_PATH:
+            // the 4 wayland libs resolve there (matching sonames); their transitive deps (libffi,
+            // libandroid-support, libc…) still resolve from imagefs/usr/lib further down the path.
+            envVars.put("LD_LIBRARY_PATH", imageFs.getWinePath() + "/lib" + ":"
+                    + rootDir.getPath() + "/usr/lib" + ":" + "/system/lib64");
+        } else {
+            envVars.put("DISPLAY", ":0");
+        }
         envVars.put("WINE_DISABLE_FULLSCREEN_HACK", "1");
         envVars.put("GST_PLUGIN_FEATURE_RANK", "ximagesink:3000");
         envVars.put("ALSA_CONFIG_PATH", rootDir.getPath() + "/usr/share/alsa/alsa.conf" + ":" + rootDir.getPath() + "/usr/etc/alsa/conf.d/android_aserver.conf");
@@ -572,6 +596,11 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         }
 
         Log.d("GuestLauncher", "Final LD_PRELOAD: " + ld_preload);
+        // winewayland.so (unixlib) dlopens libwayland-client/-egl/xkbcommon/xkbregistry. These resolve
+        // from imagefs/usr/lib via LD_LIBRARY_PATH exactly like winex11.so's libX11/libXext deps do
+        // (proven: winex11.so has the same Termux RUNPATH yet loads fine). So NO wayland-specific
+        // LD_PRELOAD — force-preloading them into the main `wine` executable aborts startup
+        // ("CANNOT LINK EXECUTABLE"). installWaylandLibs stages the libs into imagefs/usr/lib.
         envVars.put("LD_PRELOAD", ld_preload);
 
         if (this.envVars.has("MANGOHUD")) {
@@ -654,8 +683,8 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             }
         }
 
-        // Bring a stale prefix up to date BEFORE the session, with Wine Mono's download prompt
-        // switched off for that step only (see updatePrefixBeforeSession).
+        // Bring a stale prefix up to date BEFORE the session, X11 and Wayland alike, with Wine Mono's
+        // download prompt switched off for that step only (see updatePrefixBeforeSession).
         String wineLauncher = wineInfo.isArm64EC() ? winePath + "/wine" : imageFs.getBinDir() + "/box64 wine";
         updatePrefixBeforeSession(envVars, wineLauncher, rootDir, imageFs);
 
@@ -671,11 +700,11 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
     /**
      * Run Wine's prefix update (the wine.inf install ntdll triggers through {@code wineboot --init}
-     * in the FIRST process of a session) in a throwaway session of its own - on the already-running
-     * X server - before the real launch,
+     * in the FIRST process of a session) in a throwaway session of its own - headless on Wayland, on
+     * the already-running X server on X11 - before the real launch,
      * whenever the prefix is stale: a new container (no layer's prefixPack ships a stamp except the
      * x86_64 Proton one, which says "disable") and the first launch after its layer changed. Every
-     * layer; {@code wineLauncher} is {@code <layer>/bin/wine} for arm64ec
+     * display backend and every layer; {@code wineLauncher} is {@code <layer>/bin/wine} for arm64ec
      * and {@code box64 wine} otherwise, the same way the session itself is started.
      *
      * Mono: wine.inf's RegisterDlls section registers mscoree.dll, and mscoree's DllRegisterServer
@@ -690,7 +719,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
      *
      * Why a separate step at all: the env above must not reach the game, and ntdll hands the FIRST
      * process's environment to the {@code wineboot --init} it spawns, so the update cannot run inside
-     * the session with its own env. It also needs to stay off the desktop's path: on the first launch
+     * the session with its own env. Wayland also needs it off the desktop's path: on the first launch
      * after a layer install/repoint the prefix's {@code .update-timestamp}
      * no longer matches the layer's {@code wine.inf} mtime, so ntdll blocks explorer (the session's
      * first process) before its main() for the ~7 s install. wineboot's wait dialog then needs a
@@ -708,7 +737,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
      * shuts down by itself (services only, 3 s master-socket timeout) and flushes the registry; we
      * wait for that so the real launch starts from a clean prefix, and only force-terminate as a last
      * resort. X11 used to keep the in-session update; it now takes this step too, for the Mono reason,
-     * with DISPLAY kept so nothing else about its update changes.
+     * with DISPLAY kept (unlike Wayland) so nothing else about its update changes.
      */
     private void updatePrefixBeforeSession(EnvVars guestEnv, String wineLauncher, File rootDir, ImageFs imageFs) {
         final String tag = "GuestProgramLauncherComponent";
@@ -731,6 +760,14 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
             EnvVars env = new EnvVars();
             env.putAll(guestEnv);
+            if (waylandMode) {
+                // No display for this session: wineboot's wait dialog and the explorer win32u spawns for
+                // it run on the null driver instead of connecting to the compositor. libwayland falls back
+                // to "wayland-0" under XDG_RUNTIME_DIR when WAYLAND_DISPLAY is unset, so drop both.
+                env.remove("WAYLAND_DISPLAY");
+                env.remove("XDG_RUNTIME_DIR");
+                env.remove("DISPLAY");
+            }
             // X11 keeps DISPLAY: XServerComponent starts before this component, so the X server is
             // already up and the update runs with the same env it had inside the session.
             // No Wine Mono download prompt (see above). Appended last: in WINEDLLOVERRIDES a later entry
@@ -739,7 +776,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             env.put("WINEDLLOVERRIDES", overrides);
             Log.i(tag, "prefix update: .update-timestamp \"" + current + "\" != wine.inf mtime " + infMtime
                     + " (" + wineInf.getPath() + "); running Wine's prefix update before the "
-                    + "X11 session, WINEDLLOVERRIDES=" + overrides);
+                    + (waylandMode ? "Wayland" : "X11") + " session, WINEDLLOVERRIDES=" + overrides);
             long t0 = System.currentTimeMillis();
             int status = ProcessHelper.execAndWait(wineLauncher + " wineboot -h", env.toStringArray(), rootDir, 180_000);
             // Let the wineserver wind down on its own (it flushes the registry on exit).

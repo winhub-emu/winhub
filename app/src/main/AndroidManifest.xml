@@ -104,7 +104,7 @@
              to the handheld by the system; the two screens differ in HDR / wide-colour support (that is
              the whole point of launching on the TV), which is a colorMode change, and an external
              screen has no touchscreen and reports a TV uiMode. Any one of those not listed here tears
-             the activity down and restarts the whole guest — device-observed as "a fresh
+             the activity down and restarts the whole guest — device-observed as "a fresh Wayland
              session log, then program disconnected" when the cable came out. Handled instead by
              onConfigurationChanged + the display listener, which pause the game and keep it alive. -->
         <activity
@@ -115,6 +115,14 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|colorMode|touchscreen|uiMode"
             android:exported="true" />
+
+        <activity
+            android:name="com.winhub.hernandez.WaylandDisplayActivity"
+            android:theme="@style/AppThemeFullscreen"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation"
+            android:exported="false" />
 
         <!-- The handheld's "your game is on the TV" screen, shown for as long as a session runs on an
              external display. Its own taskAffinity so it can never be merged into the session's task

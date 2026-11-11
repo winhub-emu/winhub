@@ -6301,7 +6301,17 @@ internal fun ShortcutSettingsDialogScreen(
             ?: graphicsDriverEntries.firstOrNull() ?: id)
     }
     var graphicsDriverConfig by remember {
-        mutableStateOf(shortcut.getExtra("graphicsDriverConfig", shortcut.container.getGraphicsDriverConfig()))
+        // A game without its own config starts from a copy of the container's - with the Wayland adapter
+        // keys (core.WaylandAdapterSettings) blanked, so they read as "Inherit" instead of pinning the
+        // container's choices of today onto the game. Every other key is copied as before.
+        val own = shortcut.getExtra("graphicsDriverConfig", "")
+        mutableStateOf(
+            if (own.isNotEmpty()) own
+            else withGraphicsDriverKeys(
+                shortcut.container.getGraphicsDriverConfig(),
+                com.winhub.hernandez.core.WaylandAdapterSettings.KEYS.associateWith { "" }
+            )
+        )
     }
 
     // DX wrapper
@@ -6326,7 +6336,39 @@ internal fun ShortcutSettingsDialogScreen(
     }
 
 
+    // Display backend per-game override: "" = use the container's Display backend, else force
+    // "x11"/"wayland". Absent extra falls back to the container default at launch. When the
+    // effective backend is Wayland the embedded compositor replaces the Renderer group, so the
+    // renderer overrides below are greyed (mirrors the container settings screen).
+    //
+    // Wayland needs the container's Proton layer to ship winewayland.so + its bundled Wayland Turnip
+    // (WineWaylandSupport). On any other layer "Force Wayland" is disabled, a stored "Force Wayland"
+    // displays (and saves) as X11, and "Use container default" resolves to the container's EFFECTIVE
+    // backend — X11 when the container says wayland but its layer can't drive it. Keyed on the wine
+    // version so the cached probe only re-runs when the layer changes.
+    var displayBackendOverride by remember { mutableStateOf(shortcut.getExtra("displayBackend", "")) }
+    val containerWaylandCapable = remember(shortcut.container.wineVersion) {
+        com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(context, shortcut.container.wineVersion)
+    }
+    val containerWaylandDefault = shortcut.container.isWaylandBackend && containerWaylandCapable
+    val effectiveWaylandShortcut = when (displayBackendOverride) {
+        Container.DISPLAY_BACKEND_WAYLAND -> containerWaylandCapable
+        Container.DISPLAY_BACKEND_X11 -> false
+        else -> containerWaylandDefault
+    }
+    // Wayland GAME driver override (per-game, same extra name as the container's): "" = the
+    // container's choice. Only shown when the effective backend is Wayland; see core.WaylandGameDriver.
+    var waylandGameDriverOverride by remember { mutableStateOf(shortcut.getExtra("waylandGameDriver", "")) }
+    // The game driver row sits under a fold on Wayland; folded while the effective choice is the
+    // adapter (one driver pick), open otherwise, until the user toggles it (null = not toggled).
+    var waylandAdvancedToggled by remember { mutableStateOf<Boolean?>(null) }
+    val waylandAdapterChoice = com.winhub.hernandez.core.WaylandGameDriver.isAdapterChoice(
+        waylandGameDriverOverride.ifEmpty { shortcut.container.waylandGameDriver })
+    val waylandAdvancedOpen = waylandAdvancedToggled ?: !waylandAdapterChoice
     // Deck mode is only turned on through a warning that says what it breaks.
+    // HDR output override (per-game, same extra name as the container's): "" = the container's,
+    // "1" on, "0" off. Only shown when the effective backend is Wayland; see display.WaylandHdr.
+    var waylandHdrOverride by remember { mutableStateOf(com.winhub.hernandez.display.WaylandHdr.shortcutChoice(shortcut)) }
 
     // ── TV tab (display.ExternalDisplay) — per game only, deliberately with NO container default: which
     // screen a game belongs on is a property of the game. Launching the session ON the TV is what opens
@@ -6457,9 +6499,10 @@ internal fun ShortcutSettingsDialogScreen(
         mutableStateOf(shortcut.getExtra("unlockGameRefreshRate", ""))
     }
 
-    // Frame Generation engine (off / LSFG Native) — per-game override. Legacy "bionic" and
-    // "lsfg" overrides show and save as LSFG Native.
-    val fgEngines = remember { listOf("off", "lsfg-native") }
+    // Frame Generation engine (off / bionic / lsfg) — per-game override.
+    // lsfg-vk retired from the list (see ContainerDetailScreen); a legacy "lsfg" override
+    // shows and saves as LSFG Native.
+    val fgEngines = remember { listOf("off", "bionic", "lsfg-native") }
     var frameGenEngine by remember {
         mutableStateOf(shortcut.getExtra("frameGenEngine", shortcut.container.frameGenEngine)
             .let { if (it == "bionic" || it == "lsfg") "lsfg-native" else it }
@@ -6702,7 +6745,8 @@ internal fun ShortcutSettingsDialogScreen(
         com.winhub.hernandez.core.FastOpenGL.driverUsable(context, fastGlDriverVersion)
     }
     val fastGlBundled = remember { com.winhub.hernandez.core.X11Egl.isBundled(context) }
-    val fastGlLocked = com.winhub.hernandez.core.FastOpenGL.unavailableReason(fastGlDriverOk, fastGlBundled)
+    val fastGlLocked = if (effectiveWaylandShortcut) com.winhub.hernandez.core.FastOpenGL.WAYLAND_ALWAYS_ON
+        else com.winhub.hernandez.core.FastOpenGL.unavailableReason(fastGlDriverOk, fastGlBundled)
     // Show OpenGL FPS / OpenGL vsync off per-game overrides (extras "glFpsHud" / "glVsyncOff"): same
     // "" / "1" / "0" as Fast OpenGL, never locked.
     var glFpsHudOverride by remember {
@@ -6739,6 +6783,9 @@ internal fun ShortcutSettingsDialogScreen(
 
     // Sub-dialog show states
     var showGfxConfig by remember { mutableStateOf(false) }
+    // The Wayland game driver's gear (WaylandDriverSettingsDialog: GPU name spoof, memory cap, present
+    // mode, UBWC hint), editing the same graphicsDriverConfig as the X11 dialog above.
+    var showWaylandDriverCfg by remember { mutableStateOf(false) }
     // Shared with the Graphics tab (its launcher lives there; the dialog renders at dialog-body level).
     var showWrapperManager by remember { mutableStateOf(false) }
     var showDxvkConfig by remember { mutableStateOf(false) }
@@ -6746,7 +6793,8 @@ internal fun ShortcutSettingsDialogScreen(
     // Per-field "?" help (helpRes) + the newcomer glossary ("What is all this?"), mirrored from the
     // container editor. null = hidden; glossaryQuery == "" opens the glossary unfiltered.
     var helpRes by remember { mutableStateOf<Int?>(null) }
-    // Raw-string twin of helpRes (HelpTextDialog).
+    // Raw-string twin of helpRes (HelpTextDialog) — the Wayland/HDR rows used to print long
+    // paragraphs inline under each control; now a "?" opens the same text as a dialog.
     var helpText by remember { mutableStateOf<String?>(null) }
     var glossaryQuery by remember { mutableStateOf<String?>(null) }
     var showBox64DownloadSheet by remember { mutableStateOf(false) }
@@ -6912,6 +6960,15 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("screenAlignment", screenAlignment.ifEmpty { null })
             putExtra("graphicsDriver", StringUtils.parseIdentifier(selectedGfxDriver))
             putExtra("graphicsDriverConfig", graphicsDriverConfig)
+            // Display backend override: "" clears the extra (use container default) via putExtra(null).
+            // A "Force Wayland" the container's layer can't honour displayed as X11, so X11 is saved.
+            putExtra("displayBackend",
+                if (displayBackendOverride == Container.DISPLAY_BACKEND_WAYLAND && !containerWaylandCapable) Container.DISPLAY_BACKEND_X11
+                else displayBackendOverride.ifEmpty { null })
+            // Wayland game driver override: "" clears the extra (container default).
+            putExtra("waylandGameDriver", waylandGameDriverOverride.ifEmpty { null })
+            // HDR output override: "" clears the extra (container default).
+            putExtra(com.winhub.hernandez.display.WaylandHdr.EXTRA, waylandHdrOverride.ifEmpty { null })
             // TV tab (display.ExternalDisplay) — per game, no container fallback, so these are always
             // written as a plain "1"/"0" (there is no inherit sentinel to preserve). tvModeId 0 = leave
             // the TV on whatever output mode it is already running.
@@ -7043,6 +7100,12 @@ internal fun ShortcutSettingsDialogScreen(
                 add("selectIcon")
                 // The Wine/X11 graphics stack is not registered for a Linux entry, so the D-pad
                 // cursor can never land on a row that isn't drawn (see the render conditionals).
+                if (!isLinuxEntry) add("displayBackend")
+                if (effectiveWaylandShortcut && !isLinuxEntry) {
+                    add("waylandAdvanced"); add("waylandDriverCfg")
+                    if (waylandAdvancedOpen) add("waylandGameDriver")
+                }
+                if (effectiveWaylandShortcut || isLinuxEntry) add(com.winhub.hernandez.display.WaylandHdr.EXTRA)
                 if (!isLinuxEntry) {
                     if (panelRates.isNotEmpty()) add("refresh")
                 }
@@ -7058,11 +7121,11 @@ internal fun ShortcutSettingsDialogScreen(
             }
             6 -> { // Graphics — wrapper manager, DX Wrapper, Renderer, render scale
                 add("gfxDriver")   // compositor/display driver (moved from General)
-                if (!isLinuxEntry) add("gfxConfig")
-                if (!isLinuxEntry) add("gfxWrapper")
+                if (!effectiveWaylandShortcut && !isLinuxEntry) add("gfxConfig")
+                if (!effectiveWaylandShortcut && !isLinuxEntry) add("gfxWrapper")
                 if (!isLinuxEntry) {
                     add("dxWrapper"); add("dxConfig"); add("renderer")
-                    if (selectedRenderer == "Vulkan") { add("vkNative"); add("vkColors"); add("vkPresent"); add("vkDriver") }
+                    if (!effectiveWaylandShortcut && selectedRenderer == "Vulkan") { add("vkNative"); add("vkColors"); add("vkPresent"); add("vkDriver") }
                     add("renderScale")
                     add("openglHelp"); add("fastOpenGL"); add("glFpsHud"); add("glVsyncOff")
                 }
@@ -7166,28 +7229,65 @@ internal fun ShortcutSettingsDialogScreen(
                             6 -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Graphics tab (always 2nd): Graphics Driver, wrapper manager, DX Wrapper,
                     // Renderer, render scale.
+                    val gfxContext = LocalContext.current
+                    var compositorChoices by remember { mutableStateOf<List<String>>(emptyList()) }
+                    var compositorChoicesLoaded by remember { mutableStateOf(false) }
+                    LaunchedEffect(effectiveWaylandShortcut, isLinuxEntry) {
+                        if (!effectiveWaylandShortcut && !isLinuxEntry) return@LaunchedEffect
+                        compositorChoices = compositorDriverChoices(gfxContext)
+                        compositorChoicesLoaded = true
+                    }
+                    val compositorVersion = GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig) ?: ""
+
+                    // Two different drivers are involved in a Linux session and only one of them is
+                    // chosen here. This row picks the ANDROID driver the app's own compositor loads to
+                    // import the session's finished frames and put them on screen - it is live on this
+                    // path, and "System" here is a black screen. What the client and its games render
+                    // WITH is the Linux-built driver inside the runtime, which no row here touches.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        DpDrop(
-                            dp, "gfxDriver",
-                            label = stringResource(R.string.graphics_driver),
-                            options = graphicsDriverEntries,
-                            selected = selectedGfxDriver,
-                            onSelect = { selectedGfxDriver = it },
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { helpRes = R.string.help_graphics_driver }) {
+                        if (effectiveWaylandShortcut || isLinuxEntry) {
+                            DpDrop(
+                                dp, "gfxDriver",
+                                // Named for what it does on each path. On a Linux entry the distinction
+                                // matters: this is the Android driver that DISPLAYS the session, while a
+                                // separate Linux driver inside the runtime is what draws it.
+                                label = if (isLinuxEntry) "Display driver (Android side)" else "Compositor driver",
+                                options = compositorChoices,
+                                selected = compositorDriverLabel(compositorVersion, compositorChoices, compositorChoicesLoaded),
+                                onSelect = { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            DpDrop(
+                                dp, "gfxDriver",
+                                label = stringResource(R.string.graphics_driver),
+                                options = graphicsDriverEntries,
+                                selected = selectedGfxDriver,
+                                onSelect = { selectedGfxDriver = it },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        IconButton(onClick = {
+                            helpRes = if (isLinuxEntry) R.string.help_linux_display_driver
+                                      else R.string.help_graphics_driver
+                        }) {
                             Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
                         }
                     }
 
-                    if (!isLinuxEntry) {
+                    // Driver configuration is X11 tuning; on Wayland its only live field (the Turnip
+                    // version) is covered by the Compositor driver dropdown, so the button is hidden.
+                    // The Wayland branch is also where HDR output lives, and that one DOES reach a
+                    // Linux session (the compositor gates HDR for every Wayland session, gamescope
+                    // included), so a Linux entry takes it with the driver rows conditioned off.
+                    if (!effectiveWaylandShortcut && !isLinuxEntry) {
                         DpButton(dp, "gfxConfig", onActivate = { showGfxConfig = true }, modifier = Modifier.fillMaxWidth()) {
                             OutlinedButton(onClick = { showGfxConfig = true }, modifier = Modifier.fillMaxWidth()) {
                                 Text("${stringResource(R.string.graphics_driver)}: ${GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig)}")
                             }
                         }
                     }
-                    if (!isLinuxEntry) {
+                    if (!effectiveWaylandShortcut && !isLinuxEntry) {
                         DpButton(dp, "gfxWrapper", onActivate = { showWrapperManager = true }) {
                             OutlinedButton(onClick = { showWrapperManager = true }, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -7242,12 +7342,16 @@ internal fun ShortcutSettingsDialogScreen(
 
                     // Renderer (host) — Vulkan is the only host renderer.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        // Display only while greyed on Wayland: the compositor is always Vulkan; the
+                        // stored X11 choice is kept and returns with the X11 backend.
+                        val rendererShown = if (effectiveWaylandShortcut) "Vulkan (Wayland compositor)" else selectedRenderer
                         DpDrop(
                             dp, "renderer",
                             label = stringResource(R.string.renderer),
-                            options = listOf("Vulkan", "EGL", "SurfaceDirect"),
-                            selected = selectedRenderer,
+                            options = if (effectiveWaylandShortcut) listOf(rendererShown) else listOf("Vulkan", "EGL", "SurfaceDirect"),
+                            selected = rendererShown,
                             onSelect = { selectedRenderer = it },
+                            enabled = !effectiveWaylandShortcut,
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(onClick = { helpRes = R.string.help_renderer }) {
@@ -7256,7 +7360,7 @@ internal fun ShortcutSettingsDialogScreen(
                     }
 
                     // Vulkan renderer per-game overrides — only relevant when this game runs on Vulkan.
-                    if (selectedRenderer == "Vulkan") {
+                    if (!effectiveWaylandShortcut && selectedRenderer == "Vulkan") {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.renderer_native), Modifier.weight(1f))
                             IconButton(onClick = { helpRes = R.string.help_renderer_native }) {
@@ -7335,17 +7439,28 @@ internal fun ShortcutSettingsDialogScreen(
                     }
 
                     // Render scale (supersampling) — per-game override of the container default.
+                    // Greyed on Wayland (downscale lives in the X11 Vulkan renderer only); displays
+                    // "Not used on Wayland" while the stored value is left untouched.
                     run {
                         val renderScaleValues = listOf("1.0", "1.25", "1.5", "2.0")
                         val renderScaleLabels = listOf("Off", "1.25x", "1.5x", "2x")
                         val rsIdx = renderScaleValues.indexOf(renderScale).coerceAtLeast(0)
+                        val rsShown = if (effectiveWaylandShortcut) "Not used on Wayland" else renderScaleLabels[rsIdx]
                         DpDrop(
                             dp, "renderScale",
                             label = "Render scale (supersampling)",
-                            options = renderScaleLabels,
-                            selected = renderScaleLabels[rsIdx],
-                            onSelect = { renderScale = renderScaleValues[renderScaleLabels.indexOf(it)] }
+                            options = if (effectiveWaylandShortcut) listOf(rsShown) else renderScaleLabels,
+                            selected = rsShown,
+                            onSelect = { renderScale = renderScaleValues[renderScaleLabels.indexOf(it)] },
+                            enabled = !effectiveWaylandShortcut
                         )
+                        if (effectiveWaylandShortcut) {
+                            Text(
+                                "Not used on Wayland: the compositor has no supersampling downscale. The stored value returns on X11.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     // OpenGL card (per-game): Fast / Show FPS / Vsync off, each `Auto | On | Off` (Auto =
@@ -7624,7 +7739,7 @@ internal fun ShortcutSettingsDialogScreen(
                             stringResource(R.string.screen_alignment_bottom)
                         )
                         val saIdx = saValues.indexOf(screenAlignment).coerceAtLeast(0)
-                        // Applies to the X11 session.
+                        // Applies on X11 and Wayland alike (the compositor fits the desktop the same way).
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             DpDrop(
                                 dp, "screenAlignment",
@@ -7665,6 +7780,179 @@ internal fun ShortcutSettingsDialogScreen(
                             }
                         }
                         LinuxHelp(isLinuxEntry, R.string.help_linux_icon) { helpRes = it }
+                    }
+
+                    // Display backend override (container default / Force X11 / Force Wayland) is
+                    // deliberately NOT offered here — hidden by request. The stored extra is left
+                    // untouched, so a game that already carried one keeps exactly what it had.
+                    // Graphics Driver + wrapper manager (cloud). Under Wayland the wrapper flavour is
+                    // irrelevant: the compositor loads the installed Turnip named by the "version" key of
+                    // graphicsDriverConfig (XServerDisplayActivity's Wayland resolve → adrenotools), and the
+                    // game renders on the Proton's bundled Wayland Turnip. So the flavour dropdown is swapped
+                    // for a "Compositor driver" picker over the installed Turnip ids that writes ONLY the
+                    // version key back (see withGraphicsDriverVersion); the config button stays live.
+                    val gfxContext = LocalContext.current
+                    var compositorChoices by remember { mutableStateOf<List<String>>(emptyList()) }
+                    var compositorChoicesLoaded by remember { mutableStateOf(false) }
+                    // Wayland GAME driver choices + the variant Auto resolves to (native probe, off-main
+                    // under graphicsProbeMutex with the compositor choices; cached after the first run).
+                    var waylandGameDriverValues by remember { mutableStateOf<List<String>>(emptyList()) }
+                    var waylandAutoPick by remember { mutableStateOf(com.winhub.hernandez.core.WaylandGameDriver.autoVariantIfKnown()) }
+                    LaunchedEffect(effectiveWaylandShortcut, isLinuxEntry) {
+                        if (!effectiveWaylandShortcut && !isLinuxEntry) return@LaunchedEffect
+                        compositorChoices = compositorDriverChoices(gfxContext) // same source as the config dialog
+                        compositorChoicesLoaded = true
+                        waylandGameDriverValues = com.winhub.hernandez.core.WaylandGameDriver.optionValues(gfxContext)
+                        waylandAutoPick = waylandAutoVariant(gfxContext)
+                    }
+                    val compositorVersion = GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig) ?: ""
+                    if (!effectiveWaylandShortcut && !isLinuxEntry) {
+                    } else {
+                        // A Linux session has two drivers and the row above picked the wrong half of
+                        // the pair on its own: that one DISPLAYS, this one DRAWS - the client's UI
+                        // through the runtime's Zink and every game the client launches through
+                        // Proton. Imported "-Linux" zips only; "" leaves the runtime's own driver in
+                        // place. A stored id whose import is gone stays listed and labelled, and the
+                        // launch path falls back to the runtime's driver for it.
+                        if (!isLinuxEntry) {
+                        // "System"/empty falls back to the system libvulkan, which can't import the
+                        // game's dmabufs (black screen) — mirrors XServerDisplayActivity's resolve; so
+                        // does an id that is no longer installed. Warn only.
+                        if (compositorDriverUnusable(compositorVersion, compositorChoices, compositorChoicesLoaded)) {
+                            Text(
+                                """Wayland needs a Turnip driver here. "System" or a missing driver cannot import the game's frames and shows a black screen.""",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        // What the one pick drives (same rules as the container editor).
+                        val blobPicked = remember(compositorVersion) {
+                            com.winhub.hernandez.core.WaylandAdapter.isProprietaryBlob(gfxContext, compositorVersion)
+                        }
+                        val effectiveGameChoice = waylandGameDriverOverride.ifEmpty { shortcut.container.waylandGameDriver }
+                        val adapterActive = remember(effectiveGameChoice, compositorVersion) {
+                            com.winhub.hernandez.core.WaylandGameDriver.adapterActive(gfxContext, effectiveGameChoice, compositorVersion)
+                        }
+                        Text(
+                            when {
+                                blobPicked -> "Qualcomm's own driver cannot put Wayland frames on screen, so the screen uses a " +
+                                    "bundled Turnip automatically" + (if (waylandAdapterChoice) " and the game renders on the bundled " +
+                                    "Wayland Turnip (the adapter needs a Turnip driver here)." else ".")
+                                adapterActive -> "Used for the game (through the Wayland adapter) and for putting its frames on screen."
+                                else -> "Used by the Wayland compositor to put frames on screen; the game renders on the " +
+                                    "Wayland game driver under Advanced."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        // The Wayland game driver (per-game): "Use container default (<its label>)" first, then
+                        // Adapter / bundled variants / imported Linux ICDs (a stored auto shows as the adapter,
+                        // which it resolves to: WaylandGameDriver.editorChoice). A stored imported:<id> whose
+                        // import is gone stays listed (labelled missing); launch falls back for it. The bundled
+                        // and imported choices are the fallback, under an expander folded while the effective
+                        // choice is the adapter. The gear: this game's Wayland adapter settings (profile and
+                        // switches, GPU name spoof, memory cap, UBWC hint) in its graphicsDriverConfig, blank
+                        // adapter keys inheriting the container's.
+                        run {
+                            val containerChoice = shortcut.container.waylandGameDriver
+                            val overrideShown = if (waylandGameDriverOverride.isEmpty()) ""
+                                else com.winhub.hernandez.core.WaylandGameDriver.editorChoice(gfxContext, waylandGameDriverOverride)
+                            val values = listOf("") + (
+                                if (overrideShown.isEmpty() || overrideShown in waylandGameDriverValues) waylandGameDriverValues
+                                else waylandGameDriverValues + overrideShown)
+                            val labels = values.map {
+                                if (it.isEmpty()) "Use container default (" + com.winhub.hernandez.core.WaylandGameDriver.optionLabel(gfxContext, containerChoice, waylandAutoPick) + ")"
+                                else com.winhub.hernandez.core.WaylandGameDriver.optionLabel(gfxContext, it, waylandAutoPick)
+                            }
+                            val selectedLabel = labels[values.indexOf(overrideShown).coerceAtLeast(0)]
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "Wayland game driver: $selectedLabel",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                DpButton(dp, "waylandDriverCfg", onActivate = { showWaylandDriverCfg = true }, onLeftId = "waylandAdvanced") {
+                                    IconButton(onClick = { showWaylandDriverCfg = true }) {
+                                        Icon(Icons.Default.Settings, contentDescription = "Wayland adapter settings")
+                                    }
+                                }
+                            }
+                            DpButton(
+                                dp, "waylandAdvanced",
+                                onActivate = { waylandAdvancedToggled = !waylandAdvancedOpen },
+                                modifier = Modifier.fillMaxWidth(),
+                                onRightId = "waylandDriverCfg"
+                            ) {
+                                TextButton(onClick = { waylandAdvancedToggled = !waylandAdvancedOpen }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(if (waylandAdvancedOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(com.winhub.hernandez.core.WaylandGameDriver.FALLBACK_EXPANDER, modifier = Modifier.weight(1f))
+                                }
+                            }
+                            if (waylandAdvancedOpen) {
+                                Text(
+                                    com.winhub.hernandez.core.WaylandGameDriver.FALLBACK_HINT,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                DpDrop(
+                                    dp, "waylandGameDriver",
+                                    label = "Wayland game driver",
+                                    options = labels,
+                                    selected = selectedLabel,
+                                    onSelect = { waylandGameDriverOverride = values[labels.indexOf(it)] },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    com.winhub.hernandez.core.WaylandGameDriver.HELP_TEXT,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            val spoof = com.winhub.hernandez.core.GpuSpoof.gpuNameOf(graphicsDriverConfig)
+                            if (com.winhub.hernandez.core.GpuSpoof.isSpoofing(spoof)) Text(
+                                "GPU name spoof: $spoof (the gear)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        }
+                        // HDR output (per-game): "Use container default (<On/Off>)" / On / Off, see
+                        // display.WaylandHdr. On a screen that doesn't report HDR10 the dropdown is greyed
+                        // with the reason but still shows what is stored.
+                        run {
+                            val hdrUnavailable = remember { com.winhub.hernandez.display.WaylandHdr.unavailableReason(gfxContext) }
+                            val containerHdr = shortcut.container.isWaylandHdr()
+                            val values = listOf("", "1", "0")
+                            val labels = listOf("Use container default (" + (if (containerHdr) "On" else "Off") + ")", "On", "Off")
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                DpDrop(
+                                    dp, com.winhub.hernandez.display.WaylandHdr.EXTRA,
+                                    label = com.winhub.hernandez.display.WaylandHdr.TITLE,
+                                    options = labels,
+                                    selected = labels[values.indexOf(waylandHdrOverride).coerceAtLeast(0)],
+                                    onSelect = { waylandHdrOverride = values[labels.indexOf(it)] },
+                                    enabled = hdrUnavailable == null,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LinuxHelp(isLinuxEntry, R.string.help_linux_hdr_output) { helpRes = it }
+                                if (!isLinuxEntry) IconButton(
+                                    onClick = { helpText = com.winhub.hernandez.display.WaylandHdr.HELP_TEXT }
+                                ) {
+                                    Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            if (hdrUnavailable != null) {
+                                Text(
+                                    hdrUnavailable,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
 
                     // Everything from here to the Frame Generation row is Wine-side rendering: the
@@ -7717,15 +8005,18 @@ internal fun ShortcutSettingsDialogScreen(
                     run {
                         val fgLabels = listOf(
                             stringResource(R.string.frame_generation_off),
+                            stringResource(R.string.frame_generation_bionic),
                             stringResource(R.string.frame_generation_lsfg_native)
                         )
                         val fgIdx = fgEngines.indexOf(frameGenEngine).coerceAtLeast(0)
                         // FG's mailbox/present-mode delivery only exists on the Vulkan host renderer, so
                         // gate the whole dropdown on Vulkan (grey it out otherwise) — combined with the
                         // existing lsfg-DLL option gate. See ContainerDetailScreen for the rationale.
+                        // On Wayland the renderer gate does not apply: FG runs inside the compositor
+                        // (always Vulkan) and the drawer arms the engine picked here. See ContainerDetailScreen.
                         // A Linux session always presents through the Vulkan compositor, whatever
-                        // its entry's renderer field says.
-                        val fgVulkan = isLinuxEntry || selectedRenderer == "Vulkan"
+                        // its entry's renderer field says (gamescope is a Wayland client of it).
+                        val fgVulkan = effectiveWaylandShortcut || isLinuxEntry || selectedRenderer == "Vulkan"
                         val fgShown = fgLabels[fgIdx]
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             DpDrop(
@@ -7736,7 +8027,8 @@ internal fun ShortcutSettingsDialogScreen(
                                 onSelect = { frameGenEngine = fgEngines[fgLabels.indexOf(it)] },
                                 enabled = fgVulkan,
                                 disabledOptions = buildSet {
-                                    if (!lsfgDllAvailable) add(fgLabels[1])   // LSFG Native — needs an imported Lossless.dll
+                                    // bionic-fg re-enabled (2.9.4+) — see ContainerDetailScreen note.
+                                    if (!lsfgDllAvailable) add(fgLabels[2])   // LSFG Native — needs an imported Lossless.dll
                                 },
                                 modifier = (if (!fgVulkan) Modifier.alpha(0.5f) else Modifier).weight(1f)
                             )
@@ -8021,7 +8313,7 @@ internal fun ShortcutSettingsDialogScreen(
                     )
                     val fsOverrideIdx = if (fullscreenModeOverride < 0) 0 else (fullscreenModeOverride + 1)
                         .coerceIn(1, fsOverrideLabels.size - 1)
-                    // Applies to the X11 session.
+                    // Applies on X11 and Wayland alike (the compositor fits the desktop the same way).
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         DpDrop(
                             dp, "fullscreen",
@@ -8483,7 +8775,17 @@ internal fun ShortcutSettingsDialogScreen(
             graphicsDriver = StringUtils.parseIdentifier(selectedGfxDriver),
             initialConfig = graphicsDriverConfig,
             onConfirm = { graphicsDriverConfig = it; showGfxConfig = false },
-            onDismiss = { showGfxConfig = false }
+            onDismiss = { showGfxConfig = false },
+            waylandCompositorNote = effectiveWaylandShortcut
+        )
+    }
+    if (showWaylandDriverCfg) {
+        // Per-game: the container's config is the fallback every blank adapter key inherits.
+        WaylandDriverSettingsDialog(
+            initialConfig = graphicsDriverConfig,
+            onConfirm = { graphicsDriverConfig = it; showWaylandDriverCfg = false },
+            onDismiss = { showWaylandDriverCfg = false },
+            containerConfig = shortcut.container.getGraphicsDriverConfig()
         )
     }
     val isVegasCfg = StringUtils.parseIdentifier(selectedDxWrapper).contains("vegas")
@@ -11239,12 +11541,17 @@ private fun Set<String>.toggle(path: String): Set<String> =
 internal fun launchShortcutNow(activity: Activity, shortcut: Shortcut, preflightDone: Boolean = false) {
     if (launchXboxOutsideWine(activity, shortcut)) return
     if (!XrActivity.isEnabled(activity)) {
+        // Effective display backend: per-game override, else the container default. Wayland reuses
+        // XServerDisplayActivity's launch machinery via a guarded wayland_mode flag.
+        val backend = shortcut.getExtra("displayBackend", shortcut.container.displayBackend)
+        val wayland = backend == com.winhub.hernandez.container.Container.DISPLAY_BACKEND_WAYLAND
         val intent = Intent(activity, XServerDisplayActivity::class.java).apply {
             putExtra("container_id", shortcut.container.id)
             putExtra("shortcut_path", shortcut.file.path)
             putExtra("shortcut_name", shortcut.name)
             putExtra("disableXinput", shortcut.getExtra("disableXinput", "0"))
             if (preflightDone) putExtra(SteamSessionManager.EXTRA_PREFLIGHT_DONE, true)
+            if (wayland) putExtra("wayland_mode", true)
         }
         if (!launchOnExternalDisplay(activity, shortcut, intent)) activity.startActivity(intent)
     } else {

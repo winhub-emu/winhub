@@ -215,3 +215,6 @@ target_link_libraries(steamctrl
         SDL3::SDL3
         log
 )
+
+# Embedded Wayland compositor (experimental parallel runtime) — see waylandcomp/CMakeLists.txt.
+add_subdirectory(waylandcomp)

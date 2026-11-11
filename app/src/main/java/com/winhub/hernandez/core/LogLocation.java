@@ -112,6 +112,22 @@ public final class LogLocation {
     }
 
     /**
+     * Folder for one game's Wayland session logs: {@code <game folder>/wayland/} (the flat log root's
+     * {@code wayland/} when per-game folders are off), created if needed. Null when it can't be
+     * written; the compositor then keeps its old Download/Wayland-logs folder.
+     */
+    public static File resolveWaylandLogDir(Context context, String gameName) {
+        try {
+            File dir = new File(resolveGameLogDir(context, gameName), LogRotation.WAYLAND_DIR);
+            if (!dir.exists()) dir.mkdirs();
+            if (dir.isDirectory() && dir.canWrite()) return dir;
+        } catch (Exception e) {
+            // fall through
+        }
+        return null;
+    }
+
+    /**
      * Strip only what a filesystem actually rejects, and guard the cases that would escape the
      * folder ({@code .}, {@code ..}) or collide with the app folder. Length-capped because some
      * shortcut names are very long and ext4/FAT cap a component at 255 bytes.

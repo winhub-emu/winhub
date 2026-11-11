@@ -375,6 +375,56 @@ internal fun xmbDriverConfigMenu(xmb: XmbScope, shortcut: Shortcut): XmbMenu {
     }
 }
 
+/**
+ * The Wayland game driver's settings (the pop-up editors' gear, WaylandDriverSettingsDialog): GPU name
+ * spoof, max device memory, present mode (mailbox / fifo) and the OneUI / HyperOS UBWC hint. Each change
+ * writes ONLY its own key back into the shortcut's graphicsDriverConfig (withGraphicsDriverKeys), so the
+ * X11 driver configuration kept in the same string is untouched.
+ */
+internal fun xmbWaylandDriverConfigMenu(xmb: XmbScope, shortcut: Shortcut): XmbMenu {
+    val ctx = xmb.context
+    val c = shortcut.container
+    val memEntries = ctx.resources.getStringArray(R.array.device_memory_entries).toList()
+    fun memLabel(num: String): String = memEntries.firstOrNull { StringUtils.parseNumber(it) == num } ?: memEntries.firstOrNull() ?: num
+    fun rawCfg(): String = shortcut.p2Ex("graphicsDriverConfig", c.getGraphicsDriverConfig())
+    fun write(key: String, value: String) =
+        p2Put(xmb, shortcut, "graphicsDriverConfig", withGraphicsDriverKeys(rawCfg(), mapOf(key to value)))
+
+    return XmbMenu("Wayland driver settings", Icons.Filled.Tune) {
+        val raw = rawCfg()
+        val cfg = raw.split(";").associate { elem ->
+            val parts = elem.split("=")
+            parts[0] to if (parts.size > 1) parts[1] else ""
+        }
+        val gpuName = com.winhub.hernandez.core.GpuSpoof.gpuNameOf(raw)
+        val names = com.winhub.hernandez.core.GpuSpoof.names(ctx).let { if (gpuName in it) it else it + gpuName }
+        val storedPresent = cfg["presentMode"]?.ifEmpty { null } ?: "mailbox"
+        val presentValues = WAYLAND_PRESENT_MODES + (if (storedPresent in WAYLAND_PRESENT_MODES) emptyList() else listOf(storedPresent))
+        val presentLabels = presentValues.map { if (it in WAYLAND_PRESENT_MODES) it else "$it (X11 only, not used here)" }
+        val rows = mutableListOf<XmbRow>()
+        rows += XmbRow.Info("help", "For games that refuse or misbehave on Adreno", Icons.Filled.Info,
+            subtitle = "DirectX games (DXVK) see the GPU named here. Off by default (Device); same settings as X11's.")
+        rows += XmbRow.Choice("gpuName", ctx.getString(R.string.gpu_name) + " (spoof)", Icons.Filled.DeveloperBoard, names, gpuName,
+            subtitle = com.winhub.hernandez.core.GpuSpoof.vendorWarning(ctx, gpuName)
+                ?: "NVIDIA: games may try NVAPI, DLSS or Reflex. AMD: AMD AGS paths.") { v -> write("gpuName", v) }
+        if (memEntries.isNotEmpty()) {
+            rows += XmbRow.Choice("memory", ctx.getString(R.string.graphics_driver_max_device_memory), Icons.Filled.Memory,
+                memEntries, memLabel(cfg["maxDeviceMemory"] ?: "0"),
+                subtitle = "What DirectX games are told the GPU's memory is") { v -> write("maxDeviceMemory", StringUtils.parseNumber(v)) }
+        }
+        rows += XmbRow.Choice("presentMode", ctx.getString(R.string.graphics_driver_present_modes), Icons.Filled.Speed,
+            presentLabels, presentLabels[presentValues.indexOf(storedPresent)],
+            subtitle = "Wayland offers mailbox and fifo (immediate needs tearing)") { v ->
+            write("presentMode", presentValues[presentLabels.indexOf(v)])
+        }
+        rows += XmbRow.Toggle("fdDev", "OneUI / HyperOS Fix (UBWC flag hint)", Icons.Filled.Tune, cfg["fdDevFeatures"] == "1",
+            subtitle = "FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1: corrupt textures on Samsung / Xiaomi") { on ->
+            write("fdDevFeatures", if (on) "1" else "0")
+        }
+        rows
+    }
+}
+
 /** ExtensionPickerDialog: every probed extension, on = offered to games (off = blacklisted). */
 private fun p2ExtensionsMenu(
     xmb: XmbScope, exts: () -> List<String>, raw: () -> String, write: ((P2GfxCfg) -> Unit) -> Unit,

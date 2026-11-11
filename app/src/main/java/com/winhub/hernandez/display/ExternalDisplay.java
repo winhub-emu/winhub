@@ -29,7 +29,8 @@ import java.util.Locale;
  *
  * <p>This is deliberately NOT the old, switched-off "Play on TV"
  * ({@link ExternalDisplayController}, {@code FeatureFlags.TV_OUTPUT_ENABLED}): that one reparents the
- * X11 view into a {@code Presentation} after the fact, which cannot open the HDR gate. Nothing here touches it.
+ * X11 view into a {@code Presentation} after the fact, which does nothing for a Wayland session and
+ * cannot open the HDR gate. Nothing here touches it.
  *
  * <p><b>Where the settings live.</b> Per game only, as shortcut extras ({@link #EXTRA_LAUNCH},
  * {@link #EXTRA_MODE_ID}, {@link #EXTRA_MATCH_RES}) — there is no container-level default, by request:
@@ -277,15 +278,12 @@ public final class ExternalDisplay {
 
     /**
      * null when the game will get real HDR on this screen, else the reason it will not — the words the
-     * greyed "Use HDR on the TV" row shows.
+     * greyed "Use HDR on the TV" row shows. Deliberately the same shape of answer as
+     * {@link WaylandHdr#unavailableReason(Display)}, which is what the launch path actually gates on.
      */
     public static String hdrUnavailableReason(Display display) {
         if (display == null) return "No external screen is connected.";
-        DisplayHdrInfo d = DisplayHdrInfo.read(display);
-        if (d.supportsHdr10) return null;
-        if ("unknown".equals(d.formats)) return "This screen does not report its HDR capability, so HDR output stays off.";
-        if ("none".equals(d.formats)) return "This screen does not support HDR (it reports no HDR types), so HDR output stays off.";
-        return "This screen does not support HDR10 (it reports " + d.formats + "), so HDR output stays off.";
+        return WaylandHdr.unavailableReason(display);
     }
 
     /** "HDR10", "HLG", "peak 500 nits"… — the chips on the display card, in the design's order. */

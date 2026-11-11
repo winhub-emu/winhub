@@ -72,6 +72,68 @@ object XServerDrawerState {
     private val _isRelativeMouseMovement = MutableStateFlow(false)
     val isRelativeMouseMovement: StateFlow<Boolean> = _isRelativeMouseMovement
 
+    // True while the session runs on the embedded Wayland compositor. UI-only gate: Relative Mouse
+    // needs zwp_pointer_constraints_v1 / zwp_relative_pointer_manager_v1, which the compositor
+    // doesn't implement yet, so the drawer greys the chip (the stored value is left alone).
+    private val _isWaylandMode           = MutableStateFlow(false)
+    val isWaylandMode: StateFlow<Boolean> = _isWaylandMode
+
+    // Wayland runtime capabilities, only read while isWaylandMode. Each Graphics-tab control that
+    // lives in the X11 renderer's pass is driven from ONE of these: false = greyed with the short
+    // "Not on Wayland in this build yet" reason, true = fully live with the same callbacks and
+    // labels as on X11. Both default false; the activity flips them when the compositor reports
+    // the corresponding chain (effects + scaling modes; frame generation).
+    private val _waylandEffectsAvailable  = MutableStateFlow(false)
+    val waylandEffectsAvailable: StateFlow<Boolean> = _waylandEffectsAvailable
+    private val _waylandFrameGenAvailable = MutableStateFlow(false)
+    val waylandFrameGenAvailable: StateFlow<Boolean> = _waylandFrameGenAvailable
+
+    // Zero-copy presentation. `requested` = what the toggle shows; it is applied to the running
+    // compositor at once AND written to the effective env (shortcut override else container) as the
+    // next launch's default. `active` = the compositor's live state. `frames` = its zero-copy frames
+    // in the last completed 10 s window. `live` = a zero-copy frame reached the display layer in the
+    // last ~1.5 s, which is what separates "switching..." from "running" right after a flip (the
+    // 10 s counter is far too slow for that).
+    private val _waylandZeroCopyRequested = MutableStateFlow(false)
+    val waylandZeroCopyRequested: StateFlow<Boolean> = _waylandZeroCopyRequested
+    private val _waylandZeroCopyActive    = MutableStateFlow(false)
+    val waylandZeroCopyActive: StateFlow<Boolean> = _waylandZeroCopyActive
+    private val _waylandZeroCopyFrames    = MutableStateFlow(0)
+    val waylandZeroCopyFrames: StateFlow<Int> = _waylandZeroCopyFrames
+    private val _waylandZeroCopyLive      = MutableStateFlow(false)
+    val waylandZeroCopyLive: StateFlow<Boolean> = _waylandZeroCopyLive
+    // OpenGL safe mode (Wayland): GALLIUM_THREAD=0 for the next launch of this game. True = on,
+    // which is the default. Unlike zero-copy this cannot be applied live - Mesa reads the variable
+    // when the guest's GL driver starts - so the row is a saved preference, not a live switch.
+    private val _waylandGlSafeMode        = MutableStateFlow(true)
+    val waylandGlSafeMode: StateFlow<Boolean> = _waylandGlSafeMode
+    // HDR output (Wayland, HDR sessions only). `available` = the compositor opened HDR for this session
+    // (the game/container setting was on AND this screen reports HDR10) - the row is shown only then.
+    // `output` = the live switch: on = the game's HDR frames go to the display as HDR, off = the same
+    // frames tone-mapped to SDR. Per session, starts on; the saved "HDR output" setting in the editors
+    // stays the next launch's choice. `onScreen` / `toneMapped` = what the compositor showed in the
+    // last ~1.5 s (the row's status line), refreshed once a second by the activity.
+    private val _waylandHdrAvailable      = MutableStateFlow(false)
+    val waylandHdrAvailable: StateFlow<Boolean> = _waylandHdrAvailable
+    private val _waylandHdrOutput         = MutableStateFlow(true)
+    val waylandHdrOutput: StateFlow<Boolean> = _waylandHdrOutput
+    private val _waylandHdrOnScreen       = MutableStateFlow(false)
+    val waylandHdrOnScreen: StateFlow<Boolean> = _waylandHdrOnScreen
+    // HDR frames on screen but the display has given them no headroom for 5 s+ (HDR/SDR ratio 1.00) -
+    // the brightness slider at maximum, or a screen recording (Android turns HDR headroom off while the
+    // screen is recorded - found on the Fold).
+    private val _waylandHdrNoHeadroom     = MutableStateFlow(false)
+    val waylandHdrNoHeadroom: StateFlow<Boolean> = _waylandHdrNoHeadroom
+    private val _waylandHdrToneMapped     = MutableStateFlow(false)
+    val waylandHdrToneMapped: StateFlow<Boolean> = _waylandHdrToneMapped
+    // Does the screen the game is on RIGHT NOW report HDR10? The gate above is decided once, at launch,
+    // and cannot be withdrawn from a running game - but the screen can change under it (the TV is
+    // unplugged and the session comes back to a panel with no HDR10, where Android tone-maps whatever we
+    // tag). Kept live by the activity's display watch so the row stops presenting the session as
+    // HDR-capable on a screen that isn't. True until something says otherwise.
+    private val _waylandHdrScreenCapable  = MutableStateFlow(true)
+    val waylandHdrScreenCapable: StateFlow<Boolean> = _waylandHdrScreenCapable
+
     private val _isMouseDisabled         = MutableStateFlow(false)
     val isMouseDisabled: StateFlow<Boolean> = _isMouseDisabled
 
@@ -443,6 +505,21 @@ object XServerDrawerState {
     @JvmField var onRelativeMouseMovement:  Runnable? = null
     @JvmField var onDisableMouse:           Runnable? = null
     @JvmField var onNativeRenderingToggle: Runnable? = null
+    // Zero-copy presentation toggle: applies the switch to the RUNNING compositor (nativeSetZeroCopy,
+    // which tells the game to rebuild its swapchain) and writes/removes BANNER_WAYLAND_ZERO_COPY=1 in
+    // the shortcut's (else the container's) env vars as the next launch's default. Poll: reads the
+    // compositor's last-10-s zero-copy frame count into waylandZeroCopyFrames and whether a zero-copy
+    // frame arrived just now into waylandZeroCopyLive (the drawer calls it every second while the row
+    // is on screen).
+    @JvmField var onWaylandZeroCopyToggle: java.util.function.Consumer<Boolean>? = null
+    @JvmField var onWaylandZeroCopyPoll: Runnable? = null
+    // OpenGL safe mode toggle: saves GALLIUM_THREAD=0 on/off to the shortcut (else the container)
+    // as the next launch's default. Nothing is applied to the running game.
+    @JvmField var onWaylandGlSafeModeToggle: java.util.function.Consumer<Boolean>? = null
+    // HDR output switch: applied to the RUNNING compositor at once (nativeSetHdrOutput); nothing is
+    // saved - it lasts for this session only.
+    @JvmField var onWaylandHdrOutputToggle: java.util.function.Consumer<Boolean>? = null
+
     // Whether the active renderer supports Native Rendering (direct scanout). True for Vulkan;
     // false when the compositor post pass is bypassed or unavailable.
     // Set once at launch from the renderer type; drives whether the drawer shows the toggle.
@@ -486,6 +563,20 @@ object XServerDrawerState {
     // Setters called from Java
     fun setIsPaused(v: Boolean)                { _isPaused.value = v }
     fun setIsRelativeMouseMovement(v: Boolean) { _isRelativeMouseMovement.value = v }
+    fun setIsWaylandMode(v: Boolean)           { _isWaylandMode.value = v }
+    fun setWaylandEffectsAvailable(v: Boolean)  { _waylandEffectsAvailable.value = v }
+    fun setWaylandFrameGenAvailable(v: Boolean) { _waylandFrameGenAvailable.value = v }
+    fun setWaylandZeroCopyRequested(v: Boolean) { _waylandZeroCopyRequested.value = v }
+    fun setWaylandZeroCopyActive(v: Boolean)    { _waylandZeroCopyActive.value = v }
+    fun setWaylandZeroCopyFrames(v: Int)        { _waylandZeroCopyFrames.value = v }
+    fun setWaylandZeroCopyLive(v: Boolean)      { _waylandZeroCopyLive.value = v }
+    fun setWaylandGlSafeMode(v: Boolean)        { _waylandGlSafeMode.value = v }
+    fun setWaylandHdrAvailable(v: Boolean)      { _waylandHdrAvailable.value = v }
+    fun setWaylandHdrOutput(v: Boolean)         { _waylandHdrOutput.value = v }
+    fun setWaylandHdrOnScreen(v: Boolean)       { _waylandHdrOnScreen.value = v }
+    fun setWaylandHdrNoHeadroom(v: Boolean)     { _waylandHdrNoHeadroom.value = v }
+    fun setWaylandHdrToneMapped(v: Boolean)     { _waylandHdrToneMapped.value = v }
+    fun setWaylandHdrScreenCapable(v: Boolean)  { _waylandHdrScreenCapable.value = v }
     fun setIsMouseDisabled(v: Boolean)         { _isMouseDisabled.value = v }
     fun setMoveCursorToTouchpoint(v: Boolean)  { _moveCursorToTouchpoint.value = v }
     fun setGestureDragSelect(v: Boolean)          { _gestureDragSelect.value = v }
@@ -629,6 +720,20 @@ object XServerDrawerState {
         _controlsSubTab.value = 0
         _isPaused.value = false
         _isRelativeMouseMovement.value = false
+        _isWaylandMode.value = false
+        _waylandEffectsAvailable.value = false
+        _waylandFrameGenAvailable.value = false
+        _waylandZeroCopyRequested.value = false
+        _waylandZeroCopyActive.value = false
+        _waylandZeroCopyFrames.value = 0
+        _waylandZeroCopyLive.value = false
+        _waylandGlSafeMode.value = true
+        _waylandHdrAvailable.value = false
+        _waylandHdrOutput.value = true
+        _waylandHdrOnScreen.value = false
+        _waylandHdrNoHeadroom.value = false
+        _waylandHdrToneMapped.value = false
+        _waylandHdrScreenCapable.value = true
         _isMouseDisabled.value = false
         _moveCursorToTouchpoint.value = false
         _gestureDragSelect.value = true
@@ -694,6 +799,9 @@ object XServerDrawerState {
         onLogs = null; onExit = null; onMoveCursorToTouchpoint = null; onGestureConfigChange = null
         onRelativeMouseMovement = null; onDisableMouse = null
         onNativeRenderingToggle = null; onFpsConfigApply = null
+        onWaylandZeroCopyToggle = null; onWaylandZeroCopyPoll = null
+        onWaylandGlSafeModeToggle = null
+        onWaylandHdrOutputToggle = null
         onBionicFgConfigChange = null; onFpsLimitChange = null
         onPresentModeChange = null
         onMatchRefreshChange = null

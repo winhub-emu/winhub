@@ -48,13 +48,24 @@ internal fun parseDxwrapperConfig(cfg: String): Pair<String, String> {
     return (map["version"] ?: "") to (map["vkd3dVersion"] ?: "")
 }
 
+// What a Wayland container/shortcut really renders through. The stored renderer id is the X11
+// setting and nothing runs it on Wayland: every frame goes through the embedded compositor, which
+// is always Vulkan. The editors spell this out as "Vulkan (Wayland compositor)"; a chip has room
+// for two words.
+internal const val WAYLAND_RENDERER_CHIP = "Vulkan (Wayland)"
+
 // Map a renderer id to a display label, or "" if unknown. Legacy "opengl"/"gl" ids degrade to Vulkan.
-internal fun rendererLabelOf(renderer: String): String = when (renderer.lowercase()) {
-    "vulkan", "opengl", "gl" -> "Vulkan (X11)"
-    "egl" -> "EGL (X11)"
-    "surfacedirect" -> "SurfaceDirect (X11)"
-    else -> ""
-}
+// Pass [wayland] = does this container/shortcut effectively run on Wayland (WineWaylandSupport
+// .runsOnWayland - never re-derive it here): the stored id is then meaningless and the chip shows
+// the compositor instead. Every renderer id is an X11 present path, so the chip names the backend
+// on both sides and two cards can be told apart at a glance.
+internal fun rendererLabelOf(renderer: String, wayland: Boolean): String =
+    if (wayland) WAYLAND_RENDERER_CHIP else when (renderer.lowercase()) {
+        "vulkan", "opengl", "gl" -> "Vulkan (X11)"
+        "egl" -> "EGL (X11)"
+        "surfacedirect" -> "SurfaceDirect (X11)"
+        else -> ""
+    }
 
 // Map a frame-gen engine id (bionic/lsfg/lsfg-native/off) to a display label,
 // or "" if off/unknown.

@@ -665,7 +665,37 @@ public class WinHandler {
         }
     }
 
+    private volatile boolean waylandMouseRouting;
+
+    /** Wayland mode: relative-mode mouse input (Relative Mouse, captured mouse, stick-as-mouse) goes
+     *  to the embedded compositor as pointer deltas/buttons instead of the guest-side mouse_event, so
+     *  a program's pointer lock receives it as zwp_relative_pointer_v1 relative motion. */
+    public void setWaylandMouseRouting(boolean on) {
+        waylandMouseRouting = on;
+    }
+
+    private static void waylandMouseEvent(int flags, int dx, int dy, int wheelDelta) {
+        if ((flags & MouseEventFlags.MOVE) != 0)
+            com.winhub.hernandez.wayland.WaylandCompositor.sendPointerDelta(dx, dy);
+        if ((flags & MouseEventFlags.LEFTDOWN) != 0) com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(3, 0x110, 1);
+        if ((flags & MouseEventFlags.LEFTUP) != 0) com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(3, 0x110, 0);
+        if ((flags & MouseEventFlags.RIGHTDOWN) != 0) com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(3, 0x111, 1);
+        if ((flags & MouseEventFlags.RIGHTUP) != 0) com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(3, 0x111, 0);
+        if ((flags & MouseEventFlags.MIDDLEDOWN) != 0) com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(3, 0x112, 1);
+        if ((flags & MouseEventFlags.MIDDLEUP) != 0) com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(3, 0x112, 0);
+        if ((flags & MouseEventFlags.WHEEL) != 0 && wheelDelta != 0) {
+            // Windows: positive = away from the user (up). Compositor wheel steps: negative = up.
+            int steps = -Math.round(wheelDelta / 120f);
+            if (steps == 0) steps = wheelDelta > 0 ? -1 : 1;
+            com.winhub.hernandez.wayland.WaylandCompositor.nativeSendSceneInput(4, steps, 0);
+        }
+    }
+
     public void mouseEvent(int flags, int dx, int dy, int wheelDelta) {
+        if (waylandMouseRouting) {
+            waylandMouseEvent(flags, dx, dy, wheelDelta);
+            return;
+        }
         if (!initReceived)
             return;
         addAction(() -> {

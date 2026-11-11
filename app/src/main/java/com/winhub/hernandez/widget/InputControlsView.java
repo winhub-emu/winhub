@@ -830,6 +830,10 @@ public class InputControlsView extends View {
                     float moveX = Mathf.clamp(virtualMouseMoveX + controllerX, -1, 1);
                     float moveY = Mathf.clamp(virtualMouseMoveY + controllerY, -1, 1);
                     if (moveX != 0 || moveY != 0) {
+                        // Stick-driven mouse movement - on-screen stick or a physical pad feeding
+                        // controllerX/Y. Either way the player is on a controller, so the Wayland
+                        // overlay cursor should stay out of the way.
+                        com.winhub.hernandez.XServerDisplayActivity.waylandNotePadInput();
                         if (xServer.isRelativeMouseMovement())
                             winHandler.mouseEvent(MouseEventFlags.MOVE, (int) (moveX * cursorSpeed * 10), (int) (moveY * cursorSpeed * 10), 0);
                         else

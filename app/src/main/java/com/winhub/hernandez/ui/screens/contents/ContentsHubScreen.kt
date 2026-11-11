@@ -112,6 +112,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.winhub.hernandez.R
 import com.winhub.hernandez.contents.AdrenotoolsManager
+import com.winhub.hernandez.contents.WaylandGameDriverManager
 import com.winhub.hernandez.contents.ContentProfile
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.store.download.ContentDownloadPhase
@@ -983,6 +984,12 @@ private fun InstalledTab(vm: ContentsHubViewModel) {
 
     // Metadata-only listing (name/version) — never probes a driver (a6xx-safe).
     val drivers = remember(refreshKey) { manager.enumarateInstalledDrivers().toList() }
+    // Imported Wayland GAME drivers (Linux ICDs the game renders on under the Wayland backend) — a
+    // separate kind from the adrenotools zips above, which only the X11 game path / Wayland compositor
+    // load. Listed from meta.json, never probed.
+    val waylandManager = remember { WaylandGameDriverManager(context) }
+    val waylandDrivers = remember(refreshKey) { waylandManager.enumerateInstalledDrivers().toList() }
+    var confirmRemoveWaylandDriver by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val components = remember(refreshKey) {
         val cm = ContentsManager(context)
@@ -1008,6 +1015,26 @@ private fun InstalledTab(vm: ContentsHubViewModel) {
             }
         }
     }
+    // Wayland game-driver import: its own picker (zip only) and a direct, synchronous import — the
+    // validation reasons (no libvulkan_freedreno*.so, not an AArch64 ELF) are surfaced as a Toast.
+    val waylandDriverPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            InAppFilePicker.pickedUri(result.data)?.let { uri ->
+                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "wayland-driver.zip"
+                scope.launch {
+                    val r = withContext(Dispatchers.IO) { runCatching { waylandManager.installDriver(uri, name) } }
+                    r.onSuccess { id ->
+                        Toast.makeText(context, "Imported Wayland game driver: ${waylandManager.getDriverName(id)}", Toast.LENGTH_LONG).show()
+                        refreshKey++
+                    }.onFailure { e ->
+                        Toast.makeText(context, "Not imported: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp)) {
         InstalledSectionHeader("GPU Drivers", Icons.Filled.ViewInAr)
         Spacer(Modifier.height(10.dp))
@@ -1023,6 +1050,33 @@ private fun InstalledTab(vm: ContentsHubViewModel) {
                 InstalledRow(icon = Icons.Filled.ViewInAr, driver = true,
                     title = manager.getDriverName(id), subtitle = manager.getDriverVersion(id),
                     onRemove = { confirmRemoveDriver = id })
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        InstalledSectionHeader("Wayland game drivers (Linux ICD)", Icons.Filled.ViewInAr)
+        Spacer(Modifier.height(6.dp))
+        Text("The Vulkan driver a game renders on under the Wayland display backend. Import a zip with a " +
+            "libvulkan_freedreno*.so built for Wayland/Linux (optional libdrm.so, meta.json). Android Turnip " +
+            "zips (vulkan.adXXXX.so) belong under GPU Drivers above and are rejected here.",
+            style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton("Import Wayland game driver (.zip)…", Icons.Filled.FolderOpen, enabled = true,
+            container = cs.onSurface.copy(alpha = 0.06f), content = cs.onSurface, modifier = Modifier.fillMaxWidth()) {
+            waylandDriverPicker.launch(InAppFilePicker.buildIntent(context, arrayOf("zip"), "Select Wayland game driver zip"))
+        }
+        Spacer(Modifier.height(12.dp))
+        if (waylandDrivers.isEmpty()) {
+            InstalledEmpty("No Wayland game drivers imported. Containers on Wayland use the Turnips bundled in the Proton.")
+        } else {
+            waylandDrivers.forEach { id ->
+                val ver = waylandManager.getDriverVersion(id)
+                val wsiNote = if (waylandManager.hasWaylandWsi(id)) "" else "  ·  no Wayland WSI detected"
+                InstalledRow(icon = Icons.Filled.ViewInAr, driver = true,
+                    title = waylandManager.getDriverName(id),
+                    subtitle = (if (ver.isEmpty()) "imported" else ver) + wsiNote,
+                    onRemove = { confirmRemoveWaylandDriver = id })
                 Spacer(Modifier.height(10.dp))
             }
         }
@@ -1061,6 +1115,23 @@ private fun InstalledTab(vm: ContentsHubViewModel) {
         )
     }
 
+
+    // Confirm: remove an imported Wayland game driver. Containers/games still set to it fall back to
+    // Auto at launch (WaylandGameDriver logs that), so nothing else needs rewriting.
+    confirmRemoveWaylandDriver?.let { id ->
+        OutlinedAlertDialog(
+            onDismissRequest = { confirmRemoveWaylandDriver = null },
+            containerColor = cs.surfaceContainerHigh,
+            title = { Text("Remove Wayland game driver?", color = cs.onSurface) },
+            text = { Text("Remove \"${waylandManager.getDriverName(id)}\"? Containers using it switch to Auto.", color = cs.onSurface) },
+            confirmButton = {
+                TextButton(onClick = {
+                    waylandManager.removeDriver(id); confirmRemoveWaylandDriver = null; refreshKey++
+                }) { Text("Remove", color = cs.primary) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemoveWaylandDriver = null }) { Text("Cancel", color = cs.primary) } },
+        )
+    }
 
     // Confirm: remove component.
     confirmRemoveProfile?.let { profile ->

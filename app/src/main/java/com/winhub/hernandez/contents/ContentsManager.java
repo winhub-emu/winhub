@@ -271,9 +271,10 @@ public class ContentsManager {
                     // but the files never landed -> "downloaded but not usable")
         }
 
-        // A newly installed layer may differ in what it supports: drop the cached verdicts.
+        // A newly installed layer may differ in what it supports (or be Wayland-capable): drop the cached verdicts.
         com.winhub.hernandez.core.SyncSupport.invalidate();
         com.winhub.hernandez.core.FastOpenGL.invalidate();
+        com.winhub.hernandez.core.WineWaylandSupport.invalidate();
         callback.onSucceed(profile);
     }
 
@@ -436,6 +437,7 @@ public class ContentsManager {
         syncContents();
         com.winhub.hernandez.core.SyncSupport.invalidate();
         com.winhub.hernandez.core.FastOpenGL.invalidate();
+        com.winhub.hernandez.core.WineWaylandSupport.invalidate();
     }
 
     public static String getEntryName(ContentProfile profile) {

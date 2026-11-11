@@ -26,8 +26,36 @@ public final class LogRotation {
 
     private static final String TAG = "LogRotation";
     public static final String ARCHIVE_DIR = "previous";
+    /** The game folder's Wayland session logs: one {@code wayland-<stamp>.log} per run (compositor.c). */
+    public static final String WAYLAND_DIR = "wayland";
+    private static final java.util.regex.Pattern WAYLAND_LOG =
+            java.util.regex.Pattern.compile("wayland-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}\\.log");
 
     private LogRotation() {}
+
+    /** A Wayland session log the compositor wrote: {@code wayland-yyyy-MM-dd_HH-mm-ss.log}, nothing looser. */
+    public static boolean isOurWaylandLog(String name) {
+        return name != null && WAYLAND_LOG.matcher(name).matches();
+    }
+
+    /**
+     * Before a Wayland session opens its log in {@code waylandDir}: delete the oldest session logs so
+     * {@code keepLast} remain, the same history the other logs keep in previous/ (the new session's
+     * file is then the current one). Only {@link #isOurWaylandLog} names are touched. Never throws.
+     */
+    public static void pruneWaylandLogs(File waylandDir, int keepLast) {
+        if (waylandDir == null || !waylandDir.isDirectory()) return;
+        try {
+            File[] logs = waylandDir.listFiles(f -> f.isFile() && isOurWaylandLog(f.getName()));
+            if (logs == null || logs.length <= Math.max(keepLast, 0)) return;
+            // The stamp in the name sorts chronologically; mtime can be rewritten by a copy.
+            Arrays.sort(logs, (a, b) -> b.getName().compareTo(a.getName()));
+            for (int i = Math.max(keepLast, 0); i < logs.length; i++) //noinspection ResultOfMethodCallIgnored
+                logs[i].delete();
+        } catch (Exception e) {
+            Log.w(TAG, "wayland prune failed for " + waylandDir, e);
+        }
+    }
 
     /**
      * Archive whatever the last run left in {@code gameDir}, then prune to {@code keepLast} archives.

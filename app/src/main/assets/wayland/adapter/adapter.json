@@ -1,0 +1,5 @@
+{
+  "name": "Wayland adapter",
+  "version": "pipetto-ahb-tsafe kgslpoll mali passthrough clientfence subgroups bgra-native f970b6c",
+  "source": "The412Banner/bionic-vulkan-wrapper banner/wayland-wsi-bgra-native (Pipetto-crypto wrapper-25 lineage, X11 + Wayland WSI; Mali switches default off; pass-through dispatch + client render fences; subgroup properties passed through on Mesa drivers; zero-copy offers BGRA to programs other than DXVK/VKD3D/Zink/WineD3D)"
+}

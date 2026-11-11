@@ -527,14 +527,92 @@ public class Container {
 
     // --- Display backend (per-container), stored in extraData ---
     // "x11" (default) = the Java X server + libwinlator compositor (winex11.drv).
+    // "wayland" = the embedded Wayland compositor (winewayland.drv). Wayland mode
+    // bypasses the whole Renderer group (the compositor replaces that stage) and
+    // needs a Wayland-capable Proton layer (winewayland.so + the bundled Wayland Turnip; see
+    // WineWaylandSupport). Consumed by the launch path, which falls back to X11 when the
+    // container's layer can't do it.
     public static final String DISPLAY_BACKEND_X11 = "x11";
+    public static final String DISPLAY_BACKEND_WAYLAND = "wayland";
 
     public String getDisplayBackend() {
         return getExtra("displayBackend", DISPLAY_BACKEND_X11);
     }
 
     public void setDisplayBackend(String value) {
-        putExtra("displayBackend", DISPLAY_BACKEND_X11);
+        putExtra("displayBackend", DISPLAY_BACKEND_WAYLAND.equals(value)
+                ? DISPLAY_BACKEND_WAYLAND : DISPLAY_BACKEND_X11);
+    }
+
+    public boolean isWaylandBackend() {
+        return DISPLAY_BACKEND_WAYLAND.equals(getDisplayBackend());
+    }
+
+    // --- OpenGL safe mode (per-container), stored in extraData. Wayland sessions only. ---
+    // Native OpenGL games on the Wayland backend render through Mesa (Zink on Turnip). Mesa's
+    // u_threaded_context helper thread ("gdrv0") can fault inside libgallium, and because that is a
+    // plain pthread with no Wine TEB, Wine's own SIGSEGV handler faults again on it: the kernel then
+    // kills the process outright. The game VANISHES - no crash dump, no dialog, no log line.
+    // GALLIUM_THREAD=0 removes that thread; the cost is that OpenGL draw submission stops being
+    // pipelined onto a second core, i.e. a little CPU-side throughput on GL titles and nothing at
+    // all on Vulkan ones (DXVK/VKD3D never load a gallium driver). Default ON because a silent
+    // disappearance is far worse than a few percent of CPU throughput.
+    // A shortcut may override per game with the same-named extra.
+    public boolean isWaylandGlSafeMode() {
+        return getExtra("waylandGlSafeMode", "1").equals("1");
+    }
+
+    public void setWaylandGlSafeMode(boolean enabled) {
+        putExtra("waylandGlSafeMode", enabled ? "1" : "0");
+    }
+
+    // --- HDR output (per-container), stored in extraData. Wayland sessions only. ---
+    // Games that support HDR10 get it on a screen that reports HDR10 (display.WaylandHdr, the
+    // compositor's wl_color_mgmt.c). Default OFF (absent). A shortcut overrides with the same-named
+    // extra ("1" / "0"; absent or "" = this). BANNER_WAYLAND_HDR in the env vars still overrides both.
+    public boolean isWaylandHdr() {
+        return getExtra(com.winhub.hernandez.display.WaylandHdr.EXTRA, "0").equals("1");
+    }
+
+    public void setWaylandHdr(boolean enabled) {
+        putExtra(com.winhub.hernandez.display.WaylandHdr.EXTRA, enabled ? "1" : null);
+    }
+
+    // --- Wayland game driver (per-container), stored in extraData ---
+    // On Wayland the GAME renders on a Vulkan driver the Proton layer picks (winewayland sets
+    // VK_ICD_FILENAMES), not on the compositor's Turnip. The layer bundles three Wayland Turnip
+    // variants and honours two env vars (see core.WaylandGameDriver): "auto" (default, stored as
+    // absent) picks the variant from the device GPU; "bundled" / "bundled-a7xx" / "bundled-a8xx"
+    // force one; "imported:<id>" points at a driver imported on the Contents screen
+    // (WaylandGameDriverManager). A shortcut may override with the same-named extra ("" = this).
+    // Only consumed when the resolved display backend is Wayland.
+    // "adapter" = the bundled Wayland adapter (core.WaylandAdapter) on top of this container's own
+    // AdrenoTools graphics driver: one driver pick feeds the compositor and the game. New containers
+    // start on it; a stored "auto" (or no value: every container made before it) keeps Auto.
+    public static final String WAYLAND_GAME_DRIVER_AUTO = "auto";
+    public static final String WAYLAND_GAME_DRIVER_ADAPTER = "adapter";
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED = "bundled";
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A7XX = "bundled-a7xx";
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A8XX = "bundled-a8xx";
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A8XX_PERF = "bundled-a8xx-perf"; // WinNative Performance tuning (PWR_MAX)
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A8XX_GEN8 = "bundled-a8xx-gen8"; // our own gen8 Android recipe, rebuilt for Wayland
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A8XX_SMXZ = "bundled-a8xx-smxz"; // StevenMXZ Gen8 recipe, rebuilt for Wayland
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A8XX_WHITE = "bundled-a8xx-white"; // whitebelyash Mainline recipe, rebuilt for Wayland
+    public static final String WAYLAND_GAME_DRIVER_BUNDLED_A8XX_UPSTREAM = "bundled-a8xx-upstream"; // pure Mesa main, no device patches
+    public static final String WAYLAND_GAME_DRIVER_IMPORTED_PREFIX = "imported:";
+
+    public String getWaylandGameDriver() {
+        String v = getExtra("waylandGameDriver", WAYLAND_GAME_DRIVER_AUTO);
+        return v.isEmpty() ? WAYLAND_GAME_DRIVER_AUTO : v;
+    }
+
+    /**
+     * null/"" clears the extra. "auto" is stored as written: an ABSENT value means "never chosen"
+     * (every container from before the adapter), which the editor's create/New Container Defaults
+     * forms fill with "adapter" - an explicit Auto must survive that.
+     */
+    public void setWaylandGameDriver(String value) {
+        putExtra("waylandGameDriver", value == null || value.isEmpty() ? null : value);
     }
 
     // --- bionic-fg frame generation (per-container), stored in extraData ---
@@ -561,9 +639,8 @@ public class Container {
         putExtra("frameGenEnabled", enabled ? "1" : "0");
     }
 
-    // Frame-gen engine selection: "off" | "lsfg-native". LSFG Native is the only engine this
-    // build ships. Legacy values ("bionic", the retired in-container "lsfg") resolve to it so an
-    // old container keeps generating frames instead of silently turning off.
+    // Frame-gen engine selection: "off" | "bionic" | "lsfg". bionic-fg and lsfg-vk are mutually
+    // exclusive. Default migrates the legacy boolean (frameGenEnabled=1 -> bionic).
     public String getFrameGenEngine() {
         String e = getExtra("frameGenEngine", "");
         String resolved;
@@ -583,7 +660,7 @@ public class Container {
     }
 
     public boolean isLsfgEngine() {
-        return getFrameGenEngine().equals("lsfg-native");
+        return getFrameGenEngine().equals("lsfg");
     }
 
     // Allowed values: 0 (Off, set live from the in-game menu) or 2-4. Anything else -> default.
@@ -605,7 +682,7 @@ public class Container {
     public float getFrameGenFlowScale() {
         // Engine-dependent UNSET default: lsfg-vk defaults to 0.80, bionic-fg stays at 0.60. An explicit
         // frameGenFlowScale extra (whatever the engine) is always honored — only the fallback differs.
-        float dflt = isLsfgEngine() ? LSFG_DEFAULT_FLOW_SCALE : FRAMEGEN_DEFAULT_FLOW_SCALE;
+        float dflt = getFrameGenEngine().equals("lsfg") ? LSFG_DEFAULT_FLOW_SCALE : FRAMEGEN_DEFAULT_FLOW_SCALE;
         if (!hasExtra("frameGenFlowScale")) return dflt;
         try {
             float f = Float.parseFloat(getExtra("frameGenFlowScale"));

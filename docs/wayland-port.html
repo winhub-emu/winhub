@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinHub Wayland</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#16181d; --muted:#5b6270; --accent:#2f6bff; --line:#e3e6ec; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1115; --card:#181b21; --text:#eceef2; --muted:#9aa2b1; --accent:#6c93ff; --line:#2a2f39; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 system-ui,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 24px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:14px; }
+  h2 { font-size:1.05rem; margin:0 0 8px; color:var(--accent); }
+  ul { margin:0; padding-left:20px; }
+  li { margin:4px 0; }
+  code { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:1px 5px; font-size:.88em; }
+  .warn { border-color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wayland in WinHub</h1>
+  <p class="sub">The embedded Wayland display path, back in WinHub on branch <code>rm-wayland-linux</code>.</p>
+
+  <section class="warn">
+    <h2>Status</h2>
+    <ul>
+      <li>Not built, run or tested yet. Build once and try one Wayland game launch.</li>
+      <li>Wine runs through <code>winewayland</code> into the embedded compositor instead of the Java X server.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>What is included</h2>
+    <ul>
+      <li>Native compositor <code>waylandcomp</code> (Vulkan present, effects chain, HDR, frame generation bridge, clipboard, text input, pointer lock).</li>
+      <li><code>WaylandDisplayActivity</code>, <code>wayland/*</code>, <code>WaylandHdr</code>, <code>WineWaylandSupport</code>.</li>
+      <li>Wayland game driver, imported driver manager, and the Wayland adapter with its settings and driver probe.</li>
+      <li>Session code merged into <code>XServerDisplayActivity</code>: pointer-lock warp filter, bring-to-front, touch cancel, per-game Wayland logs.</li>
+      <li>Editors: container, shortcut and XMB game settings with Wayland driver, adapter dialog, HDR, and Fast OpenGL locked on.</li>
+      <li>Contents: Wayland game driver import list.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Not included</h2>
+    <ul>
+      <li>proot, gamescope and the Linux runtime.</li>
+      <li>yserver, the guest keyboard typer, Mali PanVK mode.</li>
+      <li>Win-FG training capture, Unreal Engine HDR, Bionic-FG options.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Controller</h2>
+    <ul>
+      <li>New settings rows are reachable with D-pad and A/B in the shortcut editor (the advanced fold and the adapter gear are focusable).</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -959,8 +959,14 @@ private fun GraphicsContent(state: XServerDrawerState) {
     val vulkanSupported  by XServerDialogState.vulkanSupported.collectAsState()  // Vulkan renderer
 
     val nativeRenderingEnabled by state.nativeRenderingEnabled.collectAsState()
-    val vkEnabled = true
-    val vkHeaderColor = accent
+    // Wayland: the whole effect/scaling chain below belongs to the X11 renderer's pass. It is live on
+    // Wayland only once the compositor reports its own chain (waylandEffectsAvailable); until then
+    // every control is greyed with the short reason, same callbacks and labels either way.
+    val isWaylandSession by state.isWaylandMode.collectAsState()
+    val waylandEffectsOk by state.waylandEffectsAvailable.collectAsState()
+    val waylandFxBlocked = isWaylandSession && !waylandEffectsOk
+    val vkEnabled = !waylandFxBlocked
+    val vkHeaderColor = if (vkEnabled) accent else accent.copy(alpha = 0.4f)
 
 
     if (vulkanSupported) {
@@ -1063,6 +1069,7 @@ private fun GraphicsContent(state: XServerDrawerState) {
         }
 
         ScalingModeHeader("Scaling mode", vkHeaderColor)
+        if (waylandFxBlocked) WaylandNotYetNote()
         Spacer(Modifier.height(2.dp))
         UpscalerModeButtons(upscalerMode, vkEnabled) {
             upscalerMode = it
@@ -1162,13 +1169,164 @@ private fun GraphicsContent(state: XServerDrawerState) {
     // Native Rendering is only offered on renderers that support direct scanout (Vulkan).
     val nativeRenderingSupported by state.nativeRenderingSupported.collectAsState()
     if (nativeRenderingSupported) {
-        ToggleRow("Native Rendering", nativeRenderingEnabled) {
+        // Wayland: X11 direct scanout never runs (the X renderer is idle behind the compositor), so
+        // the row is greyed and points at Zero-copy presentation, which is the Wayland equivalent.
+        ToggleRow("Native Rendering", nativeRenderingEnabled, enabled = !isWaylandSession) {
             state.onNativeRenderingToggle?.run()
         }
+        if (isWaylandSession) {
+            HelperText("X11 direct scanout is not used on Wayland; Zero-copy presentation below is the Wayland equivalent.")
+        }
     }
+
+    if (isWaylandSession) WaylandHdrOutputRow(state)
+    if (isWaylandSession) WaylandZeroCopyRow(state, waylandEffectsOk)
+    if (isWaylandSession) WaylandGlSafeModeRow(state)
 }
 
-/** Dim one-line explanation under a control. */
+// ───── Wayland: HDR output (live, HDR sessions only) ─────
+// Shown only while the compositor has HDR open for this session (the game's or container's "HDR output"
+// setting was on at launch AND this screen reports HDR10) - never on X11, never on an SDR screen. A live
+// switch: on = the game's HDR frames go to the display as real HDR; off = the SAME frames are shown as a
+// tone-mapped SDR picture. Nothing is relaunched and the game is not told (DXVK_HDR and the offer to the
+// game were decided at launch, so its own HDR setting is untouched). Per session: the next launch starts
+// on again, and whether HDR is offered at all stays the editors' setting.
+@Composable
+private fun WaylandHdrOutputRow(state: XServerDrawerState) {
+    val available by state.waylandHdrAvailable.collectAsState()
+    if (!available) return
+    val output by state.waylandHdrOutput.collectAsState()
+    val onScreen by state.waylandHdrOnScreen.collectAsState()
+    val noHeadroom by state.waylandHdrNoHeadroom.collectAsState()
+    val toneMapped by state.waylandHdrToneMapped.collectAsState()
+    // The gate is decided once at launch and cannot be withdrawn from a running game, so the row stays;
+    // this is whether the screen the game is on NOW can actually show HDR10 (the TV can be unplugged
+    // mid-session). Without it the status line below goes on claiming HDR on a panel that has none.
+    val screenCapable by state.waylandHdrScreenCapable.collectAsState()
+    var checked by remember(output) { mutableStateOf(output) }
+
+    Spacer(Modifier.height(6.dp))
+    ToggleRow("HDR output", checked) {
+        checked = it
+        state.setWaylandHdrOutput(it)
+        state.onWaylandHdrOutputToggle?.accept(it)
+    }
+    HelperText("On: HDR games show real HDR on this screen. Off: the same picture tone-mapped to SDR. " +
+        "Applies immediately, for this session only; the game's own HDR setting is left alone.")
+    HelperText(
+        when {
+            checked && onScreen    -> "On: HDR frames on screen now."
+            checked && noHeadroom  -> "On, but the screen gives HDR no headroom right now: brightness at maximum, " +
+                                      "or the screen is being recorded (Android turns HDR headroom off while recording)."
+            checked && toneMapped  -> "On, but shown tone-mapped: frame generation on a screen with no HDR swapchain."
+            checked && !screenCapable -> "On, but this screen has no HDR10: Android tone-maps the picture for it. " +
+                                      "The game keeps the HDR it was offered until it closes."
+            checked                -> "On: no HDR frames right now (is HDR on in the game's settings?)."
+            onScreen || noHeadroom -> "Off, but these frames cannot be tone-mapped here: they stay HDR."
+            toneMapped             -> "Off: HDR frames shown tone-mapped to SDR."
+            else                   -> "Off: no HDR frames right now."
+        }
+    )
+}
+
+// ───── Wayland: OpenGL safe mode ─────
+// Native OpenGL games render through Mesa here (Zink on Turnip). Mesa runs OpenGL draw submission on
+// a helper thread of its own, and a fault on that thread takes the whole game down WITHOUT a crash
+// report: it is not a Wine thread, so Wine's crash handler faults again on it and the kernel kills
+// the process outright - the game simply vanishes. Safe mode removes the helper thread. The cost is
+// a little CPU-side throughput in OpenGL games; DXVK/VKD3D games never load that driver at all.
+//
+// GALLIUM_THREAD is read once, when the guest's GL driver starts, so this row is a saved preference
+// for the next launch and NOT a live switch - the helper text says exactly that rather than
+// pretending the flip did something to the running game.
+@Composable
+private fun WaylandGlSafeModeRow(state: XServerDrawerState) {
+    val safeMode by state.waylandGlSafeMode.collectAsState()
+    var checked by remember(safeMode) { mutableStateOf(safeMode) }
+
+    Spacer(Modifier.height(6.dp))
+    ToggleRow("OpenGL safe mode", checked) {
+        checked = it
+        state.setWaylandGlSafeMode(it)
+        state.onWaylandGlSafeModeToggle?.accept(it)
+    }
+    HelperText(
+        if (checked)
+            "On: stops native OpenGL games disappearing with no error. Costs a little OpenGL speed; " +
+            "DirectX games are unaffected. Saved for this game - takes effect the next time it starts."
+        else
+            "Off: OpenGL games keep Mesa's extra draw thread (slightly faster), but a fault on it can " +
+            "close the game with no error message. Saved for this game - takes effect the next time it starts."
+    )
+}
+
+// ───── Wayland: Zero-copy presentation ─────
+// A live switch. Flipping it applies to the RUNNING compositor at once (it broadcasts
+// banner_ahb_v1.mode, and every game rebuilds its swapchain on — or off — gralloc display buffers,
+// one frame's worth of latency, no black frame in between) and is also written to the effective env
+// (shortcut override else container) as the next launch's default.
+//
+// The status line follows the COMPOSITOR, not the toggle: a flip is only real once frames actually
+// start — or stop — reaching the display layer, which is what waylandZeroCopyLive reports. The
+// 10 s frame counter is far too slow to show that, so it is only used once the mode has settled.
+@Composable
+private fun WaylandZeroCopyRow(state: XServerDrawerState, effectsAvailable: Boolean) {
+    val requested by state.waylandZeroCopyRequested.collectAsState()
+    val frames by state.waylandZeroCopyFrames.collectAsState()
+    val live by state.waylandZeroCopyLive.collectAsState()
+    // Keyed on the seeded value so a reopen shows what is stored, not a stale capture.
+    var checked by remember(requested) { mutableStateOf(requested) }
+
+    Spacer(Modifier.height(6.dp))
+    ToggleRow("Zero-copy presentation", checked) {
+        checked = it
+        state.setWaylandZeroCopyRequested(it)
+        state.onWaylandZeroCopyToggle?.accept(it)
+    }
+    HelperText("Fullscreen games are shown on their own display layer with no compositor copy. Applies immediately, and is kept as this game's default.")
+
+    // Polled whichever way the switch is set: the line has to be able to say "switching off" too.
+    LaunchedEffect(Unit) {
+        while (true) {
+            state.onWaylandZeroCopyPoll?.run()
+            delay(1000)
+        }
+    }
+    // Screen effects no longer take the layer away: their result is drawn into the game's own
+    // display layer, so the frames are not copy-free any more but the game stays hardware-composed.
+    val effectsOn = effectsAvailable && waylandCompositorEffectsOn()
+    HelperText(
+        when {
+            checked && effectsOn  -> "On: screen effects are drawn into the game's display layer, so it keeps hardware composition."
+            checked && !live      -> "Switching on… the game is rebuilding its swapchain on display buffers."
+            checked && frames > 0 -> "On: $frames zero-copy frames in the last 10 s"
+            checked               -> "On: frames are going straight to the display layer."
+            live                  -> "Switching off… the game's last display-layer frames are still on screen."
+            else                  -> "Off: the compositor copies each frame into its own swapchain."
+        }
+    )
+}
+
+/** True when any Vulkan-block effect that runs in the compositor pass is currently on. */
+@Composable
+private fun waylandCompositorEffectsOn(): Boolean {
+    val upscaler by XServerDialogState.upscalerMode.collectAsState()
+    val cas by XServerDialogState.casEnabled.collectAsState()
+    val hdr by XServerDialogState.hdrVkEnabled.collectAsState()
+    val deband by XServerDialogState.debandEnabled.collectAsState()
+    val brightness by XServerDialogState.vkBrightness.collectAsState()
+    val contrast by XServerDialogState.vkContrast.collectAsState()
+    val gamma by XServerDialogState.vkGamma.collectAsState()
+    val saturation by XServerDialogState.vkSaturation.collectAsState()
+    val fxaa by XServerDialogState.vkFxaa.collectAsState()
+    val toon by XServerDialogState.vkToon.collectAsState()
+    val crt by XServerDialogState.vkCrt.collectAsState()
+    val ntsc by XServerDialogState.vkNtsc.collectAsState()
+    return upscaler >= 3 || cas || hdr || deband || fxaa || toon || crt || ntsc ||
+        brightness != 0f || contrast != 0f || gamma != 1f || saturation != 100f
+}
+
+/** Dim one-line explanation under a control (same style as the Controls tab's Wayland note). */
 @Composable
 private fun HelperText(text: String) {
     Text(
@@ -1179,6 +1337,10 @@ private fun HelperText(text: String) {
         modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)
     )
 }
+
+/** The one reason line for a control the Wayland compositor does not drive in this build. */
+@Composable
+private fun WaylandNotYetNote() = HelperText("Not on Wayland in this build yet")
 
 // ───── Runtime-backend diagnostic chip (Graphics tab header) ─────
 // Read-only status: arch · translator, plus the FEX unixlib mode. unixlib (native .so loaded) =
@@ -1259,6 +1421,11 @@ private fun FrameGenSection(state: XServerDrawerState) {
     // Set when LSFG Native / Win-FG Native can't run in this session (driver, DLL, renderer).
     val fgUnavailable by state.fgUnavailableReason.collectAsState()
     val fgUnavailableDetail by state.fgUnavailableDetail.collectAsState()
+    // Wayland: frame generation is live only once the compositor reports its own chain
+    // (waylandFrameGenAvailable); until then the multiplier row is greyed with the short reason.
+    val isWaylandSession by state.isWaylandMode.collectAsState()
+    val waylandFgOk by state.waylandFrameGenAvailable.collectAsState()
+    val waylandFgBlocked = isWaylandSession && !waylandFgOk
 
     // Title on the left, engine badge on the right (green dot = engine actually running this
     // session). Replaces the old standalone "Frame Generation (AI)" header so the engine isn't
@@ -1329,6 +1496,7 @@ private fun FrameGenSection(state: XServerDrawerState) {
             state.onBionicFgConfigChange?.run()
         }
 
+        if (waylandFgBlocked) WaylandNotYetNote()
         if (fgUnavailable.isNotEmpty()) {
             Text(
                 "⚠ $fgUnavailable",
@@ -1346,7 +1514,7 @@ private fun FrameGenSection(state: XServerDrawerState) {
                 )
             }
         }
-        FgMultiplierButtons(fgMult, engine, enabled = fgUnavailable.isEmpty()) { newMult ->
+        FgMultiplierButtons(fgMult, engine, enabled = fgUnavailable.isEmpty() && !waylandFgBlocked) { newMult ->
             fgMult = newMult; applyFg()
             // Both engines now do the FULL surface-teardown reset with a Resume prompt, driven from
             // onBionicFgConfigChange in the activity (win-fg on an On/Off/multiplier/model/preset
@@ -1357,8 +1525,8 @@ private fun FrameGenSection(state: XServerDrawerState) {
         // Same fit advice as under Max FPS, shown where the multiplier is picked.
         // nativeFgLocks = LSFG Native or Win-FG Native is generating right now.
         // (The sub-controls below only exist for a multiplier the user can pick, so none of them
-        // render while frame generation is Off.)
-        if (nativeFgLocks) {
+        // render while the Wayland gate holds.)
+        if (nativeFgLocks && !waylandFgBlocked) {
             FgFitAdvice(
                 cap = fpsCap, mult = fgMult,
                 screen = rememberFgScreen(displayTargetHz, supportedRates, liveRate),
@@ -1374,7 +1542,7 @@ private fun FrameGenSection(state: XServerDrawerState) {
         // model changes (same path as a multiplier change), so this switches live. Hidden while
         // frame gen is Off, where it would have nothing to act on.
         AnimatedVisibility(
-            visible = engine == "bionic" && fgMult > 0,
+            visible = engine == "bionic" && fgMult > 0 && !waylandFgBlocked,
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
@@ -1402,7 +1570,7 @@ private fun FrameGenSection(state: XServerDrawerState) {
 
         // Flow Scale only matters with frame gen actually on -> collapse it while Off.
         AnimatedVisibility(
-            visible = fgMult > 0,
+            visible = fgMult > 0 && !waylandFgBlocked,
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
@@ -1425,7 +1593,7 @@ private fun FrameGenSection(state: XServerDrawerState) {
         // LSFG Native experimental capture resolution (FeatureFlags.LSFG_NATIVE_EXPERIMENTS_ENABLED). Live: the
         // activity's lsfg-native branch of onBionicFgConfigChange reads it from the state,
         // persists it and pushes it to the renderer with the multiplier/flow.
-        if (engine == "lsfg-native" && com.winhub.hernandez.FeatureFlags.LSFG_NATIVE_EXPERIMENTS_ENABLED) {
+        if (engine == "lsfg-native" && com.winhub.hernandez.FeatureFlags.LSFG_NATIVE_EXPERIMENTS_ENABLED && !waylandFgBlocked) {
             val capture by state.fgCaptureResolution.collectAsState()
             val panelHeight by state.fgPanelHeight.collectAsState()
             Spacer(Modifier.height(10.dp))
@@ -1458,7 +1626,7 @@ private fun FrameGenSection(state: XServerDrawerState) {
         // lsfg-vk only: performance_mode (bionic-fg has no such setting). Toggling rewrites conf.toml
         // via the same applyFg -> onBionicFgConfigChange path (mtime bump -> layer re-reads live) and
         // persists to the container there.
-        if (engine == "lsfg") {
+        if (engine == "lsfg" && !waylandFgBlocked) {
             var lsfgPerf by remember(initLsfgPerf) { mutableStateOf(initLsfgPerf) }
             Spacer(Modifier.height(8.dp))
             ToggleRow("Performance mode", lsfgPerf) {
@@ -1473,6 +1641,8 @@ private fun FrameGenSection(state: XServerDrawerState) {
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp)
             )
         }
+    } else if (waylandFgBlocked) {
+        WaylandNotYetNote()
     } else {
         Text(
             "Enable Frame Generation in this container's settings to tune it here.",
@@ -2924,6 +3094,7 @@ private fun ControlsContent(state: XServerDrawerState) {
 
     val moveCursorToTouch by state.moveCursorToTouchpoint.collectAsState()
     val isRelativeMouse by state.isRelativeMouseMovement.collectAsState()
+    val isWaylandSession by state.isWaylandMode.collectAsState()
     val isMouseDisabled by state.isMouseDisabled.collectAsState()
     val initOverlayOpacity by state.overlayOpacity.collectAsState()
     val controlsFollowTheme by state.controlsFollowTheme.collectAsState()
@@ -3093,6 +3264,16 @@ private fun ControlsContent(state: XServerDrawerState) {
                 ),
                 perRow = 3
             )
+
+            if (isWaylandSession) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Wayland: mouse deltas go to the compositor; a game that locks the pointer receives them as relative motion",
+                    color = LocalAccentDim.current,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp
+                )
+            }
 
             // Tied directly to the toggle: the gestures only exist in absolute-cursor mode, so the
             // pane appears as part of switching Cursor to Touch on and leaves with it. No cog — one
@@ -4734,15 +4915,25 @@ private fun TmContainerPanel(info: XServerDialogState.TmContainerInfo?) {
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
+                val wayland = info.displayBackend == "Wayland"
                 ContainerInfoRow("Wine", info.wine)
+                // "Display backend" row removed — hidden by request (the X11/Wayland choice is no
+                // longer surfaced anywhere in the UI); `wayland` below still drives the Renderer line.
                 ContainerInfoRow("DX wrapper", prettyDxWrapper(info.dxWrapper), accent)
+                // Wayland: the game presents through the embedded compositor's Vulkan backend, and the
+                // driver value is the "compositor: … · game: …" pair the activity resolved (wraps).
                 ContainerInfoRow(
                     "Renderer",
-                    prettyRenderer(info.renderer),
+                    when {
+                        wayland -> "Vulkan (Wayland compositor)"
+                        else -> prettyRenderer(info.renderer)
+                    },
                     accent,
                 )
                 ContainerInfoRow("Graphics driver", info.graphicsDriver)
-                // Null (no spoof) = no row, the block exactly as it was.
+                // Wayland hands the GPU-name spoof to DXVK and leaves the Vulkan device alone, so this
+                // is the only place that can say the game is being told about a GPU that isn't here.
+                // Null (X11, or no spoof) = no row, the block exactly as it was.
                 info.gpuSpoof?.let { ContainerInfoRow("GPU name", "$it (spoofed, not the real GPU)") }
                 ContainerInfoRow("Resolution", info.resolution)
                 // What the panel the game is on reports, read live. Reporting only - there is no HDR
