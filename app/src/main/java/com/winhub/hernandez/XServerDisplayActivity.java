@@ -2582,6 +2582,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 StickShaper.parseSmoothEdge(shortcut.getExtra(StickShaper.KEY_SMOOTH_EDGE), stickTuning.smoothEdge));
         }
         StickShaper.setActive(stickTuning);
+        XServerDialogState.INSTANCE.setStickTuning(stickTuning);
 
         // VEGAS runs its own native DLLs from vegas-<ver>.tzst — no alias to DXVK.
 
@@ -3243,6 +3244,25 @@ public class XServerDisplayActivity extends AppCompatActivity {
         }
         else if (container != null) {
             container.putExtra(key, value);
+            container.saveData();
+        }
+    }
+
+    private void persistStickTuning(StickShaper.Tuning t) {
+        if (shortcut != null) {
+            shortcut.putExtra(StickShaper.KEY_LEFT_DEADZONE, String.valueOf(t.leftDeadzone));
+            shortcut.putExtra(StickShaper.KEY_LEFT_SENSITIVITY, String.valueOf(t.leftSensitivity));
+            shortcut.putExtra(StickShaper.KEY_RIGHT_DEADZONE, String.valueOf(t.rightDeadzone));
+            shortcut.putExtra(StickShaper.KEY_RIGHT_SENSITIVITY, String.valueOf(t.rightSensitivity));
+            shortcut.putExtra(StickShaper.KEY_SMOOTH_EDGE, t.smoothEdge ? "1" : "0");
+            shortcut.saveData();
+        }
+        else if (container != null) {
+            container.setStickLeftDeadzone(t.leftDeadzone);
+            container.setStickLeftSensitivity(t.leftSensitivity);
+            container.setStickRightDeadzone(t.rightDeadzone);
+            container.setStickRightSensitivity(t.rightSensitivity);
+            container.setStickSmoothEdge(t.smoothEdge);
             container.saveData();
         }
     }
@@ -9267,6 +9287,15 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     container.setGyroSmoothing(winHandler.getGyroSmoothing());
                     container.saveData();
                 }
+            };
+
+            // Stick deadzone / sensitivity: StickShaper is process-wide, so publishing the snapshot is
+            // the live apply; it is then written back to the same owner as the gyro (shortcut, else
+            // container).
+            ds.setStickTuning(StickShaper.getActive());
+            ds.onStickTuningChanged = (tuning) -> {
+                StickShaper.setActive(tuning);
+                persistStickTuning(tuning);
             };
         }
 

@@ -1102,6 +1102,8 @@
     <string name="stick_tuning_reset">Reset sticks</string>
     <string name="stick_tuning_override">Override container sticks</string>
     <string name="stick_tuning_inherit_hint">Off uses the container\'s stick settings.</string>
+    <string name="stick_tuning_inherit">Use container sticks</string>
+    <string name="stick_tuning_inherit_sub">Remove this game\'s stick overrides</string>
 
     <!-- In-game drawer (Controls tab) gyro section. Separate from the editor strings above because
          the drawer is a cramped overlay: short chip-sized labels, no "Enable Motion Aim" sentences. -->

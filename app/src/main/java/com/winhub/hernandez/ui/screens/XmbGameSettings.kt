@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
 import com.winhub.hernandez.R
 import com.winhub.hernandez.container.Container
+import com.winhub.hernandez.inputcontrols.StickShaper
 import com.winhub.hernandez.container.GameDetails
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.contents.ContentsManager
@@ -672,6 +673,44 @@ private fun controllerRows(xmb: XmbScope, p: XmbPrefs): List<XmbRow> {
             p.ex("gyroInvertX", if (c.isGyroInvertX) "1" else "0") == "1") { xmb.set(p, "gyroInvertX", if (it) "1" else "0") }
         rows += XmbRow.Toggle("gyroInvY", p.str(R.string.gyro_invert_y), Icons.Filled.ScreenRotation,
             p.ex("gyroInvertY", if (c.isGyroInvertY) "1" else "0") == "1") { xmb.set(p, "gyroInvertY", if (it) "1" else "0") }
+    }
+
+    // Stick deadzone / sensitivity: the same five extras as the editor's "Override container sticks".
+    // Each row writes its own key (the rest keep inheriting the container); the last row drops them all.
+    rows += XmbRow.Header("hSticks", p.str(R.string.stick_tuning_title))
+    val stickKeys = listOf(
+        StickShaper.KEY_LEFT_DEADZONE, StickShaper.KEY_LEFT_SENSITIVITY, StickShaper.KEY_RIGHT_DEADZONE,
+        StickShaper.KEY_RIGHT_SENSITIVITY, StickShaper.KEY_SMOOTH_EDGE,
+    )
+    rows += XmbRow.Slider("stickLDz", p.str(R.string.stick_left_deadzone), Icons.Filled.Tune,
+        StickShaper.parseDeadzone(p.ex(StickShaper.KEY_LEFT_DEADZONE, ""), c.stickLeftDeadzone),
+        StickShaper.DEADZONE_MIN, StickShaper.DEADZONE_MAX, 0.01f, format = { stickDeadzoneText(it) },
+        subtitle = p.str(R.string.stick_tuning_hint)) { xmb.set(p, StickShaper.KEY_LEFT_DEADZONE, stickExtraText(it)) }
+    rows += XmbRow.Slider("stickLSens", p.str(R.string.stick_left_sensitivity), Icons.Filled.Tune,
+        StickShaper.parseSensitivity(p.ex(StickShaper.KEY_LEFT_SENSITIVITY, ""), c.stickLeftSensitivity),
+        StickShaper.SENSITIVITY_MIN, StickShaper.SENSITIVITY_MAX, 0.05f, format = { stickSensitivityText(it) }) {
+        xmb.set(p, StickShaper.KEY_LEFT_SENSITIVITY, stickExtraText(it))
+    }
+    rows += XmbRow.Slider("stickRDz", p.str(R.string.stick_right_deadzone), Icons.Filled.Tune,
+        StickShaper.parseDeadzone(p.ex(StickShaper.KEY_RIGHT_DEADZONE, ""), c.stickRightDeadzone),
+        StickShaper.DEADZONE_MIN, StickShaper.DEADZONE_MAX, 0.01f, format = { stickDeadzoneText(it) }) {
+        xmb.set(p, StickShaper.KEY_RIGHT_DEADZONE, stickExtraText(it))
+    }
+    rows += XmbRow.Slider("stickRSens", p.str(R.string.stick_right_sensitivity), Icons.Filled.Tune,
+        StickShaper.parseSensitivity(p.ex(StickShaper.KEY_RIGHT_SENSITIVITY, ""), c.stickRightSensitivity),
+        StickShaper.SENSITIVITY_MIN, StickShaper.SENSITIVITY_MAX, 0.05f, format = { stickSensitivityText(it) }) {
+        xmb.set(p, StickShaper.KEY_RIGHT_SENSITIVITY, stickExtraText(it))
+    }
+    rows += XmbRow.Toggle("stickSmooth", p.str(R.string.stick_smooth_edge), Icons.Filled.Tune,
+        StickShaper.parseSmoothEdge(p.ex(StickShaper.KEY_SMOOTH_EDGE, ""), c.isStickSmoothEdge),
+        subtitle = p.str(R.string.stick_smooth_edge_hint)) { xmb.set(p, StickShaper.KEY_SMOOTH_EDGE, if (it) "1" else "0") }
+    if (stickKeys.any { p.shortcut.hasExtra(it) }) {
+        rows += XmbRow.Action("stickInherit", p.str(R.string.stick_tuning_inherit), Icons.Filled.Tune,
+            subtitle = p.str(R.string.stick_tuning_inherit_sub)) {
+            stickKeys.forEach { p.put(it, null) }
+            xmb.saved()
+            xmb.refresh()
+        }
     }
     return rows
 }

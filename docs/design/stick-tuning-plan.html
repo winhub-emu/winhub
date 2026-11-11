@@ -153,7 +153,7 @@ footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid va
       <li>The tuning is one <b>process-wide immutable snapshot</b> (<code>StickShaper.getActive()</code>), set when a game session starts and cleared when it ends. Controllers are created in many places (profiles, Steam pads, binding screens), so per-controller fields would not have reached them all.</li>
       <li>A shortcut's <b>Override container sticks</b> switch decides whether its five stick keys are written. Off removes them, so the shortcut inherits the container (true inherit, not a snapshot).</li>
       <li>Exported configs carry a game's stick values <b>only when that game overrides them</b>, so importing never overwrites the importer's own container preference.</li>
-      <li>The controller test screen is not tuned separately (it uses whatever is active), and the XMB per-game menu has no stick rows yet.</li>
+      <li>The controller test screen is not tuned separately (it uses whatever is active). The XMB per-game menu has Sticks rows, and the in-game drawer has a Sticks tab (Controls) that applies live and saves to the game's override, or to the container when the game was launched without a shortcut.</li>
       <li>Controller navigation uses each editor's existing widgets: D-pad up/down moves, left/right adjusts a slider, A toggles. There are no extra LT/RT/X/Y shortcuts.</li>
     </ul>
   </div>
@@ -450,7 +450,7 @@ With dz = 0.15 and s = 1.00 this is bit for bit today's output.</td>
   <h3>Decisions I still need from you (recommended answer first)</h3>
   <ol>
     <li><b>Per-game override as well as container?</b> Recommended: yes.</li>
-    <li><b>Adjust from the in-game drawer, like gyro?</b> Recommended: not now. It is extra work (live apply + persist), the editors already cover it.</li>
+    <li><b>Adjust from the in-game drawer, like gyro?</b> Done: Controls &rarr; Sticks.</li>
     <li><b>Touch overlay sticks?</b> Recommended: leave alone, they already have a per-element deadzone.</li>
     <li><b>Default edge style.</b> Recommended: Classic, so nothing changes silently. Switch to Smooth by default later once testers confirm they like it.</li>
   </ol>

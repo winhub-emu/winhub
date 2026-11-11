@@ -1,6 +1,7 @@
 package com.winhub.hernandez.ui
 
 import android.graphics.Bitmap
+import com.winhub.hernandez.inputcontrols.StickShaper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -674,6 +675,15 @@ object XServerDialogState {
     val gyroActivationMode: StateFlow<Int> = _gyroActivationMode
     fun setGyroActivationMode(v: Int) { _gyroActivationMode.value = v }
 
+    // Physical stick deadzone / sensitivity (see inputcontrols.StickShaper). One immutable snapshot so
+    // the drawer always shows a consistent set; changes apply live and are persisted by the activity.
+    private val _stickTuning = MutableStateFlow(StickShaper.DEFAULT)
+    val stickTuning: StateFlow<StickShaper.Tuning> = _stickTuning
+    fun setStickTuning(v: StickShaper.Tuning) { _stickTuning.value = v }
+
+    fun interface StickTuningCallback { fun invoke(tuning: StickShaper.Tuning) }
+    @JvmField var onStickTuningChanged: StickTuningCallback? = null
+
     fun interface GyroBoolCallback { fun invoke(value: Boolean) }
     fun interface GyroIntCallback { fun invoke(value: Int) }
     fun interface GyroFloatCallback { fun invoke(value: Float) }
@@ -914,6 +924,7 @@ object XServerDialogState {
         _gyroInvertY.value     = false
         _gyroActivator.value   = 0
         _gyroActivationMode.value = 0
+        _stickTuning.value     = StickShaper.DEFAULT
         _logLines.value        = emptyList()
         _logPaused.value       = false
         _inputProfiles.value   = emptyList()
@@ -947,6 +958,7 @@ object XServerDialogState {
         onGyroInvertXChanged = null; onGyroInvertYChanged = null; onGyroActivatorChanged = null
         onGyroActivationModeChanged = null; onGyroModeChanged = null
         onGyroRecenterRequested = null
+        onStickTuningChanged = null
         onInputControlsConfirm = null; onInputControlsSettings = null
         onWindowClick = null
         physicalProfileId = -1; onPhysicalProfileChanged = null; onProfilesChanged = null

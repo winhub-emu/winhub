@@ -114,6 +114,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import com.winhub.hernandez.R
+import com.winhub.hernandez.inputcontrols.StickShaper
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.core.ControllerIdentity
 import com.winhub.hernandez.core.StickPacing
@@ -2948,6 +2949,7 @@ private fun ControlsContent(state: XServerDrawerState) {
             Triple("Players", subTab == 4) { state.setControlsSubTab(4) },
             Triple(stringResource(R.string.swipe_tab), subTab == 5) { state.setControlsSubTab(5) },
             if (padSupported) Triple("Pad", subTab == 6) { state.setControlsSubTab(6) } else null,
+            Triple(stringResource(R.string.stick_tuning_title), subTab == 7) { state.setControlsSubTab(7) },
         ),
         perRow = 3
     )
@@ -3168,6 +3170,9 @@ private fun ControlsContent(state: XServerDrawerState) {
 
         // ── Players ── manual per-device slot assignment (override when auto-assignment guesses wrong).
         4 -> PlayersSection()
+
+        // ── Sticks ── physical stick deadzone / sensitivity, applied live.
+        7 -> SticksSection()
 
         // ── Swipe ── live per-category on-screen-control swipe gates (Buttons/D-pad/Sticks).
         5 -> SwipeSection(state)
@@ -3624,6 +3629,86 @@ private fun TouchGestureSettings(state: XServerDrawerState) {
                 state.setGestureLongPressMs(holdMs); state.onGestureConfigChange?.run()
             }
         )
+    }
+}
+
+// ───── Stick deadzone / sensitivity — Controls tab, "Sticks" sub-tab ─────
+// Sliders only commit on release (like the gyro sensitivity): each commit publishes one immutable
+// StickShaper.Tuning, which the activity applies live and writes back to the shortcut / container.
+@Composable
+private fun SticksSection() {
+    val accent = MaterialTheme.colorScheme.primary
+    val tuning by XServerDialogState.stickTuning.collectAsState()
+    var leftDz by remember(tuning) { mutableFloatStateOf(tuning.leftDeadzone) }
+    var leftSens by remember(tuning) { mutableFloatStateOf(tuning.leftSensitivity) }
+    var rightDz by remember(tuning) { mutableFloatStateOf(tuning.rightDeadzone) }
+    var rightSens by remember(tuning) { mutableFloatStateOf(tuning.rightSensitivity) }
+
+    // Rounded to the slider step so what gets saved is a tidy 1% / 0.05x value.
+    fun commit(smoothEdge: Boolean) {
+        val t = StickShaper.Tuning(
+            Math.round(leftDz * 100f) / 100f, Math.round(leftSens * 100f) / 100f,
+            Math.round(rightDz * 100f) / 100f, Math.round(rightSens * 100f) / 100f, smoothEdge)
+        XServerDialogState.setStickTuning(t)
+        XServerDialogState.onStickTuningChanged?.invoke(t)
+    }
+
+    Text(stringResource(R.string.stick_tuning_title), color = accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+    Spacer(Modifier.height(4.dp))
+    GyroHint(stringResource(R.string.stick_tuning_hint))
+    Spacer(Modifier.height(4.dp))
+
+    LabeledSlider(
+        label = stringResource(R.string.stick_left_deadzone),
+        value = leftDz,
+        valueRange = StickShaper.DEADZONE_MIN..StickShaper.DEADZONE_MAX,
+        onValueChange = { leftDz = it },
+        onValueChangeFinished = { commit(tuning.smoothEdge) },
+        steps = 49,
+        format = { "${Math.round(it * 100f)}%" }
+    )
+    LabeledSlider(
+        label = stringResource(R.string.stick_left_sensitivity),
+        value = leftSens,
+        valueRange = StickShaper.SENSITIVITY_MIN..StickShaper.SENSITIVITY_MAX,
+        onValueChange = { leftSens = it },
+        onValueChangeFinished = { commit(tuning.smoothEdge) },
+        steps = 29,
+        format = { "%.2fx".format(it) }
+    )
+    LabeledSlider(
+        label = stringResource(R.string.stick_right_deadzone),
+        value = rightDz,
+        valueRange = StickShaper.DEADZONE_MIN..StickShaper.DEADZONE_MAX,
+        onValueChange = { rightDz = it },
+        onValueChangeFinished = { commit(tuning.smoothEdge) },
+        steps = 49,
+        format = { "${Math.round(it * 100f)}%" }
+    )
+    LabeledSlider(
+        label = stringResource(R.string.stick_right_sensitivity),
+        value = rightSens,
+        valueRange = StickShaper.SENSITIVITY_MIN..StickShaper.SENSITIVITY_MAX,
+        onValueChange = { rightSens = it },
+        onValueChangeFinished = { commit(tuning.smoothEdge) },
+        steps = 29,
+        format = { "%.2fx".format(it) }
+    )
+
+    ToggleChipGrid(
+        listOf(
+            ToggleChipItem(stringResource(R.string.stick_smooth_edge), tuning.smoothEdge) { commit(it) }
+        ),
+        perRow = 3
+    )
+    GyroHint(stringResource(R.string.stick_smooth_edge_hint))
+    Spacer(Modifier.height(4.dp))
+    AccentButton(stringResource(R.string.stick_tuning_reset)) {
+        leftDz = StickShaper.DEADZONE_DEFAULT
+        leftSens = StickShaper.SENSITIVITY_DEFAULT
+        rightDz = StickShaper.DEADZONE_DEFAULT
+        rightSens = StickShaper.SENSITIVITY_DEFAULT
+        commit(StickShaper.SMOOTH_EDGE_DEFAULT)
     }
 }
 
