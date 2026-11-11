@@ -971,8 +971,8 @@ internal fun DeckEditorCategoryRail(
 internal fun DeckEditorCategoryRow(
     label: String,
     selected: Boolean,
-    onClick: () -> Unit,
     icon: ImageVector = portraitTabIcon(label),
+    onClick: () -> Unit,
 ) {
     val bg by animateColorAsState(
         targetValue = if (selected) Deck.secondary.copy(alpha = 0.18f) else Deck.surface,
