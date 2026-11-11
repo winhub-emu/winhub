@@ -1,0 +1,27 @@
+name: CI Build (artifacts only)
+
+# TEST builds — artifacts only, NO release. Delegates the whole build to the
+# reusable _build.yml (matrix over the 3 flavors, all caching). release.yml uses
+# the SAME reusable build, so the build logic lives in exactly one place.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_number:
+        description: 'Label for APK file names (e.g. 1.0-fixes)'
+        required: true
+        default: '1.0-test'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/_build.yml
+    with:
+      release_number: ${{ inputs.release_number }}
+    secrets:
+      # Test builds bundle the Samsung Galaxy Performance SDK when the secret is present
+      # (empty otherwise). release.yml deliberately does NOT pass this, so public release
+      # APKs stay free of the proprietary jar until redistribution is explicitly decided.
+      GALAXY_PERF_SDK_JAR_B64: ${{ secrets.GALAXY_PERF_SDK_JAR_B64 }}
