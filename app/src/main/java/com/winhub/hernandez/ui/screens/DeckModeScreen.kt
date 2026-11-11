@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -117,6 +118,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.coroutineScope
 import kotlin.math.roundToInt
 import androidx.compose.foundation.rememberScrollState
@@ -471,7 +473,7 @@ internal fun DeckModeScreen() {
                     if (portrait && section in liquidSections && !PortraitPageState.open && !PortraitPageState.editor &&
                         !(section == "containers" && deckDetail != null)) Modifier.liquidBackdrop(glows = section == "home") else Modifier
                 )
-                .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.windowInsetsPadding(WindowInsets.displayCutout))
+                .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                 .deckTouchTracker()
                 .onPreviewKeyEvent { e ->
                     // Portrait is touch-only: gamepad and D-pad keys do nothing here (landscape keeps both).
@@ -541,7 +543,6 @@ internal fun DeckModeScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(Deck.background)
-            .windowInsetsPadding(WindowInsets.displayCutout)
             .deckTouchTracker()
             .onPreviewKeyEvent { e ->
                 if (DeckConsole.boot) {
@@ -1924,9 +1925,11 @@ private fun DeckSideRail(
     homeFocus: FocusRequester,
     onSelect: (String) -> Unit,
 ) {
+    // The rail itself runs under the notch (no empty strip beside it); only its icons step clear of it.
+    val cutoutStart = WindowInsets.displayCutout.asPaddingValues().calculateLeftPadding(LayoutDirection.Ltr)
     DeckDragFrame(
         modifier = Modifier
-            .width(92.dp)
+            .width(92.dp + cutoutStart)
             .fillMaxHeight()
             .background(Deck.surface),
         shape = RoundedCornerShape(14.dp),
@@ -1938,7 +1941,7 @@ private fun DeckSideRail(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 12.dp),
+                .padding(start = cutoutStart, top = 12.dp, bottom = 12.dp),
         ) {
             deckSections().forEach { item ->
                 DeckRailItem(

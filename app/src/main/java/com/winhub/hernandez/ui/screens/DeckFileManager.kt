@@ -393,7 +393,7 @@ private fun FmLocationRow(item: RailItem) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = 46.dp)
             .clip(shape)
             .background(bg)
             .deckDragItem("fm-loc-${item.label}", selfOnly = true)
@@ -513,10 +513,10 @@ private fun FmHeader(ui: DeckFmUi, act: DeckFmActions, portrait: Boolean) {
                     FmBreadcrumbs(ui, act, Modifier.weight(1f))
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             FmToolbar(ui, act, portrait)
             if (!ui.showFavorites) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 FmStorageMeter(ui)
             }
         }
@@ -582,7 +582,7 @@ private fun FmBreadcrumbs(ui: DeckFmUi, act: DeckFmActions, modifier: Modifier) 
 private fun FmToolbar(ui: DeckFmUi, act: DeckFmActions, portrait: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = if (portrait && !ui.showFavorites) Arrangement.SpaceBetween else Arrangement.spacedBy(8.dp, Alignment.End),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
         modifier = Modifier.fillMaxWidth(),
     ) {
         if (!ui.showFavorites) {
@@ -657,7 +657,7 @@ private fun FmIconButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(48.dp)
+            .size(44.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(if (active) DeckPalette.primary.copy(alpha = 0.18f) else DeckPalette.surfaceVariant.copy(alpha = 0.55f))
             .then(
@@ -889,10 +889,10 @@ private fun FmGrid(ui: DeckFmUi, act: DeckFmActions, portrait: Boolean, onFocuse
     LaunchedEffect(ui.currentDir.absolutePath) { gridState.scrollToItem(0) }
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(minSize = if (portrait) 140.dp else 150.dp),
+        columns = GridCells.Adaptive(minSize = if (portrait) 100.dp else 112.dp),
         modifier = Modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 16.dp),
     ) {
         if (ui.searchQuery.isBlank() && ui.currentDir != ui.currentRoot) {
@@ -947,16 +947,16 @@ private fun FmParentTile(onTap: () -> Unit) {
             .deckDragItem("fm-parent-tile", selfOnly = true)
             .deckBringIntoView()
             .clickable(onClick = onTap)
-            .padding(10.dp),
+            .padding(8.dp),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1.35f), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(40.dp))
+        Box(Modifier.fillMaxWidth().aspectRatio(1.6f), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(30.dp))
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             "Parent folder",
             color = DeckPalette.onSurfaceVariant,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             minLines = 2,
             maxLines = 2,
@@ -1074,10 +1074,10 @@ private fun FmTile(file: File, ui: DeckFmUi, act: DeckFmActions, onFocused: (Fil
             .deckBringIntoView()
             .onFocusChanged { if (it.isFocused) onFocused(file) }
             .combinedClickable(onClick = { act.tap(file) }, onLongClick = { act.longPress(file) })
-            .padding(10.dp),
+            .padding(8.dp),
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
-            FmThumb(file, modifier = Modifier.fillMaxSize(), corner = 12.dp, iconSize = 44.dp)
+        Box(Modifier.fillMaxWidth().aspectRatio(1.6f)) {
+            FmThumb(file, modifier = Modifier.fillMaxSize(), corner = 10.dp, iconSize = 30.dp)
             if (ui.selectionMode) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { FmCheck(selected) }
             }
@@ -1088,23 +1088,17 @@ private fun FmTile(file: File, ui: DeckFmUi, act: DeckFmActions, onFocused: (Fil
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         // Two reserved lines keep every tile in a row the same height.
         Text(
             text = file.name,
             color = DeckPalette.onBackground,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             minLines = 2,
             maxLines = 2,
             textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = if (isDir) "Folder" else StringUtils.formatBytes(file.length()),
-            color = DeckPalette.onSurfaceVariant,
-            fontSize = 11.5.sp,
-            maxLines = 1,
         )
     }
 }
