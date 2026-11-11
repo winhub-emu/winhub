@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tune
@@ -957,9 +958,11 @@ private fun GameOptionsWallSheet(
     onCommunityConfigs: () -> Unit,
     onRemoveCover: () -> Unit,
 ) {
+    val doctor = LocalGameDoctor.current
     val rows = buildList {
         add(WallSheetRow(Icons.Filled.Edit, "Edit shortcut", onEditShortcut))
         add(WallSheetRow(Icons.Filled.Tune, "Container settings", onContainerSettings))
+        doctor?.let { open -> add(WallSheetRow(Icons.Filled.Healing, "Game Doctor") { onDismiss(); open(shortcut) }) }
         add(WallSheetRow(Icons.Filled.Public, "Community configs", onCommunityConfigs))
         if (!shortcut.customCoverArtPath.isNullOrEmpty()) {
             add(WallSheetRow(Icons.Filled.Image, "Remove cover art", onRemoveCover))

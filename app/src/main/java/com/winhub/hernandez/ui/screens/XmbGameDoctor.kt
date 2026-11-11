@@ -1,6 +1,5 @@
 package com.winhub.hernandez.ui.screens
 
-import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
@@ -10,110 +9,27 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import com.winhub.hernandez.communityconfigs.CommunityConfigApply
-import com.winhub.hernandez.communityconfigs.ConfigLibrary
-import com.winhub.hernandez.communityconfigs.ConfigTranslator
 import com.winhub.hernandez.communityconfigs.GameDoctor
-import com.winhub.hernandez.communityconfigs.InstalledComponents
 import com.winhub.hernandez.container.Shortcut
-import com.winhub.hernandez.core.GPUInformation
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONException
-import org.json.JSONObject
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Game Doctor as an XMB column: what went wrong in the last run, with one-tap fixes, shared configs
-// for this chip, and a list of safe things to try next. Every change is snapshotted first, so
-// "Undo all changes" puts the shortcut back exactly as it was before the doctor touched it.
+// for this chip, and a list of safe things to try next. The state and the actions live in
+// GameDoctorSession (GameDoctorUi.kt), shared with the dialog every other screen opens.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 internal fun xmbGameDoctorMenu(xmb: XmbScope, shortcut: Shortcut): XmbMenu {
     val ctx = xmb.context
-    var report by mutableStateOf<GameDoctor.Report?>(null)
-    var note by mutableStateOf<String?>(null)
-    var busy by mutableStateOf(false)
-    var changed by mutableStateOf(false)
-    val applied = mutableStateListOf<String>()
-    var snapshotted = false
+    val session = GameDoctorSession(ctx.applicationContext, shortcut, xmb.scope)
     lateinit var menu: XmbMenu
-
-    /** Blocking: runs on IO. The first change of a visit snapshots the shortcut so it can be undone. */
-    fun ensureSnapshot() {
-        if (!snapshotted) snapshotted = GameDoctor.snapshot(ctx, shortcut)
-    }
-
-    fun runTweak(tweak: GameDoctor.Tweak) {
-        if (busy) return
-        busy = true
-        xmb.scope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                ensureSnapshot()
-                try {
-                    tweak.change(shortcut)
-                    shortcut.saveData()
-                    true
-                } catch (e: RuntimeException) {
-                    false
-                }
-            }
-            if (ok) {
-                applied += tweak.key
-                changed = true
-                note = "Done: ${tweak.label}. Launch the game to test it. Undo is at the top if it didn't help."
-                xmb.saved()
-            } else {
-                note = "Couldn't change that setting."
-            }
-            busy = false
-        }
-    }
-
-    fun runPick(pick: GameDoctor.Pick) {
-        if (busy) return
-        busy = true
-        xmb.scope.launch {
-            val result = applyShared(ctx, shortcut, pick) { withContext(Dispatchers.IO) { ensureSnapshot() } }
-            if (result.ok && result.changed.isNotEmpty()) {
-                changed = true
-                applied += "cfg:${pick.entry.file}"
-                xmb.saved()
-            }
-            val needs = result.missingComponents.map { it.label } +
-                result.missingDrivers.map { "Turnip ${it.wanted}" }
-            note = result.message + if (needs.isEmpty()) "" else " Still needs: ${needs.joinToString(", ")}."
-            busy = false
-        }
-    }
-
-    fun undo() {
-        if (busy) return
-        busy = true
-        xmb.scope.launch {
-            val ok = withContext(Dispatchers.IO) { GameDoctor.restore(ctx, shortcut) }
-            busy = false
-            if (ok) {
-                xmb.toast("Back to how it was")
-                xmb.reloadGames()
-                xmb.popToRoot()
-            } else {
-                note = "There is nothing to undo."
-            }
-        }
-    }
 
     menu = XmbMenu(
         title = "Game Doctor",
         icon = Icons.Filled.Healing,
         initialKey = "busy",
-        onClose = { if (changed) xmb.reloadGames() },
+        onClose = { if (session.changed) xmb.reloadGames() },
     ) {
-        val r = report
+        val r = session.report
         if (r == null) {
             listOf<XmbRow>(
                 XmbRow.Header("title", "Game Doctor"),
@@ -121,14 +37,20 @@ internal fun xmbGameDoctorMenu(xmb: XmbScope, shortcut: Shortcut): XmbMenu {
             )
         } else buildList<XmbRow> {
             add(XmbRow.Header("title", shortcut.name))
-            note?.let { addAll(XmbTools.para("note", it, Icons.Filled.CheckCircle, ctx)) }
-            if (changed) {
+            session.note?.let { addAll(XmbTools.para("note", it, Icons.Filled.CheckCircle, ctx)) }
+            if (session.changed) {
                 add(
                     XmbRow.Action(
                         key = "undo", label = "Undo all changes", icon = Icons.Filled.History,
                         subtitle = "Back to how it was before the doctor",
-                        disabledReason = if (busy) "Working…" else null,
-                    ) { undo() }
+                        disabledReason = if (session.busy) "Working…" else null,
+                    ) {
+                        session.undo {
+                            xmb.toast("Back to how it was")
+                            xmb.reloadGames()
+                            xmb.popToRoot()
+                        }
+                    }
                 )
             }
             r.findings.forEachIndexed { i, f ->
@@ -139,14 +61,11 @@ internal fun xmbGameDoctorMenu(xmb: XmbScope, shortcut: Shortcut): XmbMenu {
                 }
                 add(XmbRow.Header("h$i", label))
                 addAll(XmbTools.para("f$i", "${f.title}. ${f.detail}", icon, ctx))
-                f.tweaks.forEachIndexed { j, t ->
-                    add(tweakRow("f$i.t$j", t, applied, busy) { runTweak(t) })
-                }
+                f.tweaks.forEachIndexed { j, t -> add(tweakRow("f$i.t$j", t, session)) }
             }
             if (r.picks.isNotEmpty()) {
                 add(XmbRow.Header("cfg", "Shared configs for this game"))
                 r.picks.forEachIndexed { i, p ->
-                    val key = "cfg:${p.entry.file}"
                     val parts = listOf(
                         p.entry.driver.takeIf { it.isNotBlank() }?.let { "Driver $it" },
                         p.entry.dxvk.takeIf { it.isNotBlank() }?.let { "DXVK $it" },
@@ -161,75 +80,39 @@ internal fun xmbGameDoctorMenu(xmb: XmbScope, shortcut: Shortcut): XmbMenu {
                             subtitle = parts.ifBlank { null },
                             value = if (p.matchesDevice) "Your device" else "Other device",
                             disabledReason = when {
-                                key in applied -> "Applied"
-                                busy -> "Working…"
+                                session.pickKey(p) in session.applied -> "Applied"
+                                session.busy -> "Working…"
                                 else -> null
                             },
-                        ) { runPick(p) }
+                        ) { session.runPick(p) { xmb.saved() } }
                     )
                 }
             }
             if (r.tweaks.isNotEmpty()) {
                 add(XmbRow.Header("more", "Try something else"))
-                r.tweaks.forEachIndexed { i, t ->
-                    add(tweakRow("try$i", t, applied, busy) { runTweak(t) })
-                }
+                r.tweaks.forEachIndexed { i, t -> add(tweakRow("try$i", t, session)) }
             }
         }
     }
 
-    xmb.scope.launch {
-        val library = ConfigLibrary.load(ctx).getOrNull()
-        val result = withContext(Dispatchers.IO) { GameDoctor.diagnose(ctx, shortcut, library) }
-        report = result
-        // Land on the first thing the user can do, not on the loading line that just went away.
-        menu.selKey = result.findings.firstNotNullOfOrNull { f -> if (f.tweaks.isEmpty()) null else "f${result.findings.indexOf(f)}.t0" }
-            ?: if (result.picks.isNotEmpty()) "pick0" else if (result.tweaks.isNotEmpty()) "try0" else null
+    // Land on the first thing the user can do, not on the loading line that just went away.
+    session.load { result ->
+        menu.selKey = result.findings.firstNotNullOfOrNull { f ->
+            if (f.tweaks.isEmpty()) null else "f${result.findings.indexOf(f)}.t0"
+        } ?: if (result.picks.isNotEmpty()) "pick0" else if (result.tweaks.isNotEmpty()) "try0" else null
     }
     return menu
 }
 
-private fun tweakRow(
-    key: String,
-    tweak: GameDoctor.Tweak,
-    applied: List<String>,
-    busy: Boolean,
-    onClick: () -> Unit,
-): XmbRow = XmbRow.Action(
+private fun tweakRow(key: String, tweak: GameDoctor.Tweak, session: GameDoctorSession): XmbRow = XmbRow.Action(
     key = key,
     label = tweak.label,
     icon = Icons.Filled.Build,
     subtitle = tweak.detail,
     disabledReason = when {
-        tweak.key in applied -> "Applied"
-        busy -> "Working…"
+        tweak.key in session.applied -> "Applied"
+        session.busy -> "Working…"
         else -> null
     },
-    onClick = onClick,
+    onClick = { session.runTweak(tweak) },
 )
-
-/** Download one shared config and merge it into [shortcut]; [beforeChange] snapshots first. */
-private suspend fun applyShared(
-    context: Context,
-    shortcut: Shortcut,
-    pick: GameDoctor.Pick,
-    beforeChange: suspend () -> Unit,
-): CommunityConfigApply.ConfigApplyResult {
-    val text = ConfigLibrary.fetchConfig(pick.game.id, pick.entry.file)
-        ?: return CommunityConfigApply.ConfigApplyResult(false, "Couldn't download that config. Check your connection and try again.")
-    val json = try {
-        JSONObject(text)
-    } catch (e: JSONException) {
-        return CommunityConfigApply.ConfigApplyResult(false, "That config is damaged and can't be read.")
-    }
-    beforeChange()
-    return withContext(Dispatchers.IO) {
-        CommunityConfigApply.apply(
-            shortcut = shortcut,
-            config = ConfigTranslator.translate(json),
-            installed = InstalledComponents.read(context),
-            containerWineVersion = shortcut.container?.wineVersion,
-            isAdreno = GPUInformation.isAdrenoGPU(context),
-        )
-    }
-}

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -1067,6 +1068,7 @@ private fun DeckHome(
             DeckMenuAction("Play", Icons.Filled.PlayArrow) { playEntry(entry) },
             DeckMenuAction("Launch method", Icons.Filled.Layers) { openLaunchMethod(entry) },
             DeckMenuAction("Settings", Icons.Filled.Settings) { openGameSettings(entry) },
+            DeckMenuAction("Game Doctor", Icons.Filled.Healing) { openGameTool(entry, HubTool.DOCTOR) },
             DeckMenuAction("Game details", Icons.Filled.Edit) { openGameTool(entry, HubTool.DETAILS) },
             DeckMenuAction("Search covers", Icons.Filled.Search) { openGameTool(entry, HubTool.COVERS) },
             DeckMenuAction("Clone to container", Icons.Filled.ContentCopy) { openGameTool(entry, HubTool.CLONE) },

@@ -5268,6 +5268,7 @@ private fun ShortcutItemLayoutL(
             }
         }
         ShortcutOverflowButton(
+            shortcut = shortcut,
             onSettings = onSettings,
             onRemove = onRemove,
             onClone = onClone,
@@ -5320,6 +5321,7 @@ private fun RowWallpaper(appId: Int, modifier: Modifier) {
 // Shared overflow (⋮) button + menu for the list-view cards.
 @Composable
 private fun ShortcutOverflowButton(
+    shortcut: Shortcut,
     onSettings: () -> Unit,
     onRemove: () -> Unit,
     onClone: () -> Unit,
@@ -5352,6 +5354,14 @@ private fun ShortcutOverflowButton(
                 onClick = { menuExpanded = false; onSettings() },
             )
             MenuItemDivider()
+            LocalGameDoctor.current?.let { openDoctor ->
+                DropdownMenuItem(
+                    text = { Text("Game Doctor") },
+                    leadingIcon = { Icon(Icons.Filled.Healing, null) },
+                    onClick = { menuExpanded = false; openDoctor(shortcut) },
+                )
+                MenuItemDivider()
+            }
             DropdownMenuItem(
                 text = { Text("Remove") },
                 leadingIcon = { Icon(Icons.Filled.Delete, null) },
@@ -5604,6 +5614,10 @@ private fun ShortcutGridItem(
         ) {
             DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Filled.Settings, null) }, onClick = { menuExpanded = false; onSettings() })
             MenuItemDivider()
+            LocalGameDoctor.current?.let { openDoctor ->
+                DropdownMenuItem(text = { Text("Game Doctor") }, leadingIcon = { Icon(Icons.Filled.Healing, null) }, onClick = { menuExpanded = false; openDoctor(shortcut) })
+                MenuItemDivider()
+            }
             DropdownMenuItem(text = { Text("Remove") }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menuExpanded = false; onRemove() })
             MenuItemDivider()
             DropdownMenuItem(text = { Text("Clone to container") }, leadingIcon = { Icon(Icons.Filled.ContentCopy, null) }, onClick = { menuExpanded = false; onClone() })

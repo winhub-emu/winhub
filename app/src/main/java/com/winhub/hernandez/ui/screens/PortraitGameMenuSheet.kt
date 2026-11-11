@@ -53,6 +53,7 @@ private fun menuHint(label: String): String? = when (label) {
     "Play" -> "Starts the game with its saved launch choice."
     "Launch method" -> "Choose how this game starts and whether to remember it."
     "Settings" -> "Display, graphics, controls and more, for this game only."
+    "Game Doctor" -> "Finds why it won't run and offers one-tap fixes."
     "Game details" -> "Name, Steam link, genres, year, description."
     "Search covers" -> "Find cover art on SteamGridDB and pick one."
     "Clone to container" -> "Copy this shortcut into another container."

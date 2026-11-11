@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
@@ -1243,9 +1244,11 @@ private fun GameOptionsSheet(
     }
     // Rows built inline (not remembered) so the passed-in callbacks never go stale. The Change-cover row
     // captures the launcher; the Remove-cover row only appears when there's a custom cover to remove.
+    val doctor = LocalGameDoctor.current
     val rows = buildList {
         add(BpRow(Icons.Filled.Edit, "Edit shortcut", onEditShortcut))
         add(BpRow(Icons.Filled.Tune, "Container settings", onContainerSettings))
+        doctor?.let { open -> add(BpRow(Icons.Filled.Healing, "Game Doctor") { onDismiss(); open(shortcut) }) }
         add(BpRow(Icons.Filled.Public, "Community configs", onCommunityConfigs))
         add(BpRow(Icons.Filled.Image, "Change cover art") {
             coverPicker.launch(

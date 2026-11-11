@@ -42,7 +42,7 @@ import java.io.File
 import java.io.IOException
 
 /** The per-game tools Home's classic menu offers on top of the basics (the same flows the Games screen's ⋮ menu runs). */
-internal enum class HubTool { DETAILS, COVERS, CLONE, DRIVE_C, CHANGE_EXE }
+internal enum class HubTool { DETAILS, COVERS, CLONE, DRIVE_C, CHANGE_EXE, DOCTOR }
 
 internal class HubToolRequest(val tool: HubTool, val shortcut: Shortcut)
 
@@ -66,6 +66,7 @@ internal fun HubGameToolsHost(
         HubTool.CHANGE_EXE -> ChangeExecutableCoordinator(target = s, onFinished = { onClose(); onChanged(s) })
         HubTool.CLONE -> HubCloneDialog(s, containers, onClose)
         HubTool.COVERS -> HubCoverSearchDialog(s, onClose) { onChanged(s) }
+        HubTool.DOCTOR -> GameDoctorDialog(s, onClose = onClose, onChanged = { onChanged(s) })
     }
 }
 

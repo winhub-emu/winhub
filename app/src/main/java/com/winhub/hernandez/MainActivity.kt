@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import com.winhub.hernandez.ui.screens.OutlinedAlertDialog
+import com.winhub.hernandez.ui.screens.ProvideGameDoctor
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.DrawerValue
@@ -823,6 +824,7 @@ private fun AppShell(
     val barOverlay = currentRoute == Screen.Games.route && topBarTransparentState.value &&
         !isFullBleed && !(bannerUpdate != null && !bannerDismissed)
 
+    ProvideGameDoctor {
     CompositionLocalProvider(LocalTopBarActions provides topBarActionsState, LocalTopBarTransparent provides topBarTransparentState) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -932,6 +934,7 @@ private fun AppShell(
         }
     }
     } // end CompositionLocalProvider
+    } // end ProvideGameDoctor
 
     if (showAllFilesDialog) {
         AllFilesAccessDialog(
