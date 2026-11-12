@@ -32,8 +32,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winhub.hernandez.store.LocalStoreXmb
 import com.winhub.hernandez.ui.components.Button
 import com.winhub.hernandez.ui.components.OutlinedButton
+import com.winhub.hernandez.ui.deck.xmbCardFill
+import com.winhub.hernandez.ui.deck.xmbCardLine
+import com.winhub.hernandez.ui.deck.xmbGlassCard
 import com.winhub.hernandez.ui.screens.Deck
 import com.winhub.hernandez.ui.screens.DeckButton
 import com.winhub.hernandez.ui.screens.DeckEmptyState
@@ -47,6 +51,17 @@ import com.winhub.hernandez.ui.screens.LocalDeckMode
 internal fun Modifier.socialCard(highlighted: Boolean = false): Modifier {
     val deck = LocalDeckMode.current
     val cs = MaterialTheme.colorScheme
+    // The XMB store style (its own Activity): glass cards over the charcoal glass, like the stores' cards.
+    if (LocalStoreXmb.current) {
+        val glassShape = RoundedCornerShape(12.dp)
+        return this
+            .xmbGlassCard(glassShape, xmbCardFill(cs.surfaceVariant))
+            .border(
+                if (highlighted) 2.dp else 1.dp,
+                if (highlighted) cs.primary else xmbCardLine(cs.outline),
+                glassShape,
+            )
+    }
     val shape = RoundedCornerShape(if (deck) 16.dp else 12.dp)
     val fill = if (deck) Deck.surface else cs.surfaceVariant.copy(alpha = 0.45f)
     val line = when {

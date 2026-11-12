@@ -165,6 +165,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -231,6 +232,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.io.FileOutputStream
 import com.winhub.hernandez.ui.ControllerFocusIndication
+import com.winhub.hernandez.store.SocialHubActivity
 import com.winhub.hernandez.ui.Screen
 import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.SocialHubScreen
@@ -309,7 +311,8 @@ internal fun DeckModeScreen() {
     var deckDetail by remember { mutableStateOf<Int?>(null) }
     // General tab style: "horizontal" (top strip, default) or "vertical" (left rail).
     val tabStyle by AppThemeState.generalTabStyle.collectAsState()
-    val horizontalRail = portrait || tabStyle != "vertical"
+    // Full XMB always has its floating tabs along the top.
+    val horizontalRail = portrait || fullXmb || tabStyle != "vertical"
     val railSections = remember(fullXmb) {
         deckSections().filter { !fullXmb || (it.key != "stores" && it.key != "social_hub") }
     }
@@ -319,7 +322,11 @@ internal fun DeckModeScreen() {
             storeTarget = target; section = "stores"; deckDetail = null
         }
     }
-    val openSocial: () -> Unit = { section = "social_hub"; deckDetail = null }
+    val openSocial: () -> Unit = {
+        // The XMB store style gives Social a full-screen XMB page of its own, like the stores.
+        if (StoreStyle.isXmb(context)) context.startActivity(Intent(context, SocialHubActivity::class.java))
+        else { section = "social_hub"; deckDetail = null }
+    }
     val leaveToHome: () -> Unit = { storeTarget = null; section = "home"; deckDetail = null }
 
     // Controller-first back stack: B (or system Back) closes the container editor and nothing more. It never
@@ -1151,7 +1158,7 @@ private fun DeckHome(
         buildList {
             add(
                 DeckHomeCard("Add game", "Add games to your library", Icons.Filled.Add,
-                    listOf(Color(0xFF1B1F2A), Color(0xFF0E1016)), glass = true) { addModeMenu = true },
+                    listOf(Color(0xFF2A2D33), Color(0xFF16181C))) { addModeMenu = true },
             )
             if (fullXmb && showStores) storeScreens.forEach { screen ->
                 add(
@@ -1693,6 +1700,27 @@ private fun stepSection(
     onSelect(sections[next].key)
 }
 
+/** The Social tab in the XMB store style: Social is a full-screen page of its own, opened once on entering and again on A. */
+@Composable
+private fun SocialXmbEntry() {
+    val context = LocalContext.current
+    var opened by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!opened) {
+            opened = true
+            context.startActivity(Intent(context, SocialHubActivity::class.java))
+        }
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        DeckEmptyState("Social Hub", "Feed, configs and profile open as a full-screen XMB page.")
+        DeckButton("Open Social Hub") { context.startActivity(Intent(context, SocialHubActivity::class.java)) }
+    }
+}
+
 /** The pane body shared by both rail styles: section switch + the per-section screens. */
 @Composable
 private fun DeckPaneContent(
@@ -1774,7 +1802,8 @@ private fun DeckPaneContent(
             "contents" -> DeckContentsScreen()
             // The full Save Manager (Steam / Custom / Epic / GOG / Settings), in Deck chrome.
             "saves" -> SaveManagerScreen(deckMode = true)
-            "social_hub" -> SocialHubScreen(deck = true, onExit = if (fullXmb) onLeave else null)
+            "social_hub" -> if (StoreStyle.isXmb(LocalContext.current)) SocialXmbEntry()
+                else SocialHubScreen(deck = true, onExit = if (fullXmb) onLeave else null)
             "settings" -> DeckSettingsScreen()
             // Defensive fallback only; never composes alongside the "home" branch, so it
             // gets its own requester instead of sharing the rail's homeHeroFocus.
@@ -1845,6 +1874,34 @@ private fun DeckFloatingTabs(
 ) {
     val accent = Deck.primary
     val cutout = WindowInsets.displayCutout.asPaddingValues()
+    // Where each tab sits in the row (x, width). The accent underline glides to the chosen one: the edge it moves toward
+    // springs ahead and the other follows 40 ms later, so it stretches and then catches up, as the classic strip's pill does.
+    val spots = remember { mutableStateMapOf<String, Pair<Float, Float>>() }
+    val lineStart = remember { Animatable(0f) }
+    val lineEnd = remember { Animatable(0f) }
+    var placed by remember { mutableStateOf(false) }
+    val spot = spots[selected]
+    LaunchedEffect(spot) {
+        val t = spot ?: return@LaunchedEffect
+        val to0 = t.first
+        val to1 = t.first + t.second
+        if (!placed) {
+            lineStart.snapTo(to0)
+            lineEnd.snapTo(to1)
+            placed = true
+            return@LaunchedEffect
+        }
+        val glide = spring<Float>(dampingRatio = 0.8f, stiffness = 420f)
+        coroutineScope {
+            if (to1 >= lineEnd.value) {
+                launch { lineEnd.animateTo(to1, glide) }
+                launch { delay(40); lineStart.animateTo(to0, glide) }
+            } else {
+                launch { lineStart.animateTo(to0, glide) }
+                launch { delay(40); lineEnd.animateTo(to1, glide) }
+            }
+        }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1855,7 +1912,21 @@ private fun DeckFloatingTabs(
                 end = 16.dp + cutout.calculateRightPadding(LayoutDirection.Ltr),
                 top = 6.dp,
             )
-            .height(40.dp),
+            .height(40.dp)
+            .drawBehind {
+                if (spots[selected] != null) {
+                    val barH = 2.dp.toPx()
+                    val inset = 8.dp.toPx()
+                    val x0 = lineStart.value + inset
+                    val x1 = lineEnd.value - inset
+                    drawRoundRect(
+                        color = accent,
+                        topLeft = Offset(x0, size.height - barH - 2.dp.toPx()),
+                        size = Size((x1 - x0).coerceAtLeast(barH), barH),
+                        cornerRadius = CornerRadius(barH, barH),
+                    )
+                }
+            },
     ) {
         DeckFloatingBumper("L1") { onCycle(-1) }
         sections.forEach { item ->
@@ -1866,21 +1937,10 @@ private fun DeckFloatingTabs(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier
                     .fillMaxHeight()
+                    .onGloballyPositioned { spots[item.key] = it.positionInParent().x to it.size.width.toFloat() }
                     .clip(RoundedCornerShape(10.dp))
                     .focusProperties { canFocus = false }
                     .clickable { onSelect(item.key) }
-                    .drawBehind {
-                        if (current) {
-                            val barH = 2.dp.toPx()
-                            val inset = 8.dp.toPx()
-                            drawRoundRect(
-                                color = accent,
-                                topLeft = Offset(inset, size.height - barH - 2.dp.toPx()),
-                                size = Size((size.width - inset * 2).coerceAtLeast(barH), barH),
-                                cornerRadius = CornerRadius(barH, barH),
-                            )
-                        }
-                    }
                     .padding(horizontal = 8.dp),
             ) {
                 Icon(item.icon, contentDescription = item.label, tint = ink, modifier = Modifier.size(18.dp))
@@ -2465,7 +2525,6 @@ private class DeckHomeCard(
     val icon: ImageVector,
     val colors: List<Color>,
     val logo: Int? = null,
-    val glass: Boolean = false,
     val onClick: () -> Unit,
 )
 
@@ -2521,33 +2580,6 @@ private fun Modifier.deckGlassBlobs(accent: Color): Modifier = this.drawBehind {
     val rb = size.width * 0.9f
     drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.5f), Color.Transparent), a, ra), ra, a)
     drawCircle(Brush.radialGradient(listOf(Color(0xFF9DB8D6).copy(alpha = 0.55f), Color.Transparent), b, rb), rb, b)
-}
-
-/** The liquid-glass face of the Add game card. */
-@Composable
-private fun DeckGlassAddFace(accent: Color) {
-    val shape = RoundedCornerShape(4.dp)
-    Box(Modifier.fillMaxSize().deckGlassBlobs(accent), contentAlignment = Alignment.Center) {
-        Box(Modifier.matchParentSize().deckGlass(shape, 1.4f))
-        // A diagonal specular streak across the frost.
-        Box(
-            Modifier.matchParentSize().background(
-                Brush.linearGradient(
-                    0f to Color.Transparent,
-                    0.30f to Color.Transparent,
-                    0.42f to Color.White.copy(alpha = 0.26f),
-                    0.54f to Color.Transparent,
-                    1f to Color.Transparent,
-                ),
-            ),
-        )
-        Icon(
-            Icons.Filled.Add,
-            contentDescription = "Add game",
-            tint = Color.White,
-            modifier = Modifier.fillMaxSize(0.36f),
-        )
-    }
 }
 
 /** The empty library's Add a game button, in the same glass. */
@@ -2806,8 +2838,9 @@ private fun DeckHomeCarousel(
     val cardShape = RoundedCornerShape(4.dp)
     BoxWithConstraints(modifier.fillMaxSize()) {
         // The store cards' size, and the covers' in Classic.
-        val baseH = (maxHeight * 0.34f).coerceIn(96.dp, 168.dp)
+        val baseH = (maxHeight * 0.44f).coerceIn(120.dp, 220.dp)
         val baseW = baseH * 2f / 3f
+        val upperShape = RoundedCornerShape(8.dp)
         val x0 = 28.dp
         // XMB look (everything but Classic): the XMB home's own numbers, in dp. The chosen cover is fH tall and the
         // rest sH, all hanging from its top edge; at rest the row is drawn up to 1.3x larger, as big as fits under the
@@ -2950,7 +2983,29 @@ private fun DeckHomeCarousel(
                             Modifier
                                 .size(baseW, baseH)
                                 .deckRowLayer(i, cPosNow, cScale, cCenter, cGrow, cAlpha, noDim, baseWPx, baseHPx, gX0Px, gapPx)
-                                .clip(cardShape)
+                                // The chosen card glows in the theme colour, like the chosen cover: a halo behind it plus a coloured shadow.
+                                .drawBehind {
+                                    val gl = (1f - abs(i - cPos.floatValue)).coerceIn(0f, 1f) * upT.value
+                                    if (gl > 0.02f) {
+                                        val radius = maxOf(size.width, size.height) * 0.72f
+                                        drawCircle(
+                                            brush = Brush.radialGradient(
+                                                listOf(accent.copy(alpha = 0.45f * gl), Color.Transparent),
+                                                center = center, radius = radius,
+                                            ),
+                                            radius = radius, center = center,
+                                        )
+                                    }
+                                }
+                                .graphicsLayer {
+                                    val gl = (1f - abs(i - cPos.floatValue)).coerceIn(0f, 1f) * upT.value
+                                    shadowElevation = 14.dp.toPx() * gl
+                                    ambientShadowColor = accent
+                                    spotShadowColor = accent
+                                    shape = upperShape
+                                    clip = false
+                                }
+                                .clip(upperShape)
                                 .background(Brush.linearGradient(card.colors))
                                 .drawWithContent {
                                     drawContent()
@@ -2960,7 +3015,7 @@ private fun DeckHomeCarousel(
                                         color = if (w > 0.02f) accent.copy(alpha = w) else Color.White.copy(alpha = 0.14f),
                                         topLeft = Offset(sw / 2f, sw / 2f),
                                         size = Size(size.width - sw, size.height - sw),
-                                        cornerRadius = CornerRadius(4.dp.toPx()),
+                                        cornerRadius = CornerRadius(8.dp.toPx()),
                                         style = Stroke(width = sw),
                                     )
                                 }
@@ -2977,7 +3032,6 @@ private fun DeckHomeCarousel(
                         ) {
                             val logo = card.logo?.let { rememberDeckLogo(it) }
                             when {
-                                card.glass -> DeckGlassAddFace(accent)
                                 logo != null -> Image(
                                     bitmap = logo,
                                     contentDescription = card.label,

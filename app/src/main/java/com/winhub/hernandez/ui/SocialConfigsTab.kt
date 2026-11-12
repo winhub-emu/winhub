@@ -264,7 +264,7 @@ internal fun SocialHubScreen(deck: Boolean = false, onExit: (() -> Unit)? = null
 private data class ImportUi(val name: String, val status: String, val done: Boolean, val ok: Boolean)
 
 @Composable
-private fun SocialConfigsContent() {
+internal fun SocialConfigsContent() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val account by SocialHubStore.account.collectAsState()
