@@ -118,7 +118,7 @@ fun EpicProfileTab(
                 StoreFilterChip("Account on epicgames.com", false) {
                     onOpenWeb("https://www.epicgames.com/account/personal", "Epic account")
                 }
-                StoreFilterChip(if (loading) "Refreshing…" else "Refresh", false, onRefresh)
+                StoreFilterChip(if (loading) "Refreshing…" else "Refresh", false, onClick = onRefresh)
             }
         }
     }

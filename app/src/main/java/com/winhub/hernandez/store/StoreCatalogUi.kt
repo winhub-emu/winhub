@@ -1,5 +1,8 @@
 package com.winhub.hernandez.store
 
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -825,6 +828,7 @@ fun CatalogSearchField(
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     if (LocalStoreXmb.current) {
         XmbSearchField(query, placeholder, onQueryChange, onClear, onSearch, modifier)
@@ -871,7 +875,7 @@ fun CatalogSearchField(
             focusedTextColor = MaterialTheme.colorScheme.onSurface,
             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
         ),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp),
     )

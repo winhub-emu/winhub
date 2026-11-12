@@ -197,7 +197,7 @@ private fun hasHardwareKeyboard(): Boolean = InputDevice.getDeviceIds().any { id
  * through [XmbKeyboardWindow], any other needs it around its content.
  */
 @Composable
-internal fun XmbKeyboardHost(enabled: Boolean, content: @Composable () -> Unit) {
+internal fun XmbKeyboardHost(enabled: Boolean = true, content: @Composable () -> Unit) {
     if (LocalXmbKeyboard.current != null) {
         content()
         return

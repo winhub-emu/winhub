@@ -160,7 +160,7 @@ fun GogProfileTab(
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StoreFilterChip("Account on GOG.com", false) { onOpenWeb("https://www.gog.com/account", "GOG account") }
-                StoreFilterChip(if (loading) "Refreshing…" else "Refresh", false, onRefresh)
+                StoreFilterChip(if (loading) "Refreshing…" else "Refresh", false, onClick = onRefresh)
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.winhub.hernandez.store
 
+import androidx.compose.ui.res.stringResource
+import com.winhub.hernandez.R
 import android.app.Activity
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke

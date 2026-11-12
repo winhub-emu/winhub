@@ -80,7 +80,7 @@ fun AmazonProfileTab(
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StoreFilterChip("Prime Gaming", false) { onOpenWeb("https://gaming.amazon.com/home", "Prime Gaming") }
-                StoreFilterChip(if (loading) "Refreshing…" else "Refresh", false, onRefresh)
+                StoreFilterChip(if (loading) "Refreshing…" else "Refresh", false, onClick = onRefresh)
             }
         }
     }
