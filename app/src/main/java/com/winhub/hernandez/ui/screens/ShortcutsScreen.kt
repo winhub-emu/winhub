@@ -7072,6 +7072,8 @@ internal fun ShortcutSettingsDialogScreen(
             putExtra("cpuList", cpuList)
             saveData()
         }
+        // Wayland game: have the adapter report of its graphics driver ready for the first launch.
+        if (effectiveWaylandShortcut) warmWaylandAdapterReport(context, graphicsDriverConfig)
     }
 
     // Panel refresh rates (drives whether the "In-game refresh rate" row exists) — hoisted so the D-pad
@@ -9585,6 +9587,8 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("cpuList", cpuList)
             saveData()
         }
+        // Wayland game: have the adapter report of its graphics driver ready for the first launch.
+        if (effectiveWaylandShortcut) warmWaylandAdapterReport(context, graphicsDriverConfig)
     }
 
     val panelRates = remember {

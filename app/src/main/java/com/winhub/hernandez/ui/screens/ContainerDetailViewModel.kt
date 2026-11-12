@@ -1257,24 +1257,9 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * Wayland containers: make sure the adapter report of the container's graphics driver exists, so the
-     * Auto profile can pick zero-copy / UBWC from the very first launch (it injects nothing without a
-     * report, which costs fps). Runs in the background after the save, off the UI thread, serialized with
-     * the other native GPU probes; skipped when a report is cached or a game session is on screen
-     * (WaylandDriverProbe.probe refuses then and retries next time). Never throws.
-     */
     private fun warmWaylandAdapterReport(gdConfig: String) {
         if (displayBackend != Container.DISPLAY_BACKEND_WAYLAND) return
-        val driverId = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.getVersion(gdConfig)
-        if (driverId.isNullOrEmpty() || driverId == "System") return
-        val app = context.applicationContext
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
-            runCatching {
-                if (com.winhub.hernandez.core.WaylandDriverProbe.cached(app, driverId) != null) return@launch
-                graphicsProbeMutex.withLock { com.winhub.hernandez.core.WaylandDriverProbe.probe(app, driverId) }
-            }
-        }
+        warmWaylandAdapterReport(context, gdConfig)
     }
 
     private fun doConfirm(
@@ -1774,4 +1759,23 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         selectedFEXCorePresetIndex = fexCorePresetIds.indexOf(keepFex).takeIf { it >= 0 } ?: 0
     }
 
+}
+
+/**
+ * Wayland containers and games: make sure the adapter report of the graphics driver in [gdConfig] exists,
+ * so the Auto profile can pick zero-copy / UBWC from the very first launch (it injects nothing without a
+ * report, which costs fps). Runs in the background after a save, off the UI thread, serialized with the
+ * other native GPU probes; skipped when a report is cached, the driver is "System"/empty, or a game
+ * session is on screen (WaylandDriverProbe.probe refuses then and retries next time). Never throws.
+ */
+internal fun warmWaylandAdapterReport(context: Context, gdConfig: String) {
+    val driverId = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.getVersion(gdConfig)
+    if (driverId.isNullOrEmpty() || driverId == "System") return
+    val app = context.applicationContext
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
+        runCatching {
+            if (com.winhub.hernandez.core.WaylandDriverProbe.cached(app, driverId) != null) return@launch
+            graphicsProbeMutex.withLock { com.winhub.hernandez.core.WaylandDriverProbe.probe(app, driverId) }
+        }
+    }
 }
