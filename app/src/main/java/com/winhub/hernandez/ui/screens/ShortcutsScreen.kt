@@ -8995,8 +8995,46 @@ internal fun DeckShortcutSettingsScreen(
             ?: graphicsDriverEntries.firstOrNull() ?: id)
     }
     var graphicsDriverConfig by remember {
-        mutableStateOf(shortcut.getExtra("graphicsDriverConfig", shortcut.container.getGraphicsDriverConfig()))
+        // A game without its own config starts from the container's, with the Wayland adapter keys
+        // blanked so they read as "Inherit" (see the classic editor).
+        val own = shortcut.getExtra("graphicsDriverConfig", "")
+        mutableStateOf(
+            if (own.isNotEmpty()) own
+            else withGraphicsDriverKeys(
+                shortcut.container.getGraphicsDriverConfig(),
+                com.winhub.hernandez.core.WaylandAdapterSettings.KEYS.associateWith { "" }
+            )
+        )
     }
+    // Wayland (per game): display backend override, game driver override, HDR override, and the
+    // adapter settings dialog. Same extras as the classic editor.
+    var displayBackendOverride by remember { mutableStateOf(shortcut.getExtra("displayBackend", "")) }
+    var waylandGameDriverOverride by remember { mutableStateOf(shortcut.getExtra("waylandGameDriver", "")) }
+    var waylandHdrOverride by remember { mutableStateOf(com.winhub.hernandez.display.WaylandHdr.shortcutChoice(shortcut)) }
+    var showWaylandAdapterDialog by remember { mutableStateOf(false) }
+    val containerWaylandCapable = remember(shortcut.container.wineVersion) {
+        com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(context, shortcut.container.wineVersion)
+    }
+    val effectiveWaylandShortcut = when (displayBackendOverride) {
+        "" -> shortcut.container.isWaylandBackend && containerWaylandCapable
+        Container.DISPLAY_BACKEND_WAYLAND -> containerWaylandCapable
+        else -> false
+    }
+    var waylandCompositorChoices by remember { mutableStateOf<List<String>>(emptyList()) }
+    var waylandGameDriverValues by remember { mutableStateOf<List<String>>(emptyList()) }
+    var waylandAutoPick by remember { mutableStateOf(com.winhub.hernandez.core.WaylandGameDriver.autoVariantIfKnown()) }
+    LaunchedEffect(effectiveWaylandShortcut) {
+        if (!effectiveWaylandShortcut) return@LaunchedEffect
+        waylandCompositorChoices = compositorDriverChoices(context)
+        waylandGameDriverValues = com.winhub.hernandez.core.WaylandGameDriver.optionValues(context)
+        waylandAutoPick = waylandAutoVariant(context)
+    }
+    if (showWaylandAdapterDialog) WaylandDriverSettingsDialog(
+        initialConfig = graphicsDriverConfig,
+        onConfirm = { graphicsDriverConfig = it; showWaylandAdapterDialog = false },
+        onDismiss = { showWaylandAdapterDialog = false },
+        containerConfig = shortcut.container.getGraphicsDriverConfig()
+    )
 
     val dxWrapperEntries = remember { res.getStringArray(R.array.dxwrapper_entries).toList() }
     var selectedDxWrapper by remember {
@@ -9458,6 +9496,13 @@ internal fun DeckShortcutSettingsScreen(
             putExtra("screenAlignment", screenAlignment.ifEmpty { null })
             putExtra("graphicsDriver", StringUtils.parseIdentifier(selectedGfxDriver))
             putExtra("graphicsDriverConfig", graphicsDriverConfig)
+            // Wayland: "" clears the extra (use the container's); a Force Wayland the container's layer
+            // can't honour is saved as Force X11.
+            putExtra("displayBackend",
+                if (displayBackendOverride == Container.DISPLAY_BACKEND_WAYLAND && !containerWaylandCapable) Container.DISPLAY_BACKEND_X11
+                else displayBackendOverride.ifEmpty { null })
+            putExtra("waylandGameDriver", waylandGameDriverOverride.ifEmpty { null })
+            putExtra(com.winhub.hernandez.display.WaylandHdr.EXTRA, waylandHdrOverride.ifEmpty { null })
             putExtra(com.winhub.hernandez.display.ExternalDisplay.EXTRA_LAUNCH, if (tvLaunch) "1" else "0")
             putExtra(com.winhub.hernandez.display.ExternalDisplay.EXTRA_MODE_ID, tvModeId.toString())
             putExtra(com.winhub.hernandez.display.ExternalDisplay.EXTRA_MATCH_RES, if (tvMatchRes) "1" else "0")
@@ -9747,6 +9792,24 @@ internal fun DeckShortcutSettingsScreen(
                                 }
                             }
                             DeckGroup("Display") {
+                                run {
+                                    val dbLabels = listOf("Use container default", "Force X11", "Force Wayland")
+                                    val dbValues = listOf("", Container.DISPLAY_BACKEND_X11, Container.DISPLAY_BACKEND_WAYLAND)
+                                    val waylandStoredUnusable =
+                                        displayBackendOverride == Container.DISPLAY_BACKEND_WAYLAND && !containerWaylandCapable
+                                    DeckChoiceRow(
+                                        label = "Display backend",
+                                        hint = when {
+                                            effectiveWaylandShortcut -> "Wayland (experimental): renders through the embedded compositor"
+                                            waylandStoredUnusable -> "Set to Wayland, but the container's Proton layer is not Wayland-capable: runs on X11"
+                                            !containerWaylandCapable -> "Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT
+                                            else -> "Runs on the X11 server"
+                                        },
+                                        options = dbValues.zip(dbLabels).filter { it.first != Container.DISPLAY_BACKEND_WAYLAND || containerWaylandCapable },
+                                        selected = if (waylandStoredUnusable) Container.DISPLAY_BACKEND_X11 else displayBackendOverride,
+                                        onPick = { displayBackendOverride = it },
+                                    )
+                                }
                                 DeckChoiceRow(
                                     label = "Screen size",
                                     options = screenSizeEntries.map { it to it },
@@ -9946,6 +10009,53 @@ internal fun DeckShortcutSettingsScreen(
                         }
                         6 -> {
                             DeckGroup("Graphics") {
+                                if (effectiveWaylandShortcut) {
+                                    // Wayland: one Turnip pick for the compositor (and the game, on the adapter).
+                                    val waylandVersion = GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig) ?: ""
+                                    DeckChoiceRow(
+                                        label = stringResource(R.string.graphics_driver),
+                                        hint = if (compositorDriverUnusable(waylandVersion, waylandCompositorChoices, waylandCompositorChoices.isNotEmpty()))
+                                            "Wayland needs a Turnip driver here; \"System\" or a missing driver shows a black screen"
+                                        else "Turnip the Wayland compositor (and the adapter) runs on",
+                                        options = waylandCompositorChoices.map { it to it },
+                                        selected = compositorDriverLabel(waylandVersion, waylandCompositorChoices, waylandCompositorChoices.isNotEmpty()),
+                                        onPick = { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) },
+                                    )
+                                    val containerChoice = shortcut.container.waylandGameDriver
+                                    val overrideShown = if (waylandGameDriverOverride.isEmpty()) ""
+                                        else com.winhub.hernandez.core.WaylandGameDriver.editorChoice(context, waylandGameDriverOverride)
+                                    val gameValues = listOf("") + (
+                                        if (overrideShown.isEmpty() || overrideShown in waylandGameDriverValues) waylandGameDriverValues
+                                        else waylandGameDriverValues + overrideShown)
+                                    DeckChoiceRow(
+                                        label = "Wayland Game Driver",
+                                        hint = "What the game renders on; the adapter uses the Graphics Driver above",
+                                        options = gameValues.map {
+                                            it to (if (it.isEmpty()) "Use container default (" +
+                                                com.winhub.hernandez.core.WaylandGameDriver.optionLabel(context, containerChoice, waylandAutoPick) + ")"
+                                            else com.winhub.hernandez.core.WaylandGameDriver.optionLabel(context, it, waylandAutoPick))
+                                        },
+                                        selected = overrideShown,
+                                        onPick = { waylandGameDriverOverride = it },
+                                    )
+                                    DeckRow(
+                                        label = "Wayland Adapter Settings",
+                                        hint = "Profile, switches, GPU name spoof, memory cap (blank = the container's)",
+                                    ) {
+                                        DeckValueChip(text = "Open", open = false, onClick = { showWaylandAdapterDialog = true })
+                                    }
+                                    val hdrUnavailable = remember { com.winhub.hernandez.display.WaylandHdr.unavailableReason(context) }
+                                    val containerHdr = shortcut.container.isWaylandHdr()
+                                    DeckChoiceRow(
+                                        label = com.winhub.hernandez.display.WaylandHdr.TITLE,
+                                        hint = hdrUnavailable ?: "HDR10 output on a screen that supports it",
+                                        options = listOf(
+                                            "" to "Use container default (" + (if (containerHdr) "On" else "Off") + ")",
+                                            "1" to "On", "0" to "Off"),
+                                        selected = waylandHdrOverride,
+                                        onPick = { if (hdrUnavailable == null) waylandHdrOverride = it },
+                                    )
+                                } else
                                 DeckChoiceRow(
                                     label = stringResource(R.string.graphics_driver),
                                     options = graphicsDriverEntries.map { it to it },
