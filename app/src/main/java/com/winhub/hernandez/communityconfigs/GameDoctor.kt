@@ -6,6 +6,10 @@ import android.util.Log
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.core.GPUInformation
 import com.winhub.hernandez.core.LogInventory
+import com.winhub.hernandez.core.LogRotation
+import com.winhub.hernandez.core.WaylandAdapterSettings
+import com.winhub.hernandez.core.WineWaylandSupport
+import com.winhub.hernandez.ui.screens.withGraphicsDriverKeys
 import com.winhub.hernandez.fexcore.FEXCorePreset
 import java.io.File
 import java.io.IOException
@@ -52,6 +56,7 @@ object GameDoctor {
         val findings = ArrayList<Finding>()
 
         if (logs != null) findings += scanLogs(logs, tweaks)
+        findings += waylandFindings(ctx, shortcut, tweaks)
         findings += checkSettings(ctx, shortcut, tweaks)
 
         if (findings.none { it.level == Level.PROBLEM }) {
@@ -149,6 +154,42 @@ object GameDoctor {
         return out
     }
 
+    // ── Wayland pacing ────────────────────────────────────────────────────────────────────────
+
+    private val WL_PERF_RELEASE = Regex("release ([\\d.]+)/[\\d.]+ ms \\((\\d+),")
+    private val WL_PERF_ZERO_COPY = Regex("zero-copy (\\d+),")
+
+    /**
+     * Wayland sessions keep their own log in the game's log folder ([LogRotation.WAYLAND_DIR]). With
+     * zero-copy on, the display layer decides when frames appear, and a game that cannot keep up lets
+     * frames queue there: each buffer then waits several frames before the display lets go of it, which
+     * shows as uneven frame pacing. The Smooth adapter profile (vsync, no zero-copy) evens that out.
+     */
+    private fun waylandFindings(context: Context, shortcut: Shortcut, t: Map<String, Tweak>): List<Finding> {
+        val tweak = t["wayland_smooth"] ?: return emptyList()
+        val dir = LogInventory.forGame(context, shortcut.name)?.dir?.let { File(it, LogRotation.WAYLAND_DIR) } ?: return emptyList()
+        val newest = dir.listFiles { f -> f.isFile && LogRotation.isOurWaylandLog(f.name) }?.maxByOrNull { it.name } ?: return emptyList()
+        val holds = ArrayList<Double>()
+        for (line in tail(newest).lineSequence()) {
+            if (!line.contains("perf") || !line.contains("last 10 s")) continue
+            val zeroCopy = WL_PERF_ZERO_COPY.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val release = WL_PERF_RELEASE.find(line) ?: continue
+            val avg = release.groupValues[1].toDoubleOrNull() ?: continue
+            val frames = release.groupValues[2].toIntOrNull() ?: continue
+            if (zeroCopy >= 100 && frames >= 100) holds += avg
+        }
+        if (holds.size < 3) return emptyList()
+        val median = holds.sorted()[holds.size / 2]
+        if (median < 60.0) return emptyList()
+        return listOf(Finding(
+            Level.WARNING, "Frames queue up on the Wayland display",
+            "In the last run each frame waited about ${median.toInt()} ms on the display layer before it was released " +
+                "(a smooth run is closer to 30-35 ms). That shows up as uneven frame pacing. The Smooth adapter profile " +
+                "paces frames through the compositor instead.",
+            listOf(tweak),
+        ))
+    }
+
     // ── Settings vs this device ───────────────────────────────────────────────────────────────
 
     private fun checkSettings(context: Context, shortcut: Shortcut, t: Map<String, Tweak>): List<Finding> {
@@ -205,6 +246,28 @@ object GameDoctor {
                 t["res"] = Tweak("res", "Lower the resolution to ${nw}x$nh", "A quarter fewer pixels to draw. Games still fill the screen.") {
                     it.putExtra("screenSize", "${nw}x$nh")
                 }
+            }
+        }
+
+        // Only for a game that actually runs on Wayland and is not already on the Smooth profile.
+        if (WineWaylandSupport.runsOnWayland(context, shortcut)) {
+            val own = shortcut.getExtra("graphicsDriverConfig", "")
+            val containerCfg = shortcut.container?.getGraphicsDriverConfig().orEmpty()
+            val profile = WaylandAdapterSettings.resolve(containerCfg, own.ifEmpty { null }, null, null).profile
+            if (profile != WaylandAdapterSettings.PROFILE_SMOOTH) t["wayland_smooth"] = Tweak(
+                "wayland_smooth", "Use the Smooth Wayland adapter profile",
+                "Vsync pacing and background copy, no zero-copy. Evens out uneven frame pacing.",
+            ) {
+                val base = it.getExtra("graphicsDriverConfig", "").ifEmpty {
+                    withGraphicsDriverKeys(
+                        it.container?.getGraphicsDriverConfig().orEmpty(),
+                        WaylandAdapterSettings.KEYS.associateWith { "" },
+                    )
+                }
+                it.putExtra(
+                    "graphicsDriverConfig",
+                    withGraphicsDriverKeys(base, mapOf(WaylandAdapterSettings.KEY_PROFILE to WaylandAdapterSettings.PROFILE_SMOOTH)),
+                )
             }
         }
 
