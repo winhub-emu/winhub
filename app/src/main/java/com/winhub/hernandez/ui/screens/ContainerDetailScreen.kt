@@ -3135,6 +3135,16 @@ internal fun WaylandDriverSettingsDialog(
                         selected = isSelected, onSelect = { setKey(profileKey, value) }
                     )
                 }
+                // Shown unless Smooth is already the profile in effect for this draft.
+                if (effective.profile != com.winhub.hernandez.core.WaylandAdapterSettings.PROFILE_SMOOTH) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Tip: if frames look uneven or jittery, try Smooth. It paces frames through the compositor " +
+                            "(vsync, no zero-copy), which helps when the GPU is close to maxed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Applied at launch: " + effective.summary(storedPresent),
