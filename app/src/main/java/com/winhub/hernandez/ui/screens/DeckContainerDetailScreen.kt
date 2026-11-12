@@ -556,8 +556,8 @@ internal fun DeckContainerDetailScreen(
                             label = "Display Backend",
                             hint = "Wayland routes launches through the embedded compositor",
                             options = listOf(
-                                "X11" to Container.DISPLAY_BACKEND_X11,
-                                "Wayland" to Container.DISPLAY_BACKEND_WAYLAND,
+                                Container.DISPLAY_BACKEND_X11 to "X11",
+                                Container.DISPLAY_BACKEND_WAYLAND to "Wayland",
                             ),
                             selected = viewModel.displayBackend,
                             onPick = { viewModel.onDisplayBackendChanged(it) },
