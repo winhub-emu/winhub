@@ -227,15 +227,39 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
 
     // Display
     rows += XmbRow.Header("hDisplay", "Display")
-    // Display backend: the picker and its Wayland explainer are deliberately NOT offered here —
-    // hidden by request. The container's stored backend and any per-game override are left exactly
-    // as they are; only the row is gone. The EFFECTIVE backend still gates everything below
-    // (Renderer, compositor driver, render scale, …), so it is still resolved here.
+    // Display backend: "" inherits the container's, else force X11 / Wayland (same extra as the
+    // pop-up editor). Wayland replaces the Renderer group with the embedded compositor, and needs
+    // the container's Proton layer to ship winewayland.so + its bundled Wayland Turnip
+    // (WineWaylandSupport): otherwise "Wayland" is not pickable and a stored Wayland override
+    // displays as the effective backend (X11).
     val waylandCapable = com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(p.context, c.wineVersion)
     val containerWaylandDefault = c.isWaylandBackend && waylandCapable
     val dbOverride = p.ex("displayBackend", "")
+    val dbValues = listOf("", Container.DISPLAY_BACKEND_X11, Container.DISPLAY_BACKEND_WAYLAND)
+    val dbLabels = listOf(
+        "Container default (" + (if (containerWaylandDefault) "Wayland" else "X11") + ")",
+        "X11", "Wayland (experimental)")
+    val waylandStoredUnusable = dbOverride == Container.DISPLAY_BACKEND_WAYLAND && !waylandCapable
     val waylandGame = if (dbOverride.isEmpty()) containerWaylandDefault
                       else dbOverride == Container.DISPLAY_BACKEND_WAYLAND && waylandCapable
+    rows += XmbRow.Choice("displayBackend", "Display backend", Icons.Filled.DesktopWindows, dbLabels,
+        dbLabels[if (waylandStoredUnusable) 1 else dbValues.indexOf(dbOverride).coerceAtLeast(0)],
+        subtitle = when {
+            waylandGame -> "Wayland (experimental): games render through the embedded compositor (winewayland). " +
+                "Needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT + ". DX wrapper (DXVK/VKD3D) settings apply as on X11. " +
+                "The Renderer options below don't apply and are disabled."
+            waylandStoredUnusable -> "Set to Wayland, but the container's Proton layer is not Wayland-capable: runs on X11. " +
+                "Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT + "."
+            !waylandCapable && c.isWaylandBackend -> "The container is set to Wayland, but its Proton layer is not Wayland-capable: runs on X11. " +
+                "Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT + "."
+            !waylandCapable -> "Runs on the X11 server. Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT +
+                ". The selected layer does not include winewayland and its Wayland Turnip."
+            else -> "Runs on the X11 server"
+        },
+        disabledOptions = if (waylandCapable) emptySet() else setOf(dbLabels[2]),
+        confirm = { v -> if (v == dbLabels[2]) XmbConfirm("Wayland", "Wayland is experimental. Run this game on Wayland?", "Use Wayland") else null }) { v ->
+        xmb.set(p, "displayBackend", dbValues[dbLabels.indexOf(v)].ifEmpty { null })
+    }
     val sizes = p.arr(R.array.screen_size_entries)
     val rawSize = p.ex("screenSize", c.getScreenSize())
     val sizeLabel = sizes.firstOrNull { StringUtils.parseIdentifier(it).equals(rawSize, ignoreCase = true) } ?: "Custom"

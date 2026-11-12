@@ -905,6 +905,63 @@ private fun TopLevelFields(
             viewModel.refreshGraphicsDriverEntries() // pick up a just-imported/deleted wrapper
         })
         Spacer(Modifier.height(8.dp))
+        // Display backend: X11 (Java X server + libwinlator) vs the embedded Wayland compositor
+        // (winewayland.drv). Wayland routes launches through our compositor and greys out the whole
+        // Renderer group below, which the compositor replaces. The DX Wrapper (DXVK/VKD3D) applies on
+        // both backends.
+        //
+        // Wayland is only selectable on a layer that ships winewayland.so + its bundled Wayland Turnip
+        // (WineWaylandSupport). On any other layer the item is disabled and the dropdown shows the
+        // EFFECTIVE backend (X11) - including for a container saved as "wayland" whose layer was since
+        // removed/replaced, which the save path then persists as X11. Keyed on the wine version so the
+        // cached probe only re-runs when the layer changes.
+        run {
+            val backendLabels = listOf("X11", "Wayland")
+            val backendValues = listOf(Container.DISPLAY_BACKEND_X11, Container.DISPLAY_BACKEND_WAYLAND)
+            val waylandCapable = remember(viewModel.selectedWineVersion) {
+                viewModel.isWineWaylandCapable(viewModel.selectedWineVersion)
+            }
+            val selIdx = if (viewModel.isWaylandBackend) 1 else 0
+            LabeledDropdown(
+                label = "Display backend",
+                options = backendLabels,
+                selectedOption = backendLabels[selIdx],
+                disabledOptions = if (waylandCapable) emptySet() else setOf(backendLabels[1]),
+                onSelect = {
+                    val picked = backendValues[backendLabels.indexOf(it)]
+                    viewModel.onDisplayBackendChanged(
+                        if (picked == Container.DISPLAY_BACKEND_WAYLAND && !waylandCapable) Container.DISPLAY_BACKEND_X11
+                        else picked
+                    )
+                }
+            )
+            if (viewModel.isWaylandBackend) {
+                Text(
+                    "Wayland (experimental): games render through the embedded compositor " +
+                        "(winewayland). Needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT +
+                        ". DX wrapper (DXVK/VKD3D) settings apply as on X11. The Renderer options " +
+                        "below don't apply and are disabled.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (!waylandCapable) {
+                Text(
+                    "Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT +
+                        ". The selected layer does not include winewayland and its Wayland Turnip.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (viewModel.isWaylandStored) {
+                    Text(
+                        "This container was saved on Wayland, but its Proton layer is no longer Wayland-capable: it runs on X11 and will be saved as X11.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
         // Graphics Driver + config button. Under Wayland the wrapper flavour is irrelevant: the
         // compositor loads the installed Turnip named by the "version" key of graphicsDriverConfig
         // (XServerDisplayActivity's Wayland resolve → adrenotools), and with the Wayland game driver

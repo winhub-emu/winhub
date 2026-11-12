@@ -7782,9 +7782,58 @@ internal fun ShortcutSettingsDialogScreen(
                         LinuxHelp(isLinuxEntry, R.string.help_linux_icon) { helpRes = it }
                     }
 
-                    // Display backend override (container default / Force X11 / Force Wayland) is
-                    // deliberately NOT offered here — hidden by request. The stored extra is left
-                    // untouched, so a game that already carried one keeps exactly what it had.
+                    // Display backend override (per-game): default to the container, or force X11 / Wayland.
+                    // Wayland greys the Renderer group below (the compositor replaces it).
+                    if (!isLinuxEntry) {
+                        val dbLabels = listOf("Use container default", "Force X11", "Force Wayland")
+                        val dbValues = listOf("", Container.DISPLAY_BACKEND_X11, Container.DISPLAY_BACKEND_WAYLAND)
+                        // A stored "Force Wayland" the container's layer can't honour shows as the
+                        // effective backend (Force X11); see containerWaylandCapable above.
+                        val waylandStoredUnusable =
+                            displayBackendOverride == Container.DISPLAY_BACKEND_WAYLAND && !containerWaylandCapable
+                        val dbIdx = if (waylandStoredUnusable) 1
+                                    else dbValues.indexOf(displayBackendOverride).coerceAtLeast(0)
+                        DpDrop(
+                            dp, "displayBackend",
+                            label = "Display backend",
+                            options = dbLabels,
+                            selected = dbLabels[dbIdx],
+                            disabledOptions = if (containerWaylandCapable) emptySet() else setOf(dbLabels[2]),
+                            onSelect = {
+                                val picked = dbValues[dbLabels.indexOf(it)]
+                                displayBackendOverride =
+                                    if (picked == Container.DISPLAY_BACKEND_WAYLAND && !containerWaylandCapable) Container.DISPLAY_BACKEND_X11
+                                    else picked
+                            }
+                        )
+                        if (effectiveWaylandShortcut) {
+                            Text(
+                                "Wayland (experimental): renders through the embedded compositor " +
+                                    "(winewayland). Needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT +
+                                    ". DX wrapper (DXVK/VKD3D) settings apply as on X11. Renderer " +
+                                    "options below don't apply.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else if (!containerWaylandCapable) {
+                            Text(
+                                "Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT +
+                                    ". The selected layer does not include winewayland and its Wayland Turnip.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (waylandStoredUnusable || shortcut.container.isWaylandBackend) {
+                                Text(
+                                    if (waylandStoredUnusable)
+                                        "This game was set to Force Wayland, but the container's Proton layer is not Wayland-capable: it runs on X11 and will be saved as Force X11."
+                                    else
+                                        "The container is set to Wayland, but its Proton layer is not Wayland-capable: the game runs on X11.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
                     // Graphics Driver + wrapper manager (cloud). Under Wayland the wrapper flavour is
                     // irrelevant: the compositor loads the installed Turnip named by the "version" key of
                     // graphicsDriverConfig (XServerDisplayActivity's Wayland resolve → adrenotools), and the
