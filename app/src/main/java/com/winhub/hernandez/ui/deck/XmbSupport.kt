@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +45,40 @@ internal object StoreStyle {
 
     fun isXmb(context: Context): Boolean =
         PreferenceManager.getDefaultSharedPreferences(context).getString(KEY, DECK) == XMB
+}
+
+/**
+ * The XMB pages are light text on dark glass. A bright preset keeps its accent but sits on charcoal neutrals instead (its
+ * light background would make a light glass under the light text); a dark preset is used as it is. Off: [content] as is.
+ */
+@Composable
+internal fun XmbDarkScheme(enabled: Boolean, content: @Composable () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    if (!enabled || xmbLuminance(cs.background.red, cs.background.green, cs.background.blue) < 0.18) {
+        content()
+        return
+    }
+    // A very dark accent would vanish on charcoal: lift it a little.
+    val accent = if (xmbLuminance(cs.primary.red, cs.primary.green, cs.primary.blue) < 0.12) lerp(cs.primary, Color.White, 0.4f) else cs.primary
+    val onAccent = if (xmbLuminance(accent.red, accent.green, accent.blue) > 0.4) Color(0xFF101114) else Color.White
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = accent,
+            onPrimary = onAccent,
+            secondary = cs.secondary,
+            background = Color(0xFF16181C),
+            onBackground = Color(0xFFE8EAED),
+            surface = Color(0xFF1E2127),
+            onSurface = Color(0xFFE8EAED),
+            surfaceVariant = Color(0xFF2A2D33),
+            onSurfaceVariant = Color(0xFFB4B8BF),
+            outline = Color(0xFF3A3E45),
+            error = Color(0xFFFF8A80),
+        ),
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes,
+        content = content,
+    )
 }
 
 internal fun deckShape(radius: Dp): CornerBasedShape = RoundedCornerShape(radius)

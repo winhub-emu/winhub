@@ -106,6 +106,7 @@ import com.winhub.hernandez.ui.deck.XmbKeyboardHost
 import com.winhub.hernandez.ui.deck.XmbRailState
 import com.winhub.hernandez.ui.deck.XmbScreenWindow
 import com.winhub.hernandez.ui.deck.XmbTriggerGuard
+import com.winhub.hernandez.ui.deck.XmbDarkScheme
 import com.winhub.hernandez.ui.deck.XmbGlassTheme
 import com.winhub.hernandez.ui.deck.deckFocusRingInk
 import com.winhub.hernandez.ui.deck.rememberScreenScale
@@ -143,6 +144,7 @@ internal val LocalStoreXmb = staticCompositionLocalOf { false }
 internal fun StoreXmbScreen(content: @Composable () -> Unit) {
     val xmb = rememberXmbHome()
     XmbScreenWindow(xmb)
+    XmbDarkScheme(xmb) {
     // XMB home: the XMB keyboard replaces Android's for every text field on the screen. The Back hint is inside it, so it can
     // step aside while the keyboard panel is up.
     val hosted: @Composable () -> Unit = { XmbKeyboardHost(xmb) { XmbBackHintLayer(xmb, content = content) } }
@@ -165,6 +167,7 @@ internal fun StoreXmbScreen(content: @Composable () -> Unit) {
                 }
             }
         }
+    }
     }
 }
 
@@ -226,14 +229,16 @@ private val XMB_BACK_HINT_HEIGHT = 34.dp
 internal fun StoreKeyboardTheme(content: @Composable () -> Unit) {
     val xmb = rememberXmbHome()
     com.winhub.hernandez.ui.theme.WinlatorTheme {
-        XmbGlassTheme(xmb) {
-            if (!xmb) {
-                XmbKeyboardHost(content = content)
-            } else {
-                // These screens paint no backdrop of their own, and their `background` fills are clear on the glass.
-                XmbHighlightHost(enabled = true, modifier = Modifier.fillMaxSize()) {
-                    XmbGlassBackdrop(Modifier.matchParentSize())
-                    XmbKeyboardHost { XmbBackHintLayer(true, content = content) }
+        XmbDarkScheme(xmb) {
+            XmbGlassTheme(xmb) {
+                if (!xmb) {
+                    XmbKeyboardHost(content = content)
+                } else {
+                    // These screens paint no backdrop of their own, and their `background` fills are clear on the glass.
+                    XmbHighlightHost(enabled = true, modifier = Modifier.fillMaxSize()) {
+                        XmbGlassBackdrop(Modifier.matchParentSize())
+                        XmbKeyboardHost { XmbBackHintLayer(true, content = content) }
+                    }
                 }
             }
         }

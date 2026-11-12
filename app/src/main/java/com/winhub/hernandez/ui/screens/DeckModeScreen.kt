@@ -2806,8 +2806,8 @@ private fun DeckAllGamesPage(
         // The same moving wall as Home's, with the library's covers on it.
         DeckCapsuleWall(covers = covers, driftMs = 45_000)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.78f)))))
-        val baseW = 120.dp
-        val baseH = 180.dp
+        val baseW = 100.dp
+        val baseH = 150.dp
         val bwPx = with(density) { baseW.toPx() }
         val bhPx = with(density) { baseH.toPx() }
         val gapPx = with(density) { 14.dp.toPx() }
@@ -2818,8 +2818,8 @@ private fun DeckAllGamesPage(
         val one = { 1f }
         val zero = { 0f }
         val mid = { hPx / 2f }
-        val lo = (index - 4).coerceAtLeast(0)
-        val hi = (index + 6).coerceAtMost(entries.size - 1)
+        val lo = (index - 6).coerceAtLeast(0)
+        val hi = (index + 10).coerceAtMost(entries.size - 1)
         val accent = Deck.primary
         for (i in lo..hi) {
             val entry = entries[i]
@@ -2827,7 +2827,8 @@ private fun DeckAllGamesPage(
                 Box(
                     Modifier
                         .size(baseW, baseH)
-                        .deckRowLayer(i, posNow, one, mid, one, one, zero, bwPx, bhPx, x0, gapPx)
+                        .deckRowLayer(i, posNow, one, mid, one, one, zero, bwPx, bhPx, x0, gapPx, topAlign = true)
+                        // The chosen cover glows and is ringed in the theme colour, as on Home.
                         .drawBehind {
                             val gl = (1f - abs(i - pos.floatValue)).coerceIn(0f, 1f)
                             if (gl > 0.02f) {
@@ -2838,8 +2839,32 @@ private fun DeckAllGamesPage(
                                 )
                             }
                         }
-                        .clip(RoundedCornerShape(6.dp))
+                        .graphicsLayer {
+                            val gl = (1f - abs(i - pos.floatValue)).coerceIn(0f, 1f)
+                            shadowElevation = 12.dp.toPx() * gl
+                            ambientShadowColor = accent
+                            spotShadowColor = accent
+                            shape = RoundedCornerShape(4.dp)
+                            clip = false
+                        }
+                        .clip(RoundedCornerShape(4.dp))
                         .background(Deck.surface)
+                        .drawWithContent {
+                            drawContent()
+                            val near = (1f - abs(i - pos.floatValue)).coerceIn(0f, 1f)
+                            if (near > 0.02f) {
+                                // The layer is drawn scaled: keep the ring ~3 dp on screen and flush with the clipped edge.
+                                val sc = (1f + 0.35f * near).coerceAtLeast(0.1f)
+                                val sw = 3.dp.toPx() / sc
+                                drawRoundRect(
+                                    color = accent.copy(alpha = near),
+                                    topLeft = Offset(sw / 2f, sw / 2f),
+                                    size = Size(size.width - sw, size.height - sw),
+                                    cornerRadius = CornerRadius((4.dp.toPx() - sw / 2f).coerceAtLeast(0f)),
+                                    style = Stroke(width = sw),
+                                )
+                            }
+                        }
                         .pointerInput(i) { detectTapGestures { if (i == index) onPick(entry) else go(i) } },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -3168,7 +3193,7 @@ private fun DeckHomeCarousel(
     val cardShape = RoundedCornerShape(4.dp)
     BoxWithConstraints(modifier.fillMaxSize()) {
         // The store cards' size, and the covers' in Classic.
-        val baseH = (maxHeight * 0.44f).coerceIn(120.dp, 220.dp)
+        val baseH = (maxHeight * 0.36f).coerceIn(104.dp, 180.dp)
         val baseW = baseH * 2f / 3f
         val upperShape = RoundedCornerShape(8.dp)
         val x0 = 28.dp
@@ -3365,7 +3390,8 @@ private fun DeckHomeCarousel(
                         Box(
                             Modifier
                                 .size(baseW, baseH)
-                                .deckRowLayer(i, cPosNow, cScale, cCenter, cGrow, cAlpha, noDim, baseWPx, baseHPx, gX0Px, gapPx)
+                                // Hung from the chosen card's top edge, with the ones before it staying faintly visible: as the covers are.
+                                .deckRowLayer(i, cPosNow, cScale, cCenter, cGrow, cAlpha, noDim, baseWPx, baseHPx, gX0Px, gapPx, topAlign = true)
                                 // The chosen card glows in the theme colour, like the chosen cover: a halo behind it plus a coloured shadow.
                                 .drawBehind {
                                     val gl = (1f - abs(i - cPos.floatValue)).coerceIn(0f, 1f) * upT.value
