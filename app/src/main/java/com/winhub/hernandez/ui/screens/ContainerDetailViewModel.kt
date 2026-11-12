@@ -295,6 +295,11 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         if (!::contentsManager.isInitialized || wineVersion.isEmpty()) return false
         return com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(context, contentsManager, wineVersion)
     }
+    /** Why the selected layer cannot run Wayland (null when it can). */
+    fun waylandLayerProblem(): String? {
+        if (!::contentsManager.isInitialized) return "Layers are still loading."
+        return com.winhub.hernandez.core.WineWaylandSupport.problem(context, contentsManager, selectedWineVersion)
+    }
     // Render scale (supersampling) — stored via the "renderScale" extra (no DB field). "1.0" = Off.
     var renderScale         by mutableStateOf("1.0")
     var autoCloseOnExit     by mutableStateOf(true)

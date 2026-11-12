@@ -14,11 +14,12 @@ import java.util.Map;
  * Detects whether a wine/Proton layer can drive the embedded Wayland compositor (the per-container
  * "Display backend = Wayland" choice and the per-game "Force Wayland" override).
  *
- * A layer is Wayland-capable iff its install dir contains BOTH
- *   - lib/wine/aarch64-unix/winewayland.so (x86_64 layers: lib/wine/x86_64-unix/winewayland.so), AND
- *   - lib/libvulkan_freedreno_wayland.so — the Wayland Turnip bundled in the layer. An older build
- *     that ships winewayland.so WITHOUT this driver wedges on the API switch, so it counts as NOT
- *     capable.
+ * A layer is Wayland-capable iff its install dir contains
+ *   - lib/wine/aarch64-unix/winewayland.so (x86_64 layers: lib/wine/x86_64-unix/winewayland.so).
+ * The layer's own Wayland Turnip (lib/libvulkan_freedreno_wayland.so) is no longer required: the
+ * bundled Wayland adapter (core.WaylandAdapter) is the default game driver and loads the container's
+ * own AdrenoTools driver, so a layer without its own Turnip still runs. The Turnip is only needed by
+ * the bundled-variant choices under the game driver's Advanced section.
  * The bundled main wine ({@link WineInfo#MAIN_WINE_VERSION}) is never capable.
  *
  * Both the editors (container, shortcut, XMB) and the launch path gate on this so a container or
@@ -106,6 +107,26 @@ public final class WineWaylandSupport {
         synchronized (cache) { cache.clear(); }
     }
 
+    /**
+     * Why this layer cannot run Wayland, in words for the editors; null when it can. Names the folder
+     * that was checked, so a layer installed somewhere unexpected is easy to spot.
+     */
+    public static String problem(Context context, ContentsManager contentsManager, String identifier) {
+        if (identifier == null || identifier.isEmpty()) return "No Wine/Proton layer is selected.";
+        if (WineInfo.isMainWineVersion(identifier)) return "The bundled Wine cannot run Wayland; pick the Wayland Proton layer.";
+        try {
+            WineInfo info = WineInfo.fromIdentifier(context, contentsManager, identifier);
+            if (info == null || info.path == null || info.path.isEmpty())
+                return "\"" + identifier + "\" is not installed (no folder found for it).";
+            File a = new File(info.path, "lib/wine/aarch64-unix/winewayland.so");
+            File b = new File(info.path, "lib/wine/x86_64-unix/winewayland.so");
+            if (a.isFile() || b.isFile()) return null;
+            return "winewayland.so is missing in " + info.path + "/lib/wine/aarch64-unix (or x86_64-unix).";
+        } catch (Exception e) {
+            return "The layer could not be read: " + e.getMessage();
+        }
+    }
+
     private static boolean isWaylandCapable(String cacheKey, String layerPath) {
         synchronized (cache) {
             Boolean cached = cache.get(cacheKey);
@@ -114,9 +135,8 @@ public final class WineWaylandSupport {
         // arm64ec ships aarch64-unix; x86_64 ships x86_64-unix. Try both.
         File winewayland = new File(layerPath, "lib/wine/aarch64-unix/winewayland.so");
         if (!winewayland.isFile()) winewayland = new File(layerPath, "lib/wine/x86_64-unix/winewayland.so");
-        File waylandTurnip = new File(layerPath, "lib/libvulkan_freedreno_wayland.so");
 
-        boolean capable = winewayland.isFile() && waylandTurnip.isFile();
+        boolean capable = winewayland.isFile();
         synchronized (cache) { cache.put(cacheKey, capable); }
         return capable;
     }

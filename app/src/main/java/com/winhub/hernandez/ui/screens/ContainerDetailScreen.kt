@@ -947,10 +947,13 @@ private fun TopLevelFields(
             } else if (!waylandCapable) {
                 Text(
                     "Wayland needs " + com.winhub.hernandez.core.WineWaylandSupport.LAYER_HINT +
-                        ". The selected layer does not include winewayland and its Wayland Turnip.",
+                        ". The selected layer does not include winewayland.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                viewModel.waylandLayerProblem()?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (viewModel.isWaylandStored) {
                     Text(
                         "This container was saved on Wayland, but its Proton layer is no longer Wayland-capable: it runs on X11 and will be saved as X11.",

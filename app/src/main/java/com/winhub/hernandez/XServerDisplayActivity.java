@@ -2713,7 +2713,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
         if (waylandMode
                 && !com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(wineInfo)) {
             Log.w("XServerDisplayActivity", "wayland: layer " + wineVersion + " (" + wineInfo.path
-                    + ") lacks winewayland.so and/or lib/libvulkan_freedreno_wayland.so; launching on X11");
+                    + ") lacks winewayland.so; launching on X11");
             waylandMode = false;
             Toast.makeText(this, "Wayland needs the Wayland Proton layer (11.0-2.1 arm64ec); launching on X11.",
                     Toast.LENGTH_LONG).show();

@@ -562,6 +562,15 @@ internal fun DeckContainerDetailScreen(
                             selected = viewModel.displayBackend,
                             onPick = { viewModel.onDisplayBackendChanged(it) },
                         )
+                        if (viewModel.isWaylandStored && !viewModel.isWaylandBackend) {
+                            // Saved as X11 without this note, which looks like Wayland "reverting".
+                            DeckRow(
+                                label = "Wayland is not available",
+                                hint = (viewModel.waylandLayerProblem() ?: "This Proton layer cannot run Wayland.") +
+                                    " It will be saved as X11.",
+                                control = {},
+                            )
+                        }
                         DeckChoiceRow(
                             label = "Fullscreen",
                             options = listOf(
