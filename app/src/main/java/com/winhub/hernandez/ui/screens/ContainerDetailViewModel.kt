@@ -50,6 +50,7 @@ import com.winhub.hernandez.xserver.XKeycode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -1256,6 +1257,26 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Wayland containers: make sure the adapter report of the container's graphics driver exists, so the
+     * Auto profile can pick zero-copy / UBWC from the very first launch (it injects nothing without a
+     * report, which costs fps). Runs in the background after the save, off the UI thread, serialized with
+     * the other native GPU probes; skipped when a report is cached or a game session is on screen
+     * (WaylandDriverProbe.probe refuses then and retries next time). Never throws.
+     */
+    private fun warmWaylandAdapterReport(gdConfig: String) {
+        if (displayBackend != Container.DISPLAY_BACKEND_WAYLAND) return
+        val driverId = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.getVersion(gdConfig)
+        if (driverId.isNullOrEmpty() || driverId == "System") return
+        val app = context.applicationContext
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO).launch {
+            runCatching {
+                if (com.winhub.hernandez.core.WaylandDriverProbe.cached(app, driverId) != null) return@launch
+                graphicsProbeMutex.withLock { com.winhub.hernandez.core.WaylandDriverProbe.probe(app, driverId) }
+            }
+        }
+    }
+
     private fun doConfirm(
         gdConfig: String,
         dxConfig: String,
@@ -1277,6 +1298,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             // saveData() used to swallow a failed disk write, so a container whose config could not
             // be written looked like it saved and then silently reverted on reopen. Surface it.
             AppUtils.showToast(context, if (saved) R.string.container_saved else R.string.container_save_failed)
+            warmWaylandAdapterReport(gdConfig)
             onComplete()
         }
         else {
@@ -1291,6 +1313,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
                 // Registry-backed settings need the prefix to exist, so they land after extraction.
                 // (Run as administrator is stamped by ContainerManager from the runAsAdmin flag.)
                 if (created != null) saveMouseWarp(created)
+                if (created != null) warmWaylandAdapterReport(gdConfig)
                 onComplete()
             }
         }
