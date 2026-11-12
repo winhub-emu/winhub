@@ -2,18 +2,12 @@ package com.winhub.hernandez.ui.screens
 
 import android.content.Context
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Help
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.winhub.hernandez.R
 import com.winhub.hernandez.core.MaliPanvk
@@ -75,96 +69,62 @@ internal fun MaliPanvkSection(state: MaliPanvkSettingsState, onHelp: (Int) -> Un
     val bcnEntries = remember { context.resources.getStringArray(R.array.bcn_emulation_entries).toList() }
     var advancedOpen by remember { mutableStateOf(false) }
 
-    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            stringResource(R.string.mali_panvk_section),
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = { onHelp(R.string.help_mali_panvk) }) {
-            Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
+    DeckGroup(stringResource(R.string.mali_panvk_section)) {
+        DeckRow(
+            label = stringResource(R.string.mali_panvk_mode),
+            hint = stringResource(R.string.mali_panvk_mode_hint),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DeckToggle(state.modeOn) { state.setMode(it) }
+                DeckConfigChip("?", selected = false, onClick = { onHelp(R.string.help_mali_panvk) })
+            }
         }
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Switch(checked = state.modeOn, onCheckedChange = { state.setMode(it) })
-        Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.mali_panvk_mode), modifier = Modifier.weight(1f))
-    }
-    Text(
-        stringResource(R.string.mali_panvk_mode_hint),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    if (state.modeOn) {
-        Spacer(Modifier.height(8.dp))
-        LabeledDropdown(
-            stringResource(R.string.graphics_driver_bcn_emulation), bcnEntries, state.bcnEmulation,
-            { state.pickBcn(it) }, modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            stringResource(R.string.mali_panvk_bcn_warning),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (state.bcnEmulation == "none") MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.error
-        )
-    }
-    Spacer(Modifier.height(4.dp))
-    TextButton(onClick = { advancedOpen = !advancedOpen }) {
-        Icon(if (advancedOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(stringResource(R.string.mali_panvk_advanced), modifier = Modifier.weight(1f))
-    }
-    if (advancedOpen) {
         if (state.modeOn) {
-            PanvkSwitch(stringResource(R.string.mali_panvk_hide_exts), state.hideExts) { state.hideExts = it }
-            PanvkSwitch(stringResource(R.string.mali_panvk_no_submit_waits), state.noSubmitWaits) { state.noSubmitWaits = it }
-            PanvkSwitch(stringResource(R.string.mali_panvk_no_acquire_signal), state.noAcquireSignal && state.noSubmitWaits,
-                enabled = state.noSubmitWaits) { state.noAcquireSignal = it }
-            Text(
-                stringResource(R.string.mali_panvk_sync_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            DeckChoiceRow(
+                label = stringResource(R.string.graphics_driver_bcn_emulation),
+                options = bcnEntries.map { it to it },
+                selected = state.bcnEmulation,
+                onPick = { state.pickBcn(it) },
             )
+            DeckConfigNote(stringResource(R.string.mali_panvk_bcn_warning), error = state.bcnEmulation != "none")
         }
-        PanvkMbField(stringResource(R.string.mali_panvk_heap), stringResource(R.string.mali_panvk_heap_hint),
-            state.heapMb, MaliPanvk.HEAP_MIN, MaliPanvk.HEAP_MAX) { state.heapMb = it }
-        PanvkMbField(stringResource(R.string.mali_panvk_tiler_heap), stringResource(R.string.mali_panvk_tiler_heap_hint),
-            state.tilerHeapMb, MaliPanvk.TILER_HEAP_MIN, MaliPanvk.TILER_HEAP_MAX) { state.tilerHeapMb = it }
-        PanvkMbField(stringResource(R.string.mali_panvk_poly_heap), stringResource(R.string.mali_panvk_poly_heap_hint),
-            state.polyHeapMb, MaliPanvk.POLY_HEAP_MIN, MaliPanvk.POLY_HEAP_MAX) { state.polyHeapMb = it }
-        Spacer(Modifier.height(8.dp))
-        val autoLabel = stringResource(R.string.mali_panvk_default)
-        val strideLabels = listOf(autoLabel) + MaliPanvk.ATOM_STRIDES
-        LabeledDropdown(
-            stringResource(R.string.mali_panvk_atom_stride), strideLabels,
-            state.atomStride.ifEmpty { autoLabel },
-            { state.atomStride = if (it == autoLabel) "" else it }, modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            stringResource(R.string.mali_panvk_atom_stride_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(checked = state.trace, onCheckedChange = { state.trace = it })
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.mali_panvk_trace), modifier = Modifier.weight(1f))
+        DeckExpandableRow(
+            label = stringResource(R.string.mali_panvk_advanced),
+            expanded = advancedOpen,
+            onToggle = { advancedOpen = !advancedOpen },
+        ) {
+            if (state.modeOn) {
+                PanvkSwitch(stringResource(R.string.mali_panvk_hide_exts), state.hideExts) { state.hideExts = it }
+                PanvkSwitch(stringResource(R.string.mali_panvk_no_submit_waits), state.noSubmitWaits) { state.noSubmitWaits = it }
+                PanvkSwitch(stringResource(R.string.mali_panvk_no_acquire_signal), state.noAcquireSignal && state.noSubmitWaits,
+                    enabled = state.noSubmitWaits) { state.noAcquireSignal = it }
+                DeckConfigNote(stringResource(R.string.mali_panvk_sync_hint))
+            }
+            PanvkMbField(stringResource(R.string.mali_panvk_heap), stringResource(R.string.mali_panvk_heap_hint),
+                state.heapMb, MaliPanvk.HEAP_MIN, MaliPanvk.HEAP_MAX) { state.heapMb = it }
+            PanvkMbField(stringResource(R.string.mali_panvk_tiler_heap), stringResource(R.string.mali_panvk_tiler_heap_hint),
+                state.tilerHeapMb, MaliPanvk.TILER_HEAP_MIN, MaliPanvk.TILER_HEAP_MAX) { state.tilerHeapMb = it }
+            PanvkMbField(stringResource(R.string.mali_panvk_poly_heap), stringResource(R.string.mali_panvk_poly_heap_hint),
+                state.polyHeapMb, MaliPanvk.POLY_HEAP_MIN, MaliPanvk.POLY_HEAP_MAX) { state.polyHeapMb = it }
+            val autoLabel = stringResource(R.string.mali_panvk_default)
+            DeckChoiceRow(
+                label = stringResource(R.string.mali_panvk_atom_stride),
+                hint = stringResource(R.string.mali_panvk_atom_stride_hint),
+                options = listOf("" to autoLabel) + MaliPanvk.ATOM_STRIDES.map { it to it },
+                selected = state.atomStride,
+                onPick = { state.atomStride = it },
+            )
+            DeckRow(label = stringResource(R.string.mali_panvk_trace)) {
+                DeckToggle(state.trace) { state.trace = it }
+            }
         }
     }
 }
 
 @Composable
 private fun PanvkSwitch(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Switch(checked = checked, enabled = enabled, onCheckedChange = onChange)
-        Spacer(Modifier.width(8.dp))
-        Text(
-            label, modifier = Modifier.weight(1f),
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    DeckRow(label = label) {
+        DeckToggle(checked) { if (enabled) onChange(it) }
     }
 }
 
@@ -172,16 +132,11 @@ private fun PanvkSwitch(label: String, checked: Boolean, enabled: Boolean = true
 @Composable
 private fun PanvkMbField(label: String, hint: String, value: String, min: Int, max: Int, onChange: (String) -> Unit) {
     val invalid = value.isNotEmpty() && MaliPanvk.validMb(value, min, max) == null
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(
+    DeckTextRow(
+        label = label,
+        hint = if (invalid) stringResource(R.string.mali_panvk_out_of_range) else hint,
         value = value,
         onValueChange = { v -> onChange(v.filter { it.isDigit() }.take(5)) },
-        label = { Text(label) },
-        placeholder = { Text(stringResource(R.string.mali_panvk_default)) },
-        singleLine = true,
-        isError = invalid,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        supportingText = { Text(if (invalid) stringResource(R.string.mali_panvk_out_of_range) else hint) },
-        modifier = Modifier.fillMaxWidth()
+        width = 140.dp,
     )
 }

@@ -3086,38 +3086,23 @@ internal fun WaylandDriverSettingsDialog(
     val mali = remember(initialConfig) { if (isMali) MaliPanvkSettingsState(context, cfg) else null }
     var advancedOpen by remember { mutableStateOf(adapterKeys.any { it != profileKey && !(adapter[it] ?: "").isEmpty() }) }
 
-    OutlinedAlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Wayland adapter settings") },
-        text = {
-            val maxContentHeight = (LocalConfiguration.current.screenHeightDp * 0.7f).dp
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = maxContentHeight)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    WAYLAND_DRIVER_SETTINGS_HELP,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(10.dp))
+    DeckConfigDialog(title = "Wayland adapter settings", onDismiss = onDismiss) {
+        DeckConfigNote(WAYLAND_DRIVER_SETTINGS_HELP)
 
-                // ── Adapter report ─────────────────────────────────────────────────────────────
-                Text("Adapter report", style = MaterialTheme.typography.titleSmall)
-                WaylandAdapterReportBlock(
-                    report = probe, probing = probing, note = probeNote,
-                    onRecheck = {
-                        com.winhub.hernandez.core.WaylandDriverProbe.forget(context, driverId)
-                        probe = null
-                        probeTick++
-                    }
-                )
-                Spacer(Modifier.height(10.dp))
+        // ── Adapter report ─────────────────────────────────────────────────────────────────
+        DeckGroup("Adapter report") {
+            WaylandAdapterReportBlock(
+                report = probe, probing = probing, note = probeNote,
+                onRecheck = {
+                    com.winhub.hernandez.core.WaylandDriverProbe.forget(context, driverId)
+                    probe = null
+                    probeTick++
+                }
+            )
+        }
 
-                // ── Profile ────────────────────────────────────────────────────────────────────
-                Text("Profile", style = MaterialTheme.typography.titleSmall)
+        // ── Profile ────────────────────────────────────────────────────────────────────────
+        DeckGroup("Profile") {
                 if (perGame) WaylandProfileRow(
                     label = "Inherit the container's (${containerProfile ?: "Auto"})",
                     help = "Use whatever the container is set to.",
@@ -3137,35 +3122,27 @@ internal fun WaylandDriverSettingsDialog(
                 }
                 // Shown unless Smooth is already the profile in effect for this draft.
                 if (effective.profile != com.winhub.hernandez.core.WaylandAdapterSettings.PROFILE_SMOOTH) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
+                    DeckConfigNote(
                         "Tip: if frames look uneven or jittery, try Smooth. It paces frames through the compositor " +
-                            "(vsync, no zero-copy), which helps when the GPU is close to maxed.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "(vsync, no zero-copy), which helps when the GPU is close to maxed."
                     )
                 }
-                Spacer(Modifier.height(6.dp))
                 Text(
                     "Applied at launch: " + effective.summary(storedPresent),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = DeckPalette.primary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
-                Text(
-                    "Env vars you type under Env vars always win over these; the switches below win over the profile.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(6.dp))
+                DeckConfigNote("Env vars you type under Env vars always win over these; the switches below win over the profile.")
 
-                // ── Advanced ───────────────────────────────────────────────────────────────────
-                TextButton(onClick = { advancedOpen = !advancedOpen }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(if (advancedOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Advanced: single switches", modifier = Modifier.weight(1f))
-                }
-                if (advancedOpen) {
+        }
+
+        // ── Advanced ───────────────────────────────────────────────────────────────────────
+        DeckExpandableRow(
+            label = "Advanced: single switches",
+            expanded = advancedOpen,
+            onToggle = { advancedOpen = !advancedOpen },
+        ) {
                     val defaultWord = if (perGame) "Inherit" else "Default"
                     WaylandTriStateRow(
                         label = stringResource(R.string.graphics_driver_present_modes),
@@ -3233,57 +3210,53 @@ internal fun WaylandDriverSettingsDialog(
                         value = adapter[com.winhub.hernandez.core.WaylandAdapterSettings.KEY_SUBGROUPS] ?: "",
                         onChange = { setKey(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_SUBGROUPS, it) }
                     )
-                }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
 
-                // ── Per-game driver settings (unchanged) ───────────────────────────────────────
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LabeledDropdown(
-                        stringResource(R.string.gpu_name) + " (spoof)",
-                        if (gpuName in gpuNames) gpuNames else gpuNames + gpuName,
-                        gpuName, { gpuName = it }, modifier = Modifier.weight(1f)
+        // ── Per-game driver settings ───────────────────────────────────────────────────────
+        DeckGroup("Driver settings") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    DeckChoiceRow(
+                        label = stringResource(R.string.gpu_name) + " (spoof)",
+                        options = (if (gpuName in gpuNames) gpuNames else gpuNames + gpuName).map { it to it },
+                        selected = gpuName,
+                        onPick = { gpuName = it },
                     )
-                    IconButton(onClick = { helpRes = R.string.help_gpu_name }) {
-                        Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
-                    }
                 }
-                vendorWarning?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LabeledDropdown(
-                        stringResource(R.string.graphics_driver_max_device_memory), deviceMemoryEntries,
-                        memoryEntry, { memoryEntry = it }, modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { helpRes = R.string.help_max_device_memory }) {
-                        Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
-                    }
-                }
-                Text(
-                    "What DirectX games are told the GPU's memory is (DXVK's dxgi.maxDeviceMemory).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = fdDevFeatures, onCheckedChange = { fdDevFeatures = it })
-                    Text("OneUI / HyperOS Fix (UBWC flag hint)", modifier = Modifier.weight(1f))
-                    IconButton(onClick = { helpRes = R.string.help_oneui_hyperos_fix }) {
-                        Icon(Icons.Default.Help, contentDescription = "What is this?", modifier = Modifier.size(18.dp))
-                    }
-                }
-                Text(
-                    "Gives the game's Turnip FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1, for Samsung and Xiaomi " +
-                        "phones whose games show corrupt textures; leave off otherwise.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                mali?.let { MaliPanvkSection(it) { res -> helpRes = res } }
+                DeckConfigChip("?", selected = false, onClick = { helpRes = R.string.help_gpu_name })
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
+            vendorWarning?.let { DeckConfigNote(it, error = true) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    DeckChoiceRow(
+                        label = stringResource(R.string.graphics_driver_max_device_memory),
+                        hint = "What DirectX games are told the GPU's memory is (DXVK's dxgi.maxDeviceMemory).",
+                        options = deviceMemoryEntries.map { it to it },
+                        selected = memoryEntry,
+                        onPick = { memoryEntry = it },
+                    )
+                }
+                DeckConfigChip("?", selected = false, onClick = { helpRes = R.string.help_max_device_memory })
+            }
+            DeckRow(
+                label = "OneUI / HyperOS Fix (UBWC flag hint)",
+                hint = "Gives the game's Turnip FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1, for Samsung and Xiaomi " +
+                    "phones whose games show corrupt textures; leave off otherwise.",
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DeckToggle(fdDevFeatures) { fdDevFeatures = it }
+                    DeckConfigChip("?", selected = false, onClick = { helpRes = R.string.help_oneui_hyperos_fix })
+                }
+            }
+        }
+        mali?.let { MaliPanvkSection(it) { res -> helpRes = res } }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            DeckButton(stringResource(android.R.string.cancel), primary = false, onClick = onDismiss)
+            DeckButton(stringResource(android.R.string.ok), primary = true) {
                 onConfirm(
                     withGraphicsDriverKeys(
                         initialConfig,
@@ -3294,34 +3267,24 @@ internal fun WaylandDriverSettingsDialog(
                         ) + adapter + (mali?.keys() ?: emptyMap())
                     )
                 )
-            }) { Text(stringResource(android.R.string.ok)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            }
         }
-    )
+    }
 }
 
 /** Default/Inherit · On · Off, the value triple core.WaylandAdapterSettings stores ("" / "1" / "0"). */
 private fun triState(defaultWord: String): List<Pair<String, String>> =
     listOf("" to defaultWord, "1" to "On", "0" to "Off")
 
-/** One radio row of the profile picker. */
+/** One row of the profile picker: label, its help text, and a chip that selects it. */
 @Composable
 private fun WaylandProfileRow(label: String, help: String, selected: Boolean, onSelect: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect)
-    ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text(help, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    DeckRow(label = label, hint = help) {
+        DeckConfigChip(if (selected) "Selected" else "Use", selected = selected, onClick = onSelect)
     }
 }
 
-/** One Advanced switch: a label, a segmented tri-state (or present-mode) choice and one line of help. */
+/** One Advanced switch: a label, a choice (Default/Inherit · On · Off, or the present modes) and one line of help. */
 @Composable
 private fun WaylandTriStateRow(
     label: String,
@@ -3330,18 +3293,7 @@ private fun WaylandTriStateRow(
     value: String,
     onChange: (String) -> Unit,
 ) {
-    Text(label, style = MaterialTheme.typography.bodyMedium)
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, (v, l) ->
-            SegmentedButton(
-                selected = value == v,
-                onClick = { onChange(v) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-            ) { Text(l, maxLines = 1) }
-        }
-    }
-    Text(help, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier.height(8.dp))
+    DeckChoiceRow(label = label, hint = help, options = options, selected = value, onPick = onChange)
 }
 
 /**
@@ -3355,25 +3307,28 @@ internal fun WaylandAdapterReportBlock(
     note: String?,
     onRecheck: () -> Unit,
 ) {
-    val dim = MaterialTheme.colorScheme.onSurfaceVariant
     @Composable fun line(name: String, value: String, bad: Boolean = false) {
-        Text(
-            "$name: $value",
-            style = MaterialTheme.typography.bodySmall,
-            color = if (bad) MaterialTheme.colorScheme.error else dim
-        )
+        DeckConfigNote("$name: $value", error = bad)
     }
     when {
-        probing -> Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+        probing -> Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = DeckPalette.primary)
             Spacer(Modifier.width(8.dp))
-            Text("Checking driver… about 2 seconds", style = MaterialTheme.typography.bodySmall, color = dim)
+            Text("Checking driver… about 2 seconds", color = DeckPalette.onSurfaceVariant, fontSize = 12.sp)
         }
-        note != null -> Text(note, style = MaterialTheme.typography.bodySmall, color = dim)
-        report == null -> Text("Not checked yet.", style = MaterialTheme.typography.bodySmall, color = dim)
+        note != null -> DeckConfigNote(note)
+        report == null -> DeckConfigNote("Not checked yet.")
         !report.ok -> line("Could not check", report.error ?: "unknown error", bad = true)
         else -> {
-            Text(report.driverLine(), style = MaterialTheme.typography.bodySmall)
+            Text(
+                report.driverLine(),
+                color = DeckPalette.onBackground,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            )
             line("Timing bug", when (report.kgslZeroTimeoutBug) {
                 true -> "yes — the timing shim will be used"
                 false -> "no"
@@ -3388,13 +3343,12 @@ internal fun WaylandAdapterReportBlock(
                 false -> "refused" + (if (report.highPriorityRefusal.isNotEmpty()) " (${report.highPriorityRefusal})" else "")
                 null -> "not offered by the driver"
             })
-            Text(
-                "Checked in ${report.probeMs} ms" + (if (report.fromCache) " (saved result)" else ""),
-                style = MaterialTheme.typography.bodySmall, color = dim
-            )
+            DeckConfigNote("Checked in ${report.probeMs} ms" + (if (report.fromCache) " (saved result)" else ""))
         }
     }
-    TextButton(onClick = onRecheck, enabled = !probing) { Text("Re-check") }
+    Box(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+        DeckButton("Re-check", primary = false, onClick = { if (!probing) onRecheck() })
+    }
 }
 
 /**
