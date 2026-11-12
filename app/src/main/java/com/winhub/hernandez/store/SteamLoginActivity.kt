@@ -97,7 +97,7 @@ class SteamLoginActivity : ComponentActivity(), SteamAuthManager.AuthListener {
         // the screen works no matter who launches it.
         SteamForegroundService.start(this)
         setContent {
-            WinlatorTheme {
+            StoreKeyboardTheme {
                 DeckStoreTheme {
                 SteamLoginScreen(
                     username = username,

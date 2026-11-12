@@ -2726,4 +2726,6 @@ trying for speed, <b>notemplates</b> if you get driver crashes.
     <string name="mali_panvk_tiler_heap">PANVK_TILER_HEAP_MB (16–2048)</string>
     <string name="mali_panvk_tiler_heap_hint">Default: 512 MB.</string>
     <string name="mali_panvk_trace">PANVK_TRACE (driver tracing)</string>
+    <string name="xmb_store_back">Back</string>
+    <string name="xmb_store_details">Details</string>
 </resources>

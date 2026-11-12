@@ -65,6 +65,15 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.winhub.hernandez.store.blsteam.BlPlayerProfile
 import com.winhub.hernandez.store.blsteam.BlSteamEngine
+import com.winhub.hernandez.ui.deck.XmbGroupItem
+import com.winhub.hernandez.ui.deck.XmbInk
+import com.winhub.hernandez.ui.deck.rememberXmbFocusGroup
+import com.winhub.hernandez.ui.deck.rememberXmbHighlightItem
+import com.winhub.hernandez.ui.deck.xmbCardFill
+import com.winhub.hernandez.ui.deck.xmbCardLine
+import com.winhub.hernandez.ui.deck.xmbGlassCard
+import com.winhub.hernandez.ui.deck.xmbInner
+import com.winhub.hernandez.ui.deck.xmbOnGlass
 import com.winhub.hernandez.ui.theme.LocalAccentDim
 import `in`.dragonbra.javasteam.enums.EPersonaState
 import java.util.Locale
@@ -514,8 +523,9 @@ private fun MiniButton(label: String, onClick: () -> Unit) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .steamFocusRing(shape)
+            .xmbInner()
             .clip(shape)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
@@ -528,9 +538,10 @@ private fun SteamIdRow(steamId: Long, onCopy: () -> Unit) {
     Row(
         modifier = Modifier
             .steamFocusRing(shape)
+            .xmbInner()
             .clip(shape)
             .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onCopy)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -594,11 +605,11 @@ private fun StatusChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .background(
                 if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceContainer,
+                else xmbCardFill(MaterialTheme.colorScheme.surfaceContainer),
             )
             .border(
                 1.dp,
-                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                if (selected) MaterialTheme.colorScheme.primary else xmbCardLine(MaterialTheme.colorScheme.outline),
                 shape,
             )
             .clickable(onClick = onClick)
@@ -651,10 +662,11 @@ private fun StatTiles(c: ProfileTabContent, columns: Int = 4) {
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 12.dp)
             .focusGroup(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        // On the glass the tiles cast a shadow, so they sit further apart.
+        verticalArrangement = Arrangement.spacedBy(if (xmbOnGlass()) 14.dp else 8.dp),
     ) {
         stats.chunked(columns).forEach { rowStats ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(if (xmbOnGlass()) 14.dp else 8.dp)) {
                 rowStats.forEach { stat ->
                     StatTile(
                         value = stat.value,
@@ -685,31 +697,34 @@ private fun StatTile(
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(9.dp)
+    val hl = rememberXmbHighlightItem()
     Column(
         modifier = modifier
-            .then(if (onClick != null) Modifier.steamFocusRing(shape) else Modifier)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .then(if (onClick != null) Modifier.xmbRing(shape, hl) else Modifier)
+            .xmbGlassCard(shape, xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 10.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-        )
-        Text(
-            text = label.uppercase(Locale.getDefault()),
-            fontSize = 9.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.padding(top = 3.dp),
-        )
+        // The tappable tile turns accent while it holds the highlight (the colours are read inside XmbInk).
+        XmbInk(hl) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+            Text(
+                text = label.uppercase(Locale.getDefault()),
+                fontSize = 9.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
     }
 }
 
@@ -811,8 +826,8 @@ private fun BadgeTile(
             modifier = Modifier
                 .size(48.dp)
                 .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .border(1.dp, MaterialTheme.colorScheme.outline, shape),
+                .background(xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+                .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape),
         ) {
             AsyncImage(
                 model = candidates[attempt],
@@ -885,7 +900,7 @@ private fun RecentlyPlayedList(c: ProfileTabContent, fillsPane: Boolean = false)
             .fillMaxWidth()
             .padding(horizontal = 14.dp)
             .focusGroup(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(if (xmbOnGlass()) 14.dp else 8.dp),
     ) {
         games.forEach { g -> RecentRow(g) { c.onOpenApp(g.appId) } }
     }
@@ -894,13 +909,13 @@ private fun RecentlyPlayedList(c: ProfileTabContent, fillsPane: Boolean = false)
 @Composable
 private fun RecentRow(game: SteamFriendsStore.RecentGame, onClick: () -> Unit) {
     val shape = RoundedCornerShape(10.dp)
+    val hl = rememberXmbHighlightItem()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .steamFocusRing(shape)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .xmbRing(shape, hl)
+            .xmbGlassCard(shape, xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onClick)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -912,22 +927,24 @@ private fun RecentRow(game: SteamFriendsStore.RecentGame, onClick: () -> Unit) {
             modifier = Modifier.width(88.dp),
             shape = RoundedCornerShape(5.dp),
         )
-        Text(
-            text = game.name,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = "${fmtCount(game.hours.roundToInt())}h",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-        )
+        XmbInk(hl) {
+            Text(
+                text = game.name,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "${fmtCount(game.hours.roundToInt())}h",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+            )
+        }
     }
 }
 

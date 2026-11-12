@@ -1,5 +1,7 @@
 package com.winhub.hernandez.store
 
+import com.winhub.hernandez.ui.deck.XmbTapToEdit
+import com.winhub.hernandez.ui.deck.xmbDoneActions
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.SharedPreferences
@@ -118,7 +120,7 @@ class EpicGamesActivity : ComponentActivity() {
         EpicLibrarySync.seed(this)
 
         setContent {
-            WinlatorTheme {
+            StoreKeyboardTheme {
                 DeckStoreTheme {
                 EpicGamesScreen(
                     syncText = syncText,
@@ -685,23 +687,26 @@ private fun EpicGamesScreen(
             DownloadsButton()
         }
 
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            placeholder = { Text("Search games\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                cursorColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            ),
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
-        )
+        XmbTapToEdit(Modifier.fillMaxWidth()) { fieldModifier, stopEditing ->
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                placeholder = { Text("Search games\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                singleLine = true,
+                modifier = fieldModifier,
+                keyboardActions = xmbDoneActions(stopEditing),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    cursorColor = MaterialTheme.colorScheme.onSurface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                ),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+            )
+        }
 
         Text(
             text = syncText,

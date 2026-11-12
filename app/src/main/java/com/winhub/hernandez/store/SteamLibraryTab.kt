@@ -58,6 +58,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.winhub.hernandez.ui.deck.LocalXmbGroup
+import com.winhub.hernandez.ui.deck.XmbInk
+import com.winhub.hernandez.ui.deck.rememberScreenScale
+import com.winhub.hernandez.ui.deck.rememberXmbHighlightItem
+import com.winhub.hernandez.ui.deck.xmbCardFill
+import com.winhub.hernandez.ui.deck.xmbCardLine
+import com.winhub.hernandez.ui.deck.xmbGlassCard
+import com.winhub.hernandez.ui.deck.xmbInner
 import com.winhub.hernandez.store.compose.AddResultDialog
 import com.winhub.hernandez.store.compose.AddShortcutResult
 import com.winhub.hernandez.store.compose.AddToShortcutsRequest
@@ -315,6 +323,7 @@ fun SteamLibraryTab(
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
+    val xmb = LocalStoreXmb.current
     // The chip narrows only what is drawn. state.ownedAppIds stays the full set — see its doc.
     val shown = remember(state.games, typeFilter) { typeFilter.filter(state.games) }
     val activity = ctx as? Activity
@@ -382,6 +391,8 @@ fun SteamLibraryTab(
     }
 
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val header = rememberXmbHeader()
+        header.Header {
         // Type chips. Same row in both orientations — they are one short line either way, and the
         // grid below is what reflows.
         Row(
@@ -398,6 +409,7 @@ fun SteamLibraryTab(
                     onClick = { onTypeFilter(f) },
                 )
             }
+        }
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -447,13 +459,17 @@ fun SteamLibraryTab(
                 }
 
                 else -> LazyVerticalGrid(
+                    state = header.trackedGridState(),
                     // Adaptive rather than a fixed count: 2 columns on a portrait phone, 4-6 across a
                     // handheld in landscape, from one declaration.
-                    columns = GridCells.Adaptive(minSize = if (wide) 190.dp else 165.dp),
+                    // XMB home: portrait covers, a bit smaller, with room for the focused one's pop.
+                    columns = GridCells.Adaptive(
+                        minSize = if (xmb) rememberScreenScale().xmbCoverWidth() else if (wide) 190.dp else 165.dp,
+                    ),
                     modifier = Modifier.fillMaxSize().focusGroup(),
                     contentPadding = PaddingValues(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(11.dp),
-                    verticalArrangement = Arrangement.spacedBy(11.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (xmb) 12.dp else 11.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (xmb) 14.dp else 11.dp),
                 ) {
                     items(shown, key = { it.appId }) { game ->
                         LibraryCapsuleCard(
@@ -518,6 +534,18 @@ private fun LibraryCapsuleCard(
     onOpen: () -> Unit,
     onAction: () -> Unit,
 ) {
+    // XMB home: the 600x900 cover, name at its bottom. Long-press plays an installed game, as the Play button does.
+    if (LocalStoreXmb.current) {
+        XmbStoreCover(
+            art = listOf(steamTallArt(game.appId)),
+            title = game.name.ifEmpty { "App ${game.appId}" },
+            onClick = onOpen,
+            onLongClick = if (game.isInstalled) onAction else null,
+            modifier = Modifier.fillMaxWidth(),
+            status = if (game.isInstalled) "Installed" else null,
+        )
+        return
+    }
     val shape = RoundedCornerShape(10.dp)
     val interaction = remember { MutableInteractionSource() }
     Column(
@@ -578,6 +606,10 @@ private fun LibraryDetailRow(
     onLaunch: () -> Unit,
     onUninstall: () -> Unit,
 ) {
+    if (LocalStoreXmb.current) {
+        LibraryDetailRowXmb(game, onClick, onLaunch, onUninstall)
+        return
+    }
     Card(
         onClick = onClick,
         modifier = Modifier
@@ -588,6 +620,48 @@ private fun LibraryDetailRow(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
+        LibraryDetailBody(game, onClick, onLaunch, onUninstall)
+    }
+}
+
+/**
+ * XMB home: the detailed row as a glass panel. An installed game has buttons, so the whole row is ONE stop of the D-pad
+ * (the highlight glides row to row); A enters its Details / Launch / Uninstall buttons and B comes back to the row. A game
+ * without buttons is a plain row: highlighted whole, A opens it. Taps open it either way.
+ */
+@Composable
+private fun LibraryDetailRowXmb(
+    game: SteamGame,
+    onClick: () -> Unit,
+    onLaunch: () -> Unit,
+    onUninstall: () -> Unit,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    val cs = MaterialTheme.colorScheme
+    // Room for the panel's shadow between the rows.
+    val outer = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+    if (game.isInstalled) {
+        XmbPanelCard(outer, onOpen = onClick) { LibraryDetailBody(game, onClick, onLaunch, onUninstall) }
+    } else {
+        val hl = rememberXmbHighlightItem()
+        Box(
+            outer
+                .xmbRing(shape, hl)
+                .xmbGlassCard(shape, xmbCardFill(cs.surfaceVariant))
+                .border(1.dp, xmbCardLine(cs.outline), shape)
+                .clickable(onClick = onClick),
+        ) { XmbInk(hl) { LibraryDetailBody(game, onClick, onLaunch, onUninstall) } }
+    }
+}
+
+/** The detailed row's content: cover, text lines and, for an installed game, its buttons ([LibraryDetailRow], [LibraryDetailRowXmb]). */
+@Composable
+private fun LibraryDetailBody(
+    game: SteamGame,
+    onOpen: () -> Unit,
+    onLaunch: () -> Unit,
+    onUninstall: () -> Unit,
+) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -629,10 +703,19 @@ private fun LibraryDetailRow(
                     )
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Only in the XMB row (a group item): the way to open the game with a controller, as a tap does.
+                        if (LocalXmbGroup.current != null) {
+                            OutlinedButton(
+                                onClick = onOpen,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(32.dp).steamFocusRing(RoundedCornerShape(8.dp)).xmbInner(first = true),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            ) { Text(stringResource(R.string.xmb_store_details), style = MaterialTheme.typography.labelSmall) }
+                        }
                         Button(
                             onClick = onLaunch,
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(32.dp).steamFocusRing(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.height(32.dp).steamFocusRing(RoundedCornerShape(8.dp)).xmbInner(),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                         ) { Text("Launch / Add", style = MaterialTheme.typography.labelSmall) }
                         OutlinedButton(
@@ -641,14 +724,13 @@ private fun LibraryDetailRow(
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error,
                             ),
-                            modifier = Modifier.height(32.dp).steamFocusRing(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.height(32.dp).steamFocusRing(RoundedCornerShape(8.dp)).xmbInner(),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                         ) { Text("Uninstall", style = MaterialTheme.typography.labelSmall) }
                     }
                 }
             }
         }
-    }
 }
 
 @Composable

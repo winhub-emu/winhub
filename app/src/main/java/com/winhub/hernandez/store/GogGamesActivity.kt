@@ -1,5 +1,6 @@
 package com.winhub.hernandez.store
 
+import com.winhub.hernandez.ui.deck.XmbTapToEdit
 import android.content.Intent
 import android.os.Bundle
 import android.os.StatFs
@@ -202,7 +203,7 @@ class GogGamesActivity : ComponentActivity() {
         GogLibrarySync.seed(this)
 
         setContent {
-            WinlatorTheme {
+            StoreKeyboardTheme {
                 DeckStoreTheme {
                 GogGamesScreen(
                     syncText = syncText,
@@ -991,26 +992,28 @@ private fun GogGamesScreen(
         }
 
         // Search bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchChange,
-            placeholder = { Text("Search games\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onSearchChange(searchQuery) }),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 0.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                cursorColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        )
+        XmbTapToEdit(Modifier.fillMaxWidth().padding(horizontal = 0.dp)) { fieldModifier, stopEditing ->
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                placeholder = { Text("Search games\u2026", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearchChange(searchQuery); stopEditing() }),
+                modifier = fieldModifier,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.onSurface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            )
+        }
 
         // Sync status
         Text(

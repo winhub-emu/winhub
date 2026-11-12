@@ -232,6 +232,7 @@ import java.io.File
 import java.io.FileOutputStream
 import com.winhub.hernandez.ui.ControllerFocusIndication
 import com.winhub.hernandez.ui.Screen
+import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.theme.AppThemeState
 import kotlinx.coroutines.Dispatchers
@@ -312,7 +313,12 @@ internal fun DeckModeScreen() {
     val railSections = remember(fullXmb) {
         deckSections().filter { !fullXmb || (it.key != "stores" && it.key != "social_hub") }
     }
-    val openStore: (Screen) -> Unit = { target -> storeTarget = target; section = "stores"; deckDetail = null }
+    val openStore: (Screen) -> Unit = { target ->
+        // The XMB store style is a full-screen Activity of its own; the Deck style opens inside the shell.
+        if (!(StoreStyle.isXmb(context) && launchStoreActivity(context, target))) {
+            storeTarget = target; section = "stores"; deckDetail = null
+        }
+    }
     val openSocial: () -> Unit = { section = "social_hub"; deckDetail = null }
     val leaveToHome: () -> Unit = { storeTarget = null; section = "home"; deckDetail = null }
 
@@ -518,11 +524,20 @@ internal fun DeckModeScreen() {
                 .onFocusChanged { shellOnly = it.isFocused }
                 .focusable(),
         ) {
-            if (!portrait) DeckTopTabs(
-                sections = railSections,
-                selected = section,
-                onSelect = { next -> section = next; deckDetail = null },
-            )
+            if (!portrait) {
+                if (fullXmb) DeckFloatingTabs(
+                    sections = railSections,
+                    selected = section,
+                    onSelect = { next -> section = next; deckDetail = null },
+                    onCycle = { d -> hintStep(d) },
+                    // Home draws its own clock and battery.
+                    showStatus = section != "home",
+                ) else DeckTopTabs(
+                    sections = railSections,
+                    selected = section,
+                    onSelect = { next -> section = next; deckDetail = null },
+                )
+            }
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1815,6 +1830,92 @@ private fun DrawScope.drawDeckCornerGlow(cornerAccent: Color) {
  * switch sections, so this strip itself is not a focus target.
  */
 private const val SELECTED_TAB_WEIGHT = 2.4f
+
+/**
+ * Full XMB's top bar: no background, just L1, the section icons (the current one with its label and a thin accent
+ * underline) and R1, with the clock and battery on the right off Home. Touch and L1/R1 only: none of it takes D-pad focus.
+ */
+@Composable
+private fun DeckFloatingTabs(
+    sections: List<DeckSection>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    onCycle: (Int) -> Unit,
+    showStatus: Boolean,
+) {
+    val accent = Deck.primary
+    val cutout = WindowInsets.displayCutout.asPaddingValues()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = 16.dp + cutout.calculateLeftPadding(LayoutDirection.Ltr),
+                end = 16.dp + cutout.calculateRightPadding(LayoutDirection.Ltr),
+                top = 6.dp,
+            )
+            .height(40.dp),
+    ) {
+        DeckFloatingBumper("L1") { onCycle(-1) }
+        sections.forEach { item ->
+            val current = item.key == selected
+            val ink = if (current) Color.White else Color.White.copy(alpha = 0.55f)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(10.dp))
+                    .focusProperties { canFocus = false }
+                    .clickable { onSelect(item.key) }
+                    .drawBehind {
+                        if (current) {
+                            val barH = 2.dp.toPx()
+                            val inset = 8.dp.toPx()
+                            drawRoundRect(
+                                color = accent,
+                                topLeft = Offset(inset, size.height - barH - 2.dp.toPx()),
+                                size = Size((size.width - inset * 2).coerceAtLeast(barH), barH),
+                                cornerRadius = CornerRadius(barH, barH),
+                            )
+                        }
+                    }
+                    .padding(horizontal = 8.dp),
+            ) {
+                Icon(item.icon, contentDescription = item.label, tint = ink, modifier = Modifier.size(18.dp))
+                if (current) Text(item.label, color = ink, fontSize = 15.sp, fontWeight = FontWeight.Light, maxLines = 1)
+            }
+        }
+        DeckFloatingBumper("R1") { onCycle(1) }
+        Spacer(Modifier.weight(1f))
+        if (showStatus) DeckStatusStrip()
+    }
+}
+
+/** An L1/R1 glyph on the floating bar: tapping it moves the sections as the bumpers do. */
+@Composable
+private fun DeckFloatingBumper(text: String, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(10.dp))
+            .focusProperties { canFocus = false }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
+    ) {
+        Text(
+            text,
+            color = Deck.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .border(1.5.dp, Deck.onSurfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(7.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
 
 @Composable
 private fun DeckTopTabs(

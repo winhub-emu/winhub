@@ -4,6 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.screens.Deck
 
 /**
@@ -47,5 +49,7 @@ internal val DeckGraphiteScheme = darkColorScheme(
 @Composable
 internal fun DeckStoreTheme(content: @Composable () -> Unit) {
     rememberDeckMotion()
-    MaterialTheme(colorScheme = DeckGraphiteScheme, content = content)
+    // The XMB store style brings its own glass theme (StoreXmbTheme); the Graphite palette must not paint over it.
+    if (StoreStyle.isXmb(LocalContext.current)) content()
+    else MaterialTheme(colorScheme = DeckGraphiteScheme, content = content)
 }

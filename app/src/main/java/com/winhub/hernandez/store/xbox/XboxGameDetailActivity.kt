@@ -84,7 +84,7 @@ class XboxGameDetailActivity : ComponentActivity() {
             StarLaunchBridge.loadContainers(this) { containers -> if (!containers.isNullOrEmpty()) downloadPicker = containers }
         }
         setContent {
-            com.winhub.hernandez.ui.theme.WinlatorTheme {
+            com.winhub.hernandez.store.StoreXmbTheme {
             com.winhub.hernandez.store.DeckStoreTheme {
                 var tab by androidx.compose.runtime.remember { mutableStateOf(0) }
                 val inst = installed

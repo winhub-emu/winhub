@@ -127,6 +127,7 @@ class EpicGameDetailActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (com.winhub.hernandez.ui.deck.isXmbHome(this)) com.winhub.hernandez.core.AppOrientation.apply(this)
         prefs = getSharedPreferences("bh_epic_prefs", 0)
 
         // Cross-store Download Manager (Phase C): Epic can download without the Steam foreground
@@ -158,7 +159,7 @@ class EpicGameDetailActivity : ComponentActivity() {
         dlcJson = catalogItemId?.let { prefs!!.getString("epic_dlcs_$it", null) }
 
         setContent {
-            WinlatorTheme {
+            StoreXmbTheme {
                 DeckStoreTheme {
                 EpicGameDetailScreen(
                     appName = appName!!,

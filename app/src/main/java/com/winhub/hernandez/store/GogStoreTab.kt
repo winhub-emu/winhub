@@ -100,55 +100,60 @@ fun GogStoreTab(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        CatalogSearchField(
-            query = query,
-            placeholder = "Search the GOG catalog…",
-            onQueryChange = { query = it },
-            onClear = { query = ""; focusManager.clearFocus() },
-            onSearch = { focusManager.clearFocus() },
-        )
-
-        when {
-            query.trim().length >= 2 -> CatalogResults(
-                results = results,
-                searching = searching,
-                query = query.trim(),
-                wide = wide,
-                storeLabel = "GOG",
-                emptyBody = "Nothing on GOG matched that. Try a shorter or different title.",
-                actionFor = ::actionFor,
-                onOpen = ::open,
-                onAction = ::act,
-                modifier = Modifier.weight(1f),
-            )
-
-            loading && featured == null -> Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
-
-            featured == null || featured?.isEmpty == true -> Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                StoreNotice(
-                    title = "Store browsing is unavailable",
-                    body = "GOG's catalog didn't answer. Search still works, and everything you " +
-                        "already own is in the Library tab.",
-                    actionLabel = "Retry",
-                    onAction = { reloadKey++ },
+    val header = rememberXmbHeader()
+    CompositionLocalProvider(LocalXmbHeader provides header) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            header.Header {
+                CatalogSearchField(
+                    query = query,
+                    placeholder = "Search the GOG catalog…",
+                    onQueryChange = { query = it },
+                    onClear = { query = ""; focusManager.clearFocus() },
+                    onSearch = { focusManager.clearFocus() },
                 )
             }
 
-            else -> {
-                val data = featured!!
-                if (wide) GogStoreLandscape(data, ::actionFor, ::open, ::act, Modifier.weight(1f))
-                else GogStorePortrait(data, ::actionFor, ::open, ::act, Modifier.weight(1f))
+            when {
+                query.trim().length >= 2 -> CatalogResults(
+                    results = results,
+                    searching = searching,
+                    query = query.trim(),
+                    wide = wide,
+                    storeLabel = "GOG",
+                    emptyBody = "Nothing on GOG matched that. Try a shorter or different title.",
+                    actionFor = ::actionFor,
+                    onOpen = ::open,
+                    onAction = ::act,
+                    modifier = Modifier.weight(1f),
+                )
+
+                loading && featured == null -> Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
+
+                featured == null || featured?.isEmpty == true -> Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    StoreNotice(
+                        title = "Store browsing is unavailable",
+                        body = "GOG's catalog didn't answer. Search still works, and everything you " +
+                            "already own is in the Library tab.",
+                        actionLabel = "Retry",
+                        onAction = { reloadKey++ },
+                    )
+                }
+
+                else -> {
+                    val data = featured!!
+                    if (wide) GogStoreLandscape(data, ::actionFor, ::open, ::act, Modifier.weight(1f))
+                    else GogStorePortrait(data, ::actionFor, ::open, ::act, Modifier.weight(1f))
+                }
             }
         }
     }

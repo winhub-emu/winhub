@@ -78,11 +78,14 @@ class SteamFriendsActivity : ComponentActivity() {
         setContent {
             WinlatorTheme {
                 DeckStoreTheme {
-                SteamFriendsRoot(
-                    onClose = { finish() },
-                    openFriendId = openFriendId.value,
-                    onFriendOpened = { openFriendId.value = 0L },
-                )
+                // XMB home: full screen like the store screens (no bars, under the camera, an even frame).
+                StoreXmbScreen {
+                    SteamFriendsRoot(
+                        onClose = { finish() },
+                        openFriendId = openFriendId.value,
+                        onFriendOpened = { openFriendId.value = 0L },
+                    )
+                }
             
                 }}
         }

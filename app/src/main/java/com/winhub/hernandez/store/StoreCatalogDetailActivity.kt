@@ -95,7 +95,7 @@ class StoreCatalogDetailActivity : ComponentActivity() {
         val item = intent.getStringExtra(EXTRA_ITEM)?.let { fromJson(it) }
         if (item == null || item.id.isBlank()) { finish(); return }
         setContent {
-            WinlatorTheme {
+            StoreXmbTheme {
                 DeckStoreTheme {
                 CatalogDetailScreen(
                     item = item,

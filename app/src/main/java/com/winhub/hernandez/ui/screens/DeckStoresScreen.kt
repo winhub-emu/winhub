@@ -117,6 +117,7 @@ import com.winhub.hernandez.store.SteamLoginActivity
 import com.winhub.hernandez.store.SteamSessionManager
 import com.winhub.hernandez.R
 import com.winhub.hernandez.ui.Screen
+import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.theme.AppThemeState
 
 /**
@@ -167,6 +168,23 @@ internal fun deckStoreBrand(screen: Screen): List<Color> = when (screen) {
     Screen.Gog -> listOf(Color(0xFF5C2D91), Color(0xFF3B1C60))
     Screen.Xbox -> listOf(Color(0xFF107C10), Color(0xFF0B5A0B))
     else -> listOf(Color(0xFF232F3E), Color(0xFF131A22))
+}
+
+/** The full-screen store Activity of [screen] (what the XMB store style opens); null for a screen that is not a store. */
+internal fun storeActivityClass(screen: Screen): Class<*>? = when (screen) {
+    Screen.Steam -> com.winhub.hernandez.store.SteamMainActivity::class.java
+    Screen.Epic -> com.winhub.hernandez.store.EpicMainActivity::class.java
+    Screen.Gog -> com.winhub.hernandez.store.GogMainActivity::class.java
+    Screen.Amazon -> com.winhub.hernandez.store.AmazonMainActivity::class.java
+    Screen.Xbox -> com.winhub.hernandez.store.xbox.XboxMainActivity::class.java
+    else -> null
+}
+
+/** Opens [screen]'s store Activity (the XMB store style); false when there is none. */
+internal fun launchStoreActivity(context: Context, screen: Screen): Boolean {
+    val cls = storeActivityClass(screen) ?: return false
+    context.startActivity(Intent(context, cls))
+    return true
 }
 
 /** WinHub's real per-store login Activities (what each store's Sign in opens). */
@@ -1129,7 +1147,11 @@ internal fun DeckStoresScreen(
                         signedIn = deckStores.map { signedInByStore[it.screen] == true },
                         selected = deckStores.indexOfFirst { it.screen == selected }.coerceAtLeast(0),
                         onSelect = { selected = deckStores[it].screen },
-                        onOpen = { selected = deckStores[it].screen; inStore = true },
+                        onOpen = {
+                            selected = deckStores[it].screen
+                            // The XMB store style is a full-screen Activity of its own; the Deck style stays in this page.
+                            if (!(StoreStyle.isXmb(context) && launchStoreActivity(context, deckStores[it].screen))) inStore = true
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     DeckFeaturedOnSteam(context, onBrowseTap)

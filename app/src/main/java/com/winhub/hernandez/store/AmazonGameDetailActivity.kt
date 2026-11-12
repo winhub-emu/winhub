@@ -129,6 +129,7 @@ class AmazonGameDetailActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (com.winhub.hernandez.ui.deck.isXmbHome(this)) com.winhub.hernandez.core.AppOrientation.apply(this)
         prefs = getSharedPreferences("bh_amazon_prefs", 0)
 
         val i = intent
@@ -159,7 +160,7 @@ class AmazonGameDetailActivity : ComponentActivity() {
         loadUpdateStatus()
 
         setContent {
-            WinlatorTheme {
+            StoreXmbTheme {
                 DeckStoreTheme {
                 Box(Modifier.fillMaxSize()) {
                 AmazonGameDetailScreen(

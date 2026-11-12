@@ -63,6 +63,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.winhub.hernandez.store.download.Store
+import com.winhub.hernandez.ui.deck.rememberScreenScale
+import com.winhub.hernandez.ui.deck.xmbCardFill
+import com.winhub.hernandez.ui.deck.xmbCardLine
+import com.winhub.hernandez.ui.deck.xmbChipOverArt
+import com.winhub.hernandez.ui.deck.xmbGlassCard
 import com.winhub.hernandez.ui.theme.StoreDiscountBg
 import com.winhub.hernandez.ui.theme.StoreDiscountInk
 import com.winhub.hernandez.ui.theme.StoreFreeGreen
@@ -204,6 +209,10 @@ fun CatalogItem.wideArt(): List<String> = listOfNotNull(imageUrl, tallImageUrl)
 
 /** Tall art first, wide as the fallback — for 2:3 library tiles. */
 fun CatalogItem.tallArt(): List<String> = listOfNotNull(tallImageUrl, imageUrl)
+
+/** The store's rating as a focused XMB cover shows it ("★ 4.3 / 5"), when the store gave one (GOG: 0-50). */
+internal fun CatalogItem.xmbRating(): String? =
+    extra["rating"]?.toIntOrNull()?.takeIf { it > 0 }?.let { "★ %.1f / 5".format(it / 10f) }
 
 // ── Price ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -355,14 +364,23 @@ fun CatalogRailCard(
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // XMB home: a portrait cover; its page carries the action.
+    if (LocalStoreXmb.current) {
+        XmbStoreCover(
+            art = item.tallArt(), title = item.title, onClick = onOpen,
+            modifier = modifier.width(rememberScreenScale().xmbCoverWidth()),
+            focusDetail = item.xmbRating(),
+            footer = { CatalogPriceRow(item) },
+        )
+        return
+    }
     val shape = RoundedCornerShape(10.dp)
     Column(
         modifier = modifier
             .width(StoreCardWidth)
             .steamFocusRing(shape)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .xmbGlassCard(shape, xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onOpen),
     ) {
         CatalogArt(
@@ -406,14 +424,22 @@ fun CatalogResultRow(
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // XMB home: a small portrait cover beside the name and price.
+    if (LocalStoreXmb.current) {
+        XmbFeatureCard(
+            art = item.tallArt(), title = item.title, eyebrow = item.tags, onClick = onOpen,
+            modifier = modifier, compact = true,
+            footer = { CatalogPriceRow(item) },
+        )
+        return
+    }
     val shape = RoundedCornerShape(10.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .steamFocusRing(shape)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .xmbGlassCard(shape, xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onOpen)
             .padding(9.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -469,14 +495,24 @@ fun CatalogHeroCard(
     modifier: Modifier = Modifier,
     eyebrow: String = "FEATURED & RECOMMENDED",
 ) {
+    // XMB home: the portrait cover beside the name and price.
+    if (LocalStoreXmb.current) {
+        XmbFeatureCard(
+            art = item.tallArt(), title = item.title, eyebrow = eyebrow, onClick = onOpen, modifier = modifier,
+            footer = {
+                CatalogPriceRow(item)
+                item.xmbRating()?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            },
+        )
+        return
+    }
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .steamFocusRing(shape)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .xmbGlassCard(shape, xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onOpen),
     ) {
         CatalogArt(
@@ -538,6 +574,17 @@ fun CatalogLibraryTile(
     /** The tile is just the 2:3 art: title and status sit on a fade at its bottom, no button (tap opens the game). */
     artOnly: Boolean = false,
 ) {
+    // XMB home: every store's library tile is the portrait cover with the name at its bottom.
+    if (LocalStoreXmb.current) {
+        XmbStoreCover(
+            art = item.tallArt(), title = item.title, onClick = onOpen, modifier = modifier.fillMaxWidth(),
+            badge = badgeText,
+            status = progressLabel ?: if (installed) "Installed" else null,
+            statusAccent = progressLabel != null,
+            focusDetail = item.xmbRating(),
+        )
+        return
+    }
     val shape = RoundedCornerShape(10.dp)
     if (artOnly) {
         Box(
@@ -555,7 +602,7 @@ fun CatalogLibraryTile(
                         .align(Alignment.TopStart)
                         .padding(6.dp)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f))
+                        .background(xmbChipOverArt().copy(alpha = 0.9f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(badgeText, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
@@ -582,9 +629,8 @@ fun CatalogLibraryTile(
         modifier = modifier
             .fillMaxWidth()
             .steamFocusRing(shape)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .border(1.dp, MaterialTheme.colorScheme.outline, shape)
+            .xmbGlassCard(shape, xmbCardFill(MaterialTheme.colorScheme.surfaceContainer))
+            .border(1.dp, xmbCardLine(MaterialTheme.colorScheme.outline), shape)
             .clickable(onClick = onOpen),
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -600,7 +646,7 @@ fun CatalogLibraryTile(
                         .align(Alignment.TopStart)
                         .padding(6.dp)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f))
+                        .background(xmbChipOverArt().copy(alpha = 0.9f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 ) {
                     Text(
@@ -665,7 +711,8 @@ fun LazyListScope.catalogRail(
     item(key = "rail_$title") {
         LazyRow(
             modifier = Modifier.fillMaxWidth().focusGroup(),
-            contentPadding = PaddingValues(horizontal = 14.dp),
+            // XMB home: room above and below for a focused cover's pop.
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = if (LocalStoreXmb.current) 8.dp else 0.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
         ) {
             // Keyed by store + id, and the list is de-duplicated upstream — a duplicate key inside a
@@ -711,6 +758,23 @@ fun CatalogResults(
             ) { CircularProgressIndicator(color = MaterialTheme.colorScheme.primary) }
 
             rows.isEmpty() -> StoreNotice(title = "No matches", body = emptyBody)
+
+            // XMB home: the results as a grid of portrait covers.
+            LocalStoreXmb.current -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(rememberScreenScale().xmbCoverWidth()),
+                modifier = Modifier.fillMaxSize().focusGroup(),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                gridItems(rows, key = { it.id }) { g ->
+                    XmbStoreCover(
+                        art = g.tallArt(), title = g.title, onClick = { onOpen(g) },
+                        focusDetail = g.xmbRating(),
+                        footer = { CatalogPriceRow(g) },
+                    )
+                }
+            }
 
             wide -> LazyColumn(
                 modifier = Modifier.fillMaxSize().focusGroup(),
@@ -762,6 +826,10 @@ fun CatalogSearchField(
     onClear: () -> Unit,
     onSearch: () -> Unit,
 ) {
+    if (LocalStoreXmb.current) {
+        XmbSearchField(query, placeholder, onQueryChange, onClear, onSearch, modifier)
+        return
+    }
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,

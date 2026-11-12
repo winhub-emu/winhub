@@ -53,6 +53,7 @@ import com.winhub.hernandez.fexcore.FEXCorePreset
 import com.winhub.hernandez.fexcore.FEXCorePresetManager
 import com.winhub.hernandez.store.SteamPrefs
 import com.winhub.hernandez.store.SteamRegion
+import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.theme.AppThemeState
 import com.winhub.hernandez.ui.theme.ThemePreset
 import com.winhub.hernandez.ui.theme.selectableThemePresets
@@ -155,6 +156,8 @@ internal fun DeckSettingsScreen() {
     var configEditorStyle by remember {
         mutableStateOf(prefs.getString("config_editor_style", "popup") ?: "popup")
     }
+    // Store pages ("deck" | "xmb"); the store Activities read it when they open.
+    var storeStyle by remember { mutableStateOf(if (StoreStyle.isXmb(context)) StoreStyle.XMB else StoreStyle.DECK) }
     // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
     var homeStyle by remember { mutableStateOf(if (DeckHomeStyle.isFull(prefs)) DeckHomeStyle.FULL_XMB else DeckHomeStyle.CLASSIC) }
 
@@ -803,6 +806,23 @@ internal fun DeckSettingsScreen() {
                 onPick = {
                     homeStyle = it
                     prefs.edit().putString(DeckHomeStyle.KEY, it).apply()
+                },
+            )
+        }
+
+        // ── Stores ── (the Deck pages inside this app, or the full-screen XMB store pages)
+        DeckGroup(title = "Stores") {
+            DeckChoiceRow(
+                label = "Store style",
+                hint = "XMB opens each store as its own full-screen XMB page, in Home cards and in the Stores tab",
+                options = listOf(
+                    StoreStyle.DECK to "Deck",
+                    StoreStyle.XMB to "XMB",
+                ),
+                selected = storeStyle,
+                onPick = {
+                    storeStyle = it
+                    prefs.edit().putString(StoreStyle.KEY, it).apply()
                 },
             )
         }

@@ -194,6 +194,7 @@ class GogGameDetailActivity : ComponentActivity(), GogRedistInstaller.Host {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (com.winhub.hernandez.ui.deck.isXmbHome(this)) com.winhub.hernandez.core.AppOrientation.apply(this)
         prefs = getSharedPreferences("bh_gog_prefs", 0)
 
         // Cross-store Download Manager (Phase B): GOG can download without the Steam foreground
@@ -242,7 +243,7 @@ class GogGameDetailActivity : ComponentActivity(), GogRedistInstaller.Host {
         loadMedia()
 
         setContent {
-            WinlatorTheme {
+            StoreXmbTheme {
                 DeckStoreTheme {
                 GogGameDetailScreen(
                     headerBitmap = headerBitmap,
