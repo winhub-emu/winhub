@@ -472,7 +472,7 @@ private fun generalRows(xmb: XmbScope, p: XmbPrefs, host: XmbGameHost): List<Xmb
         val spoof = com.winhub.hernandez.core.GpuSpoof.gpuNameOf(gdc)
         rows += XmbRow.Link("waylandDriverCfg", "Wayland driver settings", Icons.Filled.Tune,
             value = spoof.takeIf { com.winhub.hernandez.core.GpuSpoof.isSpoofing(it) },
-            subtitle = "GPU name spoof, memory cap, present mode…") { xmbWaylandDriverConfigMenu(xmb, s) }
+            subtitle = "Adapter profile and switches, GPU name spoof, memory cap, present mode…") { xmbWaylandDriverConfigMenu(xmb, s) }
         // HDR output (per-game override of the container's waylandHdr; "" = container default, "1" on,
         // "0" off) — same options as the pop-up editor (WaylandHdr). Greyed with the reason on a screen
         // that doesn't report HDR10, still showing what is stored.

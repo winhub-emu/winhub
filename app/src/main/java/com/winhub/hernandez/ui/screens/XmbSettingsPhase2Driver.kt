@@ -405,6 +405,7 @@ internal fun xmbWaylandDriverConfigMenu(xmb: XmbScope, shortcut: Shortcut): XmbM
         val rows = mutableListOf<XmbRow>()
         rows += XmbRow.Info("help", "For games that refuse or misbehave on Adreno", Icons.Filled.Info,
             subtitle = "DirectX games (DXVK) see the GPU named here. Off by default (Device); same settings as X11's.")
+        rows += xmbAdapterRows(xmb, shortcut)
         rows += XmbRow.Choice("gpuName", ctx.getString(R.string.gpu_name) + " (spoof)", Icons.Filled.DeveloperBoard, names, gpuName,
             subtitle = com.winhub.hernandez.core.GpuSpoof.vendorWarning(ctx, gpuName)
                 ?: "NVIDIA: games may try NVAPI, DLSS or Reflex. AMD: AMD AGS paths.") { v -> write("gpuName", v) }
@@ -600,4 +601,149 @@ private fun p2DetectedMenu(
         }
     }
     rows
+}
+
+/**
+ * The Wayland adapter settings in the XMB (the same ones the pop-up and Deck editors have): the applied
+ * summary, the profile with its help, the single switches, and the adapter report with a Re-check. Per
+ * game: every adapter key can be left on "Inherit" (blank = the container's choice), and a game without
+ * its own driver config starts from a copy of the container's with the adapter keys blanked.
+ */
+private fun xmbAdapterRows(xmb: XmbScope, shortcut: Shortcut): List<XmbRow> {
+    val ctx = xmb.context
+    val keys = com.winhub.hernandez.core.WaylandAdapterSettings.KEYS
+    val containerCfg = shortcut.container.getGraphicsDriverConfig()
+    fun own(): String = shortcut.getExtra("graphicsDriverConfig", "")
+    fun base(): String = own().ifEmpty { withGraphicsDriverKeys(containerCfg, keys.associateWith { "" }) }
+    fun write(key: String, value: String) =
+        p2Put(xmb, shortcut, "graphicsDriverConfig", withGraphicsDriverKeys(base(), mapOf(key to value)))
+    val ownMap = own().split(";").filter { it.isNotEmpty() }.associate { e -> e.substringBefore("=") to e.substringAfter("=", "") }
+    fun v(key: String): String = ownMap[key] ?: ""
+    val defaultWord = "Inherit"
+    val driverId = com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.getVersion(own())?.ifEmpty { null }
+        ?: com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.getVersion(containerCfg) ?: ""
+    val probe = if (driverId.isEmpty()) null else runCatching {
+        com.winhub.hernandez.core.WaylandDriverProbe.cached(ctx, driverId)
+    }.getOrNull()
+    val rows = mutableListOf<XmbRow>()
+
+    // Applied at launch + the profile.
+    val effective = com.winhub.hernandez.core.WaylandAdapterSettings.resolve(containerCfg, own().ifEmpty { null }, null, probe)
+    rows += XmbRow.Info("adApplied", "Applied at launch", Icons.Filled.Info, subtitle = effective.summary("mailbox"))
+    val containerProfile = com.winhub.hernandez.core.WaylandAdapterSettings.profileLabel(
+        com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog.parseGraphicsDriverConfig(containerCfg)[
+            com.winhub.hernandez.core.WaylandAdapterSettings.KEY_PROFILE] ?: "")
+    val inheritLabel = "Inherit the container's ($containerProfile)"
+    val profiles = com.winhub.hernandez.core.WaylandAdapterSettings.PROFILES
+    val profileLabels = listOf(inheritLabel) + profiles.map { com.winhub.hernandez.core.WaylandAdapterSettings.profileLabel(it) }
+    val storedProfile = v(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_PROFILE)
+    val selectedProfile = if (storedProfile.isEmpty()) inheritLabel
+        else com.winhub.hernandez.core.WaylandAdapterSettings.profileLabel(storedProfile)
+    val profileHelp = if (storedProfile.isEmpty()) "Use whatever the container is set to."
+        else com.winhub.hernandez.core.WaylandAdapterSettings.profileHelp(storedProfile)
+    rows += XmbRow.Choice("adProfile", "Profile", Icons.Filled.Tune, profileLabels, selectedProfile,
+        subtitle = profileHelp +
+            (if (effective.profile != com.winhub.hernandez.core.WaylandAdapterSettings.PROFILE_SMOOTH)
+                "  Tip: if frames look uneven or jittery, try Smooth. It paces frames through the compositor " +
+                    "(vsync, no zero-copy), which helps when the GPU is close to maxed." else "")) { picked ->
+        val i = profileLabels.indexOf(picked)
+        write(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_PROFILE, if (i <= 0) "" else profiles[i - 1])
+    }
+    rows += XmbRow.Info("adEnvNote", "Env vars always win", Icons.Filled.Info,
+        subtitle = "Env vars you type under Env vars always win over these; the switches below win over the profile.")
+
+    // Advanced: single switches.
+    rows += XmbRow.Header("adAdvanced", "Advanced: single switches")
+    fun tri(key: String, label: String, help: String) {
+        val labels = listOf(defaultWord, "On", "Off")
+        rows += XmbRow.Choice("ad_$key", label, Icons.Filled.Tune, labels,
+            when (v(key)) { "1" -> "On"; "0" -> "Off"; else -> defaultWord }, subtitle = help) { picked ->
+            write(key, when (picked) { "On" -> "1"; "Off" -> "0"; else -> "" })
+        }
+    }
+    val presentKey = com.winhub.hernandez.core.WaylandAdapterSettings.KEY_PRESENT
+    val presentStored = ownMap["presentMode"]?.ifEmpty { null } ?: "mailbox"
+    run {
+        val labels = listOf(defaultWord, "mailbox", "fifo")
+        rows += XmbRow.Choice("ad_$presentKey", ctx.getString(R.string.graphics_driver_present_modes), Icons.Filled.Speed, labels,
+            v(presentKey).ifEmpty { defaultWord },
+            subtitle = "mailbox = newest frame, lowest latency; fifo = vsync, even pacing. Default follows the " +
+                "profile, else the stored $presentStored. Immediate needs tearing, which Wayland does not offer.") { picked ->
+            write(presentKey, if (picked == defaultWord) "" else picked)
+        }
+    }
+    tri(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_ASYNC_COPY, "Asynchronous copy",
+        "The compositor keeps frames in flight instead of waiting for each screen blit. Turn off if " +
+            "frames arrive out of order or a game stutters only on Wayland.")
+    tri(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_ZERO_COPY, "Zero-copy presentation",
+        "The game's own buffer goes on screen without a copy (lowest latency, less heat). Needs " +
+            "sync-file fences in the driver (see the report). Turn off if you see tearing or stale frames.")
+    tri(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_CLIENT_FENCE, "Client render fences",
+        "With zero-copy, the game's driver tells the compositor when a frame is finished. Turn off " +
+            "only to compare; off can show half-drawn frames.")
+    tri(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_UBWC, "UBWC / compressed buffers",
+        "Frames travel as compressed GPU buffers (less bandwidth). Turn off if the picture shows " +
+            "garbled blocks or stripes.")
+    tri(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_MODIFIERS, "DRM format modifiers",
+        "Lets the game's driver and the compositor agree on buffer layouts. Off makes the game use " +
+            "plain linear buffers (BANNER_WSI_NO_MODIFIERS=1); try it for a black screen or corrupt frames.")
+    tri(com.winhub.hernandez.core.WaylandAdapterSettings.KEY_KGSL_SHIM, "KGSL timing shim",
+        "Works around a Turnip bug where asking \"is the GPU done?\" waits for the whole frame " +
+            "(the report's timing bug). Default lets the adapter detect it; On forces it, Off disables it.")
+    run {
+        val key = com.winhub.hernandez.core.WaylandAdapterSettings.KEY_SUBGROUPS
+        val labels = listOf(defaultWord, "Auto", "Off")
+        rows += XmbRow.Choice("ad_$key", "Subgroups", Icons.Filled.Tune, labels,
+            when (v(key)) { "auto" -> "Auto"; "0" -> "Off"; else -> defaultWord },
+            subtitle = "Auto tells the game what subgroup operations your Mesa driver supports (DOOM Eternal and " +
+                "other games that need them start). Off hides them, as older adapters did; try it if a game " +
+                "shows glitches or crashes that it did not before.") { picked ->
+            write(key, when (picked) { "Auto" -> "auto"; "Off" -> "0"; else -> "" })
+        }
+    }
+
+    // Adapter report.
+    rows += XmbRow.Header("adReportHeader", "Adapter report")
+    fun info(key: String, label: String, value: String) {
+        rows += XmbRow.Info(key, label, Icons.Filled.Info, subtitle = value)
+    }
+    when {
+        driverId.isEmpty() || driverId == "System" ->
+            info("adReport", "Adapter report", "No Turnip graphics driver is set, so there is nothing to check.")
+        probe == null -> info("adReport", "Adapter report", "Not checked yet.")
+        !probe.ok -> info("adReport", "Could not check", probe.error ?: "unknown error")
+        else -> {
+            info("adReport0", "Driver", probe.driverLine())
+            info("adReport1", "Timing bug", when (probe.kgslZeroTimeoutBug) {
+                true -> "yes — the timing shim will be used"
+                false -> "no"
+                null -> "not measured"
+            })
+            info("adReport2", "Fences (sync file)", if (probe.syncFdFence) "yes" else "no")
+            info("adReport3", "Zero-copy safe", (if (probe.zeroCopySafe()) "yes" else "no") + " — " + probe.zeroCopyReason())
+            info("adReport4", "Compressed buffers (modifiers)", if (probe.drmModifiers) "yes" else "no")
+            info("adReport5", "High GPU priority", when (probe.highPriorityAccepted) {
+                true -> "accepted"
+                false -> "refused" + (if (probe.highPriorityRefusal.isNotEmpty()) " (${probe.highPriorityRefusal})" else "")
+                null -> "not offered by the driver"
+            })
+            info("adReport6", "Checked", "in ${probe.probeMs} ms" + (if (probe.fromCache) " (saved result)" else ""))
+        }
+    }
+    if (driverId.isNotEmpty() && driverId != "System") {
+        rows += XmbRow.Action("adRecheck", "Re-check", Icons.Filled.Science,
+            subtitle = "Checks the graphics driver again (about 2 seconds)") {
+            xmb.toast("Checking driver… about 2 seconds")
+            xmb.scope.launch {
+                withContext(Dispatchers.IO) {
+                    com.winhub.hernandez.core.WaylandDriverProbe.forget(ctx, driverId)
+                    graphicsProbeMutex.withLock {
+                        runCatching { com.winhub.hernandez.core.WaylandDriverProbe.probe(ctx, driverId) }
+                    }
+                }
+                xmb.refresh()
+            }
+        }
+    }
+    return rows
 }
