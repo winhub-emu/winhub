@@ -155,8 +155,8 @@ internal fun DeckSettingsScreen() {
     var configEditorStyle by remember {
         mutableStateOf(prefs.getString("config_editor_style", "popup") ?: "popup")
     }
-    // Deck Home's layout ("xmb" | "classic"); read by DeckHome when it opens.
-    var homeStyle by remember { mutableStateOf(if (prefs.getString("home_style", "xmb") == "classic") "classic" else "xmb") }
+    // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
+    var homeStyle by remember { mutableStateOf(if (DeckHomeStyle.isFull(prefs)) DeckHomeStyle.FULL_XMB else DeckHomeStyle.CLASSIC) }
 
     // ── Sound (MIDI Sound Font) — same as SettingsScreen's Sound section. ──
     var sfNames by remember { mutableStateOf(listOf<String>()) }
@@ -794,15 +794,15 @@ internal fun DeckSettingsScreen() {
         if (!portraitUi) DeckGroup(title = "Home") {
             DeckChoiceRow(
                 label = "Home style",
-                hint = "XMB gives the game dropdown the full XMB tool list (details, saves, cover, clone, logs and more)",
+                hint = "Full XMB puts the stores and Social on Home as cards above your games, and hides their tabs",
                 options = listOf(
-                    "classic" to "Classic",
-                    "xmb" to "XMB",
+                    DeckHomeStyle.CLASSIC to "Classic",
+                    DeckHomeStyle.FULL_XMB to "Full XMB",
                 ),
                 selected = homeStyle,
                 onPick = {
                     homeStyle = it
-                    prefs.edit().putString("home_style", it).apply()
+                    prefs.edit().putString(DeckHomeStyle.KEY, it).apply()
                 },
             )
         }

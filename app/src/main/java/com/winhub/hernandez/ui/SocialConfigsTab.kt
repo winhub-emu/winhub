@@ -39,7 +39,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import com.winhub.hernandez.ui.components.IconButton
 import androidx.compose.material3.MaterialTheme
-import com.winhub.hernandez.ui.components.OutlinedButton
 import androidx.compose.material3.Text
 import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.runtime.Composable
@@ -51,11 +50,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -87,8 +88,13 @@ import com.winhub.hernandez.ui.screens.ControllerTextField
 import com.winhub.hernandez.ui.screens.DeckDragFrame
 import com.winhub.hernandez.ui.screens.DeckEditorCategoryRail
 import com.winhub.hernandez.ui.screens.DeckEditorCategoryRow
+import com.winhub.hernandez.ui.screens.Deck
+import com.winhub.hernandez.ui.screens.DeckHintBar
 import com.winhub.hernandez.ui.screens.DeckRow
+import com.winhub.hernandez.ui.screens.DeckStoreHeader
+import com.winhub.hernandez.ui.screens.DeckStoreSideTabs
 import com.winhub.hernandez.ui.screens.DeckStretchyTabs
+import com.winhub.hernandez.ui.screens.LocalDeckMode
 import com.winhub.hernandez.ui.screens.LocalDeckTabs
 import com.winhub.hernandez.ui.screens.deckDragSelf
 import com.winhub.hernandez.util.InAppFilePicker
@@ -104,9 +110,11 @@ private const val TAG = "SocialConfigsTab"
  * Social Hub with two sub-tabs: Feed (the existing [SocialContent]) and Game Configurations. The
  * sub-tabs follow the user's Settings layout choice (side rail / top tabs / category pages), like
  * Contents and Settings. In Deck mode the Deck tab host drives them (L2/R2); elsewhere LB/RB do.
+ * Landscape Deck lays the page out like a store: identity and the sub-tabs down the left, the page beside them.
+ * [onExit] (Full XMB) is where B goes from the top level, back to Home.
  */
 @Composable
-internal fun SocialHubScreen(deck: Boolean = false) {
+internal fun SocialHubScreen(deck: Boolean = false, onExit: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var pagesOpen by rememberSaveable { mutableStateOf(false) }
@@ -120,11 +128,34 @@ internal fun SocialHubScreen(deck: Boolean = false) {
     val narrow = LocalConfiguration.current.screenWidthDp < 560
     val chosen = prefs.getString("settings_layout", "rail") ?: "rail"
     val portraitDeck = com.winhub.hernandez.ui.screens.LocalDeckPortrait.current
-    val layout = if (portraitDeck) "tabs" else if (chosen == "rail" && narrow) "tabs" else chosen
+    val storeStyle = deck && !portraitDeck
+    val layout = if (portraitDeck) "tabs" else if (storeStyle) "store" else if (chosen == "rail" && narrow) "tabs" else chosen
     val labels = listOf(stringResource(R.string.social_hub_subtab_feed), stringResource(R.string.social_hub_subtab_configs), stringResource(R.string.social_hub_subtab_profile))
     val select = { i: Int ->
         tab = i
         if (deck) host.select(i)
+    }
+    val account by SocialHubStore.account.collectAsState()
+    val exitNow by rememberUpdatedState(onExit)
+    // Pad B goes through the Deck shell, which asks the page for the back step: Configs / Profile -> Feed, then Home.
+    DisposableEffect(host, storeStyle, tab, onExit != null) {
+        val step: () -> Boolean = {
+            val exit = exitNow
+            when {
+                tab != 0 -> { select(0); true }
+                exit != null -> { exit(); true }
+                else -> false
+            }
+        }
+        if (storeStyle) host.onBack = step
+        onDispose { if (host.onBack === step) host.onBack = null }
+    }
+    val pane: @Composable () -> Unit = {
+        when (tab) {
+            0 -> SocialContent(showTitle = !storeStyle)
+            1 -> SocialConfigsContent()
+            else -> SocialProfileContent(onGoFeed = { select(0) })
+        }
     }
 
     // B goes up one level: category page -> category list; Configs -> Feed.
@@ -145,7 +176,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                 }
             },
     ) {
-        if (deck) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social Hub", horizontal = 0.dp)
+        if (deck && !storeStyle) com.winhub.hernandez.ui.screens.PortraitScreenTitle("Social Hub", horizontal = 0.dp)
         if (layout == "tabs") {
             if (portraitDeck) {
                 com.winhub.hernandez.ui.screens.DeckPortraitChips(labels, tab, select)
@@ -159,7 +190,40 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                 )
             }
         }
-        if (layout == "pages" && !pagesOpen) {
+        if (layout == "store") {
+            val tabFocus = remember { FocusRequester() }
+            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.width(190.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                ) {
+                    DeckStoreHeader(
+                        name = "Social",
+                        fill = Color(0xFF134E4A),
+                        ink = Color(0xFF7FE0D6),
+                        accent = Color(0xFF2DD4BF),
+                        signedIn = account != null,
+                    )
+                    DeckStoreSideTabs(
+                        labels = listOf("Feed", "Configs", "Profile"),
+                        selected = tab,
+                        onSelect = select,
+                        selectedFocus = tabFocus,
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Box(Modifier.weight(1f).fillMaxHeight()) { pane() }
+            }
+            // Skipped on short landscape screens, where the page needs the room more.
+            if (LocalConfiguration.current.screenHeightDp >= 400) DeckHintBar(
+                hints = buildList {
+                    add("A" to "Select")
+                    add("L2/R2" to "Switch tab")
+                    if (onExit != null) add("B" to "Home") else if (tab != 0) add("B" to "Feed")
+                },
+                modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp),
+            )
+        } else if (layout == "pages" && !pagesOpen) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 labels.forEachIndexed { i, label ->
                     DeckEditorCategoryRow(label = label, selected = i == tab) {
@@ -190,13 +254,7 @@ internal fun SocialHubScreen(deck: Boolean = false) {
                         )
                         Spacer(Modifier.height(8.dp))
                     }
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                        when (tab) {
-                            0 -> SocialContent()
-                            1 -> SocialConfigsContent()
-                            else -> SocialProfileContent(onGoFeed = { select(0) })
-                        }
-                    }
+                    Box(Modifier.weight(1f).fillMaxWidth()) { pane() }
                 }
             }
         }
@@ -259,6 +317,13 @@ private fun SocialConfigsContent() {
         SocialHubStore.openPost(null)
     }
     BackHandler(enabled = open != null) { closeDetail() }
+    // Pad B closes an open config first (the Deck shell asks this layer before it leaves the page).
+    val deckBack = com.winhub.hernandez.ui.screens.LocalDeckBack.current
+    DisposableEffect(open != null) {
+        val close: () -> Boolean = { closeDetail(); true }
+        if (open != null) deckBack.onBack = close
+        onDispose { if (deckBack.onBack === close) deckBack.onBack = null }
+    }
 
     val visible = remember(configs, query, matchesMyDevice, userHw) {
         val tokens = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
@@ -333,13 +398,22 @@ private fun SocialConfigsContent() {
         DeckDragFrame(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    stringResource(R.string.social_hub_subtab_configs),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
+                if (LocalDeckMode.current) {
+                    SocialSectionLabel(
+                        stringResource(R.string.social_hub_subtab_configs),
+                        libGames?.size?.takeIf { libraryTab && it > 0 }?.let { "$it games" }
+                            ?: configs.size.takeIf { !libraryTab && it > 0 }?.let { "$it shared" },
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Text(
+                        stringResource(R.string.social_hub_subtab_configs),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 IconButton(onClick = { SocialHubStore.refreshConfigs(); loadLibrary(true) }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         Icons.Filled.Refresh,
@@ -347,11 +421,12 @@ private fun SocialConfigsContent() {
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Button(onClick = { showUpload = true }, enabled = account != null, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.social_hub_configs_upload), fontSize = 14.sp)
-                }
+                SocialButton(
+                    stringResource(R.string.social_hub_configs_upload),
+                    onClick = { showUpload = true },
+                    enabled = account != null,
+                    icon = Icons.Filled.Add,
+                )
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -456,7 +531,6 @@ private fun SocialConfigsContent() {
 
 @Composable
 private fun ConfigRow(post: Post, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
     val json = remember(post.number) { SocialHubFormat.configJson(post.body).orEmpty() }
     val parts = remember(post.number) { SocialConfigs.componentNames(json) }
     val (device, soc) = remember(post.number) { SocialConfigs.hardware(json) }
@@ -465,9 +539,7 @@ private fun ConfigRow(post: Post, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
+            .socialCard()
             .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(12.dp),
@@ -528,26 +600,7 @@ private fun ConfigRow(post: Post, onClick: () -> Unit) {
 
 @Composable
 private fun EmptyNote(@androidx.annotation.StringRes title: Int, @androidx.annotation.StringRes hint: Int) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            stringResource(title),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            stringResource(hint),
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
+    SocialEmpty(stringResource(title), stringResource(hint))
 }
 
 /**
@@ -650,16 +703,13 @@ private fun LibraryBody(
 
 @Composable
 private fun LibraryGameRow(game: ConfigLibrary.Game, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
     val chips = remember(game.id) {
         game.configs.map { it.soc.replace(" (TM)", "") }.filter { it.isNotBlank() }.distinct().take(3).joinToString(" • ")
     }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
+            .socialCard()
             .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(12.dp),
@@ -685,7 +735,6 @@ private fun LibraryGameRow(game: ConfigLibrary.Game, onClick: () -> Unit) {
 
 @Composable
 private fun LibraryConfigRow(entry: ConfigLibrary.Entry, matchesDevice: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
     val hw = listOf(entry.device, entry.soc).filter { it.isNotBlank() }.joinToString(" • ")
     val parts = listOf(
         entry.driver.takeIf { it.isNotBlank() }?.let { "Driver $it" },
@@ -697,13 +746,7 @@ private fun LibraryConfigRow(entry: ConfigLibrary.Entry, matchesDevice: Boolean,
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(
-                if (matchesDevice) 2.dp else 1.dp,
-                if (matchesDevice) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                shape,
-            )
+            .socialCard(highlighted = matchesDevice)
             .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(12.dp),
@@ -743,6 +786,7 @@ private fun LibraryConfigRow(entry: ConfigLibrary.Entry, matchesDevice: Boolean,
 @Composable
 private fun ToggleChip(text: String, checked: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(20.dp)
+    val deck = LocalDeckMode.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -750,9 +794,14 @@ private fun ToggleChip(text: String, checked: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .background(
                 if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                else if (deck) Deck.surface
                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
             )
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), shape)
+            .border(
+                1.dp,
+                if (checked && deck) Deck.primary else if (deck) Deck.line else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                shape,
+            )
             .deckDragSelf()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -800,22 +849,15 @@ private fun ConfigActions(post: Post, signedIn: Boolean, onImport: () -> Unit) {
                 Unit
             }
             val likeLabel = stringResource(if (liked) R.string.social_hub_configs_liked else R.string.social_hub_configs_like, post.likes)
-            if (liked) {
-                Button(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f).deckDragSelf()) {
-                    Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(likeLabel, fontSize = 14.sp)
-                }
-            } else {
-                OutlinedButton(onClick = likeClick, enabled = signedIn && !liking, modifier = Modifier.heightIn(min = 48.dp).weight(1f).deckDragSelf()) {
-                    Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(likeLabel, fontSize = 14.sp)
-                }
-            }
-            Button(onClick = onImport, modifier = Modifier.heightIn(min = 48.dp).weight(1f).deckDragSelf()) {
-                Text(stringResource(R.string.social_hub_configs_import), fontSize = 14.sp)
-            }
+            SocialButton(
+                likeLabel,
+                onClick = likeClick,
+                modifier = Modifier.weight(1f),
+                primary = liked,
+                enabled = signedIn && !liking,
+                icon = Icons.Filled.ThumbUp,
+            )
+            SocialButton(stringResource(R.string.social_hub_configs_import), onClick = onImport, modifier = Modifier.weight(1f))
         }
     }
 }

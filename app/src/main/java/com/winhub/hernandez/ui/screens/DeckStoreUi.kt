@@ -28,11 +28,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -373,6 +375,8 @@ private fun deckStoreTabIcon(label: String): ImageVector = when (label) {
     "Library" -> Icons.Filled.VideogameAsset
     "Settings" -> Icons.Filled.Settings
     "Friends" -> Icons.Filled.People
+    "Feed" -> Icons.Filled.Forum
+    "Configs" -> Icons.Filled.Tune
     else -> Icons.Filled.Person
 }
 

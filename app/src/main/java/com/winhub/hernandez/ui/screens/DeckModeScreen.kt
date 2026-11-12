@@ -47,7 +47,6 @@ import kotlinx.coroutines.Job
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.filled.Delete
-import androidx.preference.PreferenceManager
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DriveFileMove
@@ -108,6 +107,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.mutableStateListOf
@@ -230,6 +231,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.io.FileOutputStream
 import com.winhub.hernandez.ui.ControllerFocusIndication
+import com.winhub.hernandez.ui.Screen
 import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.theme.AppThemeState
 import kotlinx.coroutines.Dispatchers
@@ -298,18 +300,28 @@ internal fun DeckModeScreen() {
     val deckInputMode = remember(platformInputMode) { DeckInputModeManager(platformInputMode) }
     var introDone by remember { mutableStateOf(DeckBoot.shown) }
     var section by remember { mutableStateOf("home") }
+    // Full XMB: Home carries the stores and Social as cards, so their tabs leave the rail; the pages stay
+    // and open from Home (B returns there).
+    val fullXmb = rememberFullXmb() && !portrait
+    var storeTarget by remember { mutableStateOf<Screen?>(null) }
     var graphicPane by remember { mutableStateOf("gpu") }
     var deckDetail by remember { mutableStateOf<Int?>(null) }
     // General tab style: "horizontal" (top strip, default) or "vertical" (left rail).
     val tabStyle by AppThemeState.generalTabStyle.collectAsState()
     val horizontalRail = portrait || tabStyle != "vertical"
-    val railSections = remember { deckSections() }
+    val railSections = remember(fullXmb) {
+        deckSections().filter { !fullXmb || (it.key != "stores" && it.key != "social_hub") }
+    }
+    val openStore: (Screen) -> Unit = { target -> storeTarget = target; section = "stores"; deckDetail = null }
+    val openSocial: () -> Unit = { section = "social_hub"; deckDetail = null }
+    val leaveToHome: () -> Unit = { storeTarget = null; section = "home"; deckDetail = null }
 
     // Controller-first back stack: B (or system Back) closes the container editor and nothing more. It never
     // jumps to the Home tab and never closes the app or drops to Android's launcher (the BackHandler below
     // swallows the system Back, so the activity is never finished); tabs change with L1/R1.
     val goBack: () -> Unit = {
         if (deckDetail != null) deckDetail = null
+        else if (fullXmb && (section == "stores" || section == "social_hub")) leaveToHome()
     }
     BackHandler { goBack() }
 
@@ -529,6 +541,11 @@ internal fun DeckModeScreen() {
                     onGraphicPane = { graphicPane = it },
                     homeFocus = homeHeroFocus,
                     portrait = portrait,
+                    fullXmb = fullXmb,
+                    storeTarget = storeTarget,
+                    onOpenStore = openStore,
+                    onOpenSocial = openSocial,
+                    onLeave = leaveToHome,
                 )
                 if (!portrait) DeckHintBar(Modifier.align(Alignment.BottomEnd), onBack = hintBack, onPrev = { hintStep(-1) }, onNext = { hintStep(1) }, subTabs = tabs.count > 1)
                 DeckCornerGlow()
@@ -577,6 +594,7 @@ internal fun DeckModeScreen() {
             .focusable(),
     ) {
         DeckSideRail(
+            sections = railSections,
             selected = section,
             focusRequester = railFocus,
             homeFocus = homeHeroFocus,
@@ -601,6 +619,11 @@ internal fun DeckModeScreen() {
                 onDetailOpen = { id -> deckDetail = id },
                 onGraphicPane = { graphicPane = it },
                 homeFocus = homeHeroFocus,
+                fullXmb = fullXmb,
+                storeTarget = storeTarget,
+                onOpenStore = openStore,
+                onOpenSocial = openSocial,
+                onLeave = leaveToHome,
             )
             DeckHintBar(Modifier.align(Alignment.BottomEnd), onBack = hintBack, onPrev = { hintStep(-1) }, onNext = { hintStep(1) }, subTabs = tabs.count > 1)
             DeckCornerGlow()
@@ -665,14 +688,17 @@ private fun DeckHome(
     heroFocus: FocusRequester = remember { FocusRequester() },
     onEditContainer: (Int) -> Unit = {},
     portrait: Boolean = false,
+    onOpenStore: (Screen) -> Unit = {},
+    onOpenSocial: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as Activity
     val scope = rememberCoroutineScope()
     // L2/R2 switch the shelves (All / Recent / Favourites / Store games) through the shell's sub-tabs.
     val deckTabs = LocalDeckTabs.current
-    // Home style (Settings > Appearance): XMB keeps this Home and swaps the game dropdown for the XMB one.
-    val xmbStyle = !portrait && remember { PreferenceManager.getDefaultSharedPreferences(context).getString("home_style", "xmb") != "classic" }
+    // Landscape Home is always the XMB layout; Full XMB (Settings > Appearance) adds the stores and Social cards.
+    val xmbStyle = !portrait
+    val fullXmb = rememberFullXmb() && xmbStyle
     LaunchedEffect(deckTabs) { deckTabs.bind(4) }
     val shelf = deckTabs.index
     var favs by remember {
@@ -1094,11 +1120,41 @@ private fun DeckHome(
         }
     }.orEmpty()
 
-    // The row above the games holds the glass Add game card.
-    val cards = listOf(
-        DeckHomeCard("Add game", "Add games to your library", Icons.Filled.Add,
-            listOf(Color(0xFF1B1F2A), Color(0xFF0E1016)), glass = true) { addModeMenu = true },
-    )
+    // The row above the games holds the glass Add game card and, in Full XMB, the stores and Social.
+    val showStores by AppThemeState.showStores.collectAsState()
+    val storeScreens = remember { listOf(Screen.Steam, Screen.Epic, Screen.Gog, Screen.Amazon, Screen.Xbox) }
+    val storesSignedIn by produceState(emptyMap<Screen, Boolean>(), fullXmb, showStores, homeMode) {
+        value = if (fullXmb && showStores) {
+            withContext(Dispatchers.IO) { storeScreens.associateWith { deckSignedIn(context, it) } }
+        } else {
+            emptyMap()
+        }
+    }
+    val openStoreNow by rememberUpdatedState(onOpenStore)
+    val openSocialNow by rememberUpdatedState(onOpenSocial)
+    val cards = remember(fullXmb, showStores, storesSignedIn) {
+        buildList {
+            add(
+                DeckHomeCard("Add game", "Add games to your library", Icons.Filled.Add,
+                    listOf(Color(0xFF1B1F2A), Color(0xFF0E1016)), glass = true) { addModeMenu = true },
+            )
+            if (fullXmb && showStores) storeScreens.forEach { screen ->
+                add(
+                    DeckHomeCard(
+                        screen.label,
+                        if (storesSignedIn[screen] == true) "Signed in" else "Not signed in - A to sign in",
+                        Icons.Filled.Storefront,
+                        deckStoreBrand(screen),
+                        logo = deckStoreLogo(screen),
+                    ) { openStoreNow(screen) },
+                )
+            }
+            if (fullXmb) add(
+                DeckHomeCard("Social", "Feed, configs and profile", Icons.Filled.People,
+                    listOf(Color(0xFF134E4A), Color(0xFF0A2B29))) { openSocialNow() },
+            )
+        }
+    }
 
     // The per-game editor is drawn inline: the carousel gives up focus, then focus moves into the editor.
     val settingsFocus = LocalFocusManager.current
@@ -1634,6 +1690,11 @@ private fun DeckPaneContent(
     onGraphicPane: (String) -> Unit,
     homeFocus: FocusRequester,
     portrait: Boolean = false,
+    fullXmb: Boolean = false,
+    storeTarget: Screen? = null,
+    onOpenStore: (Screen) -> Unit = {},
+    onOpenSocial: () -> Unit = {},
+    onLeave: () -> Unit = {},
 ) {
     // Every tab switch slides the incoming pane up from the bottom while the outgoing one
     // drops away — one motion for the whole shell.
@@ -1651,7 +1712,13 @@ private fun DeckPaneContent(
         label = "deckSection",
     ) { currentSection ->
         when (currentSection) {
-            "home" -> DeckHome(heroFocus = homeFocus, onEditContainer = onEditContainer, portrait = portrait)
+            "home" -> DeckHome(
+                heroFocus = homeFocus,
+                onEditContainer = onEditContainer,
+                portrait = portrait,
+                onOpenStore = onOpenStore,
+                onOpenSocial = onOpenSocial,
+            )
             "containers" -> AnimatedContent(
                 targetState = deckDetail,
                 transitionSpec = {
@@ -1679,7 +1746,10 @@ private fun DeckPaneContent(
                 }
             }
             // Portrait uses the classic store screens; Deck-styled stores stay for landscape.
-            "stores" -> if (portrait) PortraitStoresScreen() else DeckStoresScreen()
+            "stores" -> if (portrait) PortraitStoresScreen() else DeckStoresScreen(
+                initialStore = storeTarget,
+                onExit = if (fullXmb) onLeave else null,
+            )
             "file_manager" -> FileManagerScreen(deckMode = true)
             "graphics" -> DeckGraphicsPane(
                 pane = graphicPane,
@@ -1689,11 +1759,11 @@ private fun DeckPaneContent(
             "contents" -> DeckContentsScreen()
             // The full Save Manager (Steam / Custom / Epic / GOG / Settings), in Deck chrome.
             "saves" -> SaveManagerScreen(deckMode = true)
-            "social_hub" -> SocialHubScreen(deck = true)
+            "social_hub" -> SocialHubScreen(deck = true, onExit = if (fullXmb) onLeave else null)
             "settings" -> DeckSettingsScreen()
             // Defensive fallback only; never composes alongside the "home" branch, so it
             // gets its own requester instead of sharing the rail's homeHeroFocus.
-            else -> DeckHome(onEditContainer = onEditContainer)
+            else -> DeckHome(onEditContainer = onEditContainer, onOpenStore = onOpenStore, onOpenSocial = onOpenSocial)
         }
     }
 }
@@ -1922,6 +1992,7 @@ private fun DeckBottomTabs(
  */
 @Composable
 private fun DeckSideRail(
+    sections: List<DeckSection>,
     selected: String,
     focusRequester: FocusRequester,
     homeFocus: FocusRequester,
@@ -1945,7 +2016,7 @@ private fun DeckSideRail(
                 .verticalScroll(rememberScrollState())
                 .padding(start = cutoutStart, top = 12.dp, bottom = 12.dp),
         ) {
-            deckSections().forEach { item ->
+            sections.forEach { item ->
                 DeckRailItem(
                     label = item.label,
                     icon = item.icon,
@@ -2380,7 +2451,13 @@ private fun DeckGlassAddFace(accent: Color) {
 
 /** The empty library's Add a game button, in the same glass. */
 @Composable
-private fun DeckGlassPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun DeckGlassPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Filled.Add,
+    selected: Boolean = false,
+) {
     val shape = RoundedCornerShape(percent = 50)
     Box(
         modifier = modifier
@@ -2388,12 +2465,13 @@ private fun DeckGlassPill(label: String, onClick: () -> Unit, modifier: Modifier
             .clip(shape)
             .deckGlassBlobs(Deck.primary)
             .deckGlass(shape, 1.2f)
+            .then(if (selected) Modifier.border(2.dp, Deck.primary, shape) else Modifier)
             .pointerInput(onClick) { detectTapGestures { onClick() } }
             .padding(horizontal = 26.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
             Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
@@ -2498,6 +2576,7 @@ private fun DeckHomeCarousel(
     val menuPos = remember { Animatable(0f) }
     var menuIdx by remember { mutableIntStateOf(0) }
     var menuVisible by remember { mutableStateOf(false) }
+    var emptySel by remember { mutableIntStateOf(0) }
 
     fun settleGames(i: Int) {
         val t = i.coerceIn(0, (n - 1).coerceAtLeast(0))
@@ -2564,8 +2643,13 @@ private fun DeckHomeCarousel(
                     val confirm = e.key == Key.ButtonA || e.key == Key.Enter ||
                         e.key == Key.NumPadEnter || e.key == Key.DirectionCenter
                     if (n == 0) {
+                        // With no games Home has no cards row, so the same cards sit in a row of their own (Add game first).
+                        if (loaded && cards.size > 1) {
+                            if (e.key == Key.DirectionLeft) { emptySel = (emptySel - 1).coerceAtLeast(0); return true }
+                            if (e.key == Key.DirectionRight) { emptySel = (emptySel + 1).coerceAtMost(cards.lastIndex); return true }
+                        }
                         if (confirm && loaded) {
-                            if (fresh) onAdd()
+                            if (fresh) { if (cards.size > 1) cards.getOrNull(emptySel)?.onClick?.invoke() else onAdd() }
                             return true
                         }
                         return false
@@ -3121,14 +3205,37 @@ private fun DeckHomeCarousel(
                 }
             }
 
-            if (loaded && n == 0) DeckGlassPill("Add a game", onAdd, Modifier.align(Alignment.Center))
+            if (loaded && n == 0) {
+                if (cards.size > 1) {
+                    val rowState = rememberLazyListState()
+                    LaunchedEffect(emptySel) { rowState.animateScrollToItem(emptySel) }
+                    LazyRow(
+                        state = rowState,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(horizontal = 28.dp),
+                        modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                    ) {
+                        itemsIndexed(cards) { i, card ->
+                            DeckGlassPill(
+                                label = if (i == 0) "Add a game" else card.label,
+                                onClick = { emptySel = i; card.onClick() },
+                                icon = if (i == 0) Icons.Filled.Add else card.icon,
+                                selected = i == emptySel,
+                            )
+                        }
+                    }
+                } else {
+                    DeckGlassPill("Add a game", onAdd, Modifier.align(Alignment.Center))
+                }
+            }
 
             Text(
                 text = when {
-                    n == 0 -> if (loaded) "A  Add a game" else ""
+                    n == 0 -> if (!loaded) "" else if (cards.size > 1) "A  Open      ◀ ▶  Choose" else "A  Add a game"
                     mode == HomeMode.OPTIONS -> "A  Select      B  Back"
-                    mode == HomeMode.STORES -> "A  Add game      B  Back"
+                    mode == HomeMode.STORES -> if (cards.size > 1) "A  Open      B  Back" else "A  Add game      B  Back"
                     classic -> "A  Play    ↑  Add game    Y  Menu    L2 R2  Shelves"
+                    cards.size > 1 -> "A  Options    ↑  Stores, Social, Add game    Y  Favourite    L2 R2  Shelves"
                     else -> "A  Options    ↑  Add game    Y  Favourite    L2 R2  Shelves"
                 },
                 color = Deck.onSurfaceVariant,

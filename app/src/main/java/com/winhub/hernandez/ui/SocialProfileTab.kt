@@ -10,10 +10,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -40,6 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.store.SocialHubStore
 import com.winhub.hernandez.store.SocialProfiles
+import com.winhub.hernandez.ui.screens.ControllerTextField
+import com.winhub.hernandez.ui.screens.DeckGroup
+import com.winhub.hernandez.ui.screens.DeckRow
+import com.winhub.hernandez.ui.screens.LocalDeckMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,18 +66,28 @@ internal fun SocialProfileContent(onGoFeed: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val acct = account
 
+    val deck = LocalDeckMode.current
+
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = if (deck) Alignment.Start else Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).then(if (deck) Modifier else Modifier.padding(16.dp)),
     ) {
         if (acct == null) {
-            Text("Sign in to edit your profile", color = cs.onSurface, fontSize = 18.sp)
-            Text(
-                "Your Social Hub profile is tied to your GitHub sign-in. Sign in from the Feed tab first.",
-                color = cs.onSurfaceVariant, fontSize = 14.sp, textAlign = TextAlign.Center,
-            )
-            Button(onClick = onGoFeed, modifier = Modifier.heightIn(min = 48.dp)) { Text("Go to Feed to sign in") }
+            if (deck) {
+                SocialEmpty(
+                    "Sign in to edit your profile",
+                    "Your Social Hub profile is tied to your GitHub sign-in. Sign in from the Feed tab first.",
+                    modifier = Modifier.heightIn(min = 240.dp),
+                ) { SocialButton("Go to Feed to sign in", onClick = onGoFeed) }
+            } else {
+                Text("Sign in to edit your profile", color = cs.onSurface, fontSize = 18.sp)
+                Text(
+                    "Your Social Hub profile is tied to your GitHub sign-in. Sign in from the Feed tab first.",
+                    color = cs.onSurfaceVariant, fontSize = 14.sp, textAlign = TextAlign.Center,
+                )
+                Button(onClick = onGoFeed, modifier = Modifier.heightIn(min = 48.dp)) { Text("Go to Feed to sign in") }
+            }
             return@Column
         }
 
@@ -96,7 +112,86 @@ internal fun SocialProfileContent(onGoFeed: () -> Unit) {
             }
         }
 
+        val save = {
+            scope.launch {
+                working = true
+                message = null
+                var avatarUrl = mine?.avatar
+                val bytes = pickedBytes
+                if (bytes != null) {
+                    avatarUrl = SocialHubStore.uploadImage(bytes, "avatar.jpg")
+                    if (avatarUrl == null) {
+                        message = "Picture upload failed. Try again."
+                        working = false
+                        return@launch
+                    }
+                }
+                val err = SocialProfiles.save(name, avatarUrl)
+                message = err ?: "Profile saved. Everyone will see it."
+                if (err == null) { picked = null; pickedBytes = null }
+                working = false
+            }
+            Unit
+        }
+        val reset = {
+            scope.launch {
+                working = true
+                val err = SocialProfiles.save("", null)
+                message = err ?: "Back to your GitHub name and picture."
+                if (err == null) { picked = null; pickedBytes = null; name = "" }
+                working = false
+            }
+            Unit
+        }
+        val canReset = !working && (mine != null || picked != null)
+
         val shownBitmap = picked
+        if (deck) {
+            DeckGroup("Profile") {
+                DeckRow(label = "Picture", hint = "Choose a new profile picture") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (shownBitmap != null) {
+                            Image(
+                                bitmap = shownBitmap.asImageBitmap(),
+                                contentDescription = "New profile picture",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(44.dp).clip(CircleShape).border(2.dp, cs.primary, CircleShape),
+                            )
+                        } else {
+                            AccountAvatar(
+                                avatarUrl = mine?.avatar ?: acct.avatarUrl,
+                                size = 44.dp,
+                                modifier = Modifier.border(2.dp, cs.primary, CircleShape),
+                            )
+                        }
+                        SocialButton("Change", onClick = { picker.launch("image/*") }, primary = false)
+                    }
+                }
+                DeckRow(
+                    label = "Display name",
+                    hint = "${name.length}/${SocialProfiles.MAX_NAME} - leave empty to use @${acct.login}",
+                ) {
+                    ControllerTextField(
+                        value = name,
+                        onValueChange = { name = SocialProfiles.sanitizeName(it) },
+                        hint = acct.login,
+                        singleLine = true,
+                        modifier = Modifier.width(220.dp),
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SocialButton(if (working) "Saving…" else "Save profile", onClick = { save() }, enabled = !working)
+                SocialButton("Reset to GitHub", onClick = { reset() }, primary = false, enabled = canReset)
+            }
+            message?.let { Text(it, color = cs.onSurfaceVariant, fontSize = 14.sp) }
+            Text(
+                "Your name and picture are public and shown on your posts and replies.",
+                color = cs.onSurfaceVariant, fontSize = 13.sp,
+            )
+            return@Column
+        }
+
         if (shownBitmap != null) {
             Image(
                 bitmap = shownBitmap.asImageBitmap(),
@@ -126,40 +221,13 @@ internal fun SocialProfileContent(onGoFeed: () -> Unit) {
         Button(
             enabled = !working,
             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            onClick = {
-                scope.launch {
-                    working = true
-                    message = null
-                    var avatarUrl = mine?.avatar
-                    val bytes = pickedBytes
-                    if (bytes != null) {
-                        avatarUrl = SocialHubStore.uploadImage(bytes, "avatar.jpg")
-                        if (avatarUrl == null) {
-                            message = "Picture upload failed. Try again."
-                            working = false
-                            return@launch
-                        }
-                    }
-                    val err = SocialProfiles.save(name, avatarUrl)
-                    message = err ?: "Profile saved. Everyone will see it."
-                    if (err == null) { picked = null; pickedBytes = null }
-                    working = false
-                }
-            },
+            onClick = { save() },
         ) { Text(if (working) "Saving…" else "Save profile") }
 
         OutlinedButton(
-            enabled = !working && (mine != null || picked != null),
+            enabled = canReset,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            onClick = {
-                scope.launch {
-                    working = true
-                    val err = SocialProfiles.save("", null)
-                    message = err ?: "Back to your GitHub name and picture."
-                    if (err == null) { picked = null; pickedBytes = null; name = "" }
-                    working = false
-                }
-            },
+            onClick = { reset() },
         ) { Text("Reset to GitHub") }
 
         message?.let { Text(it, color = cs.onSurfaceVariant, fontSize = 14.sp, textAlign = TextAlign.Center) }

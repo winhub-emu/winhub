@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import com.winhub.hernandez.store.GogGame
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -814,10 +815,15 @@ private fun DeckBrowseCard(item: DeckBrowseItem, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun DeckStoresScreen() {
+internal fun DeckStoresScreen(
+    /** Full XMB: the store card that opened this page; it starts inside that store. */
+    initialStore: Screen? = null,
+    /** Full XMB: leaves the page back to Home (B from the top level of a store). */
+    onExit: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val showStores by AppThemeState.showStores.collectAsState()
-    var selected by remember { mutableStateOf<Screen>(Screen.Gog) }
+    var selected by remember { mutableStateOf<Screen>(initialStore ?: Screen.Gog) }
     var gogInstall by remember { mutableStateOf<GogGame?>(null) }
     var epicInstall by remember { mutableStateOf<EpicGame?>(null) }
     var amazonInstall by remember { mutableStateOf<AmazonGame?>(null) }
@@ -856,7 +862,7 @@ internal fun DeckStoresScreen() {
 
     // Two levels: the store picker (tiles), and inside a store its page tabs down the left edge.
     // L2/R2 switch the store on the picker and the page tab inside a store; B leaves a store.
-    var inStore by remember { mutableStateOf(false) }
+    var inStore by remember { mutableStateOf(initialStore != null) }
     var storeTab by remember(active.screen) { mutableIntStateOf(0) }
     val storeTabCount = if (active.screen == Screen.Steam) 5 else 3
     val tabFocus = remember { FocusRequester() }
@@ -878,14 +884,34 @@ internal fun DeckStoresScreen() {
             storeTab = i
         }
     }
-    val canLeaveStore = inStore && !showDownloads && gogInstall == null && epicInstall == null &&
-        amazonInstall == null && xboxInstall == null && steamInstall == null
+    val panelOpen = showDownloads || gogInstall != null || epicInstall != null ||
+        amazonInstall != null || xboxInstall != null || steamInstall != null
+    val canLeaveStore = inStore && !panelOpen
     val backLayer = LocalDeckBack.current
-    DisposableEffect(canLeaveStore) {
-        backLayer.onBack = if (canLeaveStore) {
-            { inStore = false; true }
-        } else {
-            null
+    val exitNow by rememberUpdatedState(onExit)
+    // B closes an open panel first, then leaves the store (to Home in Full XMB, otherwise to the picker).
+    DisposableEffect(panelOpen, canLeaveStore, onExit != null) {
+        backLayer.onBack = when {
+            panelOpen -> {
+                {
+                    showMature = StoreMatureSetting.get(context)
+                    showDownloads = false
+                    gogInstall = null
+                    epicInstall = null
+                    amazonInstall = null
+                    xboxInstall = null
+                    steamInstall = null
+                    true
+                }
+            }
+            canLeaveStore || exitNow != null -> {
+                {
+                    val exit = exitNow
+                    if (exit != null) exit() else inStore = false
+                    true
+                }
+            }
+            else -> null
         }
         onDispose { backLayer.onBack = null }
     }
@@ -1171,9 +1197,10 @@ internal fun DeckStoresScreen() {
             // Skipped on short landscape screens, where the page needs the room more.
             if (LocalConfiguration.current.screenHeightDp >= 400) DeckHintBar(
                 hints = if (!inStore) {
-                    listOf("A" to "Open", "\u25C0 \u25B6" to "Choose", "X" to "Downloads", "L2/R2" to "Switch store")
+                    listOf("A" to "Open", "\u25C0 \u25B6" to "Choose", "X" to "Downloads", "L2/R2" to "Switch store") +
+                        if (onExit != null) listOf("B" to "Home") else emptyList()
                 } else {
-                    listOf("A" to "Select", "X" to "Downloads", "L2/R2" to "Switch tab", "B" to "Stores")
+                    listOf("A" to "Select", "X" to "Downloads", "L2/R2" to "Switch tab", "B" to if (onExit != null) "Home" else "Stores")
                 },
                 modifier = Modifier.padding(top = 8.dp),
             )

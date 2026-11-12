@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -42,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import com.winhub.hernandez.ui.components.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,6 +76,7 @@ import com.winhub.hernandez.store.SocialHubStore.Comment
 import com.winhub.hernandez.store.SocialHubStore.Post
 import com.winhub.hernandez.ui.screens.ControllerTextField
 import com.winhub.hernandez.ui.screens.DeckDragFrame
+import com.winhub.hernandez.ui.screens.LocalDeckMode
 import com.winhub.hernandez.ui.screens.DeckSearchField
 import com.winhub.hernandez.ui.screens.XmbWaves
 import com.winhub.hernandez.ui.screens.deckDragItem
@@ -92,7 +96,7 @@ import kotlinx.coroutines.launch
 // does not depend on any host pane's verticalScroll.
 
 @Composable
-internal fun SocialContent() {
+internal fun SocialContent(showTitle: Boolean = true) {
     val ctx = LocalContext.current
     val account by SocialHubStore.account.collectAsState()
     val posts by SocialHubStore.posts.collectAsState()
@@ -112,6 +116,14 @@ internal fun SocialContent() {
     // Restore a saved token (and refresh the feed) once per composition; no-op after the first.
     LaunchedEffect(Unit) { SocialHubStore.init(ctx) }
 
+    // Pad B closes an open post first (the Deck shell asks this layer before it leaves the page).
+    val deckBack = com.winhub.hernandez.ui.screens.LocalDeckBack.current
+    DisposableEffect(openPost != null) {
+        val close: () -> Boolean = { SocialHubStore.openPost(null); true }
+        if (openPost != null) deckBack.onBack = close
+        onDispose { if (deckBack.onBack === close) deckBack.onBack = null }
+    }
+
     // Outer frame for the header buttons; the feed pane has its own for the list.
     DeckDragFrame(modifier = Modifier.fillMaxSize()) {
     Column(
@@ -125,13 +137,21 @@ internal fun SocialContent() {
     ) {
         // Header: title + "?" help, with refresh + identity + sign-out when signed in.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(
-                stringResource(R.string.social_hub_tab_label),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.width(8.dp))
+            if (showTitle) {
+                Text(
+                    stringResource(R.string.social_hub_tab_label),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.width(8.dp))
+            } else {
+                SocialSectionLabel(
+                    stringResource(R.string.social_hub_subtab_feed),
+                    posts.size.takeIf { it > 0 }?.let { "$it post${if (it == 1) "" else "s"}" },
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             SocialHelpDot { showHelp = true }
             Spacer(Modifier.weight(1f))
             if (accountOrNull != null) {
@@ -151,12 +171,16 @@ internal fun SocialContent() {
                     modifier = Modifier.widthIn(max = 92.dp),
                 )
                 Spacer(Modifier.width(4.dp))
-                TextButton(onClick = { SocialHubStore.signOut() }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
-                    Text(
-                        stringResource(R.string.social_hub_sign_out),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                    )
+                if (LocalDeckMode.current) {
+                    SocialButton(stringResource(R.string.social_hub_sign_out), onClick = { SocialHubStore.signOut() }, primary = false)
+                } else {
+                    TextButton(onClick = { SocialHubStore.signOut() }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
+                        Text(
+                            stringResource(R.string.social_hub_sign_out),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
             }
         }
@@ -206,6 +230,10 @@ internal fun SocialContent() {
 
 @Composable
 private fun SocialSignIn(loginState: SocialHubStore.LoginState) {
+    if (LocalDeckMode.current) {
+        SocialSignInDeck(loginState)
+        return
+    }
     val accent = MaterialTheme.colorScheme.primary
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -247,6 +275,47 @@ private fun SocialSignIn(loginState: SocialHubStore.LoginState) {
                 }
             }
             else -> WelcomePane(onContinue = { SocialHubStore.beginLogin() })
+        }
+    }
+}
+
+/** Deck Mode's sign-in: the same hero card the stores use, with the GitHub device-code steps inside it. */
+@Composable
+private fun SocialSignInDeck(loginState: SocialHubStore.LoginState) {
+    val ctx = LocalContext.current
+    val title = stringResource(R.string.social_hub_tab_label)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        when (loginState) {
+            is SocialHubStore.LoginState.Requesting -> SocialDeckHero(title, stringResource(R.string.social_hub_sign_in_hint)) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+            is SocialHubStore.LoginState.AwaitingUser -> SocialDeckHero(title, stringResource(R.string.social_hub_enter_code)) {
+                // The code is the whole point of the screen: big, monospaced, unbroken.
+                Text(
+                    loginState.userCode,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 4.sp,
+                    color = Color.White,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SocialButton(stringResource(R.string.social_hub_open_device), onClick = {
+                        try {
+                            ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(loginState.verificationUri)))
+                        } catch (_: Throwable) {
+                        }
+                    })
+                    SocialButton(stringResource(R.string.cancel), onClick = { SocialHubStore.cancelLogin() }, primary = false)
+                }
+                Text(loginState.status, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+            is SocialHubStore.LoginState.Failed -> SocialDeckHero(title, loginState.message) {
+                SocialButton(stringResource(R.string.social_hub_retry), onClick = { SocialHubStore.beginLogin() })
+            }
+            else -> SocialDeckHero(title, stringResource(R.string.social_hub_welcome_tagline)) {
+                SocialButton(stringResource(R.string.social_hub_continue_github), onClick = { SocialHubStore.beginLogin() })
+            }
         }
     }
 }
@@ -397,7 +466,14 @@ private fun SocialFeed(
     DeckDragFrame(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (posts.isNotEmpty()) {
-            SocialSearchField(query = query, onQueryChange = onQueryChange)
+            if (LocalDeckMode.current) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.weight(1f)) { SocialSearchField(query = query, onQueryChange = onQueryChange) }
+                    SocialButton(stringResource(R.string.social_hub_new_post), onClick = { showNew = true }, icon = Icons.Filled.Add)
+                }
+            } else {
+                SocialSearchField(query = query, onQueryChange = onQueryChange)
+            }
             Spacer(Modifier.height(6.dp))
         }
 
@@ -416,50 +492,18 @@ private fun SocialFeed(
                     )
                 }
             } else if (posts.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                SocialEmpty(
+                    stringResource(R.string.social_hub_empty_feed),
+                    stringResource(R.string.social_hub_empty_feed_hint),
                 ) {
-                    Text(
-                        stringResource(R.string.social_hub_empty_feed),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        stringResource(R.string.social_hub_empty_feed_hint),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    TextButton(onClick = { showNew = true }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
-                        Text(stringResource(R.string.social_hub_new_post))
-                    }
+                    SocialButton(stringResource(R.string.social_hub_new_post), onClick = { showNew = true }, primary = false)
                 }
             } else if (visible.isEmpty()) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                SocialEmpty(
+                    stringResource(R.string.social_hub_search_empty),
+                    stringResource(R.string.social_hub_search_empty_hint),
                 ) {
-                    Text(
-                        stringResource(R.string.social_hub_search_empty),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        stringResource(R.string.social_hub_search_empty_hint),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    TextButton(onClick = { onQueryChange("") }, modifier = Modifier.heightIn(min = 48.dp).deckDragSelf()) {
-                        Text(stringResource(R.string.social_hub_search_clear))
-                    }
+                    SocialButton(stringResource(R.string.social_hub_search_clear), onClick = { onQueryChange("") }, primary = false)
                 }
             } else {
                 LazyColumn(
@@ -475,7 +519,8 @@ private fun SocialFeed(
                 }
             }
 
-            if (posts.isNotEmpty()) {
+            // Deck Mode has New post in the header row instead.
+            if (posts.isNotEmpty() && !LocalDeckMode.current) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -518,9 +563,7 @@ private fun SocialPostRow(post: Post, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+            .socialCard()
             .clickable(onClick = onClick)
             .padding(10.dp),
     ) {
@@ -714,8 +757,7 @@ internal fun SocialThread(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                .socialCard()
                 .padding(10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -811,8 +853,7 @@ private fun SocialCommentRow(comment: Comment, onDelete: (() -> Unit)?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .socialCard()
             .padding(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

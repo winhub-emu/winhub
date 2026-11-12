@@ -69,9 +69,11 @@ import com.winhub.hernandez.ui.moveFocusOrStep
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
@@ -1325,6 +1327,8 @@ internal fun DeckButton(
     text: String,
     primary: Boolean = true,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -1332,6 +1336,7 @@ internal fun DeckButton(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .heightIn(min = 44.dp)
+            .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(12.dp))
             .background(if (primary) DeckPalette.primary else DeckPalette.surface)
             .border(
@@ -1344,14 +1349,24 @@ internal fun DeckButton(
                 shape = RoundedCornerShape(12.dp),
                 focusColor = if (primary) DeckPalette.onPrimary else DeckPalette.primary,
             )
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
-        Text(
-            text = text,
-            color = if (primary) DeckPalette.onPrimary else DeckPalette.onBackground,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (primary) DeckPalette.onPrimary else DeckPalette.onBackground,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Text(
+                text = text,
+                color = if (primary) DeckPalette.onPrimary else DeckPalette.onBackground,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
