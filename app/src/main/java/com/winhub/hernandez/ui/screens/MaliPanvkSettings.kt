@@ -69,7 +69,12 @@ internal fun MaliPanvkSection(state: MaliPanvkSettingsState, onHelp: (Int) -> Un
     val bcnEntries = remember { context.resources.getStringArray(R.array.bcn_emulation_entries).toList() }
     var advancedOpen by remember { mutableStateOf(false) }
 
-    DeckGroup(stringResource(R.string.mali_panvk_section)) {
+    var sectionOpen by remember { mutableStateOf(false) }
+    DeckExpandableRow(
+        label = stringResource(R.string.mali_panvk_section),
+        expanded = sectionOpen,
+        onToggle = { sectionOpen = !sectionOpen },
+    ) {
         DeckRow(
             label = stringResource(R.string.mali_panvk_mode),
             hint = stringResource(R.string.mali_panvk_mode_hint),

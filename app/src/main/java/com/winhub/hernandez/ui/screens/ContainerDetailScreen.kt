@@ -3087,40 +3087,24 @@ internal fun WaylandDriverSettingsDialog(
     var advancedOpen by remember { mutableStateOf(adapterKeys.any { it != profileKey && !(adapter[it] ?: "").isEmpty() }) }
 
     DeckConfigDialog(title = "Wayland adapter settings", onDismiss = onDismiss) {
-        DeckConfigNote(WAYLAND_DRIVER_SETTINGS_HELP)
-
-        // ── Adapter report ─────────────────────────────────────────────────────────────────
-        DeckGroup("Adapter report") {
-            WaylandAdapterReportBlock(
-                report = probe, probing = probing, note = probeNote,
-                onRecheck = {
-                    com.winhub.hernandez.core.WaylandDriverProbe.forget(context, driverId)
-                    probe = null
-                    probeTick++
-                }
-            )
-        }
-
         // ── Profile ────────────────────────────────────────────────────────────────────────
         DeckGroup("Profile") {
-                if (perGame) WaylandProfileRow(
-                    label = "Inherit the container's (${containerProfile ?: "Auto"})",
-                    help = "Use whatever the container is set to.",
-                    selected = profile.isEmpty(), onSelect = { setKey(profileKey, "") }
-                )
-                for (p in com.winhub.hernandez.core.WaylandAdapterSettings.PROFILES) {
-                    // A container stores Auto as "" too (nothing to store); a shortcut stores it as "auto"
-                    // so it can differ from the container's choice.
-                    val value = if (!perGame && p == com.winhub.hernandez.core.WaylandAdapterSettings.PROFILE_AUTO) "" else p
-                    val isSelected = if (perGame) profile == p
-                        else com.winhub.hernandez.core.WaylandAdapterSettings.normalizeProfile(profile) == p
-                    WaylandProfileRow(
-                        label = com.winhub.hernandez.core.WaylandAdapterSettings.profileLabel(p),
-                        help = com.winhub.hernandez.core.WaylandAdapterSettings.profileHelp(p),
-                        selected = isSelected, onSelect = { setKey(profileKey, value) }
-                    )
-                }
-                // Shown unless Smooth is already the profile in effect for this draft.
+                val profileChips = ArrayList<Triple<String, Boolean, () -> Unit>>()
+            if (perGame) profileChips.add(Triple("Inherit the container's (${containerProfile ?: "Auto"})", profile.isEmpty(), { setKey(profileKey, "") }))
+            for (p in com.winhub.hernandez.core.WaylandAdapterSettings.PROFILES) {
+                // A container stores Auto as "" too (nothing to store); a shortcut stores it as "auto"
+                // so it can differ from the container's choice.
+                val value = if (!perGame && p == com.winhub.hernandez.core.WaylandAdapterSettings.PROFILE_AUTO) "" else p
+                val isSelected = if (perGame) profile == p else com.winhub.hernandez.core.WaylandAdapterSettings.normalizeProfile(profile) == p
+                profileChips.add(Triple(com.winhub.hernandez.core.WaylandAdapterSettings.profileLabel(p), isSelected, { setKey(profileKey, value) }))
+            }
+            DeckConfigChipGrid(label = "Profile", chips = profileChips)
+            val selectedProfile = if (perGame) profile else com.winhub.hernandez.core.WaylandAdapterSettings.normalizeProfile(profile)
+            DeckConfigNote(
+                if (perGame && profile.isEmpty()) "Use whatever the container is set to."
+                else com.winhub.hernandez.core.WaylandAdapterSettings.profileHelp(selectedProfile)
+            )
+            // Shown unless Smooth is already the profile in effect for this draft.
                 if (effective.profile != com.winhub.hernandez.core.WaylandAdapterSettings.PROFILE_SMOOTH) {
                     DeckConfigNote(
                         "Tip: if frames look uneven or jittery, try Smooth. It paces frames through the compositor " +
@@ -3133,8 +3117,29 @@ internal fun WaylandDriverSettingsDialog(
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
-                DeckConfigNote("Env vars you type under Env vars always win over these; the switches below win over the profile.")
 
+        }
+
+        // ── Adapter report ─────────────────────────────────────────────────────────────────
+        var reportOpen by remember { mutableStateOf(false) }
+        DeckExpandableRow(
+            label = "Adapter report",
+            hint = when {
+                probing -> "Checking driver…"
+                probe?.ok == true -> "Zero-copy " + (if (probe?.zeroCopySafe() == true) "safe" else "not safe") + " on this driver"
+                else -> probeNote ?: "Not checked yet."
+            },
+            expanded = reportOpen,
+            onToggle = { reportOpen = !reportOpen },
+        ) {
+            WaylandAdapterReportBlock(
+                report = probe, probing = probing, note = probeNote,
+                onRecheck = {
+                    com.winhub.hernandez.core.WaylandDriverProbe.forget(context, driverId)
+                    probe = null
+                    probeTick++
+                }
+            )
         }
 
         // ── Advanced ───────────────────────────────────────────────────────────────────────
@@ -3213,7 +3218,13 @@ internal fun WaylandDriverSettingsDialog(
         }
 
         // ── Per-game driver settings ───────────────────────────────────────────────────────
-        DeckGroup("Driver settings") {
+        var driverOpen by remember { mutableStateOf(false) }
+        DeckExpandableRow(
+            label = "Driver settings",
+            hint = "GPU name spoof, memory cap, OneUI / HyperOS fix",
+            expanded = driverOpen,
+            onToggle = { driverOpen = !driverOpen },
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     DeckChoiceRow(
@@ -3251,6 +3262,25 @@ internal fun WaylandDriverSettingsDialog(
         }
         mali?.let { MaliPanvkSection(it) { res -> helpRes = res } }
 
+        var aboutOpen by remember { mutableStateOf(false) }
+        DeckExpandableRow(
+            label = "About these settings",
+            expanded = aboutOpen,
+            onToggle = { aboutOpen = !aboutOpen },
+        ) {
+            DeckConfigNote(WAYLAND_DRIVER_SETTINGS_HELP)
+            DeckConfigNote("Env vars you type under Env vars always win over these; the switches below win over the profile.")
+            DeckGroup("What the profiles do") {
+                for (p in com.winhub.hernandez.core.WaylandAdapterSettings.PROFILES) {
+                    DeckRow(
+                        label = com.winhub.hernandez.core.WaylandAdapterSettings.profileLabel(p),
+                        hint = com.winhub.hernandez.core.WaylandAdapterSettings.profileHelp(p),
+                        control = {},
+                    )
+                }
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -3275,14 +3305,6 @@ internal fun WaylandDriverSettingsDialog(
 /** Default/Inherit · On · Off, the value triple core.WaylandAdapterSettings stores ("" / "1" / "0"). */
 private fun triState(defaultWord: String): List<Pair<String, String>> =
     listOf("" to defaultWord, "1" to "On", "0" to "Off")
-
-/** One row of the profile picker: label, its help text, and a chip that selects it. */
-@Composable
-private fun WaylandProfileRow(label: String, help: String, selected: Boolean, onSelect: () -> Unit) {
-    DeckRow(label = label, hint = help) {
-        DeckConfigChip(if (selected) "Selected" else "Use", selected = selected, onClick = onSelect)
-    }
-}
 
 /** One Advanced switch: a label, a choice (Default/Inherit · On · Off, or the present modes) and one line of help. */
 @Composable
