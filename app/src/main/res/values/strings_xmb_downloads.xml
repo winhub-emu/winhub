@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Downloads tab of the XMB Home's tabs page (ui/deck/XmbDownloadsPage.kt). Kept apart from strings.xml, as strings_lab.xml is. -->
+<resources>
+    <string name="xmb_dl_section_active">Downloading</string>
+    <string name="xmb_dl_section_queued">Queued</string>
+    <string name="xmb_dl_section_stopped">Stopped</string>
+    <string name="xmb_dl_section_installed">Installed</string>
+    <string name="xmb_dl_empty_title">No downloads yet</string>
+    <string name="xmb_dl_empty_body">Games you download from a store show up here.</string>
+    <string name="xmb_dl_status_downloading">Downloading · %1$d%%</string>
+    <string name="xmb_dl_status_paused">Paused · %1$d%%</string>
+    <string name="xmb_dl_status_queued">Waiting for its turn · #%1$d</string>
+    <string name="xmb_dl_status_installed">Installed</string>
+    <string name="xmb_dl_status_update">Installed · Update available</string>
+    <string name="xmb_dl_status_failed">Download failed</string>
+    <string name="xmb_dl_status_failed_why">Failed: %1$s</string>
+    <string name="xmb_dl_status_cancelled">Cancelled</string>
+    <string name="xmb_dl_act_pause">Pause</string>
+    <string name="xmb_dl_act_resume">Resume</string>
+    <string name="xmb_dl_act_cancel">Cancel</string>
+    <string name="xmb_dl_act_cancel_sure">Cancel it?</string>
+    <string name="xmb_dl_act_details">Details</string>
+    <string name="xmb_dl_act_start_next">Start next</string>
+    <string name="xmb_dl_act_launch">Add to games</string>
+    <string name="xmb_dl_act_uninstall">Uninstall</string>
+    <string name="xmb_dl_act_uninstall_sure">Uninstall it?</string>
+    <string name="xmb_dl_act_dismiss">Dismiss</string>
+    <string name="xmb_dl_added_to_games">%1$s added to your games</string>
+</resources>

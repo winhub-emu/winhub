@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- XMB Home, tabs page, Friends tab (ui/deck/XmbFriendsPage.kt, XmbFriendsDialogs.kt) -->
+    <plurals name="xmb_fr_summary">
+        <item quantity="one">%1$d online · %2$d friend</item>
+        <item quantity="other">%1$d online · %2$d friends</item>
+    </plurals>
+    <string name="xmb_fr_add">Add friend</string>
+    <string name="xmb_fr_settings">Settings</string>
+
+    <string name="xmb_fr_section_in_game">In game</string>
+    <string name="xmb_fr_section_online">Online</string>
+    <string name="xmb_fr_section_away">Away</string>
+    <string name="xmb_fr_section_offline">Offline</string>
+    <string name="xmb_fr_section_unknown">Status unknown</string>
+    <string name="xmb_fr_section_requests">Friend requests</string>
+
+    <string name="xmb_fr_wants_to_add">Wants to add you</string>
+    <string name="xmb_fr_request_sent">Request sent</string>
+    <string name="xmb_fr_accept">Accept</string>
+    <string name="xmb_fr_decline">Decline</string>
+    <string name="xmb_fr_cancel">Cancel</string>
+
+    <string name="xmb_fr_message">Message</string>
+    <string name="xmb_fr_game_page">Game page</string>
+    <string name="xmb_fr_profile">Profile</string>
+    <string name="xmb_fr_remove">Remove</string>
+    <string name="xmb_fr_remove_confirm">Remove? Press again</string>
+
+    <string name="xmb_fr_empty_title">No friends to show yet</string>
+    <string name="xmb_fr_empty_sub">Your friends appear here as soon as Steam sends your list.</string>
+
+    <string name="xmb_fr_signin_title">Sign in to Steam</string>
+    <string name="xmb_fr_signin_sub">See who is online and what they are playing, and message them.</string>
+    <string name="xmb_fr_signin_button">Sign in to Steam</string>
+    <string name="xmb_fr_off_title">Steam friends are off</string>
+    <string name="xmb_fr_off_sub">Turn them on to see your friends and chat. While they are off, no online status is shared.</string>
+    <string name="xmb_fr_off_button">Turn on</string>
+    <string name="xmb_fr_disconnected_title">Not connected to Steam</string>
+    <string name="xmb_fr_disconnected_sub">Connect to see your friends and chat.</string>
+    <string name="xmb_fr_connect">Connect</string>
+
+    <string name="xmb_fr_add_title">Add a friend</string>
+    <string name="xmb_fr_add_search_label">Search Steam by name</string>
+    <string name="xmb_fr_add_search_hint">Search for a player…</string>
+    <string name="xmb_fr_add_code_label">Add by friend code</string>
+    <string name="xmb_fr_add_code_hint">Enter a friend code</string>
+    <string name="xmb_fr_add_my_code">Your friend code</string>
+    <string name="xmb_fr_copy">Copy</string>
+    <string name="xmb_fr_code_copied">Friend code copied</string>
+    <string name="xmb_fr_add_button">Add</string>
+    <string name="xmb_fr_add_no_players">No players found.</string>
+    <string name="xmb_fr_result_friend">Already your friend</string>
+    <string name="xmb_fr_result_pending">Request pending</string>
+    <string name="xmb_fr_result_player">Steam profile</string>
+    <string name="xmb_fr_done">Done</string>
+    <string name="xmb_fr_close">Close</string>
+
+    <string name="xmb_fr_level">Level %1$d</string>
+    <string name="xmb_fr_stat_games">Games</string>
+    <string name="xmb_fr_stat_hours">Hours played</string>
+    <string name="xmb_fr_stat_two_weeks">Last two weeks</string>
+    <string name="xmb_fr_recent">Recently played</string>
+    <string name="xmb_fr_hours">%1$d hrs</string>
+    <string name="xmb_fr_view_on_steam">View on Steam</string>
+    <string name="xmb_fr_profile_private">This profile is private.</string>
+    <string name="xmb_fr_loading">Loading…</string>
+</resources>

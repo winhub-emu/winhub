@@ -176,7 +176,15 @@ import androidx.compose.runtime.snapshotFlow
 import com.winhub.hernandez.R
 import com.winhub.hernandez.XServerDisplayActivity
 import com.winhub.hernandez.container.Container
+import com.winhub.hernandez.ui.deck.DeckActions
+import com.winhub.hernandez.ui.deck.DeckStore
+import com.winhub.hernandez.ui.deck.LocalDeckActions
 import com.winhub.hernandez.ui.deck.XmbKeyboardHost
+import com.winhub.hernandez.ui.deck.XmbTabsPageHost
+import com.winhub.hernandez.ui.deck.rememberXmbDownloadRing
+import com.winhub.hernandez.ui.deck.rememberXmbFriendsBadge
+import com.winhub.hernandez.ui.deck.warmStoreMarks
+import androidx.compose.material.icons.filled.Person
 import com.winhub.hernandez.contents.ContentProfile
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.container.ContainerManager
@@ -520,6 +528,8 @@ internal fun DeckModeScreen() {
                             if (editTracker.editing) false
                             else if (backLayer.onBack?.invoke() == true) true
                             else if (tabs.onBack?.invoke() == true) true
+                            // The Steam Home's row and tabs page close their own layers on B.
+                            else if (SteamHomeKeys.active && section == "home") false
                             else { goBack(); true }
                         }
                         // L1/R1 switch the top-strip sections.
@@ -727,21 +737,22 @@ private fun DeckHome(
     // Steam style: one row of covers with Stores / Downloads / Friends / Social as pages that slide up over it.
     val steamStyle = rememberSteamHome() && xmbStyle
     var steamPageOpen by remember { mutableStateOf(false) }
-    var steamPageTab by remember { mutableIntStateOf(0) }
-    val steamBarFocus = remember { FocusRequester() }
-    var steamBarFocused by remember { mutableStateOf(true) }
+    // The tab the tabs page last showed (-1 until it has been opened): the peek highlights it and the page reopens on it.
+    var steamPageTab by remember { mutableIntStateOf(-1) }
+    // Counts the page's closings, which hand the keys back to the games row.
+    var steamPageClosed by remember { mutableIntStateOf(0) }
+    var steamFocusTick by remember { mutableIntStateOf(0) }
+    val steamActions = remember { DeckActions() }
+    DisposableEffect(steamStyle) {
+        SteamHomeKeys.active = steamStyle
+        onDispose { SteamHomeKeys.active = false }
+    }
     LaunchedEffect(deckTabs) { deckTabs.bind(4) }
-    // The Social page binds its own sub-tabs on the shared host, so while a page is up the shelf stays where it was.
+    // L2/R2 step the tabs page's tabs while it is up (not the shelves), so the shelf stays where it was.
     val shelfHold = remember { intArrayOf(deckTabs.index) }
     val shelfFrozen = steamStyle && steamPageOpen
     SideEffect { if (!shelfFrozen) shelfHold[0] = deckTabs.index }
     val shelf = if (shelfFrozen) shelfHold[0] else deckTabs.index
-    LaunchedEffect(steamPageOpen, steamPageTab) {
-        if (!(steamPageOpen && steamPageTab == SteamTab.SOCIAL.ordinal)) {
-            deckTabs.bind(4)
-            deckTabs.select(shelfHold[0])
-        }
-    }
     var favs by remember {
         mutableStateOf(context.getSharedPreferences("hub_prefs", Context.MODE_PRIVATE).getStringSet("hub_favs", emptySet()).orEmpty())
     }
@@ -992,10 +1003,9 @@ private fun DeckHome(
         reloadEntries()
     }
     val backLayer = LocalDeckBack.current
-    DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen, steamPageOpen, steamBarFocused) {
+    DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen, steamPageOpen) {
         backLayer.onBack = if (steamPageOpen) {
-            // B on a page goes up to its tab bar first; B on the bar slides the page away.
-            { if (steamBarFocused) steamPageOpen = false else runCatching { steamBarFocus.requestFocus() }; true }
+            { steamPageOpen = false; steamPageClosed++; true }
         } else if (allOpen) {
             { allOpen = false; true }
         } else if (xmbNested) {
@@ -1190,7 +1200,7 @@ private fun DeckHome(
     val showStores by AppThemeState.showStores.collectAsState()
     val storeScreens = remember { listOf(Screen.Steam, Screen.Epic, Screen.Gog, Screen.Amazon, Screen.Xbox) }
     val storesSignedIn by produceState(emptyMap<Screen, Boolean>(), fullXmb, steamStyle, showStores, homeMode) {
-        value = if ((fullXmb || steamStyle) && showStores) {
+        value = if (steamStyle || (fullXmb && showStores)) {
             withContext(Dispatchers.IO) { storeScreens.associateWith { deckSignedIn(context, it) } }
         } else {
             emptyMap()
@@ -1222,24 +1232,64 @@ private fun DeckHome(
         }
     }
 
-    // The Steam style's Stores page: Add game, then each store.
-    val steamCards = remember(showStores, storesSignedIn) {
-        buildList {
-            add(
-                DeckHomeCard("Add game", "Add games to your library", Icons.Filled.Add,
-                    listOf(Color(0xFF2A2D33), Color(0xFF16181C))) { addModeMenu = true },
-            )
-            if (showStores) storeScreens.forEach { screen ->
-                add(
-                    DeckHomeCard(
-                        screen.label,
-                        if (storesSignedIn[screen] == true) "Signed in" else "Not signed in - A to sign in",
-                        Icons.Filled.Storefront,
-                        deckStoreBrand(screen),
-                        logo = deckStoreLogo(screen),
-                    ) { openStoreNow(screen) },
-                )
+    // The Steam style: the games as shortcuts (the row), the tabs page's peek tabs, and what the tabs show.
+    var steamShortcuts by remember { mutableStateOf<List<Shortcut>>(emptyList()) }
+    LaunchedEffect(steamStyle, visible, containers) {
+        if (!steamStyle) { steamShortcuts = emptyList(); return@LaunchedEffect }
+        steamShortcuts = withContext(Dispatchers.IO) {
+            visible.mapNotNull { e ->
+                val g = e.game ?: return@mapNotNull null
+                val c = containers.find { it.id == g.containerId } ?: return@mapNotNull null
+                val f = File(g.shortcutPath)
+                if (!f.isFile) return@mapNotNull null
+                runCatching { Shortcut(c, f) }.getOrNull()?.also { sc -> e.bitmap?.let { sc.icon = it } }
             }
+        }
+    }
+    val steamEntryOf: (Shortcut) -> HubEntry? = { sc -> entries.orEmpty().firstOrNull { it.game?.shortcutPath == sc.file.path } }
+    val steamActionsFor: (Shortcut) -> List<XmbAction> = { sc ->
+        val entry = steamEntryOf(sc)
+        val game = entry?.game
+        if (entry == null || game == null) emptyList() else buildList {
+            add(XmbAction("Play", Icons.Filled.PlayArrow) { playEntry(entry) })
+            addAll(
+                hubXmbActions(
+                    context, sc, game, xmbHost,
+                    HubXmbOps(
+                        launchMethod = { openLaunchMethod(entry) },
+                        addToHome = { addToHomeScreen(entry) },
+                        containerProperties = { showProperties(entry) },
+                        delete = { deleteEntry(entry) },
+                    ),
+                ),
+            )
+        }
+    }
+    val steamTabs: List<XmbAction> = remember(steamStyle) {
+        if (!steamStyle) emptyList() else XMB_PAGE_TABS.map { tab ->
+            val open = { steamPageTab = tab.ordinal; steamPageOpen = true }
+            when (tab) {
+                XmbSteamTab.STORES -> XmbAction(context.getString(R.string.xmb_tab_stores), Icons.Filled.Storefront, onClick = open)
+                XmbSteamTab.DOWNLOADS -> XmbAction(context.getString(R.string.xmb_tab_downloads), Icons.Filled.Download, onClick = open)
+                XmbSteamTab.FRIENDS -> XmbAction(context.getString(R.string.xmb_tab_friends), Icons.Filled.Person, onClick = open)
+                XmbSteamTab.SOCIAL -> XmbAction(context.getString(R.string.xmb_tab_social), Icons.Filled.People, onClick = open)
+            }
+        }
+    }
+    // The download ring and the friends count are collected only in this style, so no other mode watches them.
+    val steamRing = if (steamStyle) rememberXmbDownloadRing() else null
+    val steamFriends = if (steamStyle) rememberXmbFriendsBadge() else 0
+    val steamBadges: Map<XmbSteamTab, Int> = remember(steamFriends) { mapOf(XmbSteamTab.FRIENDS to steamFriends) }
+    val steamSignedIn: Map<DeckStore, Boolean> = remember(storesSignedIn) { DeckStore.entries.associateWith { storesSignedIn[it.screen] == true } }
+    // The store logos on the covers' marks are big PNGs: decode them now, off the main thread.
+    LaunchedEffect(steamStyle) { if (steamStyle) warmStoreMarks(context) }
+    // L2/R2 step the tabs page's tabs while it is up: the shell steps the shelf, and that step is handed on to the page.
+    LaunchedEffect(deckTabs.index, steamPageOpen) {
+        if (steamStyle && steamPageOpen && deckTabs.index != shelfHold[0]) {
+            val count = deckTabs.count.coerceAtLeast(1)
+            val delta = if ((shelfHold[0] + 1) % count == deckTabs.index) 1 else -1
+            steamActions.subTab.value?.invoke(delta)
+            deckTabs.select(shelfHold[0])
         }
     }
 
@@ -1254,6 +1304,7 @@ private fun DeckHome(
         if (!overlayOpen && hadOverlay) {
             delay(60)
             runCatching { heroFocus.requestFocus() }
+            steamFocusTick++
         }
         hadOverlay = overlayOpen
     }
@@ -1327,38 +1378,57 @@ private fun DeckHome(
                 onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
                 onMenu = { i -> selected = i; classicMenu = true },
-            ) else if (steamStyle) DeckSteamHome(
-                modifier = Modifier.graphicsLayer {
-                    alpha = intro.value * homeFade
-                    translationY = (1f - intro.value) * 60.dp.toPx() - (1f - homeFade) * 12.dp.toPx()
-                },
-                entries = visible,
-                loaded = entries != null && (visible.isNotEmpty() || entries.orEmpty().isEmpty()),
-                selected = sel,
-                allFocused = allFocused,
-                favs = favs,
-                details = if (allFocused) emptyList() else details,
-                info = xmbInfo,
-                allCovers = allCardCovers,
-                storeCards = steamCards,
-                pageOpen = steamPageOpen,
-                pageTab = steamPageTab,
-                barFocus = steamBarFocus,
-                onBarFocus = { steamBarFocused = it },
-                onPage = { steamPageOpen = it },
-                onPageTab = { steamPageTab = it },
-                onSelect = { selected = it },
-                onAllFocus = { allFocused = it },
-                onOpenAll = { if (libraryCovers.isNotEmpty() || entries.orEmpty().isNotEmpty()) allOpen = true },
-                onPlay = { current?.let { playEntry(it) } },
-                onOptions = { classicMenu = true },
-                onFavorite = { toggleFavorite() },
-                onAdd = { addModeMenu = true },
-                focus = heroFocus,
-                enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu && !allOpen,
-                launching = launchShown,
-                launchT = { launchT.value },
-            ) else DeckHomeCarousel(
+            ) else if (steamStyle) CompositionLocalProvider(LocalDeckActions provides steamActions) {
+                XmbTabsPageHost(
+                    open = steamPageOpen,
+                    tab = steamPageTab.coerceAtLeast(0),
+                    onTab = { steamPageTab = it },
+                    onClose = { steamPageOpen = false; steamPageClosed++ },
+                    signedIn = steamSignedIn,
+                    games = steamShortcuts,
+                    onStore = { store -> openStoreNow(store.screen) },
+                    onAddGame = { addModeMenu = true },
+                    onSocial = { openSocialNow() },
+                    badges = steamBadges,
+                    downloadRing = steamRing,
+                ) {
+                    if (steamShortcuts.isEmpty()) {
+                        if (entries != null) SteamEmptyHome(
+                            focus = heroFocus,
+                            enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu && !steamPageOpen,
+                            onAdd = { addModeMenu = true },
+                            onTabs = { if (steamPageTab < 0) steamPageTab = 0; steamPageOpen = true },
+                        )
+                    } else SteamXmbView(
+                        shortcuts = steamShortcuts,
+                        selectionMode = false,
+                        selectedPaths = emptySet(),
+                        onToggleSelect = {},
+                        onExitSelection = {},
+                        onPlay = { sc -> steamEntryOf(sc)?.let { playEntry(it) } },
+                        actionsFor = steamActionsFor,
+                        storeBadges = {},
+                        sdBadge = {},
+                        onReloadGames = { reloadEntries() },
+                        onFocusedChange = { sc ->
+                            val at = visible.indexOfFirst { it.game?.shortcutPath == sc.file.path }
+                            if (at >= 0 && at != selected) selected = at
+                        },
+                        inDeckShell = true,
+                        showHints = false,
+                        showClock = false,
+                        centeredHome = true,
+                        steamHome = true,
+                        homeTabs = steamTabs,
+                        homeBadges = steamBadges,
+                        homeDownloadRing = steamRing,
+                        takeFocus = { shortcutSettingsFor == null && !classicMenu && !steamPageOpen && !addModeMenu },
+                        focusTick = steamFocusTick + steamPageClosed,
+                        homeTabSel = steamPageTab,
+                        onAddGame = if (!steamPageOpen) ({ addModeMenu = true }) else null,
+                    )
+                }
+            } else DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {
                     // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
                     alpha = intro.value * homeFade
@@ -1443,7 +1513,7 @@ private fun DeckHome(
             }
 
             // Shelves (L2/R2) top centre, status top right.
-            if (!portrait && !allOpen && !(steamStyle && steamPageOpen)) DeckStretchyTabs(
+            if (!portrait && !allOpen && !steamStyle) DeckStretchyTabs(
                 labels = listOf("All", "Recent", "Favourites", "Store games"),
                 selected = shelf,
                 onSelect = { deckTabs.select(it) },

@@ -327,7 +327,7 @@ internal fun ShortcutsXmbView(
             DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_NO_YEAR or DateUtils.FORMAT_ABBREV_ALL,
         ) + "  " + DateUtils.formatDateTime(context, now, DateUtils.FORMAT_SHOW_TIME)
     }
-    val hasPad = rememberGamepadConnected()
+    val hasPad = rememberGamepadConnectedLegacy()
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val m = remember(maxWidth, maxHeight, topInset) { XmbMetrics(maxWidth.value, maxHeight.value - topInset.value) }
@@ -790,7 +790,7 @@ private fun XmbCover(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            XmbMonogram(shortcut.name, accent)
+            XmbMonogramLegacy(shortcut.name, accent)
         }
         if (selectionMode) {
             Box(
@@ -811,7 +811,7 @@ private fun XmbCover(
 
 // Cover fallback: initials on an accent gradient (no art yet, or a custom game).
 @Composable
-private fun XmbMonogram(name: String, accent: Color) {
+private fun XmbMonogramLegacy(name: String, accent: Color) {
     Column(
         Modifier
             .fillMaxSize()
@@ -819,7 +819,7 @@ private fun XmbMonogram(name: String, accent: Color) {
             .padding(10.dp),
         verticalArrangement = Arrangement.Bottom,
     ) {
-        Text(xmbInitials(name), color = Color.White.copy(alpha = 0.92f), fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(xmbInitialsLegacy(name), color = Color.White.copy(alpha = 0.92f), fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         Text(name, color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp, lineHeight = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -884,7 +884,7 @@ internal fun XmbInfo(s: Shortcut, playtime: String?, descLines: Int) {
         details.metacritic?.let { score ->
             Text(
                 "$score", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(metacriticColor(score)).padding(horizontal = 5.dp),
+                modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(metacriticColorLegacy(score)).padding(horizontal = 5.dp),
             )
         }
     }
@@ -976,7 +976,7 @@ internal fun XmbWaves(accent: Color, modifier: Modifier) {
 
 // Controller hints only make sense with a pad attached; tracks hot-plug.
 @Composable
-private fun rememberGamepadConnected(): Boolean {
+private fun rememberGamepadConnectedLegacy(): Boolean {
     val context = LocalContext.current
     var connected by remember { mutableStateOf(false) }
     DisposableEffect(context) {
@@ -1004,7 +1004,7 @@ internal fun xmbPlaytime(context: Context, name: String): String? {
     return if (mins >= 60) "${mins / 60}h ${mins % 60}m" else "${mins}m"
 }
 
-private fun xmbInitials(name: String): String {
+private fun xmbInitialsLegacy(name: String): String {
     val words = name.replace(Regex("[^A-Za-z0-9 ]"), " ").split(' ').filter { it.isNotBlank() }
     val first = words.firstOrNull() ?: return name.trim().take(1).ifEmpty { "?" }
     if (first.length <= 4 && first == first.uppercase() && first.any { it.isLetter() }) return first
@@ -1013,7 +1013,7 @@ private fun xmbInitials(name: String): String {
         .ifEmpty { first.take(1).uppercase() }
 }
 
-private fun metacriticColor(score: Int): Color = when {
+private fun metacriticColorLegacy(score: Int): Color = when {
     score >= 75 -> Color(0xFF66CC33)
     score >= 50 -> Color(0xFFFFCC33)
     else -> Color(0xFFFF4444)

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="steam_lib_uninstall_kept">%1$s removed from Bannerlator. Its files belong to another Steam client and were kept.</string>
+    <string name="xmb_all_games">All Games</string>
+    <string name="xmb_tab_stores">Stores</string>
+    <string name="xmb_tab_downloads">Downloads</string>
+    <string name="xmb_tab_friends">Friends</string>
+    <string name="xmb_store_no_games">no games yet</string>
+    <string name="xmb_hint_add_game">Add Game</string>
+    <string name="xmb_store_card_signed_out">Sign in</string>
+    <string name="xmb_all_games_open">Open</string>
+    <string name="xmb_all_games_more">+%1$d more</string>
+    <string name="xmb_all_back">Back</string>
+    <string name="xmb_all_view">View</string>
+    <string name="xmb_all_sort">Sort</string>
+    <string name="xmb_all_view_grid">Grid</string>
+    <string name="xmb_all_view_list">List</string>
+    <string name="xmb_all_view_big">Big art</string>
+    <string name="xmb_all_sort_recent">Recently played</string>
+    <string name="xmb_all_sort_name">Name A-Z</string>
+    <string name="xmb_all_sort_name_desc">Name Z-A</string>
+    <string name="xmb_all_sort_playtime">Most played</string>
+    <string name="xmb_all_sort_store">Store</string>
+    <string name="xmb_all_sort_container">Container</string>
+    <plurals name="xmb_store_games">
+        <item quantity="one">%d game</item>
+        <item quantity="other">%d games</item>
+    </plurals>
+    <plurals name="xmb_all_games_count">
+        <item quantity="one">%d game</item>
+        <item quantity="other">%d games</item>
+    </plurals>
+    <string name="xmb_tab_social">Social</string>
+</resources>
