@@ -1,12 +1,15 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/logo.png" width="820" alt="WinHub" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/winhub_banner2_dark.png">
+    <img alt="WinHub" src="docs/media/winhub_banner2_light.png" width="100%">
+  </picture>
 </p>
 
 <h1 align="center">WinHub</h1>
 <p align="center"><b>Windows apps and games on Android, with a console-style interface.</b></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.1-ff2d9b?style=for-the-badge" alt="Version 1.1">
+  <img src="https://img.shields.io/badge/Version-2.0-ff2d9b?style=for-the-badge" alt="Version 2.0">
   <img src="https://img.shields.io/github/downloads/winhub-emu/winhub/total?style=for-the-badge&label=Downloads&color=7a4cff" alt="Total Downloads">
   <img src="https://img.shields.io/badge/Platform-Android%208.0%2B-2d9bff?style=for-the-badge" alt="Platform">
   <img src="https://img.shields.io/badge/License-GPL--3.0-2dd4bf?style=for-the-badge" alt="License">
