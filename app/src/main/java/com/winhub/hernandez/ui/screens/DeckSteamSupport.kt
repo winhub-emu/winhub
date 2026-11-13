@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -76,5 +77,43 @@ internal fun SteamEmptyHome(
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
+    }
+}
+
+/** What the Steam Home's row is holding open (its options, a nested column, the All Games page): [handler] closes the top one, true when it did. */
+internal class SteamBackHolder {
+    var handler: (() -> Boolean)? = null
+}
+
+/** Lets a held key repeat no faster than [minMs]: a held D-pad key would otherwise step a list (and buzz the pad) 30 times a second. */
+internal class KeyRepeatGate(private val minMs: Long = 110L) {
+    private var last = 0L
+
+    fun allow(fresh: Boolean): Boolean {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (!fresh && now - last < minMs) return false
+        last = now
+        return true
+    }
+}
+
+/** The sound of a step in an XMB column (nested settings, tools): a move, a choice, a way out, a section change. */
+internal fun xmbNavSound(key: XmbKey) {
+    when (key) {
+        XmbKey.Up, XmbKey.Down, XmbKey.Left, XmbKey.Right -> DeckSound.play(DeckSound.MOVE)
+        XmbKey.A -> DeckSound.play(DeckSound.SELECT)
+        XmbKey.B -> DeckSound.play(DeckSound.BACK)
+        XmbKey.L1, XmbKey.R1 -> DeckSound.play(DeckSound.TAB)
+    }
+}
+
+/** The sound for a key on a Deck page (Settings, Containers, Contents...), which has no sounds of its own. */
+internal fun deckPageKeySound(e: KeyEvent, gate: KeyRepeatGate) {
+    if (e.type != KeyEventType.KeyDown) return
+    val fresh = e.nativeKeyEvent.repeatCount == 0
+    when (e.key) {
+        Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> if (gate.allow(fresh)) DeckSound.play(DeckSound.MOVE)
+        Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> if (fresh) DeckSound.play(DeckSound.SELECT)
+        else -> Unit
     }
 }

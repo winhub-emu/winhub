@@ -379,6 +379,7 @@ internal fun DeckModeScreen() {
         if (!contentFocused) focusManager.moveFocusSafely(FocusDirection.Next)
     }
     val backLayer = remember { DeckBackLayer() }
+    val pageGate = remember { KeyRepeatGate() }
     val editTracker = remember { DeckEditTracker() }
     // L1/R1 (sections) and L2/R2 (sub-tabs) are taken at the Activity, so they work whether or not
     // anything holds Compose focus - no "press A first to lock focus" step.
@@ -523,6 +524,8 @@ internal fun DeckModeScreen() {
                     if (DeckConsole.screensaver) { DeckConsole.poke(); return@onPreviewKeyEvent true }
                     if (e.type == KeyEventType.KeyDown) { DeckTouchMode.touch = false; DeckConsole.poke() }
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    // The pages (Settings, Containers...) have no sounds of their own; Home's own layers play theirs.
+                    if (section != "home" && !editTracker.editing) deckPageKeySound(e, pageGate)
                     when (e.key) {
                         Key.ButtonB -> {
                             DeckSound.play(DeckSound.BACK)
@@ -757,6 +760,7 @@ private fun DeckHome(
     var steamPageClosed by remember { mutableIntStateOf(0) }
     var steamFocusTick by remember { mutableIntStateOf(0) }
     val steamActions = remember { DeckActions() }
+    val steamBack = remember { SteamBackHolder() }
     DisposableEffect(steamStyle) {
         SteamHomeKeys.active = steamStyle
         onDispose { SteamHomeKeys.active = false }
@@ -1017,7 +1021,7 @@ private fun DeckHome(
         reloadEntries()
     }
     val backLayer = LocalDeckBack.current
-    DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen, steamPageOpen) {
+    DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen, steamPageOpen, steamStyle) {
         backLayer.onBack = if (steamPageOpen) {
             { steamPageOpen = false; steamPageClosed++; true }
         } else if (allOpen) {
@@ -1028,6 +1032,9 @@ private fun DeckHome(
             { closeSettings(); true }
         } else if (homeMode != HomeMode.GAMES) {
             { homeMode = HomeMode.GAMES; true }
+        } else if (steamStyle) {
+            // The Steam Home's row closes what it has open (its options, a nested column, All Games) on B, whatever holds focus.
+            { steamBack.handler?.invoke() == true }
         } else {
             null
         }
@@ -1441,6 +1448,7 @@ private fun DeckHome(
                         homeTabSel = steamPageTab,
                         onAddGame = if (!steamPageOpen) ({ addModeMenu = true }) else null,
                         addCard = { addModeMenu = true },
+                        backHolder = steamBack,
                     )
                 }
             } else DeckHomeCarousel(
@@ -1611,6 +1619,7 @@ private fun DeckHome(
             if (showWrapperManager) DeckWrapperManagerDialog(onDismiss = { showWrapperManager = false })
 
             if (xmbNested) {
+                val nestedGate = remember { KeyRepeatGate() }
                 // The XMB dropdown's tools open as nested XMB columns over a dimmed Home.
                 BoxWithConstraints(
                     Modifier
@@ -1639,7 +1648,10 @@ private fun DeckHome(
                                 Key.ButtonR1 -> XmbKey.R1
                                 else -> null
                             } ?: return@onPreviewKeyEvent false
-                            xmbNav.onKey(k, xmbScope)
+                            if ((k == XmbKey.Up || k == XmbKey.Down) && e.nativeKeyEvent.repeatCount != 0 && !nestedGate.allow(false)) return@onPreviewKeyEvent true
+                            val handled = xmbNav.onKey(k, xmbScope)
+                            if (handled) xmbNavSound(k)
+                            handled
                         },
                 ) {
                     XmbNestedLayer(
@@ -3285,10 +3297,14 @@ private fun DeckHomeCarousel(
         }
     }
 
+    val repeatGate = remember { KeyRepeatGate() }
     fun handleKey(e: KeyEvent): Boolean {
                     if (!enabled || e.type != KeyEventType.KeyDown) return false
                     if (launching) return true
                     val fresh = e.nativeKeyEvent.repeatCount == 0
+                    // A held D-pad key steps the row and the dropdown at a readable pace, not at the key-repeat rate.
+                    val dir = e.key == Key.DirectionUp || e.key == Key.DirectionDown || e.key == Key.DirectionLeft || e.key == Key.DirectionRight
+                    if (dir && !repeatGate.allow(fresh)) return true
                     val confirm = e.key == Key.ButtonA || e.key == Key.Enter ||
                         e.key == Key.NumPadEnter || e.key == Key.DirectionCenter
                     if (n == 0) {

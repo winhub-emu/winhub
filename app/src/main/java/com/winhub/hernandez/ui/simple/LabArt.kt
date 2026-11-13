@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import com.winhub.hernandez.container.Shortcut
-import java.io.File
 
 /**
  * A game's landscape art for the Steam-style Home: what the game picked, then for a Steam game what Steam publishes for the app
@@ -38,13 +37,14 @@ internal object LabArt {
 
     fun models(s: Shortcut, slot: String): List<Any> {
         val id = appId(s)
-        val custom = s.customCoverArtPath?.takeIf { it.isNotBlank() }?.let { File(it) }?.takeIf { it.isFile }
         val steam: List<Any> = if (id == null) emptyList() else when (slot) {
             "bg" -> listOf(cdn(id, "library_hero.jpg"), cdn(id, "header.jpg"))
             "wide" -> listOf(cdn(id, "header.jpg"), cdn(id, "capsule_616x353.jpg"))
             else -> emptyList()
         }
-        return (steam + listOfNotNull(custom, s.icon)).distinct()
+        // Landscape art only: a portrait cover stretched over a wide card or a whole screen looks blurry. Without any, the card and the
+        // backdrop fall back to the cover as it is.
+        return steam
     }
 }
 

@@ -414,10 +414,11 @@ private fun XmbSteamWideArt(s: Shortcut, accent: Color) {
         }
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = coverA }) {
             if (bmp != null) {
+                // The whole cover over the blurred one, sharp: cropped to the wide card it would be a zoomed, soft slice of it.
                 Image(
                     bitmap = remember(bmp) { bmp.asImageBitmap() },
                     contentDescription = s.name,
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {

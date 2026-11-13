@@ -67,6 +67,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.derivedStateOf
@@ -219,6 +220,8 @@ internal fun SteamXmbView(
     onAddGame: (() -> Unit)? = null,
     /** [steamHome] only: non-null ends the row with an Add game card (the slot after the last game) that runs this. */
     addCard: (() -> Unit)? = null,
+    /** The host's B: what this row has open (a nested column, the All Games page, the options) closes through it, whatever holds focus. */
+    backHolder: SteamBackHolder? = null,
 ) {
     if (shortcuts.isEmpty() && allShortcuts == null) return
     val context = LocalContext.current
@@ -341,6 +344,18 @@ internal fun SteamXmbView(
     var toggledAt by remember { mutableLongStateOf(0L) }
     fun closeOpts() { optsOpen = false; act = 0; toggledAt = SystemClock.uptimeMillis(); DeckSound.play(DeckSound.BACK) }
     fun openOpts() { liftIdx = target; optsOpen = true; act = 0; toggledAt = SystemClock.uptimeMillis(); DeckSound.play(DeckSound.SELECT) }
+    SideEffect {
+        backHolder?.handler = {
+            when {
+                nav.depth > 0 -> { nav.pop(); true }
+                allOpen -> { allOpen = false; true }
+                optsOpen -> { closeOpts(); true }
+                else -> false
+            }
+        }
+    }
+    DisposableEffect(backHolder) { onDispose { backHolder?.handler = null } }
+    val navGate = remember { KeyRepeatGate() }
     // The options column's cursor and the nested columns have their own sounds: a step, a way in, a way out.
     val actNow = act
     val depthNow = nav.depth
@@ -539,7 +554,12 @@ internal fun SteamXmbView(
                             Key.ButtonR1 -> XmbKey.R1
                             else -> null
                         } ?: return@onPreviewKeyEvent false
-                        return@onPreviewKeyEvent nav.onKey(k, xmbScope)
+                        val held = e.nativeKeyEvent.repeatCount != 0
+                        if (held && (k == XmbKey.Up || k == XmbKey.Down) && !navGate.allow(false)) return@onPreviewKeyEvent true
+                        val handled = nav.onKey(k, xmbScope)
+                        // The ways in and out of a column have their own sound (the column depth); a step inside one sounds here.
+                        if (handled && k != XmbKey.A && k != XmbKey.B) xmbNavSound(k)
+                        return@onPreviewKeyEvent handled
                     }
                     // Steam home, the covers holding the cursor: Start adds a game (the shell's hint says so).
                     if (e.key == Key.ButtonStart && addHere) {
