@@ -8,7 +8,6 @@ import android.media.AudioManager
 import android.media.SoundPool
 import android.provider.Settings
 import androidx.preference.PreferenceManager
-import com.winhub.hernandez.R
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
