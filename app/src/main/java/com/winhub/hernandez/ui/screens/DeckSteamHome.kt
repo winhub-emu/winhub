@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,6 +48,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +88,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.winhub.hernandez.store.download.DownloadRegistry
 import com.winhub.hernandez.ui.SocialHubScreen
 import com.winhub.hernandez.ui.moveFocusSafely
 import kotlinx.coroutines.delay
@@ -147,6 +150,8 @@ internal fun DeckSteamHome(
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     var vAcc by remember { mutableFloatStateOf(0f) }
+    val downloads by DownloadRegistry.entries.collectAsState()
+    val active = downloads.count { it.isActive }
 
     fun move(to: Int) {
         if (slots == 0) return
@@ -290,7 +295,10 @@ internal fun DeckSteamHome(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SteamTab.values().forEach { tab ->
-                        SteamPill(tab, selected = false, ringed = false) { onPageTab(tab.ordinal); onPage(true) }
+                        SteamPill(tab, selected = false, ringed = false, badge = if (tab == SteamTab.DOWNLOADS) active else 0) {
+                            onPageTab(tab.ordinal)
+                            onPage(true)
+                        }
                     }
                 }
                 Text(
@@ -315,6 +323,7 @@ internal fun DeckSteamHome(
                 onTab = onPageTab,
                 onClose = { onPage(false) },
                 storeCards = storeCards,
+                activeDownloads = active,
             )
         }
     }
@@ -436,7 +445,7 @@ private fun BoxScope.SteamAllFace(count: Int, covers: List<Bitmap>) {
 
 /** A tab's pill; [selected] fills it dark and [ringed] adds the theme-colour ring (the pill bar has focus). */
 @Composable
-private fun SteamPill(tab: SteamTab, selected: Boolean, ringed: Boolean, onClick: () -> Unit) {
+private fun SteamPill(tab: SteamTab, selected: Boolean, ringed: Boolean, badge: Int = 0, onClick: () -> Unit) {
     val tapNow by rememberUpdatedState(onClick)
     val accent = Deck.primary
     Row(
@@ -457,6 +466,18 @@ private fun SteamPill(tab: SteamTab, selected: Boolean, ringed: Boolean, onClick
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
         )
+        // Downloads running right now, so the tab shows progress without opening it.
+        if (badge > 0) Box(
+            Modifier
+                .padding(start = 6.dp)
+                .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                .clip(CircleShape)
+                .background(accent)
+                .padding(horizontal = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("$badge", color = Deck.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
     }
 }
 
@@ -472,6 +493,7 @@ private fun SteamTabsPage(
     onTab: (Int) -> Unit,
     onClose: () -> Unit,
     storeCards: List<DeckHomeCard>,
+    activeDownloads: Int,
 ) {
     val focusManager = LocalFocusManager.current
     val tabs = SteamTab.values()
@@ -520,7 +542,12 @@ private fun SteamTabsPage(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 tabs.forEach { t ->
-                    SteamPill(t, selected = t.ordinal == tab, ringed = barFocused) { onTab(t.ordinal) }
+                    SteamPill(
+                        t,
+                        selected = t.ordinal == tab,
+                        ringed = barFocused,
+                        badge = if (t == SteamTab.DOWNLOADS) activeDownloads else 0,
+                    ) { onTab(t.ordinal) }
                 }
             }
         }
