@@ -283,7 +283,7 @@ internal fun SteamXmbView(
     // Moving to another game always lands back on Play, so A launches (like tapping a card).
     fun settleTo(i: Int) {
         val t = i.coerceIn(0, slots - 1)
-        if (t != target) { target = t; act = 0; optsOpen = false }
+        if (t != target) { target = t; act = 0; optsOpen = false; DeckSound.play(DeckSound.MOVE) }
         settleJob?.cancel()
         settleJob = scope.launch {
             animate(pos.floatValue, t.toFloat(), animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)) { v, _ ->
@@ -339,8 +339,15 @@ internal fun SteamXmbView(
     val tabsActive = steam && homeTabs.isNotEmpty() && homeTabSel >= 0 && !nested && !optsOpen
     // When the options were last opened or closed (uptime ms): a tap right after is a double-tap bounce, not a new request.
     var toggledAt by remember { mutableLongStateOf(0L) }
-    fun closeOpts() { optsOpen = false; act = 0; toggledAt = SystemClock.uptimeMillis() }
-    fun openOpts() { liftIdx = target; optsOpen = true; act = 0; toggledAt = SystemClock.uptimeMillis() }
+    fun closeOpts() { optsOpen = false; act = 0; toggledAt = SystemClock.uptimeMillis(); DeckSound.play(DeckSound.BACK) }
+    fun openOpts() { liftIdx = target; optsOpen = true; act = 0; toggledAt = SystemClock.uptimeMillis(); DeckSound.play(DeckSound.SELECT) }
+    // The options column's cursor and the nested columns have their own sounds: a step, a way in, a way out.
+    val actNow = act
+    val depthNow = nav.depth
+    var soundArmed by remember { mutableStateOf(false) }
+    LaunchedEffect(actNow) { if (soundArmed && optsOpen) DeckSound.play(DeckSound.MOVE) }
+    LaunchedEffect(depthNow) { if (soundArmed) DeckSound.play(if (depthNow > 0) DeckSound.SELECT else DeckSound.BACK) }
+    LaunchedEffect(Unit) { soundArmed = true }
     fun tapOpts(open: Boolean) {
         if (xmbTapGateOpen(toggledAt, SystemClock.uptimeMillis())) { if (open) openOpts() else closeOpts() }
     }

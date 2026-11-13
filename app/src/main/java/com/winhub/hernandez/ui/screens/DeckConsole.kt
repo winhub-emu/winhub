@@ -2,7 +2,13 @@ package com.winhub.hernandez.ui.screens
 
 import android.app.Activity
 import android.content.Context
+import android.content.SharedPreferences
+import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.SoundPool
+import android.provider.Settings
+import androidx.preference.PreferenceManager
+import com.winhub.hernandez.R
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -109,26 +115,72 @@ internal object DeckConsole {
     fun idleMs(): Long = SystemClock.uptimeMillis() - lastInputMs
 }
 
-/** One short system sound per kind of move, so the UI sounds consistent (and follows the touch-sounds setting). */
+/**
+ * One short sound per kind of move. "SteamOS" (the default) plays the app's own soft clips through a SoundPool, "Phone" the system's
+ * click sounds, "Off" nothing; the choice is Settings > Navigation sounds. Either sound set follows the phone's touch-sounds switch.
+ */
 internal object DeckSound {
     const val MOVE = 0
     const val SELECT = 1
     const val BACK = 2
     const val ERROR = 3
+    const val TAB = 4
+
+    /** The preference that picks the sound set. */
+    const val KEY = "nav_sounds"
+    const val STEAMOS = "steamos"
+    const val PHONE = "phone"
+    const val OFF = "off"
+
+    private var appContext: Context? = null
     private var audio: AudioManager? = null
+    private var prefs: SharedPreferences? = null
+    private var pool: SoundPool? = null
+    private val ids = IntArray(5)
 
     fun init(context: Context) {
-        audio = context.getSystemService(AudioManager::class.java)
+        val app = context.applicationContext
+        appContext = app
+        audio = app.getSystemService(AudioManager::class.java)
+        prefs = PreferenceManager.getDefaultSharedPreferences(app)
+        if (pool != null) return
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val sp = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(attrs).build()
+        ids[MOVE] = sp.load(app, R.raw.deck_snd_move, 1)
+        ids[SELECT] = sp.load(app, R.raw.deck_snd_select, 1)
+        ids[BACK] = sp.load(app, R.raw.deck_snd_back, 1)
+        ids[ERROR] = sp.load(app, R.raw.deck_snd_error, 1)
+        ids[TAB] = sp.load(app, R.raw.deck_snd_tab, 1)
+        pool = sp
+    }
+
+    private fun touchSoundsOn(): Boolean {
+        val app = appContext ?: return true
+        return Settings.System.getInt(app.contentResolver, Settings.System.SOUND_EFFECTS_ENABLED, 1) != 0
     }
 
     fun play(kind: Int) {
-        val fx = when (kind) {
-            MOVE -> AudioManager.FX_FOCUS_NAVIGATION_RIGHT
-            SELECT -> AudioManager.FX_KEY_CLICK
-            BACK -> AudioManager.FX_FOCUS_NAVIGATION_LEFT
-            else -> AudioManager.FX_KEYPRESS_INVALID
+        when (prefs?.getString(KEY, STEAMOS)) {
+            OFF -> return
+            PHONE -> {
+                val fx = when (kind) {
+                    MOVE, TAB -> AudioManager.FX_FOCUS_NAVIGATION_RIGHT
+                    SELECT -> AudioManager.FX_KEY_CLICK
+                    BACK -> AudioManager.FX_FOCUS_NAVIGATION_LEFT
+                    else -> AudioManager.FX_KEYPRESS_INVALID
+                }
+                audio?.playSoundEffect(fx)
+            }
+            else -> {
+                if (!touchSoundsOn()) return
+                val id = ids.getOrNull(kind) ?: return
+                // A clip still loading plays nothing (id 0 from play), never an error.
+                pool?.play(id, 0.8f, 0.8f, 1, 0, 1f)
+            }
         }
-        audio?.playSoundEffect(fx)
     }
 }
 

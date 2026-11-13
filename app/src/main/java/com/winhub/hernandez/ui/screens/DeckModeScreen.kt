@@ -393,7 +393,7 @@ internal fun DeckModeScreen() {
             DeckConsole.poke()
             DeckTouchMode.touch = false
             if (editTracker.editing) return@handler false
-            if (code == android.view.KeyEvent.KEYCODE_BUTTON_L1 || code == android.view.KeyEvent.KEYCODE_BUTTON_R1) DeckSound.play(DeckSound.MOVE)
+            if (code == android.view.KeyEvent.KEYCODE_BUTTON_L1 || code == android.view.KeyEvent.KEYCODE_BUTTON_R1) DeckSound.play(DeckSound.TAB)
             when (code) {
                 android.view.KeyEvent.KEYCODE_BUTTON_L1 -> { stepSection(railSections, sectionNow, -1) { section = it; deckDetail = null }; true }
                 android.view.KeyEvent.KEYCODE_BUTTON_R1 -> { stepSection(railSections, sectionNow, 1) { section = it; deckDetail = null }; true }

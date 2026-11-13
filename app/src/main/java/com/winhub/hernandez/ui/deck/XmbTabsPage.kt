@@ -95,6 +95,7 @@ import com.winhub.hernandez.R
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.ui.LocalTopBarOverlayInset
 import com.winhub.hernandez.ui.LocalXmbHintInset
+import com.winhub.hernandez.ui.screens.DeckSound
 import com.winhub.hernandez.ui.screens.XMB_PAGE_TABS
 import com.winhub.hernandez.ui.screens.XmbDownloadRing
 import com.winhub.hernandez.ui.screens.XmbSteamTab
@@ -163,6 +164,12 @@ internal fun XmbTabsPageHost(
     val openNow by rememberUpdatedState(open)
     // The page is composed while it is up or still sliding away; derived, so the animation does not recompose this per frame.
     val shown by remember { derivedStateOf { openNow || progress.value > 0.001f } }
+    // The page rising and sinking each have their sound (not on the first composition, with the page closed).
+    var soundArmed by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (soundArmed) DeckSound.play(if (open) DeckSound.SELECT else DeckSound.BACK)
+        soundArmed = true
+    }
     Box(Modifier.fillMaxSize()) {
         // Read in the graphics layers, so the slide re-draws without recomposing.
         Box(Modifier.fillMaxSize().graphicsLayer { translationY = -progress.value * size.height }) { home() }
@@ -222,7 +229,7 @@ private fun XmbTabsPageBody(
     // L2 / R2 step the tab, wrapping: through the shell, which also turns an analog trigger into the button.
     DisposableEffect(open, deckActions) {
         if (!open) return@DisposableEffect onDispose {}
-        val step: (Int) -> Unit = { d -> onTabNow(xmbTabStep(selNow, d, tabs.size, wrap = true)) }
+        val step: (Int) -> Unit = { d -> DeckSound.play(DeckSound.TAB); onTabNow(xmbTabStep(selNow, d, tabs.size, wrap = true)) }
         deckActions.subTab.value = step
         onDispose { if (deckActions.subTab.value === step) deckActions.subTab.value = null }
     }
@@ -274,7 +281,15 @@ private fun XmbTabsPageBody(
             return@keys true
         }
         if (focus.contentFocused) {
-            if (focus.onKey?.invoke(e) == true) return@keys true
+            if (focus.onKey?.invoke(e) == true) {
+                // The page took the key: a D-pad step is a move, a fresh A a choice.
+                when (e.key) {
+                    Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> DeckSound.play(DeckSound.MOVE)
+                    Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> if (first) DeckSound.play(DeckSound.SELECT)
+                    else -> Unit
+                }
+                return@keys true
+            }
             return@keys when (e.key) {
                 Key.DirectionUp -> { focus.toBar(); true }
                 Key.ButtonB, Key.Escape -> { if (first) onCloseNow(); true }
@@ -284,10 +299,16 @@ private fun XmbTabsPageBody(
             }
         }
         when (e.key) {
-            Key.DirectionLeft -> { onTabNow(xmbTabStep(selNow, -1, tabs.size, wrap = false)); true }
-            Key.DirectionRight -> { onTabNow(xmbTabStep(selNow, 1, tabs.size, wrap = false)); true }
+            Key.DirectionLeft -> {
+                if (selNow > 0) DeckSound.play(DeckSound.TAB)
+                onTabNow(xmbTabStep(selNow, -1, tabs.size, wrap = false)); true
+            }
+            Key.DirectionRight -> {
+                if (selNow < tabs.lastIndex) DeckSound.play(DeckSound.TAB)
+                onTabNow(xmbTabStep(selNow, 1, tabs.size, wrap = false)); true
+            }
             // Into the page on a fresh press only: a held Down that opened the page would otherwise carry on into it with its repeats.
-            Key.DirectionDown, Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (first) focus.contentFocused = true; true }
+            Key.DirectionDown, Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (first) { focus.contentFocused = true; DeckSound.play(DeckSound.MOVE) }; true }
             Key.DirectionUp, Key.ButtonB, Key.Escape -> { if (first) onCloseNow(); true }
             else -> false
         }

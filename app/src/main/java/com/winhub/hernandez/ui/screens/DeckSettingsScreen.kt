@@ -160,6 +160,8 @@ internal fun DeckSettingsScreen() {
     var storeStyle by remember { mutableStateOf(if (StoreStyle.isXmb(context)) StoreStyle.XMB else StoreStyle.DECK) }
     // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
     var homeStyle by remember { mutableStateOf(DeckHomeStyle.read(prefs)) }
+    // Navigation sounds ("steamos" | "phone" | "off"); DeckSound reads it on every sound.
+    var navSounds by remember { mutableStateOf(prefs.getString(DeckSound.KEY, DeckSound.STEAMOS) ?: DeckSound.STEAMOS) }
 
     // ── Sound (MIDI Sound Font) — same as SettingsScreen's Sound section. ──
     var sfNames by remember { mutableStateOf(listOf<String>()) }
@@ -807,6 +809,26 @@ internal fun DeckSettingsScreen() {
                 onPick = {
                     homeStyle = it
                     prefs.edit().putString(DeckHomeStyle.KEY, it).apply()
+                },
+            )
+        }
+
+        // ── Sounds ──
+        DeckGroup(title = "Navigation sounds") {
+            DeckChoiceRow(
+                label = "Sound set",
+                hint = "The sounds the D-pad and buttons make in Deck mode. SteamOS is the app's own soft set; Phone uses the system click sounds. Both follow the phone's touch-sounds switch",
+                options = listOf(
+                    DeckSound.STEAMOS to "SteamOS",
+                    DeckSound.PHONE to "Phone",
+                    DeckSound.OFF to "Off",
+                ),
+                selected = navSounds,
+                onPick = {
+                    navSounds = it
+                    prefs.edit().putString(DeckSound.KEY, it).apply()
+                    DeckSound.init(context)
+                    DeckSound.play(DeckSound.SELECT)
                 },
             )
         }
