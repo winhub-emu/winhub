@@ -74,10 +74,14 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import com.winhub.hernandez.ui.moveFocusSafely
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -155,7 +159,6 @@ internal fun XmbTabsPageHost(
     games: List<Shortcut>,
     onStore: (DeckStore) -> Unit,
     onAddGame: () -> Unit,
-    onSocial: (Int) -> Unit,
     badges: Map<XmbSteamTab, Int> = emptyMap(),
     downloadRing: XmbDownloadRing? = null,
     home: @Composable () -> Unit,
@@ -177,7 +180,7 @@ internal fun XmbTabsPageHost(
             // Under the page and over the Home: while the page rises or sinks, a strip of the Home still shows above it, and a tap on that
             // must not reach the games (a cover would open its options under the page).
             Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } })
-            XmbTabsPageBody(open, progress, tab, onTab, onClose, signedIn, games, onStore, onAddGame, onSocial, badges, downloadRing)
+            XmbTabsPageBody(open, progress, tab, onTab, onClose, signedIn, games, onStore, onAddGame, badges, downloadRing)
         }
     }
 }
@@ -193,7 +196,6 @@ private fun XmbTabsPageBody(
     games: List<Shortcut>,
     onStore: (DeckStore) -> Unit,
     onAddGame: () -> Unit,
-    onSocial: (Int) -> Unit,
     badges: Map<XmbSteamTab, Int>,
     downloadRing: XmbDownloadRing?,
 ) {
@@ -243,6 +245,20 @@ private fun XmbTabsPageBody(
 
     // The keys come to one focus target: taken when the page opens and again when the app comes back (a store's own screen).
     val requester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    // B inside a passthrough page: its own layer first (an open post), then up to the pill bar, and only then out of the page.
+    DisposableEffect(open, deckActions) {
+        if (!open) return@DisposableEffect onDispose {}
+        val back: () -> Boolean = {
+            when {
+                focus.contentFocused && focus.passthrough && focus.innerBack?.invoke() == true -> true
+                focus.contentFocused && focus.passthrough -> { focus.toBar(); runCatching { requester.requestFocus() }; true }
+                else -> false
+            }
+        }
+        deckActions.pageBack.value = back
+        onDispose { if (deckActions.pageBack.value === back) deckActions.pageBack.value = null }
+    }
     LaunchedEffect(open) {
         if (open) {
             // It opens with the cursor on the pill bar (also when it is opened again while still sliding away).
@@ -272,7 +288,7 @@ private fun XmbTabsPageBody(
         if (dragged >= closePx) { dragDone = true; onCloseNow() }
     }
 
-    val onKeyEvent: (KeyEvent) -> Boolean = keys@{ e ->
+    val keysHandler: (KeyEvent) -> Boolean = keys@{ e ->
         if (!open || e.type != KeyEventType.KeyDown) return@keys false
         val first = e.nativeKeyEvent.repeatCount == 0
         // Start adds a game while the Stores tab shows, wherever the cursor is.
@@ -281,6 +297,8 @@ private fun XmbTabsPageBody(
             return@keys true
         }
         if (focus.contentFocused) {
+            // A passthrough page owns its keys: they go on to its controls.
+            if (focus.passthrough) return@keys false
             if (focus.onKey?.invoke(e) == true) {
                 // The page took the key: a D-pad step is a move, a fresh A a choice.
                 when (e.key) {
@@ -308,7 +326,15 @@ private fun XmbTabsPageBody(
                 onTabNow(xmbTabStep(selNow, 1, tabs.size, wrap = false)); true
             }
             // Into the page on a fresh press only: a held Down that opened the page would otherwise carry on into it with its repeats.
-            Key.DirectionDown, Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (first) { focus.contentFocused = true; DeckSound.play(DeckSound.MOVE) }; true }
+            Key.DirectionDown, Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                if (first) {
+                    focus.contentFocused = true
+                    DeckSound.play(DeckSound.MOVE)
+                    // A page of ordinary controls takes real focus now (its first control, the one nearest below the bar).
+                    if (focus.passthrough) focusManager.moveFocusSafely(FocusDirection.Down)
+                }
+                true
+            }
             Key.DirectionUp, Key.ButtonB, Key.Escape -> { if (first) onCloseNow(); true }
             else -> false
         }
@@ -320,7 +346,21 @@ private fun XmbTabsPageBody(
             // From the bottom: 1 = in place, 0 = a whole screen down.
             .graphicsLayer { translationY = (1f - progress.value) * size.height }
             .draggable(drag, Orientation.Vertical, onDragStarted = { dragged = 0f; dragDone = false })
-            .onPreviewKeyEvent(onKeyEvent)
+            .onPreviewKeyEvent(keysHandler)
+            // A passthrough page's own controls get the keys first; what they leave moves the focus on, or goes back to the bar.
+            .onKeyEvent { e ->
+                if (!open || e.type != KeyEventType.KeyDown || !focus.contentFocused || !focus.passthrough) return@onKeyEvent false
+                when (e.key) {
+                    Key.DirectionUp -> {
+                        if (!focusManager.moveFocusSafely(FocusDirection.Up)) { focus.toBar(); runCatching { requester.requestFocus() } }
+                        true
+                    }
+                    Key.DirectionDown -> { focusManager.moveFocusSafely(FocusDirection.Down); true }
+                    Key.DirectionLeft -> { focusManager.moveFocusSafely(FocusDirection.Left); true }
+                    Key.DirectionRight -> { focusManager.moveFocusSafely(FocusDirection.Right); true }
+                    else -> false
+                }
+            }
             .focusRequester(requester)
             .focusable(),
     ) {
@@ -353,7 +393,7 @@ private fun XmbTabsPageBody(
                         XmbSteamTab.STORES -> XmbStoresPage(focus, signedIn, games, onStore)
                         XmbSteamTab.DOWNLOADS -> XmbDownloadsPage(focus)
                         XmbSteamTab.FRIENDS -> XmbFriendsPage(focus)
-                        XmbSteamTab.SOCIAL -> XmbSocialPage(focus, onSocial)
+                        XmbSteamTab.SOCIAL -> XmbSocialPage(focus)
                     }
                 }
                 // No floating hints on a phone: the same hint, in the page's corner.

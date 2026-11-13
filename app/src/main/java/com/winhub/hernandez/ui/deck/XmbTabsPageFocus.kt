@@ -49,6 +49,16 @@ internal class XmbTabsPageFocus {
     /** The page's key handler (see the class doc). Set it with [XmbTabsPageKeys]; one page at a time holds it. */
     var onKey: ((KeyEvent) -> Boolean)? = null
 
+    /**
+     * True for a page that is made of ordinary focusable content (the Social tab embeds the Social Hub's own screens): the host then
+     * hands the page real Android focus on entering it, passes every key on to it, and takes Up back to the pill bar only when
+     * nothing above the focused control is left. Set it with [XmbTabsPagePassthrough].
+     */
+    var passthrough: Boolean = false
+
+    /** A passthrough page's answer to B: true when it closed a layer of its own (an open post), false to let B go up to the pill bar. */
+    var innerBack: (() -> Boolean)? = null
+
     /** Moves the cursor from the page's content up to the pill bar. */
     fun toBar() {
         contentFocused = false
@@ -66,5 +76,20 @@ internal fun XmbTabsPageKeys(focus: XmbTabsPageFocus, onKey: (KeyEvent) -> Boole
         val mine: (KeyEvent) -> Boolean = { e -> latest(e) }
         focus.onKey = mine
         onDispose { if (focus.onKey === mine) focus.onKey = null }
+    }
+}
+
+/** Marks this page as [XmbTabsPageFocus.passthrough] while it is composed; [innerBack] is asked first when B is pressed. */
+@Composable
+internal fun XmbTabsPagePassthrough(focus: XmbTabsPageFocus, innerBack: () -> Boolean = { false }) {
+    val latest by rememberUpdatedState(innerBack)
+    DisposableEffect(focus) {
+        val mine: () -> Boolean = { latest() }
+        focus.passthrough = true
+        focus.innerBack = mine
+        onDispose {
+            focus.passthrough = false
+            if (focus.innerBack === mine) focus.innerBack = null
+        }
     }
 }

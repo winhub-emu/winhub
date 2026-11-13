@@ -1025,7 +1025,8 @@ private fun DeckHome(
     val backLayer = LocalDeckBack.current
     DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen, steamPageOpen, steamStyle) {
         backLayer.onBack = if (steamPageOpen) {
-            { steamPageOpen = false; steamPageClosed++; true }
+            // B goes up inside the page first (a post, the page's content to its pill bar), then the page slides away.
+            { if (steamActions.pageBack.value?.invoke() != true) { steamPageOpen = false; steamPageClosed++ }; true }
         } else if (allOpen) {
             { allOpen = false; true }
         } else if (xmbNested) {
@@ -1411,7 +1412,6 @@ private fun DeckHome(
                     games = steamShortcuts,
                     onStore = { store -> openStoreNow(store.screen) },
                     onAddGame = { addModeMenu = true },
-                    onSocial = { tab -> com.winhub.hernandez.ui.SocialHubTarget.set(tab); openSocialNow() },
                     badges = steamBadges,
                     downloadRing = steamRing,
                 ) {

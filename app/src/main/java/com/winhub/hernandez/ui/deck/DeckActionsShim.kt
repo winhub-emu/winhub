@@ -16,6 +16,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 internal class DeckActions {
     val subTab: MutableState<((Int) -> Unit)?> = mutableStateOf(null)
     val xmbAddGameHint: MutableState<(() -> Unit)?> = mutableStateOf(null)
+    /** The tabs page's answer to B: true when it closed something of its own (a layer inside the page) instead of leaving it to the host. */
+    val pageBack: MutableState<(() -> Boolean)?> = mutableStateOf(null)
 }
 
 internal val LocalDeckActions = compositionLocalOf { DeckActions() }

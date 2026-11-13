@@ -111,7 +111,7 @@ private val XMB_STEAM_MUTED = Color.White.copy(alpha = 0.9f)
 private val XMB_STEAM_TAB_INK = Color.White.copy(alpha = 0.97f)
 
 /** The cards' corners are nearly square, as on the Steam Deck. */
-private val XMB_STEAM_CORNER = 2.dp
+private val XMB_STEAM_CORNER = 14.dp
 
 /** A tab's text sits this far (dp) in from the edge of its highlight. */
 private const val XMB_STEAM_TAB_PAD = 10f
