@@ -1,9 +1,8 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/media/winhub_banner2_dark.png">
-    <img alt="WinHub" src="docs/media/winhub_banner2_light.png" width="100%">
-  </picture>
+  <img alt="WinHub Light" src="docs/media/winhub_banner2_light.png#gh-light-mode-only">
+  <img alt="WinHub Dark" src="docs/media/winhub_banner2_dark.png#gh-dark-mode-only">
 </p>
+
 
 <h1 align="center">WinHub</h1>
 <p align="center"><b>Windows apps and games on Android, with a console-style interface.</b></p>
