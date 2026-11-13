@@ -232,10 +232,10 @@ internal fun SteamXmbView(
     // The All Games card is the slot after the last game (slot n), so a game's slot is its index in `shortcuts` and the row's
     // index maths (target, pos, the swipes, the counters) runs on slots; slot 0 is the first game.
     val hasAll = allShortcuts != null
-    // The Add game card takes the same slot the All Games card would (the two never show together).
-    val hasAdd = addCard != null && !hasAll
+    val hasAdd = addCard != null
     val hasExtra = hasAll || hasAdd
-    val slots = n + if (hasExtra) 1 else 0
+    // The Steam row can end with both: All Games, then Add game.
+    val slots = n + (if (hasAll) 1 else 0) + (if (hasAdd) 1 else 0)
     val allTotal = allShortcuts?.size ?: 0
     val allCount = remember(allTotal) { context.resources.getQuantityString(R.plurals.xmb_all_games_count, allTotal, allTotal) }
     val allLabel = stringResource(R.string.xmb_all_games_open)
@@ -250,7 +250,8 @@ internal fun SteamXmbView(
     // The focused game is remembered by path so it survives rotation, leaving the tab, and a
     // refresh or sort that reorders the list. The All Games card is remembered as XMB_ALL_PATH.
     var focusedPath by rememberSaveable { mutableStateOf<String?>(null) }
-    fun slotOfPath(path: String?): Int = xmbSlotOf(shortcuts.map { it.file.path }, path, hasExtra)
+    fun slotOfPath(path: String?): Int =
+        if (path == XMB_ADD_PATH) (if (hasAdd) slots - 1 else -1) else xmbSlotOf(shortcuts.map { it.file.path }, path, hasAll)
     // Opens on the first game (slot 0) unless the cursor was somewhere else.
     var target by remember { mutableIntStateOf(slotOfPath(focusedPath).takeIf { it >= 0 } ?: 0) }
     val pos = remember { mutableFloatStateOf(target.toFloat()) } // visual position, fractional mid-swipe
@@ -262,7 +263,7 @@ internal fun SteamXmbView(
     // when the cursor has moved on meanwhile (which is what closes the options), so it only changes when they open.
     var liftIdx by remember { mutableIntStateOf(target) }
     val centered = centeredHome && !optsOpen
-    val steam = steamHome && centeredHome && allShortcuts == null
+    val steam = steamHome && centeredHome
 
     LaunchedEffect(shortcuts, hasExtra) {
         val i = slotOfPath(focusedPath)
@@ -276,8 +277,11 @@ internal fun SteamXmbView(
     }
     // The game under the cursor, or null on the All Games card (the slot after the last game), which has no game behind it.
     val focused: Shortcut? = if (hasExtra && target >= n) null else shortcuts[target.coerceIn(0, n - 1)]
-    val onAll = focused == null
-    val focusKey = focused?.file?.path ?: XMB_ALL_PATH
+    val onExtra = focused == null
+    // The Add game card is the last slot; the All Games card, when there is one, sits just before it.
+    val onAdd = onExtra && hasAdd && target == slots - 1
+    val onAll = onExtra && !onAdd
+    val focusKey = focused?.file?.path ?: if (onAdd) XMB_ADD_PATH else XMB_ALL_PATH
     LaunchedEffect(focusKey) {
         focusedPath = focusKey
         if (focused != null) onFocusedChange(focused)
@@ -299,7 +303,7 @@ internal fun SteamXmbView(
     val isSelected = focused != null && focused.file.path in selectedPaths
     // The All Games card offers just "Open".
     val actions = if (focused == null) {
-        if (hasAdd) listOf(XmbAction("Add game", Icons.Filled.Add) { addCard?.invoke() })
+        if (onAdd) listOf(XmbAction("Add game", Icons.Filled.Add) { addCard?.invoke() })
         else listOf(XmbAction(allLabel, Icons.Filled.GridView, allCount) { allOpen = true })
     } else buildList<XmbAction> {
         add(
@@ -581,7 +585,7 @@ internal fun SteamXmbView(
                             }
                             Key.DirectionUp -> steam
                             // The All Games card has no options to show: A opens its page.
-                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (onAll) { if (hasAdd) addCard?.invoke() else allOpen = true } else openOpts(); true }
+                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (onAdd) addCard?.invoke() else if (onAll) allOpen = true else openOpts(); true }
                             Key.ButtonB -> if (selectionMode) { onExitSelection(); true } else false
                             else -> false
                         }
@@ -671,7 +675,7 @@ internal fun SteamXmbView(
                         }
                         if (hi.sections) XmbKeyHint("L1 R1", "Section", hs)
                     } else if (hasPad) {
-                        XmbButtonHint("A", Color(0xFF3DDC84), if (onAll) (if (hasAdd) "Add game" else allLabel) else if (centered) "Options" else actions[actIdx].label, hs)
+                        XmbButtonHint("A", Color(0xFF3DDC84), if (onAdd) "Add game" else if (onAll) allLabel else if (centered) "Options" else actions[actIdx].label, hs)
                         XmbButtonHint("B", Color(0xFFFF5252), "Back", hs)
                         if (!m.port && m.w >= 600f) {
                             XmbKeyHint("◀ ▶", "Games", hs); XmbKeyHint("▲ ▼", "Options", hs); XmbKeyHint("L1 R1", if (inDeckShell) "Tabs" else "Jump", hs)
@@ -703,8 +707,8 @@ internal fun SteamXmbView(
                         lift = { 1f - cT }, tabs = homeTabs, tabSel = tabIdx, tabsActive = tabsActive, tabsEnabled = centered, badges = homeBadges, downloadRing = homeDownloadRing,
                         onCard = { i ->
                             if (nav.depth == 0 && i >= n) {
-                                // The Add game card: a tap brings it to the cursor, a tap on it adds a game.
-                                if (i != target) settleTo(i) else addCard?.invoke()
+                                // The All Games and Add game cards: a tap brings one to the cursor, a tap on it opens it.
+                                if (i != target) settleTo(i) else if (hasAdd && i == slots - 1) addCard?.invoke() else allOpen = true
                             } else if (nav.depth == 0) {
                                 val s = shortcuts[i]
                                 // A tap on another card focuses it (and, with the options open, closes them: the cursor moved). A tap on the
@@ -720,7 +724,10 @@ internal fun SteamXmbView(
                         },
                         // A tap opens the tabs page on that tab (its action sets the tab, so the peek highlights it).
                         onTab = { i -> if (nav.depth == 0) runAction(homeTabs[i]) },
-                        extra = if (hasAdd) 1 else 0,
+                        allCard = hasAll,
+                        addCard = hasAdd,
+                        mosaic = mosaic,
+                        allCount = allCount,
                     )
                 }
                 if (!steam) {
@@ -982,6 +989,8 @@ private fun Modifier.xmbCoverSlot(
 // title beside the card (like every card's), so only the semantics carry them here. It opens the All Games page and has no game
 // behind it, so there is no store mark and no selection mark. One flat opaque fill and nothing nested: a see-through fill would
 // let the focus shadow show through as a dark inner box.
+private const val XMB_ADD_PATH = "xmb:add-game"
+
 @Composable
 private fun XmbAllGamesCover(
     index: Int,
@@ -1022,7 +1031,7 @@ private fun XmbAllGamesCover(
 // XMB_MOSAIC_COLS columns that fills the space it is given (the cells share it equally and crop the covers to fit, about square on
 // the 2:3 card). Cells with no game stay faintly empty.
 @Composable
-private fun XmbAllGamesMosaic(mosaic: XmbMosaic<Shortcut>, accent: Color, modifier: Modifier) {
+internal fun XmbAllGamesMosaic(mosaic: XmbMosaic<Shortcut>, accent: Color, modifier: Modifier) {
     val gap = 3.dp
     val tileShape = RoundedCornerShape(3.dp)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(gap)) {

@@ -11,24 +11,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.preference.PreferenceManager
 
 /**
- * Deck Home layout (Settings > Appearance, landscape): Classic keeps Home to the games, Full XMB also
- * carries the stores and Social as cards above them and drops their tabs from the rail, and Steam puts one
- * row of covers at the bottom with Stores, Downloads, Friends and Social as pages that slide up over it.
- * Any other saved value (including the old "xmb" / "classic") is Classic.
+ * Deck Home layout (Settings > Appearance, landscape): Full XMB carries the stores and Social as cards above the games
+ * and drops their tabs from the rail, and Steam puts one row of covers at the bottom with Stores, Downloads, Friends and
+ * Social as pages that slide up over it. Any other saved value (including the old "classic" and "xmb") is Full XMB.
  */
 internal object DeckHomeStyle {
     const val KEY = "home_style"
-    const val CLASSIC = "classic"
     const val FULL_XMB = "full_xmb"
     const val STEAM = "steam"
 
     fun read(prefs: SharedPreferences): String {
-        val saved = prefs.getString(KEY, CLASSIC)
-        return when (saved) {
-            FULL_XMB -> FULL_XMB
-            STEAM -> STEAM
-            else -> CLASSIC
-        }
+        return if (prefs.getString(KEY, FULL_XMB) == STEAM) STEAM else FULL_XMB
     }
 
     fun isFull(prefs: SharedPreferences): Boolean = read(prefs) == FULL_XMB

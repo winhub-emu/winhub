@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -238,19 +239,28 @@ internal fun XmbSteamHome(
     downloadRing: XmbDownloadRing?,
     onCard: (Int) -> Unit,
     onTab: (Int) -> Unit,
-    /** 1 = the row ends with an Add game card (slot [shortcuts].size), whose taps come to [onCard] like a game's. */
-    extra: Int = 0,
+    /** The row ends with an All Games card ([allCard], with its [mosaic] and [allCount] line) and/or an Add game card ([addCard]); taps come to [onCard] like a game's. */
+    allCard: Boolean = false,
+    addCard: Boolean = false,
+    mosaic: XmbMosaic<Shortcut>? = null,
+    allCount: String = "",
 ) {
     val games = shortcuts.size
-    val n = games + extra
+    val n = games + (if (allCard) 1 else 0) + (if (addCard) 1 else 0)
     val row = remember(sl, n) { sl.row(n) }
     // Only the covers near the cursor are composed; each one's place is read from `pos` in its graphics layer.
     val base by remember { derivedStateOf { floor(pos.floatValue).toInt() } }
     Box(Modifier.fillMaxSize()) {
         for (i in xmbSteamWindow(base.toFloat(), n, sl.w, sl.fW + sl.gap)) {
             if (i >= games) {
-                key("steam_add_game") {
-                    XmbSteamAddCard(i, pos, sl, row, accent, i == target, liftIdx, lift) { onCard(i) }
+                if (allCard && i == games) {
+                    key("steam_all_games") {
+                        XmbSteamAllCard(i, pos, sl, row, accent, i == target, liftIdx, lift, mosaic, allCount) { onCard(i) }
+                    }
+                } else {
+                    key("steam_add_game") {
+                        XmbSteamAddCard(i, pos, sl, row, accent, i == target, liftIdx, lift) { onCard(i) }
+                    }
                 }
                 continue
             }
@@ -335,6 +345,41 @@ private fun XmbSteamCover(
         if (!lifted) {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = XMB_STEAM_DIM * lift() }.background(Color.Black))
         }
+    }
+}
+
+/** The All Games card: a folder-like preview of the library (the first covers and "+N more") in the shape and lift of the covers. */
+@Composable
+private fun XmbSteamAllCard(
+    index: Int,
+    pos: MutableFloatState,
+    sl: XmbSteamLayout,
+    row: XmbSteamRow,
+    accent: Color,
+    focused: Boolean,
+    liftIdx: Int,
+    lift: () -> Float,
+    mosaic: XmbMosaic<Shortcut>?,
+    count: String,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(XMB_STEAM_CORNER)
+    val src = remember { MutableInteractionSource() }
+    Box(
+        Modifier
+            .xmbSteamSlot(index, pos, sl, row, focused, false, liftIdx, lift)
+            .clip(shape)
+            .background(Brush.verticalGradient(XMB_PLAIN_CARD))
+            .then(if (focused) Modifier.border(1.5.dp, XMB_FOCUS_OUTLINE, shape) else Modifier)
+            .xmbClick(src, onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (mosaic == null || mosaic.covers.isEmpty()) {
+            Icon(Icons.Filled.GridView, contentDescription = null, tint = Color.White, modifier = Modifier.size((sl.fW * 0.3f).dp))
+        } else {
+            XmbAllGamesMosaic(mosaic, accent, Modifier.fillMaxSize().padding(6.dp))
+        }
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = XMB_STEAM_DIM * lift() }.background(Color.Black))
     }
 }
 

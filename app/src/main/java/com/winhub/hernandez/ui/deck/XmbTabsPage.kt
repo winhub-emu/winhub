@@ -229,7 +229,7 @@ private fun XmbTabsPageBody(
     // L2 / R2 step the tab, wrapping: through the shell, which also turns an analog trigger into the button.
     DisposableEffect(open, deckActions) {
         if (!open) return@DisposableEffect onDispose {}
-        val step: (Int) -> Unit = { d -> DeckSound.play(DeckSound.TAB); onTabNow(xmbTabStep(selNow, d, tabs.size, wrap = true)) }
+        val step: (Int) -> Unit = { d -> onTabNow(xmbTabStep(selNow, d, tabs.size, wrap = true)) }
         deckActions.subTab.value = step
         onDispose { if (deckActions.subTab.value === step) deckActions.subTab.value = null }
     }

@@ -801,7 +801,6 @@ internal fun DeckSettingsScreen() {
                 label = "Home style",
                 hint = "Full XMB puts the stores and Social on Home as cards above your games. Steam keeps one row of covers at the bottom, with Stores, Downloads, Friends and Social as pages that slide up. Both hide those tabs",
                 options = listOf(
-                    DeckHomeStyle.CLASSIC to "Classic",
                     DeckHomeStyle.FULL_XMB to "Full XMB",
                     DeckHomeStyle.STEAM to "Steam",
                 ),

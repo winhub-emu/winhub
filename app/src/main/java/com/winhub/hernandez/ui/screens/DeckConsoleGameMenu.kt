@@ -82,6 +82,7 @@ internal fun DeckConsoleGameMenu(
     LaunchedEffect(Unit) { shown = true }
     val appear by animateFloatAsState(if (shown) 1f else 0f, tween(180), label = "consoleMenuAppear")
     var sel by remember { mutableIntStateOf(0) }
+    val soundGate = remember { KeyRepeatGate() }
     val root = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { root.requestFocus() } }
     val listState = rememberLazyListState()
@@ -111,6 +112,10 @@ internal fun DeckConsoleGameMenu(
                 .focusable()
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    deckPageKeySound(e, soundGate)
+                    if ((e.key == Key.ButtonB || e.key == Key.ButtonY || e.key == Key.Back || e.key == Key.Escape) && e.nativeKeyEvent.repeatCount == 0) {
+                        DeckSound.play(DeckSound.BACK)
+                    }
                     val last = items.lastIndex
                     when (e.key) {
                         Key.DirectionUp -> { if (last >= 0) sel = if (sel > 0) sel - 1 else last; true }

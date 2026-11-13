@@ -136,12 +136,19 @@ internal class DeckTabHost {
         if (index !in 0 until pages) index = 0
     }
 
-    fun select(page: Int) {
-        if (page in 0 until count) index = page
+    /** Picks [page]; [quiet] skips the tab sound (a host putting the index back where it was). */
+    fun select(page: Int, quiet: Boolean = false) {
+        if (page in 0 until count && page != index) {
+            index = page
+            if (!quiet) DeckSound.play(DeckSound.TAB)
+        }
     }
 
     fun step(delta: Int) {
-        if (count > 1) index = (index + delta + count) % count
+        if (count > 1) {
+            index = (index + delta + count) % count
+            DeckSound.play(DeckSound.TAB)
+        }
     }
 }
 
@@ -463,13 +470,16 @@ internal fun Modifier.deckBringIntoView(): Modifier {
 internal fun Modifier.deckDialogNav(onBack: () -> Unit = {}): Modifier {
     val focusManager = LocalFocusManager.current
     val root = remember { FocusRequester() }
+    val gate = remember { KeyRepeatGate() }
     LaunchedEffect(Unit) { runCatching { root.requestFocus() } }
     return this
         .focusRequester(root)
         .focusable()
         .onPreviewKeyEvent { e ->
             if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            deckPageKeySound(e, gate)
             if (e.key == Key.ButtonB || e.key == Key.Back || e.key == Key.Escape) {
+                if (e.nativeKeyEvent.repeatCount == 0) DeckSound.play(DeckSound.BACK)
                 onBack()
                 true
             } else {

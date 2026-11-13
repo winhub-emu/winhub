@@ -59,6 +59,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import android.widget.VideoView
@@ -513,7 +515,7 @@ internal fun DeckModeScreen() {
                         !(section == "containers" && deckDetail != null)) Modifier.liquidBackdrop(glows = section == "home") else Modifier
                 )
                 .then(if (portrait) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
-                .deckTouchTracker()
+                .deckTouchTracker { section != "home" }
                 .onPreviewKeyEvent { e ->
                     // Portrait is touch-only: gamepad and D-pad keys do nothing here (landscape keeps both).
                     if (portrait && isPadKey(e.key)) return@onPreviewKeyEvent true
@@ -613,7 +615,7 @@ internal fun DeckModeScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(Deck.background)
-            .deckTouchTracker()
+            .deckTouchTracker { section != "home" }
             .onPreviewKeyEvent { e ->
                 if (DeckConsole.boot) {
                     if (e.type == KeyEventType.KeyDown && (e.key == Key.ButtonA || e.key == Key.Enter || e.key == Key.DirectionCenter || e.key == Key.ButtonStart)) DeckConsole.boot = false
@@ -1310,7 +1312,7 @@ private fun DeckHome(
             val count = deckTabs.count.coerceAtLeast(1)
             val delta = if ((shelfHold[0] + 1) % count == deckTabs.index) 1 else -1
             steamActions.subTab.value?.invoke(delta)
-            deckTabs.select(shelfHold[0])
+            deckTabs.select(shelfHold[0], quiet = true)
         }
     }
 
@@ -1448,6 +1450,7 @@ private fun DeckHome(
                         homeTabSel = steamPageTab,
                         onAddGame = if (!steamPageOpen) ({ addModeMenu = true }) else null,
                         addCard = { addModeMenu = true },
+                        allShortcuts = steamShortcuts,
                         backHolder = steamBack,
                     )
                 }
@@ -1908,11 +1911,23 @@ private fun DeckWordmark() {
 }
 
 /** Flags touch input (observed before the children, never consumed) so focus rings can hide. */
-private fun Modifier.deckTouchTracker(): Modifier = pointerInput(Unit) {
+private fun Modifier.deckTouchTracker(tapSound: () -> Boolean = { false }): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {
+        var downAt: Offset? = null
         while (true) {
             val event = awaitPointerEvent(PointerEventPass.Initial)
             if (event.changes.any { it.pressed }) { DeckTouchMode.touch = true; DeckConsole.poke() }
+            // A tap (a press that lifts without moving) sounds like a choice, on the pages that have no sounds of their own.
+            val down = event.changes.firstOrNull { it.changedToDown() }
+            if (down != null) downAt = down.position
+            val up = event.changes.firstOrNull { it.changedToUp() }
+            if (up != null) {
+                val start = downAt
+                if (start != null && (up.position - start).getDistance() <= viewConfiguration.touchSlop && tapSound()) {
+                    DeckSound.play(DeckSound.SELECT)
+                }
+                downAt = null
+            }
         }
     }
 }
@@ -3279,9 +3294,11 @@ private fun DeckHomeCarousel(
 
     // A tick for every move, a firmer one for select/layer changes: view haptics, the system click
     // sound, and a short rumble on the pad that sent the key.
-    fun buzz(deviceId: Int, strong: Boolean) {
-        view.performHapticFeedback(if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.KEYBOARD_TAP)
+    fun buzz(deviceId: Int, strong: Boolean, held: Boolean) {
         DeckSound.play(if (strong) DeckSound.SELECT else DeckSound.MOVE)
+        // A held key just steps: the haptic and the pad's rumble on every repeat made the dropdown stutter.
+        if (held) return
+        view.performHapticFeedback(if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.KEYBOARD_TAP)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && deviceId >= 0) {
             InputDevice.getDevice(deviceId)?.vibratorManager?.defaultVibrator
                 ?.vibrate(VibrationEffect.createOneShot(if (strong) 40L else 15L, if (strong) 160 else 70))
@@ -3532,7 +3549,12 @@ private fun DeckHomeCarousel(
                 .onPreviewKeyEvent { e ->
                     handleKey(e).also { handled ->
                         if (handled && e.type == KeyEventType.KeyDown) {
-                            buzz(e.nativeKeyEvent.deviceId, e.key != Key.DirectionLeft && e.key != Key.DirectionRight)
+                            buzz(
+                                e.nativeKeyEvent.deviceId,
+                                // Steps (any D-pad key) are light ticks; only a choice is a firm press.
+                                e.key != Key.DirectionLeft && e.key != Key.DirectionRight && e.key != Key.DirectionUp && e.key != Key.DirectionDown,
+                                e.nativeKeyEvent.repeatCount != 0,
+                            )
                         }
                     }
                 }
