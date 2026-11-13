@@ -27,6 +27,20 @@ internal object DeckHomeStyle {
     fun isFull(prefs: SharedPreferences): Boolean = read(prefs) == FULL_XMB
 }
 
+/**
+ * What a game's Settings opens from the Steam and Full XMB Home (Settings > Appearance > Home): Classic is the Deck's own
+ * settings page over Home, XMB is the nested XMB columns.
+ */
+internal object GameSettingsStyle {
+    const val KEY = "xmb_game_settings_style"
+    const val CLASSIC = "classic"
+    const val XMB = "xmb"
+
+    fun read(prefs: SharedPreferences): String = if (prefs.getString(KEY, CLASSIC) == XMB) XMB else CLASSIC
+
+    fun isClassic(prefs: SharedPreferences): Boolean = read(prefs) == CLASSIC
+}
+
 /** The saved Home style; follows the setting live, so the rail updates the moment it is flipped. */
 @Composable
 internal fun rememberHomeStyle(): String {

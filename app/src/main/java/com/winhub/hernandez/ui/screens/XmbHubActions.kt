@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.preference.PreferenceManager
 import com.winhub.hernandez.container.Shortcut
 
 /** What only Home can do for a game: its own launch-method, settings, pin, container and delete flows. */
@@ -24,6 +25,7 @@ internal class HubXmbOps(
     val launchMethod: () -> Unit,
     val addToHome: () -> Unit,
     val containerProperties: () -> Unit,
+    val openSettings: () -> Unit,
     val delete: () -> Unit,
 )
 
@@ -39,7 +41,11 @@ internal fun hubXmbActions(
     ops: HubXmbOps,
 ): List<XmbAction> = buildList {
     add(XmbAction("Launch method", Icons.Filled.Layers) { ops.launchMethod() })
-    add(XmbAction("Settings", Icons.Filled.Settings, "Display, graphics, controller…", menu = { xmbSettingsMenu(it, shortcut, host) }))
+    if (GameSettingsStyle.isClassic(PreferenceManager.getDefaultSharedPreferences(context))) {
+        add(XmbAction("Settings", Icons.Filled.Settings, "Display, graphics, controller…") { ops.openSettings() })
+    } else {
+        add(XmbAction("Settings", Icons.Filled.Settings, "Display, graphics, controller…", menu = { xmbSettingsMenu(it, shortcut, host) }))
+    }
     add(XmbAction("Game Doctor", Icons.Filled.Healing, "Why it won't run, and what to try", menu = { xmbGameDoctorMenu(it, shortcut) }))
     add(XmbAction("Game Details", Icons.Filled.Edit, "Name, genres, year, description", menu = { xmbGameDetailsMenu(it, shortcut) }))
     if (isSteamOriginShortcut(shortcut)) {

@@ -1182,6 +1182,7 @@ private fun DeckHome(
                     launchMethod = { openLaunchMethod(entry) },
                     addToHome = { addToHomeScreen(entry) },
                     containerProperties = { showProperties(entry) },
+                    openSettings = { openGameSettings(entry) },
                     delete = { deleteEntry(entry) },
                 ),
             ).forEachIndexed { i, a ->
@@ -1283,6 +1284,7 @@ private fun DeckHome(
                         launchMethod = { openLaunchMethod(entry) },
                         addToHome = { addToHomeScreen(entry) },
                         containerProperties = { showProperties(entry) },
+                        openSettings = { openGameSettings(entry) },
                         delete = { deleteEntry(entry) },
                     ),
                 ),

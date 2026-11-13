@@ -160,6 +160,8 @@ internal fun DeckSettingsScreen() {
     var storeStyle by remember { mutableStateOf(if (StoreStyle.isXmb(context)) StoreStyle.XMB else StoreStyle.DECK) }
     // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
     var homeStyle by remember { mutableStateOf(DeckHomeStyle.read(prefs)) }
+    // What a game's Settings opens from the Steam / Full XMB Home ("classic" | "xmb"); read when the game's options are built.
+    var gameSettingsStyle by remember { mutableStateOf(GameSettingsStyle.read(prefs)) }
     // Navigation sounds ("steamos" | "phone" | "off"); DeckSound reads it on every sound.
     var navSounds by remember { mutableStateOf(prefs.getString(DeckSound.KEY, DeckSound.STEAMOS) ?: DeckSound.STEAMOS) }
 
@@ -808,6 +810,19 @@ internal fun DeckSettingsScreen() {
                 onPick = {
                     homeStyle = it
                     prefs.edit().putString(DeckHomeStyle.KEY, it).apply()
+                },
+            )
+            DeckChoiceRow(
+                label = "Game settings",
+                hint = "What a game's Settings opens from Home. Classic is the Deck's settings page, compact with every tab. XMB keeps the settings as XMB columns beside the game",
+                options = listOf(
+                    GameSettingsStyle.CLASSIC to "Classic",
+                    GameSettingsStyle.XMB to "XMB",
+                ),
+                selected = gameSettingsStyle,
+                onPick = {
+                    gameSettingsStyle = it
+                    prefs.edit().putString(GameSettingsStyle.KEY, it).apply()
                 },
             )
         }
