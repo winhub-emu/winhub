@@ -233,7 +233,7 @@ fun SteamFriendsRoot(
  * state and the roster appear/disappear without a screen restart.
  */
 @Composable
-private fun rememberFriendsAvailable(): Boolean {
+internal fun rememberFriendsAvailable(): Boolean {
     var available by remember { mutableStateOf(runCatching { SteamFriendsStore.isAvailable() }.getOrDefault(false)) }
     DisposableEffect(Unit) {
         val repo = SteamRepository.getInstance()
