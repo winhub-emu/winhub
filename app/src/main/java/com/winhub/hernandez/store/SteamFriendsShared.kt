@@ -45,25 +45,6 @@ internal fun steamOnlineFriendsCount(ctx: Context): Flow<Int> {
 }
 
 /**
- * Live "friends available" flag, re-evaluated on every repository session event so the connect/empty
- * state and the roster appear/disappear without a screen restart.
- */
-@Composable
-internal fun rememberFriendsAvailable(): Boolean {
-    var available by remember { mutableStateOf(runCatching { SteamFriendsStore.isAvailable() }.getOrDefault(false)) }
-    DisposableEffect(Unit) {
-        val repo = SteamRepository.getInstance()
-        val l = SteamRepository.SteamEventListener {
-            available = runCatching { SteamFriendsStore.isAvailable() }.getOrDefault(available)
-        }
-        repo.addListener(l)
-        available = runCatching { SteamFriendsStore.isAvailable() }.getOrDefault(available)
-        onDispose { repo.removeListener(l) }
-    }
-    return available
-}
-
-/**
  * Live "signed in to Steam" flag ([SteamPrefs.isLoggedIn]): re-evaluated on the repository's event bus, so it flips
  * without an app restart when the user signs in or out.
  */

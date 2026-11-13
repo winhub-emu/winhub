@@ -811,7 +811,7 @@ private fun QueuedCard(
  * falling back to a themed placeholder box when the URL is genuinely absent.
  */
 @Composable
-private fun DownloadCoverArt(entry: DownloadEntry, modifier: Modifier) {
+internal fun DownloadCoverArt(entry: DownloadEntry, modifier: Modifier) {
     if (entry.store == Store.STEAM) {
         GameCoverArt(appId = entry.cover?.toIntOrNull() ?: entry.id.toIntOrNull() ?: 0, modifier = modifier)
         return

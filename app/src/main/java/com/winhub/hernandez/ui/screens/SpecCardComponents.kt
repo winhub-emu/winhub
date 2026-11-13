@@ -124,7 +124,7 @@ internal fun SpecChipRows(
 
 // A muted secondary spec: small colour dot + dimmed label.
 @Composable
-internal fun SecondarySpec(text: String, color: Color) {
+internal fun SecondarySpec(text: String, color: Color, textColor: Color = OnSurfaceVariant) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -136,7 +136,7 @@ internal fun SecondarySpec(text: String, color: Color) {
         Text(
             text = text,
             fontSize = 10.sp,
-            color = OnSurfaceVariant,
+            color = textColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -145,12 +145,12 @@ internal fun SecondarySpec(text: String, color: Color) {
 
 // A bright primary chip: a pill with a tinted translucent background.
 @Composable
-internal fun CompChip(text: String, color: Color) {
+internal fun CompChip(text: String, color: Color, textColor: Color = color) {
     Text(
         text = text,
         fontSize = 10.sp,
         fontWeight = FontWeight.SemiBold,
-        color = color,
+        color = textColor,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier

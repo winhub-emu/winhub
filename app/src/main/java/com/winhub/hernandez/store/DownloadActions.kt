@@ -19,11 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.winhub.hernandez.R
-import com.winhub.hernandez.store.compose.AddResultDialog
-import com.winhub.hernandez.store.compose.AddShortcutResult
 import com.winhub.hernandez.store.compose.AddToShortcutsRequest
-import com.winhub.hernandez.store.compose.ContainerPickerDialog
-import com.winhub.hernandez.store.compose.openShortcutsScreen
+import com.winhub.hernandez.store.compose.DeckAddToShortcuts
 import com.winhub.hernandez.store.download.DownloadEntry
 import com.winhub.hernandez.store.download.DownloadRegistry
 import com.winhub.hernandez.store.download.Store
@@ -40,11 +37,10 @@ import java.io.File
  * [inlineAddResult]: a shortcut written without trouble is reported in the themed bar ([notice]) rather than in the "Added to
  * Shortcuts" dialog with its jump to the Shortcuts screen (the XMB Home shows the new game in its own row).
  */
-internal class DownloadActions(private val activity: Activity, private val inlineAddResult: Boolean = false) {
+internal class DownloadActions(private val activity: Activity) {
     // Add-to-shortcuts flow state (mirrors SteamGamesActivity / SteamGameDetailActivity).
-    private var showExePicker by mutableStateOf<ExePickerDataDm?>(null)
+    private var showExePicker by mutableStateOf<ExePickerDataXa?>(null)
     private var addToShortcuts by mutableStateOf<AddToShortcutsRequest?>(null)
-    private var addResult by mutableStateOf<AddShortcutResult?>(null)
     // Non-null while an uninstall is deleting files → shows the blocking progress spinner.
     private var uninstallingName by mutableStateOf<String?>(null)
     // Non-null briefly after an uninstall (or a launch problem) → themed auto-dismiss confirmation bar (not a Toast).
@@ -53,9 +49,9 @@ internal class DownloadActions(private val activity: Activity, private val inlin
 
     /** Draws the dialogs and the bar of the flows below. [onOpenShortcuts]: the "Open Shortcuts" button of the success dialog. */
     @Composable
-    fun Dialogs(onOpenShortcuts: () -> Unit = { openShortcutsScreen(activity) }) {
+    fun Dialogs() {
         showExePicker?.let { data ->
-            ExePickerDialogDm(
+            ExePickerDialogXa(
                 gameName = data.gameName,
                 candidates = data.candidates,
                 onDismiss = { showExePicker = null },
@@ -70,35 +66,7 @@ internal class DownloadActions(private val activity: Activity, private val inlin
         notice?.let { UninstallResultBar(it) { notice = null } }
 
         addToShortcuts?.let { req ->
-            ContainerPickerDialog(
-                gameName = req.gameName,
-                containers = req.containers,
-                onDismiss = { addToShortcuts = null },
-                onSelected = { container ->
-                    addToShortcuts = null
-                    StarLaunchBridge.writeShortcutAsync(
-                        activity, container,
-                        req.gameName, req.exePath, req.coverUrl, req.appId,
-                    ) { success, message ->
-                        if (success && inlineAddResult) {
-                            notice = activity.getString(R.string.xmb_dl_added_to_games, req.gameName)
-                        } else {
-                            addResult = AddShortcutResult(req.gameName, success, message)
-                        }
-                    }
-                },
-            )
-        }
-
-        addResult?.let { result ->
-            AddResultDialog(
-                result = result,
-                onOpenShortcuts = {
-                    addResult = null
-                    onOpenShortcuts()
-                },
-                onDismiss = { addResult = null },
-            )
+            DeckAddToShortcuts(req, null) { addToShortcuts = null }
         }
     }
 
@@ -211,7 +179,7 @@ internal class DownloadActions(private val activity: Activity, private val inlin
                 return@Thread
             }
             val candidates = exeFiles.map { it.absolutePath }
-            activity.runOnUiThread { showExePicker = ExePickerDataDm(appId, entry.name, candidates, coverUrl) }
+            activity.runOnUiThread { showExePicker = ExePickerDataXa(appId, entry.name, candidates, coverUrl) }
         }.start()
     }
 
@@ -219,7 +187,7 @@ internal class DownloadActions(private val activity: Activity, private val inlin
     private fun startAddToShortcuts(appId: Int, gameName: String, exePath: String, coverUrl: String?) {
         val launchExe = GoldbergPatcher.resolveLaunchExe(activity, appId, exePath)
         StarLaunchBridge.loadContainers(activity) { containers ->
-            addToShortcuts = AddToShortcutsRequest(gameName, launchExe, coverUrl, containers, appId)
+            addToShortcuts = AddToShortcutsRequest(gameName, launchExe, coverUrl, containers)
         }
     }
 
@@ -228,26 +196,12 @@ internal class DownloadActions(private val activity: Activity, private val inlin
      *  removes it from the live registry), dismiss the spinner, and toast the real outcome. */
     fun uninstall(entry: DownloadEntry) {
         uninstallingName = entry.name
-        // A Steam game found in another Steam client's library: those files and that manifest are the client's.
-        val imported = entry.store == Store.STEAM &&
-            entry.id.toIntOrNull()?.let { SteamLibraryImport.isImported(activity, it) } == true
         StoreUninstaller.run(
             installDir = entry.installPath,
             mark = {
                 if (entry.store == Store.STEAM) {
-                    entry.id.toIntOrNull()?.let {
-                        if (imported) SteamLibraryImport.releaseImported(activity, it)
-                        else SteamAppManifest.removeFor(entry.installPath, it)
-                        SteamRepository.getInstance().database.markUninstalled(it)
-                    }
+                    entry.id.toIntOrNull()?.let { SteamRepository.getInstance().database.markUninstalled(it) }
                 }
-            },
-            // A Steam game whose folder another game (a demo / server) also uses is kept.
-            keepFolder = {
-                val steamId = if (entry.store == Store.STEAM) entry.id.toIntOrNull() else null
-                val path = entry.installPath
-                imported || steamId != null && !path.isNullOrEmpty() &&
-                    SteamInstallPaths.folderSharedWithOtherGame(activity, File(path), steamId)
             },
         ) { ok ->
             // Clear the durable-library row (also drops the live registry entry) AND the store's
@@ -255,42 +209,9 @@ internal class DownloadActions(private val activity: Activity, private val inlin
             // reading "installed" from a record the Manager never touched (device-observed bug).
             DownloadRegistry.removeLibraryEntry(entry.key)
             purgeNativeInstall(entry)
-            // The game's shortcuts go with it (a game kept for another client's sake keeps them: it is still there).
-            if (!imported) removeShortcutsOf(entry)
             uninstallingName = null
-            notice = when {
-                imported -> activity.getString(R.string.steam_lib_uninstall_kept, entry.name)
-                ok -> "${entry.name} uninstalled"
-                else -> "Couldn't fully remove ${entry.name}"
-            }
+            notice = if (ok) "${entry.name} uninstalled" else "Couldn't fully remove ${entry.name}"
         }
-    }
-
-    /**
-     * Deletes the shortcuts of an uninstalled game (see [DownloadShortcutMatch] for which ones belong to it), off the UI thread, the
-     * same way the game's own Remove does (the .desktop file, its .lnk, the launcher pin), then lets every game list reload.
-     */
-    private fun removeShortcutsOf(entry: DownloadEntry) {
-        val ctx = activity.applicationContext
-        val imageFsRoot = File(ctx.filesDir, "imagefs").absolutePath
-        val installPath = entry.installPath
-        Thread {
-            val removed = runCatching {
-                var count = 0
-                for (s in com.winhub.hernandez.container.ContainerManager(ctx).loadShortcuts()) {
-                    val mine = DownloadShortcutMatch.belongs(entry.store, entry.id, installPath, imageFsRoot, s.path) { s.getExtra(it) }
-                    if (!mine) continue
-                    val lnk = File(s.file.path.substringBeforeLast('.') + ".lnk")
-                    if (s.file.delete()) {
-                        if (lnk.exists()) lnk.delete()
-                        com.winhub.hernandez.ui.screens.ShortcutsViewModel.disableOnScreen(ctx, s)
-                        count++
-                    }
-                }
-                count
-            }.getOrDefault(0)
-            if (removed > 0) com.winhub.hernandez.ui.screens.ShortcutsViewModel.notifyContainersChanged()
-        }.start()
     }
 
     /**
@@ -331,9 +252,6 @@ internal class DownloadActions(private val activity: Activity, private val inlin
                 }
                 .setNeutralButton("Keep downloading", null)
                 .show()
-        } else if (entry.store == Store.STEAM) {
-            // By appId through the queue, not the row's handles (those die with the run that attached them).
-            SteamDownloadControl.cancel(activity.applicationContext, entry)
         } else {
             entry.cancel?.invoke()
         }
@@ -341,11 +259,7 @@ internal class DownloadActions(private val activity: Activity, private val inlin
 
     /** Pause a running download, or resume a paused one. */
     fun pauseResume(entry: DownloadEntry) {
-        when (entry.store) {
-            Store.STEAM -> SteamDownloadControl.pauseResume(activity.applicationContext, entry)
-            Store.EPIC -> EpicDownloadControl.pauseResume(entry)
-            else -> entry.pause?.invoke()   // the store's own handle toggles
-        }
+        entry.pause?.invoke()   // the store's own handle toggles
     }
 
     /** Drop a failed / cancelled row. */
@@ -374,8 +288,6 @@ internal class DownloadActions(private val activity: Activity, private val inlin
             SteamPrefs.init(context)
             SteamRepository.getInstance().initialize(context)
             DownloadRegistry.init(context)
-            // Steam downloads the app was interrupted in come back as paused rows (the registry is memory only).
-            SteamDownloadControl.seedInterrupted()
             AmazonLibrarySync.seed(context)
             GogLibrarySync.seed(context)
             EpicLibrarySync.seed(context)
@@ -384,7 +296,7 @@ internal class DownloadActions(private val activity: Activity, private val inlin
     }
 }
 
-private data class ExePickerDataDm(
+private data class ExePickerDataXa(
     val appId: Int,
     val gameName: String,
     val candidates: List<String>,
@@ -392,7 +304,7 @@ private data class ExePickerDataDm(
 )
 
 @Composable
-private fun ExePickerDialogDm(
+private fun ExePickerDialogXa(
     gameName: String,
     candidates: List<String>,
     onDismiss: () -> Unit,

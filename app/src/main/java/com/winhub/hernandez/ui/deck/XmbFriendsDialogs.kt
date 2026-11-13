@@ -264,10 +264,10 @@ internal fun XmbFriendProfileDialog(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                DeckButton(stringResource(R.string.xmb_fr_message), null, onMessage, primary = true, modifier = Modifier.focusRequester(first))
-                DeckButton(stringResource(R.string.xmb_fr_view_on_steam), null, onViewOnSteam)
+                XmbDeckButton(stringResource(R.string.xmb_fr_message), null, onMessage, primary = true, modifier = Modifier.focusRequester(first))
+                XmbDeckButton(stringResource(R.string.xmb_fr_view_on_steam), null, onViewOnSteam)
                 Spacer(Modifier.weight(1f))
-                DeckButton(stringResource(R.string.xmb_fr_close), null, onDismiss, glyph = "B")
+                XmbDeckButton(stringResource(R.string.xmb_fr_close), null, onDismiss, glyph = "B")
             }
         }
     }
@@ -361,7 +361,7 @@ internal fun XmbAddFriendDialog(onDismiss: () -> Unit) {
                                 )
                             }
                             if (!isFriend && !pending) {
-                                DeckButton(
+                                XmbDeckButton(
                                     stringResource(R.string.xmb_fr_add_button), null,
                                     {
                                         SteamFriendsStore.addFriendById(r.steamId64)
@@ -387,7 +387,7 @@ internal fun XmbAddFriendDialog(onDismiss: () -> Unit) {
                                 modifier = fieldModifier,
                             )
                         }
-                        DeckButton(
+                        XmbDeckButton(
                             stringResource(R.string.xmb_fr_add_button), null,
                             {
                                 if (codeInput.isNotBlank()) {
@@ -406,7 +406,7 @@ internal fun XmbAddFriendDialog(onDismiss: () -> Unit) {
                     }
                     if (myCode != null) {
                         val copied = stringResource(R.string.xmb_fr_code_copied)
-                        DeckButton(
+                        XmbDeckButton(
                             stringResource(R.string.xmb_fr_copy), null,
                             {
                                 clipboard.setText(AnnotatedString(myCode))
@@ -417,7 +417,7 @@ internal fun XmbAddFriendDialog(onDismiss: () -> Unit) {
                 }
             }
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                DeckButton(stringResource(R.string.xmb_fr_done), null, onDismiss, primary = true, glyph = "B")
+                XmbDeckButton(stringResource(R.string.xmb_fr_done), null, onDismiss, primary = true, glyph = "B")
             }
         }
     }

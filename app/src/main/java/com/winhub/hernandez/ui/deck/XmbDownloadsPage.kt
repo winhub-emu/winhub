@@ -135,7 +135,7 @@ internal fun rememberXmbDownloadRing(): XmbDownloadRing? {
 @Composable
 internal fun XmbDownloadsPage(focus: XmbTabsPageFocus) {
     val context = LocalContext.current
-    val actions = remember(context) { context.findActivity()?.let { DownloadActions(it, inlineAddResult = true) } }
+    val actions = remember(context) { context.findActivity()?.let { DownloadActions(it) } }
     // Seeds the durable library and the store libraries before the first frame reads the registry (as the Activity does in onCreate), so the
     // page does not flash its empty state; the calls are idempotent, so once per process or once per composition is the same.
     remember(context) { runCatching { DownloadActions.prepare(context) } }

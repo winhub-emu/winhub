@@ -28,3 +28,7 @@ fun DeckDialogScaled(host: Boolean = true, content: @Composable () -> Unit) {
         if (deck == null) body() else CompositionLocalProvider(LocalDensity provides deck, content = body)
     }
 }
+
+/** The Deck shell hides Android's navigation bar over a dialog's window too; WinHub's dialogs keep their own bars, so there is nothing to hide. */
+@Composable
+fun DeckDialogBars() {}

@@ -422,7 +422,7 @@ internal fun SteamXmbView(
     val hintInset = LocalXmbHintInset.current
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val screenHeight = maxHeight
-        val m = remember(maxWidth, maxHeight, topInset) { XmbMetrics(maxWidth.value, maxHeight.value - topInset.value) }
+        val m = remember(maxWidth, maxHeight, topInset) { SteamXmbMetrics(maxWidth.value, maxHeight.value - topInset.value) }
         // The Steam home's option rows are at least 48 dp tall, a touch target; the other looks keep their own row height.
         val rowH = if (steam) m.rowH.coerceAtLeast(XMB_STEAM_MIN_ROW) else m.rowH
         val sl = remember(m, clipTop, hintInset, ss, rowH) {
@@ -823,7 +823,7 @@ internal fun SteamXmbView(
 }
 
 /** All XMB geometry in dp, from the content box. Portrait = taller than wide. */
-private class XmbMetrics(val w: Float, val h: Float) {
+private class SteamXmbMetrics(val w: Float, val h: Float) {
     val port = h > w * 1.05f
     val fH = if (port) min(w * 0.52f, h * 0.29f) else (h * 0.36f).coerceIn(96f, 280f)
     val fW = fH * 2f / 3f                  // 2:3, same as the grid covers
@@ -862,7 +862,7 @@ private fun XmbCover(
     shortcut: Shortcut,
     index: Int,
     pos: MutableFloatState,
-    m: XmbMetrics,
+    m: SteamXmbMetrics,
     accent: Color,
     focused: Boolean,
     selectionMode: Boolean,
@@ -920,7 +920,7 @@ private fun XmbCover(
 // A card's place in a row (a game's or the All Games card's): its size, position and fade from its distance to the cross, read in
 // the graphics layer so a swipe re-draws without recomposing.
 private fun Modifier.xmbCoverSlot(
-    index: Int, pos: MutableFloatState, m: XmbMetrics, focused: Boolean,
+    index: Int, pos: MutableFloatState, m: SteamXmbMetrics, focused: Boolean,
 ): Modifier = this
     .zIndex(if (focused) 1f else 0f)
     .size(m.fW.dp, m.fH.dp)
@@ -948,7 +948,7 @@ private fun Modifier.xmbCoverSlot(
 private fun XmbAllGamesCover(
     index: Int,
     pos: MutableFloatState,
-    m: XmbMetrics,
+    m: SteamXmbMetrics,
     accent: Color,
     count: String,
     mosaic: XmbMosaic<Shortcut>,
