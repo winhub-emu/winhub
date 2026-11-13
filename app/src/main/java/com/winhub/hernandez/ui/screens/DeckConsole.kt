@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.SoundPool
-import android.provider.Settings
 import androidx.preference.PreferenceManager
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
@@ -116,7 +115,7 @@ internal object DeckConsole {
 
 /**
  * One short sound per kind of move. "SteamOS" (the default) plays the app's own soft clips through a SoundPool, "Phone" the system's
- * click sounds, "Off" nothing; the choice is Settings > Navigation sounds. Either sound set follows the phone's touch-sounds switch.
+ * click sounds, "Off" nothing; the choice is Settings > Navigation sounds. SteamOS plays at the media volume, Phone follows the phone's touch-sounds switch.
  */
 internal object DeckSound {
     const val MOVE = 0
@@ -144,7 +143,7 @@ internal object DeckSound {
         prefs = PreferenceManager.getDefaultSharedPreferences(app)
         if (pool != null) return
         val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         val sp = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(attrs).build()
@@ -154,11 +153,6 @@ internal object DeckSound {
         ids[ERROR] = sp.load(app, R.raw.deck_snd_error, 1)
         ids[TAB] = sp.load(app, R.raw.deck_snd_tab, 1)
         pool = sp
-    }
-
-    private fun touchSoundsOn(): Boolean {
-        val app = appContext ?: return true
-        return Settings.System.getInt(app.contentResolver, Settings.System.SOUND_EFFECTS_ENABLED, 1) != 0
     }
 
     fun play(kind: Int) {
@@ -174,10 +168,9 @@ internal object DeckSound {
                 audio?.playSoundEffect(fx)
             }
             else -> {
-                if (!touchSoundsOn()) return
                 val id = ids.getOrNull(kind) ?: return
                 // A clip still loading plays nothing (id 0 from play), never an error.
-                pool?.play(id, 0.8f, 0.8f, 1, 0, 1f)
+                pool?.play(id, 1f, 1f, 1, 0, 1f)
             }
         }
     }

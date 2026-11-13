@@ -817,7 +817,7 @@ internal fun DeckSettingsScreen() {
         DeckGroup(title = "Navigation sounds") {
             DeckChoiceRow(
                 label = "Sound set",
-                hint = "The sounds the D-pad and buttons make in Deck mode. SteamOS is the app's own soft set; Phone uses the system click sounds. Both follow the phone's touch-sounds switch",
+                hint = "The sounds the D-pad and buttons make in Deck mode. SteamOS is the app's own soft set; Phone uses the system click sounds (it follows the touch-sounds switch). SteamOS plays at the media volume",
                 options = listOf(
                     DeckSound.STEAMOS to "SteamOS",
                     DeckSound.PHONE to "Phone",
