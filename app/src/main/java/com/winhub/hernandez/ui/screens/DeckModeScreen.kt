@@ -308,7 +308,7 @@ internal fun DeckModeScreen() {
     var section by remember { mutableStateOf("home") }
     // Full XMB: Home carries the stores and Social as cards, so their tabs leave the rail; the pages stay
     // and open from Home (B returns there).
-    val fullXmb = rememberFullXmb() && !portrait
+    val fullXmb = (rememberFullXmb() || rememberSteamHome()) && !portrait
     var storeTarget by remember { mutableStateOf<Screen?>(null) }
     var graphicPane by remember { mutableStateOf("gpu") }
     var deckDetail by remember { mutableStateOf<Int?>(null) }
@@ -724,8 +724,24 @@ private fun DeckHome(
     // Landscape Home is always the XMB layout; Full XMB (Settings > Appearance) adds the stores and Social cards.
     val xmbStyle = !portrait
     val fullXmb = rememberFullXmb() && xmbStyle
+    // Steam style: one row of covers with Stores / Downloads / Friends / Social as pages that slide up over it.
+    val steamStyle = rememberSteamHome() && xmbStyle
+    var steamPageOpen by remember { mutableStateOf(false) }
+    var steamPageTab by remember { mutableIntStateOf(0) }
+    val steamBarFocus = remember { FocusRequester() }
+    var steamBarFocused by remember { mutableStateOf(true) }
     LaunchedEffect(deckTabs) { deckTabs.bind(4) }
-    val shelf = deckTabs.index
+    // The Social page binds its own sub-tabs on the shared host, so while a page is up the shelf stays where it was.
+    val shelfHold = remember { intArrayOf(deckTabs.index) }
+    val shelfFrozen = steamStyle && steamPageOpen
+    SideEffect { if (!shelfFrozen) shelfHold[0] = deckTabs.index }
+    val shelf = if (shelfFrozen) shelfHold[0] else deckTabs.index
+    LaunchedEffect(steamPageOpen, steamPageTab) {
+        if (!(steamPageOpen && steamPageTab == SteamTab.SOCIAL.ordinal)) {
+            deckTabs.bind(4)
+            deckTabs.select(shelfHold[0])
+        }
+    }
     var favs by remember {
         mutableStateOf(context.getSharedPreferences("hub_prefs", Context.MODE_PRIVATE).getStringSet("hub_favs", emptySet()).orEmpty())
     }
@@ -976,8 +992,11 @@ private fun DeckHome(
         reloadEntries()
     }
     val backLayer = LocalDeckBack.current
-    DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen) {
-        backLayer.onBack = if (allOpen) {
+    DisposableEffect(homeMode, shortcutSettingsFor, xmbNested, allOpen, steamPageOpen, steamBarFocused) {
+        backLayer.onBack = if (steamPageOpen) {
+            // B on a page goes up to its tab bar first; B on the bar slides the page away.
+            { if (steamBarFocused) steamPageOpen = false else runCatching { steamBarFocus.requestFocus() }; true }
+        } else if (allOpen) {
             { allOpen = false; true }
         } else if (xmbNested) {
             { xmbNav.pop(); true }
@@ -1153,7 +1172,7 @@ private fun DeckHome(
         )
     }.orEmpty()
 
-    val classicItems = current?.takeIf { !xmbStyle }?.let { entry ->
+    val classicItems = current?.takeIf { !xmbStyle || steamStyle }?.let { entry ->
         val fav = entry.game?.shortcutPath in favs
         buildList {
             actions.forEachIndexed { i, a ->
@@ -1170,8 +1189,8 @@ private fun DeckHome(
     // The row above the games holds the glass Add game card and, in Full XMB, the stores and Social.
     val showStores by AppThemeState.showStores.collectAsState()
     val storeScreens = remember { listOf(Screen.Steam, Screen.Epic, Screen.Gog, Screen.Amazon, Screen.Xbox) }
-    val storesSignedIn by produceState(emptyMap<Screen, Boolean>(), fullXmb, showStores, homeMode) {
-        value = if (fullXmb && showStores) {
+    val storesSignedIn by produceState(emptyMap<Screen, Boolean>(), fullXmb, steamStyle, showStores, homeMode) {
+        value = if ((fullXmb || steamStyle) && showStores) {
             withContext(Dispatchers.IO) { storeScreens.associateWith { deckSignedIn(context, it) } }
         } else {
             emptyMap()
@@ -1203,12 +1222,33 @@ private fun DeckHome(
         }
     }
 
+    // The Steam style's Stores page: Add game, then each store.
+    val steamCards = remember(showStores, storesSignedIn) {
+        buildList {
+            add(
+                DeckHomeCard("Add game", "Add games to your library", Icons.Filled.Add,
+                    listOf(Color(0xFF2A2D33), Color(0xFF16181C))) { addModeMenu = true },
+            )
+            if (showStores) storeScreens.forEach { screen ->
+                add(
+                    DeckHomeCard(
+                        screen.label,
+                        if (storesSignedIn[screen] == true) "Signed in" else "Not signed in - A to sign in",
+                        Icons.Filled.Storefront,
+                        deckStoreBrand(screen),
+                        logo = deckStoreLogo(screen),
+                    ) { openStoreNow(screen) },
+                )
+            }
+        }
+    }
+
     // The per-game editor is drawn inline: the carousel gives up focus, then focus moves into the editor.
     val settingsFocus = LocalFocusManager.current
 
     // Hand focus back to the carousel once any dialog/overlay opened from Home goes away.
     val overlayOpen = pending != null || launchRequest != null || launchMethodFor != null ||
-        propertiesFor != null || cronosReviewFor != null || shortcutSettingsFor != null || addModeMenu || xmbNested || showWrapperManager || classicMenu || allOpen
+        propertiesFor != null || cronosReviewFor != null || shortcutSettingsFor != null || addModeMenu || xmbNested || showWrapperManager || classicMenu || allOpen || steamPageOpen
     var hadOverlay by remember { mutableStateOf(false) }
     LaunchedEffect(overlayOpen) {
         if (!overlayOpen && hadOverlay) {
@@ -1227,7 +1267,7 @@ private fun DeckHome(
                 .then(if (portrait) Modifier else Modifier.background(Deck.background))
                 .clipToBounds(),
         ) {
-            if (!portrait) {
+            if (!portrait && !steamStyle) {
                 // On the All Games card the wall is made of the library's own covers.
                 val libraryWall = allFocused && libraryCovers.isNotEmpty()
                 Crossfade(targetState = libraryWall, animationSpec = tween(500), label = "homeWall") { own ->
@@ -1245,7 +1285,7 @@ private fun DeckHome(
                             bitmap = remember(bmp) { bmp.asImageBitmap() },
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().blur(18.dp).alpha(0.34f),
+                            modifier = Modifier.fillMaxSize().blur(if (steamStyle) 10.dp else 18.dp).alpha(if (steamStyle) 0.6f else 0.34f),
                         )
                     }
                 }
@@ -1265,6 +1305,16 @@ private fun DeckHome(
                 )
             }
             if (!portrait) DeckWallFade()
+            // Steam style: the chosen game's art fills the screen, darker toward the covers row so the names read.
+            if (steamStyle) Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = 0.3f),
+                        0.45f to Color.Transparent,
+                        1f to Deck.background.copy(alpha = 0.92f),
+                    ),
+                ),
+            )
 
             if (portrait) PortraitHome(
                 entries = visible,
@@ -1277,6 +1327,37 @@ private fun DeckHome(
                 onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
                 onMenu = { i -> selected = i; classicMenu = true },
+            ) else if (steamStyle) DeckSteamHome(
+                modifier = Modifier.graphicsLayer {
+                    alpha = intro.value * homeFade
+                    translationY = (1f - intro.value) * 60.dp.toPx() - (1f - homeFade) * 12.dp.toPx()
+                },
+                entries = visible,
+                loaded = entries != null && (visible.isNotEmpty() || entries.orEmpty().isEmpty()),
+                selected = sel,
+                allFocused = allFocused,
+                favs = favs,
+                details = if (allFocused) emptyList() else details,
+                info = xmbInfo,
+                allCovers = allCardCovers,
+                storeCards = steamCards,
+                pageOpen = steamPageOpen,
+                pageTab = steamPageTab,
+                barFocus = steamBarFocus,
+                onBarFocus = { steamBarFocused = it },
+                onPage = { steamPageOpen = it },
+                onPageTab = { steamPageTab = it },
+                onSelect = { selected = it },
+                onAllFocus = { allFocused = it },
+                onOpenAll = { if (libraryCovers.isNotEmpty() || entries.orEmpty().isNotEmpty()) allOpen = true },
+                onPlay = { current?.let { playEntry(it) } },
+                onOptions = { classicMenu = true },
+                onFavorite = { toggleFavorite() },
+                onAdd = { addModeMenu = true },
+                focus = heroFocus,
+                enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu && !allOpen,
+                launching = launchShown,
+                launchT = { launchT.value },
             ) else DeckHomeCarousel(
                 modifier = Modifier.graphicsLayer {
                     // An open tool replaces Home: it fades out and lifts a little, as the XMB's root does.
@@ -1362,7 +1443,7 @@ private fun DeckHome(
             }
 
             // Shelves (L2/R2) top centre, status top right.
-            if (!portrait && !allOpen) DeckStretchyTabs(
+            if (!portrait && !allOpen && !(steamStyle && steamPageOpen)) DeckStretchyTabs(
                 labels = listOf("All", "Recent", "Favourites", "Store games"),
                 selected = shelf,
                 onSelect = { deckTabs.select(it) },
@@ -2571,7 +2652,7 @@ private class DeckMenuAction(
 )
 
 /** A card of the row above the games: a store's logo on its colours, or the glass Add game card. */
-private class DeckHomeCard(
+internal class DeckHomeCard(
     val label: String,
     val subtitle: String,
     val icon: ImageVector,

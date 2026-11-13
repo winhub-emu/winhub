@@ -1401,7 +1401,7 @@ private fun DeckStoreSettingsPane(
  * would otherwise have done. Messages surface as a Toast (the Deck shell has no snackbar host).
  */
 @Composable
-private fun DeckSteamFriendsPane() {
+internal fun DeckSteamFriendsPane() {
     val context = LocalContext.current
     // SteamMainActivity runs these in onCreate — composition-time, before ANY child reads a
     // pref or the engine, never deferred to an effect.

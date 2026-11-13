@@ -12,28 +12,47 @@ import androidx.preference.PreferenceManager
 
 /**
  * Deck Home layout (Settings > Appearance, landscape): Classic keeps Home to the games, Full XMB also
- * carries the stores and Social as cards above them and drops their tabs from the rail.
+ * carries the stores and Social as cards above them and drops their tabs from the rail, and Steam puts one
+ * row of covers at the bottom with Stores, Downloads, Friends and Social as pages that slide up over it.
  * Any other saved value (including the old "xmb" / "classic") is Classic.
  */
 internal object DeckHomeStyle {
     const val KEY = "home_style"
     const val CLASSIC = "classic"
     const val FULL_XMB = "full_xmb"
+    const val STEAM = "steam"
 
-    fun isFull(prefs: SharedPreferences): Boolean = prefs.getString(KEY, CLASSIC) == FULL_XMB
+    fun read(prefs: SharedPreferences): String {
+        val saved = prefs.getString(KEY, CLASSIC)
+        return when (saved) {
+            FULL_XMB -> FULL_XMB
+            STEAM -> STEAM
+            else -> CLASSIC
+        }
+    }
+
+    fun isFull(prefs: SharedPreferences): Boolean = read(prefs) == FULL_XMB
 }
 
-/** True while Full XMB is chosen; follows the setting live, so the rail updates the moment it is flipped. */
+/** The saved Home style; follows the setting live, so the rail updates the moment it is flipped. */
 @Composable
-internal fun rememberFullXmb(): Boolean {
+internal fun rememberHomeStyle(): String {
     val prefs = PreferenceManager.getDefaultSharedPreferences(LocalContext.current)
-    var full by remember { mutableStateOf(DeckHomeStyle.isFull(prefs)) }
+    var style by remember { mutableStateOf(DeckHomeStyle.read(prefs)) }
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
-            if (key == DeckHomeStyle.KEY) full = DeckHomeStyle.isFull(p)
+            if (key == DeckHomeStyle.KEY) style = DeckHomeStyle.read(p)
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    return full
+    return style
 }
+
+/** True while Full XMB is chosen. */
+@Composable
+internal fun rememberFullXmb(): Boolean = rememberHomeStyle() == DeckHomeStyle.FULL_XMB
+
+/** True while the Steam Home style is chosen. */
+@Composable
+internal fun rememberSteamHome(): Boolean = rememberHomeStyle() == DeckHomeStyle.STEAM

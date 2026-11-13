@@ -159,7 +159,7 @@ internal fun DeckSettingsScreen() {
     // Store pages ("deck" | "xmb"); the store Activities read it when they open.
     var storeStyle by remember { mutableStateOf(if (StoreStyle.isXmb(context)) StoreStyle.XMB else StoreStyle.DECK) }
     // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
-    var homeStyle by remember { mutableStateOf(if (DeckHomeStyle.isFull(prefs)) DeckHomeStyle.FULL_XMB else DeckHomeStyle.CLASSIC) }
+    var homeStyle by remember { mutableStateOf(DeckHomeStyle.read(prefs)) }
 
     // ── Sound (MIDI Sound Font) — same as SettingsScreen's Sound section. ──
     var sfNames by remember { mutableStateOf(listOf<String>()) }
@@ -797,10 +797,11 @@ internal fun DeckSettingsScreen() {
         if (!portraitUi) DeckGroup(title = "Home") {
             DeckChoiceRow(
                 label = "Home style",
-                hint = "Full XMB puts the stores and Social on Home as cards above your games, and hides their tabs",
+                hint = "Full XMB puts the stores and Social on Home as cards above your games. Steam keeps one row of covers at the bottom, with Stores, Downloads, Friends and Social as pages that slide up. Both hide those tabs",
                 options = listOf(
                     DeckHomeStyle.CLASSIC to "Classic",
                     DeckHomeStyle.FULL_XMB to "Full XMB",
+                    DeckHomeStyle.STEAM to "Steam",
                 ),
                 selected = homeStyle,
                 onPick = {
