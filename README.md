@@ -1,9 +1,10 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/logo.png" width="820" alt="WinHub" />
+  <img alt="WinHub Light" src="docs/media/winhub_banner2_light.png#gh-light-mode-only">
+  <img alt="WinHub Dark" src="docs/media/winhub_banner2_dark.png#gh-dark-mode-only">
 </p>
 
 <h1 align="center">WinHub</h1>
-<p align="center"><b>Windows apps and games on Android, with a console-style interface.</b></p>
+<p align="center"><b>Windows apps and games on Android, with a console-style interface, full Stores support, frame-gen, Social Hub and much more.</b></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Version-1.1-ff2d9b?style=for-the-badge" alt="Version 1.1">
