@@ -3,9 +3,7 @@ package com.winhub.hernandez.ui.screens
 import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
-import android.media.AudioAttributes
 import android.media.AudioManager
-import android.media.SoundPool
 import androidx.preference.PreferenceManager
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
@@ -114,7 +112,7 @@ internal object DeckConsole {
 }
 
 /**
- * One short sound per kind of move. "SteamOS" (the default) plays the app's own soft clips through a SoundPool, "Phone" the system's
+ * One short sound per kind of move. "SteamOS" (the default) plays the app's own soft clips through its own mixer (DeckSoundMixer), "Phone" the system's
  * click sounds, "Off" nothing; the choice is Settings > Navigation sounds. SteamOS plays at the media volume, Phone follows the phone's touch-sounds switch.
  */
 internal object DeckSound {
@@ -130,47 +128,45 @@ internal object DeckSound {
     const val PHONE = "phone"
     const val OFF = "off"
 
-    private var appContext: Context? = null
     private var audio: AudioManager? = null
     private var prefs: SharedPreferences? = null
-    private var pool: SoundPool? = null
-    private val ids = IntArray(5)
+    @Volatile private var mixer: DeckSoundMixer? = null
+    @Volatile private var starting = false
+
+    private val clipIds = intArrayOf(
+        R.raw.deck_snd_move, R.raw.deck_snd_select, R.raw.deck_snd_back, R.raw.deck_snd_error, R.raw.deck_snd_tab,
+    )
 
     fun init(context: Context) {
         val app = context.applicationContext
-        appContext = app
         audio = app.getSystemService(AudioManager::class.java)
         prefs = PreferenceManager.getDefaultSharedPreferences(app)
-        if (pool != null) return
-        val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_GAME)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        val sp = SoundPool.Builder().setMaxStreams(4).setAudioAttributes(attrs).build()
-        ids[MOVE] = sp.load(app, R.raw.deck_snd_move, 1)
-        ids[SELECT] = sp.load(app, R.raw.deck_snd_select, 1)
-        ids[BACK] = sp.load(app, R.raw.deck_snd_back, 1)
-        ids[ERROR] = sp.load(app, R.raw.deck_snd_error, 1)
-        ids[TAB] = sp.load(app, R.raw.deck_snd_tab, 1)
-        pool = sp
+        synchronized(this) {
+            if (mixer != null || starting) return
+            starting = true
+        }
+        // Decoding the clips reads files: off the main thread. Until it is done the sounds simply fall back to the phone's.
+        Thread({ mixer = DeckSoundMixer.create(app, clipIds); starting = false }, "deck-sound-init").start()
+    }
+
+    private fun phone(kind: Int) {
+        val fx = when (kind) {
+            MOVE, TAB -> AudioManager.FX_FOCUS_NAVIGATION_RIGHT
+            SELECT -> AudioManager.FX_KEY_CLICK
+            BACK -> AudioManager.FX_FOCUS_NAVIGATION_LEFT
+            else -> AudioManager.FX_KEYPRESS_INVALID
+        }
+        audio?.playSoundEffect(fx)
     }
 
     fun play(kind: Int) {
         when (prefs?.getString(KEY, STEAMOS)) {
             OFF -> return
-            PHONE -> {
-                val fx = when (kind) {
-                    MOVE, TAB -> AudioManager.FX_FOCUS_NAVIGATION_RIGHT
-                    SELECT -> AudioManager.FX_KEY_CLICK
-                    BACK -> AudioManager.FX_FOCUS_NAVIGATION_LEFT
-                    else -> AudioManager.FX_KEYPRESS_INVALID
-                }
-                audio?.playSoundEffect(fx)
-            }
+            PHONE -> phone(kind)
             else -> {
-                val id = ids.getOrNull(kind) ?: return
-                // A clip still loading plays nothing (id 0 from play), never an error.
-                pool?.play(id, 1f, 1f, 1, 0, 1f)
+                val m = mixer
+                // The app's own engine; the phone's click only stands in while it is loading or if it could not open the output.
+                if (m != null && !m.failed) m.play(kind) else phone(kind)
             }
         }
     }
