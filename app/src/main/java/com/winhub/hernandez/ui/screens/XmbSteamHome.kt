@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -237,13 +238,22 @@ internal fun XmbSteamHome(
     downloadRing: XmbDownloadRing?,
     onCard: (Int) -> Unit,
     onTab: (Int) -> Unit,
+    /** 1 = the row ends with an Add game card (slot [shortcuts].size), whose taps come to [onCard] like a game's. */
+    extra: Int = 0,
 ) {
-    val n = shortcuts.size
+    val games = shortcuts.size
+    val n = games + extra
     val row = remember(sl, n) { sl.row(n) }
     // Only the covers near the cursor are composed; each one's place is read from `pos` in its graphics layer.
     val base by remember { derivedStateOf { floor(pos.floatValue).toInt() } }
     Box(Modifier.fillMaxSize()) {
         for (i in xmbSteamWindow(base.toFloat(), n, sl.w, sl.fW + sl.gap)) {
+            if (i >= games) {
+                key("steam_add_game") {
+                    XmbSteamAddCard(i, pos, sl, row, accent, i == target, liftIdx, lift) { onCard(i) }
+                }
+                continue
+            }
             val s = shortcuts[i]
             key(s.file.path) {
                 XmbSteamCover(s, i, pos, sl, row, accent, i == target, i == liftIdx, liftIdx, lift) { onCard(i) }
@@ -325,6 +335,41 @@ private fun XmbSteamCover(
         if (!lifted) {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = XMB_STEAM_DIM * lift() }.background(Color.Black))
         }
+    }
+}
+
+/** The Add game card at the end of the row: a plain dark card with a plus, in the shape and the lift of the covers. */
+@Composable
+private fun XmbSteamAddCard(
+    index: Int,
+    pos: MutableFloatState,
+    sl: XmbSteamLayout,
+    row: XmbSteamRow,
+    accent: Color,
+    focused: Boolean,
+    liftIdx: Int,
+    lift: () -> Float,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(XMB_STEAM_CORNER)
+    val src = remember { MutableInteractionSource() }
+    Box(
+        Modifier
+            .xmbSteamSlot(index, pos, sl, row, focused, false, liftIdx, lift)
+            .clip(shape)
+            .background(Brush.verticalGradient(XMB_PLAIN_CARD))
+            .then(if (focused) Modifier.border(1.5.dp, XMB_FOCUS_OUTLINE, shape) else Modifier)
+            .xmbClick(src, onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Filled.Add, contentDescription = null, tint = accent, modifier = Modifier.size((sl.fW * 0.3f).dp))
+            Text(
+                "Add game", color = Color.White, fontSize = (sl.fW * 0.11f).coerceIn(10f, 16f).sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = XMB_STEAM_DIM * lift() }.background(Color.Black))
     }
 }
 

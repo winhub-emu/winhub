@@ -56,6 +56,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.GridView
@@ -216,6 +217,8 @@ internal fun SteamXmbView(
      * cursor. Null = Start is left alone and no hint shows (the host passes null while its tabs page is up, which has its own).
      */
     onAddGame: (() -> Unit)? = null,
+    /** [steamHome] only: non-null ends the row with an Add game card (the slot after the last game) that runs this. */
+    addCard: (() -> Unit)? = null,
 ) {
     if (shortcuts.isEmpty() && allShortcuts == null) return
     val context = LocalContext.current
@@ -226,7 +229,10 @@ internal fun SteamXmbView(
     // The All Games card is the slot after the last game (slot n), so a game's slot is its index in `shortcuts` and the row's
     // index maths (target, pos, the swipes, the counters) runs on slots; slot 0 is the first game.
     val hasAll = allShortcuts != null
-    val slots = n + if (hasAll) 1 else 0
+    // The Add game card takes the same slot the All Games card would (the two never show together).
+    val hasAdd = addCard != null && !hasAll
+    val hasExtra = hasAll || hasAdd
+    val slots = n + if (hasExtra) 1 else 0
     val allTotal = allShortcuts?.size ?: 0
     val allCount = remember(allTotal) { context.resources.getQuantityString(R.plurals.xmb_all_games_count, allTotal, allTotal) }
     val allLabel = stringResource(R.string.xmb_all_games_open)
@@ -241,7 +247,7 @@ internal fun SteamXmbView(
     // The focused game is remembered by path so it survives rotation, leaving the tab, and a
     // refresh or sort that reorders the list. The All Games card is remembered as XMB_ALL_PATH.
     var focusedPath by rememberSaveable { mutableStateOf<String?>(null) }
-    fun slotOfPath(path: String?): Int = xmbSlotOf(shortcuts.map { it.file.path }, path, hasAll)
+    fun slotOfPath(path: String?): Int = xmbSlotOf(shortcuts.map { it.file.path }, path, hasExtra)
     // Opens on the first game (slot 0) unless the cursor was somewhere else.
     var target by remember { mutableIntStateOf(slotOfPath(focusedPath).takeIf { it >= 0 } ?: 0) }
     val pos = remember { mutableFloatStateOf(target.toFloat()) } // visual position, fractional mid-swipe
@@ -255,7 +261,7 @@ internal fun SteamXmbView(
     val centered = centeredHome && !optsOpen
     val steam = steamHome && centeredHome && allShortcuts == null
 
-    LaunchedEffect(shortcuts, hasAll) {
+    LaunchedEffect(shortcuts, hasExtra) {
         val i = slotOfPath(focusedPath)
         val idx = if (i >= 0) i else target.coerceIn(0, slots - 1)
         settleJob?.cancel()
@@ -266,7 +272,7 @@ internal fun SteamXmbView(
         if (optsOpen) liftIdx = idx
     }
     // The game under the cursor, or null on the All Games card (the slot after the last game), which has no game behind it.
-    val focused: Shortcut? = if (hasAll && target >= n) null else shortcuts[target.coerceIn(0, n - 1)]
+    val focused: Shortcut? = if (hasExtra && target >= n) null else shortcuts[target.coerceIn(0, n - 1)]
     val onAll = focused == null
     val focusKey = focused?.file?.path ?: XMB_ALL_PATH
     LaunchedEffect(focusKey) {
@@ -289,7 +295,10 @@ internal fun SteamXmbView(
     val playtime = remember(focused) { focused?.let { steamXmbPlaytime(context, it.name) } }
     val isSelected = focused != null && focused.file.path in selectedPaths
     // The All Games card offers just "Open".
-    val actions = if (focused == null) listOf(XmbAction(allLabel, Icons.Filled.GridView, allCount) { allOpen = true }) else buildList<XmbAction> {
+    val actions = if (focused == null) {
+        if (hasAdd) listOf(XmbAction("Add game", Icons.Filled.Add) { addCard?.invoke() })
+        else listOf(XmbAction(allLabel, Icons.Filled.GridView, allCount) { allOpen = true })
+    } else buildList<XmbAction> {
         add(
             if (selectionMode) XmbAction(if (isSelected) "Deselect" else "Select", Icons.Filled.Checklist) { onToggleSelect(focused) }
             else XmbAction("Play", Icons.Filled.PlayArrow, playtime?.let { "$it played" } ?: "Not played yet") { onPlay(focused) }
@@ -545,7 +554,7 @@ internal fun SteamXmbView(
                             }
                             Key.DirectionUp -> steam
                             // The All Games card has no options to show: A opens its page.
-                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (onAll) allOpen = true else openOpts(); true }
+                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { if (onAll) { if (hasAdd) addCard?.invoke() else allOpen = true } else openOpts(); true }
                             Key.ButtonB -> if (selectionMode) { onExitSelection(); true } else false
                             else -> false
                         }
@@ -635,7 +644,7 @@ internal fun SteamXmbView(
                         }
                         if (hi.sections) XmbKeyHint("L1 R1", "Section", hs)
                     } else if (hasPad) {
-                        XmbButtonHint("A", Color(0xFF3DDC84), if (onAll) allLabel else if (centered) "Options" else actions[actIdx].label, hs)
+                        XmbButtonHint("A", Color(0xFF3DDC84), if (onAll) (if (hasAdd) "Add game" else allLabel) else if (centered) "Options" else actions[actIdx].label, hs)
                         XmbButtonHint("B", Color(0xFFFF5252), "Back", hs)
                         if (!m.port && m.w >= 600f) {
                             XmbKeyHint("◀ ▶", "Games", hs); XmbKeyHint("▲ ▼", "Options", hs); XmbKeyHint("L1 R1", if (inDeckShell) "Tabs" else "Jump", hs)
@@ -666,7 +675,10 @@ internal fun SteamXmbView(
                         focused = focused, sdBadge = sdBadge,
                         lift = { 1f - cT }, tabs = homeTabs, tabSel = tabIdx, tabsActive = tabsActive, tabsEnabled = centered, badges = homeBadges, downloadRing = homeDownloadRing,
                         onCard = { i ->
-                            if (nav.depth == 0) {
+                            if (nav.depth == 0 && i >= n) {
+                                // The Add game card: a tap brings it to the cursor, a tap on it adds a game.
+                                if (i != target) settleTo(i) else addCard?.invoke()
+                            } else if (nav.depth == 0) {
                                 val s = shortcuts[i]
                                 // A tap on another card focuses it (and, with the options open, closes them: the cursor moved). A tap on the
                                 // focused one opens its options, or closes them when they are open (the lifted card); a bounce right after
@@ -681,6 +693,7 @@ internal fun SteamXmbView(
                         },
                         // A tap opens the tabs page on that tab (its action sets the tab, so the peek highlights it).
                         onTab = { i -> if (nav.depth == 0) runAction(homeTabs[i]) },
+                        extra = if (hasAdd) 1 else 0,
                     )
                 }
                 if (!steam) {

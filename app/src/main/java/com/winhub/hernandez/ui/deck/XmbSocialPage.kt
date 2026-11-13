@@ -56,10 +56,10 @@ private val XMB_SOCIAL_CARDS = listOf(
 
 /**
  * The Social tab of the XMB Home's tabs page: the Social Hub's three parts as cards, in the look of the Stores tab. Left / Right move
- * between them, A (or a tap) opens the Social Hub, Up goes to the pill bar.
+ * between them, A (or a tap) opens the Social Hub on that card's tab, Up goes to the pill bar.
  */
 @Composable
-internal fun XmbSocialPage(focus: XmbTabsPageFocus, onOpen: () -> Unit) {
+internal fun XmbSocialPage(focus: XmbTabsPageFocus, onOpen: (Int) -> Unit) {
     var sel by remember { mutableIntStateOf(0) }
     XmbTabsPageKeys(focus) { e ->
         when (e.key) {
@@ -69,7 +69,7 @@ internal fun XmbSocialPage(focus: XmbTabsPageFocus, onOpen: () -> Unit) {
             Key.DirectionDown -> true
             // A held key must not open the hub twice.
             Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
-                if (e.nativeKeyEvent.repeatCount == 0) onOpen()
+                if (e.nativeKeyEvent.repeatCount == 0) onOpen(sel)
                 true
             }
             else -> false
@@ -79,7 +79,7 @@ internal fun XmbSocialPage(focus: XmbTabsPageFocus, onOpen: () -> Unit) {
         val side = minOf(maxHeight.value * 0.8f, (maxWidth.value - 2 * 16f) / XMB_SOCIAL_CARDS.size).coerceAtLeast(96f)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             XMB_SOCIAL_CARDS.forEachIndexed { i, card ->
-                XmbSocialCardView(card, side, focus.contentFocused && i == sel) { sel = i; onOpen() }
+                XmbSocialCardView(card, side, focus.contentFocused && i == sel) { sel = i; onOpen(i) }
             }
         }
     }

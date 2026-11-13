@@ -116,11 +116,16 @@ private const val TAG = "SocialConfigsTab"
 @Composable
 internal fun SocialHubScreen(deck: Boolean = false, onExit: (() -> Unit)? = null) {
     val ctx = LocalContext.current
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // The Steam Home's Social page can ask for a tab to land on.
+    val landOn = remember { SocialHubTarget.take() }
+    var tab by rememberSaveable { mutableIntStateOf(landOn ?: 0) }
     var pagesOpen by rememberSaveable { mutableStateOf(false) }
     val host = LocalDeckTabs.current
     if (deck) {
-        LaunchedEffect(host) { host.bind(3) }
+        LaunchedEffect(host) {
+            host.bind(3)
+            if (landOn != null) host.select(landOn)
+        }
         LaunchedEffect(host.index) { tab = host.index }
     }
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(ctx) }

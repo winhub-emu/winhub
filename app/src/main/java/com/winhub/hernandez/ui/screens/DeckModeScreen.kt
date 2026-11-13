@@ -316,7 +316,8 @@ internal fun DeckModeScreen() {
     var section by remember { mutableStateOf("home") }
     // Full XMB: Home carries the stores and Social as cards, so their tabs leave the rail; the pages stay
     // and open from Home (B returns there).
-    val fullXmb = (rememberFullXmb() || rememberSteamHome()) && !portrait
+    val steamHome = rememberSteamHome() && !portrait
+    val fullXmb = (rememberFullXmb() || steamHome) && !portrait
     var storeTarget by remember { mutableStateOf<Screen?>(null) }
     var graphicPane by remember { mutableStateOf("gpu") }
     var deckDetail by remember { mutableStateOf<Int?>(null) }
@@ -544,7 +545,9 @@ internal fun DeckModeScreen() {
                 .onFocusChanged { shellOnly = it.isFocused }
                 .focusable(),
         ) {
-            if (!portrait) {
+            // The Steam Home runs under its top bar: the bar floats over the game's art instead of taking a strip of its own.
+            val barOverlay = steamHome && section == "home"
+            if (!portrait && !barOverlay) {
                 if (fullXmb) DeckFloatingTabs(
                     sections = railSections,
                     selected = section,
@@ -552,6 +555,7 @@ internal fun DeckModeScreen() {
                     onCycle = { d -> hintStep(d) },
                     // Home draws its own clock and battery.
                     showStatus = section != "home",
+                    compact = steamHome,
                 ) else DeckTopTabs(
                     sections = railSections,
                     selected = section,
@@ -582,6 +586,16 @@ internal fun DeckModeScreen() {
                     onOpenSocial = openSocial,
                     onLeave = leaveToHome,
                 )
+                if (barOverlay) Box(Modifier.align(Alignment.TopStart)) {
+                    DeckFloatingTabs(
+                        sections = railSections,
+                        selected = section,
+                        onSelect = { next -> section = next; deckDetail = null },
+                        onCycle = { d -> hintStep(d) },
+                        showStatus = false,
+                        compact = true,
+                    )
+                }
                 if (!portrait) DeckHintBar(Modifier.align(Alignment.BottomEnd), onBack = hintBack, onPrev = { hintStep(-1) }, onNext = { hintStep(1) }, subTabs = tabs.count > 1)
                 DeckCornerGlow()
             }
@@ -1251,7 +1265,7 @@ private fun DeckHome(
         val entry = steamEntryOf(sc)
         val game = entry?.game
         if (entry == null || game == null) emptyList() else buildList {
-            add(XmbAction("Play", Icons.Filled.PlayArrow) { playEntry(entry) })
+            // The row's own options column already starts with Play.
             addAll(
                 hubXmbActions(
                     context, sc, game, xmbHost,
@@ -1388,7 +1402,7 @@ private fun DeckHome(
                     games = steamShortcuts,
                     onStore = { store -> openStoreNow(store.screen) },
                     onAddGame = { addModeMenu = true },
-                    onSocial = { openSocialNow() },
+                    onSocial = { tab -> com.winhub.hernandez.ui.SocialHubTarget.set(tab); openSocialNow() },
                     badges = steamBadges,
                     downloadRing = steamRing,
                 ) {
@@ -1426,6 +1440,7 @@ private fun DeckHome(
                         focusTick = steamFocusTick + steamPageClosed,
                         homeTabSel = steamPageTab,
                         onAddGame = if (!steamPageOpen) ({ addModeMenu = true }) else null,
+                        addCard = { addModeMenu = true },
                     )
                 }
             } else DeckHomeCarousel(
@@ -2074,6 +2089,8 @@ private fun DeckFloatingTabs(
     onSelect: (String) -> Unit,
     onCycle: (Int) -> Unit,
     showStatus: Boolean,
+    /** The Steam Home's slimmer bar: it floats over the game's art, so it takes as little of it as it can. */
+    compact: Boolean = false,
 ) {
     val accent = Deck.primary
     val cutout = WindowInsets.displayCutout.asPaddingValues()
@@ -2113,9 +2130,9 @@ private fun DeckFloatingTabs(
             .padding(
                 start = 16.dp + cutout.calculateLeftPadding(LayoutDirection.Ltr),
                 end = 16.dp + cutout.calculateRightPadding(LayoutDirection.Ltr),
-                top = 6.dp,
+                top = if (compact) 2.dp else 6.dp,
             )
-            .height(40.dp)
+            .height(if (compact) 30.dp else 40.dp)
             .drawBehind {
                 if (spots[selected] != null) {
                     val barH = 2.dp.toPx()
@@ -2131,7 +2148,7 @@ private fun DeckFloatingTabs(
                 }
             },
     ) {
-        DeckFloatingBumper("L1") { onCycle(-1) }
+        DeckFloatingBumper("L1", compact) { onCycle(-1) }
         sections.forEach { item ->
             val current = item.key == selected
             val ink = if (current) Color.White else Color.White.copy(alpha = 0.55f)
@@ -2146,11 +2163,11 @@ private fun DeckFloatingTabs(
                     .clickable { onSelect(item.key) }
                     .padding(horizontal = 8.dp),
             ) {
-                Icon(item.icon, contentDescription = item.label, tint = ink, modifier = Modifier.size(18.dp))
-                if (current) Text(item.label, color = ink, fontSize = 15.sp, fontWeight = FontWeight.Light, maxLines = 1)
+                Icon(item.icon, contentDescription = item.label, tint = ink, modifier = Modifier.size(if (compact) 15.dp else 18.dp))
+                if (current) Text(item.label, color = ink, fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.Light, maxLines = 1)
             }
         }
-        DeckFloatingBumper("R1") { onCycle(1) }
+        DeckFloatingBumper("R1", compact) { onCycle(1) }
         Spacer(Modifier.weight(1f))
         if (showStatus) DeckStatusStrip()
     }
@@ -2158,7 +2175,7 @@ private fun DeckFloatingTabs(
 
 /** An L1/R1 glyph on the floating bar: tapping it moves the sections as the bumpers do. */
 @Composable
-private fun DeckFloatingBumper(text: String, onClick: () -> Unit) {
+private fun DeckFloatingBumper(text: String, compact: Boolean, onClick: () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -2171,11 +2188,11 @@ private fun DeckFloatingBumper(text: String, onClick: () -> Unit) {
         Text(
             text,
             color = Deck.onSurfaceVariant,
-            fontSize = 11.sp,
+            fontSize = if (compact) 9.sp else 11.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .border(1.5.dp, Deck.onSurfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(7.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+                .padding(horizontal = if (compact) 5.dp else 6.dp, vertical = if (compact) 1.dp else 2.dp),
         )
     }
 }

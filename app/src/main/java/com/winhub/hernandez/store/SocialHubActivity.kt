@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -65,7 +66,8 @@ private val SOCIAL_TABS = listOf(
 @Composable
 private fun SocialHubXmbHost(onClose: () -> Unit) {
     val ctx = LocalContext.current
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val landOn = remember { com.winhub.hernandez.ui.SocialHubTarget.take() }
+    var tab by rememberSaveable { mutableIntStateOf(landOn ?: 0) }
     val account by com.winhub.hernandez.store.SocialHubStore.account.collectAsState()
     val openPost by com.winhub.hernandez.store.SocialHubStore.openPost.collectAsState()
     LaunchedEffect(Unit) { com.winhub.hernandez.store.SocialHubStore.init(ctx) }

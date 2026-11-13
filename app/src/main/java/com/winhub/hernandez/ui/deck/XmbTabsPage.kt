@@ -154,7 +154,7 @@ internal fun XmbTabsPageHost(
     games: List<Shortcut>,
     onStore: (DeckStore) -> Unit,
     onAddGame: () -> Unit,
-    onSocial: () -> Unit,
+    onSocial: (Int) -> Unit,
     badges: Map<XmbSteamTab, Int> = emptyMap(),
     downloadRing: XmbDownloadRing? = null,
     home: @Composable () -> Unit,
@@ -186,7 +186,7 @@ private fun XmbTabsPageBody(
     games: List<Shortcut>,
     onStore: (DeckStore) -> Unit,
     onAddGame: () -> Unit,
-    onSocial: () -> Unit,
+    onSocial: (Int) -> Unit,
     badges: Map<XmbSteamTab, Int>,
     downloadRing: XmbDownloadRing?,
 ) {
