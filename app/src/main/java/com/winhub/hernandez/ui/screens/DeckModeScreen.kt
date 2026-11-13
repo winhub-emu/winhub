@@ -550,8 +550,8 @@ internal fun DeckModeScreen() {
                 .onFocusChanged { shellOnly = it.isFocused }
                 .focusable(),
         ) {
-            // The Steam Home runs under its top bar: the bar floats over the game's art instead of taking a strip of its own.
-            val barOverlay = steamHome && section == "home"
+            // Home (Full XMB and Steam) runs under its top bar: the bar floats over the game's art instead of taking a strip of its own.
+            val barOverlay = fullXmb && section == "home"
             if (!portrait && !barOverlay) {
                 if (fullXmb) DeckFloatingTabs(
                     sections = railSections,
@@ -560,7 +560,7 @@ internal fun DeckModeScreen() {
                     onCycle = { d -> hintStep(d) },
                     // Home draws its own clock and battery.
                     showStatus = section != "home",
-                    compact = steamHome,
+                    compact = true,
                 ) else DeckTopTabs(
                     sections = railSections,
                     selected = section,
@@ -1546,7 +1546,7 @@ private fun DeckHome(
                 focusable = false,
                 fillWidth = false,
                 height = 30.dp,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = if (fullXmb) 38.dp else 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
             if (!portrait && !allOpen) DeckStatusStrip(
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },
