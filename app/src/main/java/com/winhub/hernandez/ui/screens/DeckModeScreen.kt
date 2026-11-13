@@ -3899,30 +3899,6 @@ private fun DeckHomeCarousel(
                 )
             }
 
-            AnimatedVisibility(
-                visible = dwell && mode == HomeMode.GAMES && details.isNotEmpty(),
-                enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 8 },
-                exit = fadeOut(tween(120)),
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 44.dp),
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier
-                        .width(210.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Deck.surface.copy(alpha = 0.78f))
-                        .border(1.dp, Deck.line, RoundedCornerShape(12.dp))
-                        .padding(14.dp),
-                ) {
-                    details.forEach { (k, v) ->
-                        Column {
-                            Text(k.uppercase(), color = Deck.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 1.2.sp)
-                            Text(v, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
-
             if (loaded && n == 0) {
                 if (cards.size > 1) {
                     val rowState = rememberLazyListState()
