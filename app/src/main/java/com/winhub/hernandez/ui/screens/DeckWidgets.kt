@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -64,6 +65,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.winhub.hernandez.ui.deck.deckCardFill
 import com.winhub.hernandez.ui.deck.xmbGlassCard
 import com.winhub.hernandez.ui.deck.xmbOnGlass
 import com.winhub.hernandez.store.deckTileFocus
@@ -578,6 +580,14 @@ internal object DeckPalette {
         }
 }
 
+/** A control's inset fill: the palette's, or on the XMB glass the glass's raised frost, so it reads as a groove in the glass card. */
+@Composable
+internal fun deckInsetFill(): Color = if (xmbOnGlass()) MaterialTheme.colorScheme.surfaceVariant else DeckPalette.surfaceVariant
+
+/** A secondary button's fill: the palette's surface, or the glass card's own on the XMB glass. */
+@Composable
+internal fun deckButtonFill(): Color = if (xmbOnGlass()) deckCardFill() else DeckPalette.surface
+
 /**
  * DroidDeck's settings group — an uppercase eyebrow with a hairline rule, then the rows in a
  * 14dp card. Lifted from DroidDeck ui/SettingsWidgets.kt `SettingsGroup`.
@@ -783,7 +793,7 @@ internal fun DeckExpandableRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(DeckPalette.surfaceVariant)
+                    .background(deckInsetFill())
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 content = content,
             )
@@ -795,7 +805,7 @@ internal fun DeckExpandableRow(
 @Composable
 internal fun DeckToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
     val knob by animateFloatAsState(if (checked) 1f else 0f, label = "deckToggle")
-    val track = if (checked) DeckPalette.secondary else DeckPalette.surfaceVariant
+    val track = if (checked) DeckPalette.secondary else deckInsetFill()
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -837,7 +847,7 @@ internal fun DeckValueChip(text: String, open: Boolean, onClick: () -> Unit) {
             .widthIn(min = 100.dp)
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(DeckPalette.surfaceVariant)
+            .background(deckInsetFill())
             .border(1.dp, DeckPalette.line2, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -962,7 +972,7 @@ internal fun DeckSliderRow(
             colors = SliderDefaults.colors(
                 thumbColor = DeckPalette.secondary,
                 activeTrackColor = DeckPalette.secondary,
-                inactiveTrackColor = DeckPalette.surfaceVariant,
+                inactiveTrackColor = deckInsetFill(),
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -1151,7 +1161,7 @@ internal fun DeckStretchyTabs(
             .then(if (fill) Modifier.fillMaxWidth() else Modifier)
             .height(height + 6.dp)
             .clip(RoundedCornerShape(13.dp))
-            .background(DeckPalette.surfaceVariant)
+            .background(deckInsetFill())
             .border(1.dp, DeckPalette.line2, RoundedCornerShape(13.dp))
             .padding(3.dp),
     ) {
@@ -1300,8 +1310,8 @@ internal fun DeckTextRow(
                 shape = RoundedCornerShape(12.dp),
                 visualTransformation = if (mask && value.isNotEmpty()) PasswordVisualTransformation() else VisualTransformation.None,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DeckPalette.surfaceVariant,
-                    unfocusedContainerColor = DeckPalette.surfaceVariant,
+                    focusedContainerColor = deckInsetFill(),
+                    unfocusedContainerColor = deckInsetFill(),
                     focusedTextColor = DeckPalette.onBackground,
                     unfocusedTextColor = DeckPalette.onBackground,
                     focusedIndicatorColor = DeckPalette.primary,
@@ -1355,7 +1365,7 @@ internal fun DeckButton(
             .heightIn(min = 44.dp)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (primary) DeckPalette.primary else DeckPalette.surface)
+            .background(if (primary) DeckPalette.primary else deckButtonFill())
             .border(
                 width = 1.dp,
                 color = if (primary) DeckPalette.primary else DeckPalette.line,
