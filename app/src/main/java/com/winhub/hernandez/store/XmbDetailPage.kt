@@ -38,15 +38,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -69,6 +66,7 @@ import com.winhub.hernandez.ui.deck.GlyphKind
 import com.winhub.hernandez.ui.deck.deckLine
 import com.winhub.hernandez.ui.deck.xmbFrame
 import com.winhub.hernandez.ui.deck.xmbGlassCard
+import com.winhub.hernandez.ui.screens.XmbArtGround
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
 import kotlinx.coroutines.launch
 
@@ -174,7 +172,7 @@ internal fun XmbDetailPage(
                     .height(34.dp)
                     .steamFocusRing(chipShape)
                     .clip(chipShape)
-                    .background(cs.surfaceVariant.copy(alpha = 0.6f))
+                    .background(cs.surfaceVariant)
                     .clickable(onClick = onBack)
                     .padding(horizontal = 14.dp),
             ) {
@@ -200,8 +198,7 @@ internal fun XmbDetailPage(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .xmbGlassCard(CardShape)
-                    .border(1.dp, deckLine(), CardShape),
+                    .xmbGlassCard(CardShape),
             ) {
                 val paneFocus = textFirstTab && selectedTab == 0
                 var paneFocused by remember { mutableStateOf(false) }
@@ -298,8 +295,7 @@ internal fun XmbDetailPage(
                             .fillMaxHeight()
                             .steamFocusRing(buttonShape)
                             .clip(buttonShape)
-                            .background(cs.surfaceVariant.copy(alpha = 0.6f))
-                            .border(1.dp, deckLine(), buttonShape)
+                            .background(cs.surfaceVariant)
                             .clickable(onClick = onBranch)
                             .padding(horizontal = 14.dp),
                     ) {
@@ -327,8 +323,7 @@ internal fun XmbDetailPage(
                                 .then(if (downloading) Modifier.focusRequester(firstFocus) else Modifier)
                                 .steamFocusRing(buttonShape)
                                 .clip(buttonShape)
-                                .background(cs.surfaceVariant.copy(alpha = 0.6f))
-                                .border(1.dp, deckLine(), buttonShape)
+                                .background(cs.surfaceVariant)
                                 .clickable { gearOpen = true },
                         ) { Text("⚙", fontSize = 20.sp, color = cs.primary) }
                         DropdownMenu(
@@ -390,7 +385,7 @@ internal fun XmbDetailPage(
     }
 }
 
-/** The game's art, edge to edge (also under the camera strip), softened a little and darkened toward the left where the text sits. */
+/** The game's art, edge to edge (also under the camera strip), as a game's settings page has it: blurred, dimmed, under the glass's veil. */
 @Composable
 private fun GameArtBackdrop(art: @Composable BoxScope.() -> Unit) {
     val frame = xmbFrame()
@@ -401,34 +396,7 @@ private fun GameArtBackdrop(art: @Composable BoxScope.() -> Unit) {
         val p = measurable.measure(Constraints.fixed(w, c.maxHeight))
         layout(c.maxWidth, c.maxHeight) { p.place(-extra / 2, 0) }
     }
-    Box(frameModifier.fillMaxSize()) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }
-                .blur(6.dp),
-        ) { art() }
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(
-                    0f to Color(0xED0A0A0C),
-                    0.38f to Color(0xD10A0A0C),
-                    0.66f to Color(0x750A0A0C),
-                    1f to Color(0x2E0A0A0C),
-                ),
-            ),
-        )
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to Color(0x8C000000),
-                    0.22f to Color.Transparent,
-                    0.70f to Color.Transparent,
-                    1f to Color(0xB8000000),
-                ),
-            ),
-        )
-    }
+    XmbArtGround(frameModifier.fillMaxSize()) { Box(Modifier.fillMaxSize()) { art() } }
 }
 
 @Composable
@@ -451,8 +419,8 @@ private fun TabRail(labels: List<String>, badges: List<String?>, selected: Int, 
                     .steamFocusRing(shape)
                     .onFocusChanged { if (it.isFocused) onSelect(i) }
                     .clip(shape)
-                    .background(if (isSel) cs.primary.copy(alpha = 0.17f) else cs.surfaceVariant.copy(alpha = 0.6f))
-                    .border(1.dp, if (isSel) cs.primary.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f), shape)
+                    .background(if (isSel) cs.primary.copy(alpha = 0.17f) else cs.surfaceVariant)
+                    .then(if (isSel) Modifier.border(1.dp, cs.primary.copy(alpha = 0.5f), shape) else Modifier)
                     .clickable { onSelect(i) }
                     .padding(horizontal = 14.dp),
             ) {

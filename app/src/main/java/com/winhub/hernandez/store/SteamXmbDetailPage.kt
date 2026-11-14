@@ -1,8 +1,6 @@
 package com.winhub.hernandez.store
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.store.download.DownloadsButton
-import com.winhub.hernandez.ui.deck.deckLine
+import com.winhub.hernandez.ui.deck.XmbPageArtTheme
 import com.winhub.hernandez.ui.deck.xmbGlassCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -92,6 +90,7 @@ internal fun SteamXmbDetailPage(
         }
     }
 
+    XmbPageArtTheme(enabled = true) {
     XmbDetailPage(
         title = title,
         backLabel = "Library",
@@ -129,7 +128,6 @@ internal fun SteamXmbDetailPage(
                 modifier = Modifier
                     .fillMaxWidth()
                     .xmbGlassCard(RoundedCornerShape(12.dp))
-                    .border(1.dp, deckLine(), RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
                 Text("INSTALL SIZE", color = cs.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -178,6 +176,7 @@ internal fun SteamXmbDetailPage(
             tabBody()
         }
     }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -211,8 +210,7 @@ private fun DetailsPane(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(10.dp))
+                            .background(cs.surfaceVariant)
                             .padding(horizontal = 11.dp, vertical = 9.dp),
                     ) {
                         Text(
@@ -236,8 +234,7 @@ private fun PaneChip(label: String) {
     Box(
         Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(cs.surfaceVariant.copy(alpha = 0.6f))
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.13f)), RoundedCornerShape(12.dp))
+            .background(cs.surfaceVariant)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Text(label, color = cs.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)

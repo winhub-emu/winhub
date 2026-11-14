@@ -231,7 +231,7 @@ internal fun XmbGamePageArt(game: Shortcut, modifier: Modifier = Modifier) {
  * [lift] is read in the graphics layer, not here, so the 300 ms glide re-draws the layer without recomposing the content each frame.
  */
 @Composable
-private fun XmbSteamBlurred(lift: () -> Float, blurs: Boolean, content: @Composable () -> Unit) {
+internal fun XmbSteamBlurred(lift: () -> Float, blurs: Boolean, content: @Composable () -> Unit) {
     Box(
         Modifier.fillMaxSize().graphicsLayer {
             val radius = if (blurs) xmbSteamBackdropBlur(lift(), XMB_STEAM_BACKDROP_BLUR).dp.toPx() else 0f
@@ -240,6 +240,22 @@ private fun XmbSteamBlurred(lift: () -> Float, blurs: Boolean, content: @Composa
             renderEffect = if (radius > 0.5f) BlurEffect(radius, radius, TileMode.Clamp) else null
         },
     ) { content() }
+}
+
+/**
+ * A page's ground the way a game's settings page has it: [art] blurred by [XMB_STEAM_BACKDROP_BLUR] dp and dimmed, under a veil of
+ * the glass (see [xmbPageArtLookFor]) so the see-through panels on top are tinted by it and their text stays readable. Fills its parent.
+ */
+@Composable
+internal fun XmbArtGround(modifier: Modifier = Modifier, art: @Composable () -> Unit) {
+    val glass = rememberXmbGlass()
+    val look = rememberXmbPageArtLook()
+    val blurs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    Box(modifier) {
+        XmbSteamBlurred({ 1f }, blurs, art)
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = xmbSteamBackdropDim(1f, blurs) }.background(Color.Black))
+        Box(Modifier.fillMaxSize().background(glass.base.copy(alpha = look.veil)))
+    }
 }
 
 /**

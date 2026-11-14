@@ -1578,7 +1578,7 @@ private fun DeckHome(
                 labels = STEAM_HOME_SHELF_LABELS,
                 selected = shelf,
                 onSelect = { deckTabs.select(it) },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
+                modifier = Modifier.align(Alignment.TopCenter).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
             if (!portrait && !allOpen) DeckStatusStrip(
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },

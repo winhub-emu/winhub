@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.store.XmbDetailPage
+import com.winhub.hernandez.ui.deck.XmbPageArtTheme
 import com.winhub.hernandez.store.rememberXmbDetailPage
 import com.winhub.hernandez.ui.screens.MenuItemDivider
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
@@ -108,6 +109,7 @@ fun StoreDetailScaffold(
     if (rememberXmbDetailPage()) {
         val progress = primary as? StorePrimaryAction.Progress
         val button = primary as? StorePrimaryAction.Button
+        XmbPageArtTheme(enabled = true) {
         XmbDetailPage(
             title = title,
             backLabel = "Back",
@@ -144,6 +146,7 @@ fun StoreDetailScaffold(
             overlay = overlay,
             body = body,
         )
+        }
         return
     }
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

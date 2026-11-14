@@ -412,7 +412,8 @@ private fun DeckStore.mark(): StoreMark = when (this) {
 internal fun XmbShelfStrip(labels: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val ss = rememberScreenScale()
     val accent = MaterialTheme.colorScheme.primary
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    // Below the shell's floating tab bar, which takes XMB_PEEK_CLIP at the top.
+    Row(modifier.padding(top = ss.dp(XMB_PEEK_CLIP + 6f)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         labels.forEachIndexed { i, label ->
             val on = i == selected
             val shape = RoundedCornerShape(12.dp)
