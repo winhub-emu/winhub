@@ -32,7 +32,7 @@ body{display:grid;place-items:center}
 .top{position:absolute;left:calc(var(--d)*24);right:calc(var(--d)*24);top:calc(var(--d)*12);height:calc(var(--d)*34);display:flex;align-items:center;gap:calc(var(--d)*10)}
 .left{position:absolute;left:calc(var(--d)*24);top:calc(var(--d)*56);bottom:calc(var(--d)*40);width:calc(var(--d)*498);display:flex;flex-direction:column;gap:calc(var(--d)*8)}
 .right{position:absolute;right:calc(var(--d)*24);top:calc(var(--d)*56);width:calc(var(--d)*268);display:flex;flex-direction:column;gap:calc(var(--d)*9)}
-.hints{position:absolute;right:calc(var(--d)*24);bottom:calc(var(--d)*10);height:calc(var(--d)*24);display:flex;gap:calc(var(--d)*14);align-items:center;font-size:calc(var(--d)*12);color:var(--ink2);text-shadow:0 1px 3px #000}
+.hints{position:absolute;left:calc(var(--d)*24);bottom:calc(var(--d)*10);height:calc(var(--d)*24);display:flex;gap:calc(var(--d)*14);align-items:center;font-size:calc(var(--d)*12);color:var(--ink2);text-shadow:0 1px 3px #000}
 
 /* ---------- shared bits ---------- */
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
@@ -115,7 +115,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-a
 .ach-top{display:flex;justify-content:space-between;align-items:baseline;font-weight:700}
 .ach-top b{color:var(--gold);font-size:calc(var(--d)*15)}
 .ach-top span{font-size:calc(var(--d)*12);color:var(--ink3);font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:calc(var(--d)*8);padding:calc(var(--d)*3)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:calc(var(--d)*8);padding:calc(var(--d)*3)}
 .tile{aspect-ratio:1;border-radius:calc(var(--d)*10);position:relative;display:grid;place-items:center;font-size:calc(var(--d)*20);background:linear-gradient(180deg,#34302a,#25231f);border:1px solid var(--gold-line)}
 .tile.locked{filter:grayscale(1);opacity:.62;border-color:rgba(255,255,255,.12);background:linear-gradient(180deg,#2a2a2c,#202022)}
 .tile .ck{position:absolute;right:-4px;top:-4px;width:calc(var(--d)*15);height:calc(var(--d)*15);border-radius:50%;background:var(--gold);color:#1A1204;font-size:calc(var(--d)*10);font-weight:900;display:grid;place-items:center}
@@ -177,7 +177,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-a
 
   <!-- top bar -->
   <div class="top">
-    <button class="back fx" id="back" aria-label="Back to Steam library"><span class="glyph">B</span>Library</button>
+    <button class="back fx" id="back" aria-label="Back to Steam library"><span style="font-size:calc(var(--d)*18);font-weight:700;line-height:1">‹</span>Library</button>
     <div class="badge">STEAM</div>
     <button class="dl fx" id="dlbtn" aria-label="Downloads"><svg viewBox="0 0 24 24" fill="none" stroke="#E8E8E8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button>
   </div>
@@ -291,8 +291,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-a
     <span class="hint"><span class="glyph sm">X</span>Options</span>
     <span class="hint"><span class="glyph sm">LB</span><span class="glyph sm">RB</span>Tabs</span>
     <span class="hint"><span class="glyph sm">LT</span><span class="glyph sm">RT</span>Scroll</span>
-    <span class="hint"><span class="glyph sm">B</span>Back</span>
   </div>
+  <div class="hints" style="left:auto"><span class="hint"><span class="glyph sm">B</span>Back</span></div>
 
   <div class="dim" id="dim"></div>
   <div class="pop" id="branchPop" role="menu" style="left:calc(var(--d)*278);bottom:calc(var(--d)*92)">

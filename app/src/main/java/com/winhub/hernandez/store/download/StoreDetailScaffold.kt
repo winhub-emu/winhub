@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.winhub.hernandez.store.XmbDetailPage
+import com.winhub.hernandez.store.rememberXmbDetailPage
 import com.winhub.hernandez.ui.screens.MenuItemDivider
 import com.winhub.hernandez.ui.screens.outlinedMenuCard
 
@@ -102,6 +104,48 @@ fun StoreDetailScaffold(
     overlay: @Composable BoxScope.() -> Unit = {},
     body: @Composable ColumnScope.() -> Unit,
 ) {
+    // The XMB store style in landscape: the shared XMB game page (docs/design/winhub-game-page-design.html).
+    if (rememberXmbDetailPage()) {
+        val progress = primary as? StorePrimaryAction.Progress
+        val button = primary as? StorePrimaryAction.Button
+        XmbDetailPage(
+            title = title,
+            backLabel = "Back",
+            onBack = onBack,
+            art = hero,
+            topBarActions = {
+                storeBadge()
+                headerActions()
+            },
+            tabLabels = tabs,
+            tabBadges = tabs.indices.map { tabBadges[it] },
+            selectedTab = selectedTab,
+            onSelectTab = onSelectTab,
+            textFirstTab = false,
+            downloading = progress != null,
+            installFrac = progress?.fraction ?: 0f,
+            downloadFrac = progress?.backFraction ?: 0f,
+            primaryLabel = progress?.label ?: button?.label.orEmpty(),
+            primaryEnabled = button?.enabled ?: false,
+            onPrimary = { button?.onClick?.invoke() },
+            infoLine = if (progress != null) infoLine else null,
+            secondary = secondary,
+            gearMenu = if (gear.isEmpty()) null else ({ dismiss -> StoreGearItems(gear, dismiss) }),
+            info = {
+                if (subtitle != null) subtitle()
+                if (progress == null && !infoLine.isNullOrBlank()) {
+                    Text(
+                        text = infoLine,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            overlay = overlay,
+            body = body,
+        )
+        return
+    }
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
             modifier = Modifier
@@ -263,26 +307,33 @@ fun StorePrimaryActionRow(
                     onDismissRequest = { gearExpanded = false },
                     modifier = Modifier.outlinedMenuCard(),
                 ) {
-                    gear.forEachIndexed { i, item ->
-                        if (i > 0) MenuItemDivider()
-                        val base = if (item.danger) cs.error else cs.onSurface
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = item.label,
-                                    color = if (item.enabled) base else base.copy(alpha = 0.4f),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            },
-                            leadingIcon = { Text(item.emoji, fontSize = 14.sp) },
-                            enabled = item.enabled,
-                            onClick = { gearExpanded = false; item.onClick() },
-                        )
-                    }
+                    StoreGearItems(gear) { gearExpanded = false }
                 }
             }
         }
+    }
+}
+
+/** The ⚙ dropdown's rows; [dismiss] closes the menu before an item's own action runs. */
+@Composable
+internal fun StoreGearItems(gear: List<StoreGearItem>, dismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    gear.forEachIndexed { i, item ->
+        if (i > 0) MenuItemDivider()
+        val base = if (item.danger) cs.error else cs.onSurface
+        DropdownMenuItem(
+            text = {
+                Text(
+                    text = item.label,
+                    color = if (item.enabled) base else base.copy(alpha = 0.4f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
+            leadingIcon = { Text(item.emoji, fontSize = 14.sp) },
+            enabled = item.enabled,
+            onClick = { dismiss(); item.onClick() },
+        )
     }
 }
 

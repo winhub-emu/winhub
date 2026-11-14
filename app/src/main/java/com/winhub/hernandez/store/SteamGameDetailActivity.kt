@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.winhub.hernandez.ui.components.clickable
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -1697,9 +1698,306 @@ private fun SteamGameDetailScreen(
     // bottom padding in the scroll so the last grid rows aren't hidden behind it.
     val density = LocalDensity.current
     var captionHeightPx by remember { mutableIntStateOf(0) }
+    // The XMB store style's landscape page (docs/design/winhub-game-page-design.html); portrait keeps the scrolling page.
+    val xmbPage = rememberXmbDetailPage()
     val showPinnedCaption =
         selectedTab == DetailTab.ACHIEVEMENTS && signedIn && !achLoading && achievements.isNotEmpty()
 
+    // The ⚙ menu's items, shared by the page's own layout and the XMB landscape one.
+    val gearItems: @Composable (dismiss: () -> Unit) -> Unit = { dismiss ->
+        // Downloading → pause/resume + cancel lead, then the common items; a divider sits
+        // between every option (matching the app's other outlined menus).
+        if (progressVisible) {
+            val pauseEmoji = if (pauseAction == PauseAction.RESUME) "▶️" else "⏸️"
+            GearMenuItem(pauseEmoji, pauseBtnText, enabled = pauseBtnEnabled,
+                onClick = { dismiss(); onPauseResumeClick() })
+            MenuItemDivider()
+            GearMenuItem("🗑", "Cancel & delete download", danger = true, // hard delete + fresh-restart reset
+                onClick = { dismiss(); onCancelDeleteClick() })
+            MenuItemDivider()
+        }
+        GearMenuItem("🌿", "Choose branch",
+            onClick = { dismiss(); onBranchLineClick() })
+        MenuItemDivider()
+        GearMenuItem("🧩", "Manage DLC", enabled = dlcEntries.isNotEmpty(),
+            onClick = { dismiss(); onDlcLineClick() })
+        // Storage move — only for an installed game that has somewhere to go. Hidden
+        // (not greyed) otherwise, since "no SD card" isn't a state the user can act on.
+        if (moveStorageLabel != null) {
+            MenuItemDivider()
+            GearMenuItem("📦", moveStorageLabel,
+                onClick = { dismiss(); onMoveStorageClick() })
+        }
+        // Goldberg mode moved to the pre-launch launch-method popup (SteamLite vs Goldberg,
+        // see LaunchMethodSheet) — no longer a gear item here.
+        // Installed → Uninstall at the bottom.
+        if (installAction == InstallAction.UNINSTALL) {
+            MenuItemDivider()
+            GearMenuItem("🗑️", "Uninstall", danger = true, // installAction == UNINSTALL
+                onClick = { dismiss(); onInstallClick() })
+        }
+    }
+
+    // Every tab's body, shared by both layouts: behaviour unchanged, only where it sits differs.
+    val tabBody: @Composable () -> Unit = {
+        when (selectedTab) {
+            // Details = the former info block: type/size chips, size breakdown, branch selector and
+            // install status. (Goldberg moved to a popup opened from the gear menu.)
+            DetailTab.DETAILS -> Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        InfoChip(typeText)
+                        Spacer(Modifier.width(8.dp))
+                        InfoChip(sizeText)
+                    }
+                    // Labeled size breakdown: download (compressed), PICS estimate (Steam), free space.
+                    if (sizeBreakdown.downloadLabel.isNotEmpty() ||
+                        sizeBreakdown.picsLabel.isNotEmpty() ||
+                        sizeBreakdown.freeLabel.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Column {
+                            if (sizeBreakdown.downloadLabel.isNotEmpty()) Text(
+                                text = sizeBreakdown.downloadLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (sizeBreakdown.picsLabel.isNotEmpty()) Text(
+                                text = sizeBreakdown.picsLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (sizeBreakdown.freeLabel.isNotEmpty()) Text(
+                                text = sizeBreakdown.freeLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (sizeBreakdown.fits) MaterialTheme.colorScheme.onSurfaceVariant
+                                        else MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                    // Beta-branch selector — only when the app actually exposes a non-public branch.
+                    // Switching branches installs that branch's build on the next install or update.
+                    if (branches.any { it.name != "public" }) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Branch: " + if (selectedBranch == "public") "public (default)" else selectedBranch,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        OutlinedButton(
+                            onClick = onBranchLineClick,
+                            modifier = Modifier.padding(top = 6.dp),
+                        ) {
+                            Text("Change branch")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = when (gameStatus) {
+                            GameStatus.INSTALLED -> Color(0xFF4CAF50) // semantic installed-green
+                            GameStatus.FAILED    -> MaterialTheme.colorScheme.error
+                            else                 -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+
+            // Achievements = the new icon-only mockup view (progress + grid + caption + legend).
+            DetailTab.ACHIEVEMENTS -> AchievementsTabBody(
+                signedIn = signedIn,
+                columns = if (xmbPage) 7 else 5,
+                loading = achLoading,
+                achievements = achievements,
+                selected = selectedAch,
+                onSelect = { selectedAch = it },
+            )
+
+            // DLC = the FULL owned-DLC list (each tagged by how its content is delivered) + the existing
+            // depot-bundled picker. `dlcTabRows` broadens what the tab DISPLAYS to every owned DLC;
+            // `dlcEntries` (depot-bundled subset) still drives the "Choose DLC" download picker/size.
+            DetailTab.DLC -> Column(
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+            ) {
+                val ownedDlc = dlcTabRows.filter { it.owned }
+                val unownedDlc = dlcTabRows.filter { !it.owned }
+                when {
+                    // Still resolving and nothing cached yet — brief, only on a never-resolved game.
+                    dlcTabLoading && dlcTabRows.isEmpty() && !dlcHasAny -> Text(
+                        text = "Loading DLC…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // Resolved and the game genuinely lists no DLC.
+                    !dlcHasAny -> Text(
+                        text = "No DLC available for this game.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // Has DLC, but the user owns none of it.
+                    ownedDlc.isEmpty() -> Text(
+                        text = "You don't own any DLC for this game.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> {
+                        Text(
+                            text = "Your DLC",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        ownedDlc.forEach { entry ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = entry.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                InfoChip(entry.tag)
+                            }
+                        }
+                        // Depot-bundled owned DLC can be opted out of the download — keep the existing
+                        // picker (gated on the depot-bundled subset; entitlement DLC have nothing to toggle).
+                        if (dlcEntries.isNotEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                text = includedDlcText.ifEmpty { "Choose which owned DLC download with this game." },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(
+                                onClick = onDlcLineClick,
+                                modifier = Modifier.padding(top = 8.dp),
+                            ) { Text("Choose DLC") }
+                        }
+                    }
+                }
+                // Optional: DLC the game has but the user doesn't own, greyed, for context.
+                if (unownedDlc.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "Not owned",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    unownedDlc.forEach { entry ->
+                        Text(
+                            text = entry.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+
+            // Media = the shared store Media tab (trailers + screenshots, viewer, playback handoff).
+            DetailTab.MEDIA -> MediaTab(
+                media = media,
+                loading = mediaLoading,
+                storeLabel = "Steam",
+                onOpenVideo = { MediaPlayback.openVideo(context, it) },
+            )
+
+            // Cloud saves = the existing three-tier manager when it's available (installed + a live
+            // Steam session); otherwise a compact status line explaining what's needed.
+            DetailTab.CLOUD -> {
+                if (cloudVisible) {
+                    CloudSavesSection(
+                        busy = cloudBusy,
+                        status = cloudStatus,
+                        resolved = cloudResolved,
+                        containerReady = cloudContainerReady,
+                        containerLabel = cloudContainerLabel,
+                        libraryPath = cloudLibraryPath,
+                        onSyncFromCloud = onCloudSyncFrom,
+                        onSyncToCloud = onCloudSyncTo,
+                        onDownload = onCloudDownload,
+                        onApply = onCloudApply,
+                        onCollect = onCloudCollect,
+                        onUpload = onCloudUpload,
+                        onSetUp = onCloudSetUp,
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+                    ) {
+                        Text(
+                            text = "Steam Cloud Saves",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = if (!signedIn) "Sign in to Steam to sync this game's cloud saves."
+                                   else "Install this game to sync its cloud saves with your Steam Cloud.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (xmbPage) {
+        val downloadingNow = progressVisible
+        SteamXmbDetailPage(
+            appId = appId,
+            title = nameText,
+            steamStatus = steamStatus,
+            onReconnect = onReconnect,
+            onBack = onBack,
+            tabLabels = detailTabs.map { it.label },
+            tabBadges = detailTabs.map {
+                when {
+                    it == DetailTab.ACHIEVEMENTS && achievements.isNotEmpty() -> "${achievements.count { a -> a.unlocked }}/${achievements.size}"
+                    it == DetailTab.MEDIA && (media?.count ?: 0) > 0 -> "${media?.count}"
+                    else -> null
+                }
+            },
+            selectedTab = detailTabs.indexOf(selectedTab).coerceAtLeast(0),
+            onSelectTab = { selectedTab = detailTabs[it] },
+            typeText = typeText,
+            sizeText = sizeText,
+            sizeLines = listOf(sizeBreakdown.downloadLabel, sizeBreakdown.picsLabel, sizeBreakdown.freeLabel),
+            freeFits = sizeBreakdown.fits,
+            statusText = statusText,
+            statusColor = when (gameStatus) {
+                GameStatus.INSTALLED -> Color(0xFF4CAF50) // semantic installed-green
+                GameStatus.FAILED    -> MaterialTheme.colorScheme.error
+                else                 -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            achDone = achievements.count { it.unlocked },
+            achTotal = achievements.size,
+            downloading = downloadingNow,
+            installFrac = (progressValue / 100f).coerceIn(0f, 1f),
+            downloadFrac = (downloadProgressValue / 100f).coerceIn(0f, 1f),
+            primaryLabel = when {
+                downloadingNow && pauseAction == PauseAction.RESUME -> "Paused — $progressValue%"
+                downloadingNow -> "Downloading… $progressValue%"
+                installAction == InstallAction.UNINSTALL -> "Add to shortcuts"
+                else -> installBtnText
+            },
+            primaryEnabled = if (installAction == InstallAction.UNINSTALL) launchBtnEnabled else installBtnEnabled,
+            onPrimary = if (installAction == InstallAction.UNINSTALL) onLaunchClick else onInstallClick,
+            infoLine = if (downloadingNow && progressTextVisible) progressText else null,
+            branchLabel = if (branches.any { it.name != "public" }) {
+                if (selectedBranch == "public") "public (default)" else selectedBranch
+            } else null,
+            onBranch = onBranchLineClick,
+            gearMenu = gearItems,
+            caption = if (showPinnedCaption) ({ AchievementCaptionBar(selected = selectedAch) }) else null,
+            tabBody = tabBody,
+        )
+    } else {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     Column(
         modifier = Modifier
@@ -1870,37 +2168,7 @@ private fun SteamGameDetailScreen(
                     onDismissRequest = { gearMenuExpanded = false },
                     modifier = Modifier.outlinedMenuCard(),
                 ) {
-                    // Downloading → pause/resume + cancel lead, then the common items; a divider sits
-                    // between every option (matching the app's other outlined menus).
-                    if (downloading) {
-                        val pauseEmoji = if (pauseAction == PauseAction.RESUME) "▶️" else "⏸️"
-                        GearMenuItem(pauseEmoji, pauseBtnText, enabled = pauseBtnEnabled,
-                            onClick = { gearMenuExpanded = false; onPauseResumeClick() })
-                        MenuItemDivider()
-                        GearMenuItem("🗑", "Cancel & delete download", danger = true, // hard delete + fresh-restart reset
-                            onClick = { gearMenuExpanded = false; onCancelDeleteClick() })
-                        MenuItemDivider()
-                    }
-                    GearMenuItem("🌿", "Choose branch",
-                        onClick = { gearMenuExpanded = false; onBranchLineClick() })
-                    MenuItemDivider()
-                    GearMenuItem("🧩", "Manage DLC", enabled = dlcEntries.isNotEmpty(),
-                        onClick = { gearMenuExpanded = false; onDlcLineClick() })
-                    // Storage move — only for an installed game that has somewhere to go. Hidden
-                    // (not greyed) otherwise, since "no SD card" isn't a state the user can act on.
-                    if (moveStorageLabel != null) {
-                        MenuItemDivider()
-                        GearMenuItem("📦", moveStorageLabel,
-                            onClick = { gearMenuExpanded = false; onMoveStorageClick() })
-                    }
-                    // Goldberg mode moved to the pre-launch launch-method popup (SteamLite vs Goldberg,
-                    // see LaunchMethodSheet) — no longer a gear item here.
-                    // Installed → Uninstall at the bottom.
-                    if (installAction == InstallAction.UNINSTALL) {
-                        MenuItemDivider()
-                        GearMenuItem("🗑️", "Uninstall", danger = true, // installAction == UNINSTALL
-                            onClick = { gearMenuExpanded = false; onInstallClick() })
-                    }
+                    gearItems { gearMenuExpanded = false }
                 }
             }
         }
@@ -1929,210 +2197,7 @@ private fun SteamGameDetailScreen(
 
         // Tab body — every old section routed into its tab; behaviour unchanged, only the layout
         // moved (sections became tab bodies).
-        when (selectedTab) {
-            // Details = the former info block: type/size chips, size breakdown, branch selector and
-            // install status. (Goldberg moved to a popup opened from the gear menu.)
-            DetailTab.DETAILS -> Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        InfoChip(typeText)
-                        Spacer(Modifier.width(8.dp))
-                        InfoChip(sizeText)
-                    }
-                    // Labeled size breakdown: download (compressed), PICS estimate (Steam), free space.
-                    if (sizeBreakdown.downloadLabel.isNotEmpty() ||
-                        sizeBreakdown.picsLabel.isNotEmpty() ||
-                        sizeBreakdown.freeLabel.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Column {
-                            if (sizeBreakdown.downloadLabel.isNotEmpty()) Text(
-                                text = sizeBreakdown.downloadLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (sizeBreakdown.picsLabel.isNotEmpty()) Text(
-                                text = sizeBreakdown.picsLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (sizeBreakdown.freeLabel.isNotEmpty()) Text(
-                                text = sizeBreakdown.freeLabel,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (sizeBreakdown.fits) MaterialTheme.colorScheme.onSurfaceVariant
-                                        else MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                    // Beta-branch selector — only when the app actually exposes a non-public branch.
-                    // Switching branches installs that branch's build on the next install or update.
-                    if (branches.any { it.name != "public" }) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "Branch: " + if (selectedBranch == "public") "public (default)" else selectedBranch,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        OutlinedButton(
-                            onClick = onBranchLineClick,
-                            modifier = Modifier.padding(top = 6.dp),
-                        ) {
-                            Text("Change branch")
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = when (gameStatus) {
-                            GameStatus.INSTALLED -> Color(0xFF4CAF50) // semantic installed-green
-                            GameStatus.FAILED    -> MaterialTheme.colorScheme.error
-                            else                 -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-            }
-
-            // Achievements = the new icon-only mockup view (progress + grid + caption + legend).
-            DetailTab.ACHIEVEMENTS -> AchievementsTabBody(
-                signedIn = signedIn,
-                loading = achLoading,
-                achievements = achievements,
-                selected = selectedAch,
-                onSelect = { selectedAch = it },
-            )
-
-            // DLC = the FULL owned-DLC list (each tagged by how its content is delivered) + the existing
-            // depot-bundled picker. `dlcTabRows` broadens what the tab DISPLAYS to every owned DLC;
-            // `dlcEntries` (depot-bundled subset) still drives the "Choose DLC" download picker/size.
-            DetailTab.DLC -> Column(
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
-            ) {
-                val ownedDlc = dlcTabRows.filter { it.owned }
-                val unownedDlc = dlcTabRows.filter { !it.owned }
-                when {
-                    // Still resolving and nothing cached yet — brief, only on a never-resolved game.
-                    dlcTabLoading && dlcTabRows.isEmpty() && !dlcHasAny -> Text(
-                        text = "Loading DLC…",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    // Resolved and the game genuinely lists no DLC.
-                    !dlcHasAny -> Text(
-                        text = "No DLC available for this game.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    // Has DLC, but the user owns none of it.
-                    ownedDlc.isEmpty() -> Text(
-                        text = "You don't own any DLC for this game.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    else -> {
-                        Text(
-                            text = "Your DLC",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        ownedDlc.forEach { entry ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            ) {
-                                Text(
-                                    text = entry.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                InfoChip(entry.tag)
-                            }
-                        }
-                        // Depot-bundled owned DLC can be opted out of the download — keep the existing
-                        // picker (gated on the depot-bundled subset; entitlement DLC have nothing to toggle).
-                        if (dlcEntries.isNotEmpty()) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                text = includedDlcText.ifEmpty { "Choose which owned DLC download with this game." },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            OutlinedButton(
-                                onClick = onDlcLineClick,
-                                modifier = Modifier.padding(top = 8.dp),
-                            ) { Text("Choose DLC") }
-                        }
-                    }
-                }
-                // Optional: DLC the game has but the user doesn't own, greyed, for context.
-                if (unownedDlc.isNotEmpty()) {
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        text = "Not owned",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    unownedDlc.forEach { entry ->
-                        Text(
-                            text = entry.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                        )
-                    }
-                }
-            }
-
-            // Media = the shared store Media tab (trailers + screenshots, viewer, playback handoff).
-            DetailTab.MEDIA -> MediaTab(
-                media = media,
-                loading = mediaLoading,
-                storeLabel = "Steam",
-                onOpenVideo = { MediaPlayback.openVideo(context, it) },
-            )
-
-            // Cloud saves = the existing three-tier manager when it's available (installed + a live
-            // Steam session); otherwise a compact status line explaining what's needed.
-            DetailTab.CLOUD -> {
-                if (cloudVisible) {
-                    CloudSavesSection(
-                        busy = cloudBusy,
-                        status = cloudStatus,
-                        resolved = cloudResolved,
-                        containerReady = cloudContainerReady,
-                        containerLabel = cloudContainerLabel,
-                        libraryPath = cloudLibraryPath,
-                        onSyncFromCloud = onCloudSyncFrom,
-                        onSyncToCloud = onCloudSyncTo,
-                        onDownload = onCloudDownload,
-                        onApply = onCloudApply,
-                        onCollect = onCloudCollect,
-                        onUpload = onCloudUpload,
-                        onSetUp = onCloudSetUp,
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
-                    ) {
-                        Text(
-                            text = "Steam Cloud Saves",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = if (!signedIn) "Sign in to Steam to sync this game's cloud saves."
-                                   else "Install this game to sync its cloud saves with your Steam Cloud.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+        tabBody()
 
         // Reserve scroll space equal to the pinned caption's height (Achievements tab only), so the
         // last grid rows can scroll clear of the pinned bar below.
@@ -2151,6 +2216,7 @@ private fun SteamGameDetailScreen(
                 .navigationBarsPadding()
                 .onSizeChanged { captionHeightPx = it.height },
         )
+    }
     }
     }
 
@@ -2445,6 +2511,7 @@ private fun SteamDetailTabs(
  */
 @Composable
 private fun AchievementsTabBody(
+    columns: Int = 5,
     signedIn: Boolean,
     loading: Boolean,
     achievements: List<SteamAchievement>,
@@ -2489,9 +2556,9 @@ private fun AchievementsTabBody(
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                     AchievementProgressBlock(done = done, total = total, pct = pct)
                 }
-                // Icon grid — rows of 5 evenly-weighted square tiles; last row left-aligned.
+                // Icon grid — rows of [columns] evenly-weighted square tiles; last row left-aligned.
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    achievements.chunked(5).forEach { rowItems ->
+                    achievements.chunked(columns).forEach { rowItems ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp),
                             horizontalArrangement = Arrangement.spacedBy(9.dp),
@@ -2502,10 +2569,11 @@ private fun AchievementsTabBody(
                                     selected = a == selected,
                                     onClick = { onSelect(a) },
                                     onLongClick = { dialogAchv = a },
+                                    onFocus = { onSelect(a) },
                                     modifier = Modifier.weight(1f),
                                 )
                             }
-                            repeat(5 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                            repeat(columns - rowItems.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -2582,6 +2650,7 @@ private fun AchievementTile(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onFocus: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val hiddenLocked = a.hidden && !a.unlocked
@@ -2596,6 +2665,8 @@ private fun AchievementTile(
     Box(
         modifier = modifier
             .aspectRatio(1f)
+            .steamFocusRing(shape)
+            .onFocusChanged { if (it.isFocused) onFocus() }
             .clip(shape)
             .background(bg)
             .border(1.dp, borderColor, shape)
