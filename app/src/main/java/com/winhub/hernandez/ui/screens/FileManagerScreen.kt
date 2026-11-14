@@ -1512,7 +1512,7 @@ fun FileManagerScreen(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .background(deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
@@ -1558,7 +1558,7 @@ fun FileManagerScreen(
                     top = if (deckMode) 6.dp else 0.dp,
                 )
                 .clip(RoundedCornerShape(if (deckMode) 14.dp else 0.dp))
-                .background(if (deckMode) DeckPalette.surface else MaterialTheme.colorScheme.surfaceContainer)
+                .background(if (deckMode) deckCardFillOr(DeckPalette.surface) else deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer))
                 .then(
                     if (deckMode) Modifier.border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
                     else Modifier,
@@ -1592,7 +1592,7 @@ fun FileManagerScreen(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clip(driveChipShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .background(deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer))
                         .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), driveChipShape)
                         .clickable { showDriveMenu = true }
                         .deckSelfFocusStroke(driveChipShape)
@@ -1919,7 +1919,7 @@ fun FileManagerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .background(deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 val pctText = if (operationDeterminate) "  ${(operationProgress * 100).toInt()}%" else ""
@@ -2407,8 +2407,8 @@ private fun FileItemRow(
         colors = CardDefaults.cardColors(
             containerColor = when {
                 selected -> DeckPalette.primary.copy(alpha = 0.18f)
-                deck -> DeckPalette.surface
-                else -> MaterialTheme.colorScheme.surfaceContainer
+                deck -> deckCardFillOr(DeckPalette.surface)
+                else -> deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer)
             },
         ),
         border = BorderStroke(
@@ -2627,7 +2627,7 @@ private fun FavoriteCard(
             ),
         shape = favShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (deck) DeckPalette.surface else MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = if (deck) deckCardFillOr(DeckPalette.surface) else deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer),
         ),
         border = BorderStroke(
             1.dp,
@@ -2783,8 +2783,8 @@ private fun FileGridTile(
             colors = CardDefaults.cardColors(
                 containerColor = when {
                     selected -> DeckPalette.primary.copy(alpha = 0.18f)
-                    deck -> DeckPalette.surface
-                    else -> MaterialTheme.colorScheme.surfaceContainer
+                    deck -> deckCardFillOr(DeckPalette.surface)
+                    else -> deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer)
                 },
             ),
             border = BorderStroke(

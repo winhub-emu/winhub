@@ -602,6 +602,10 @@ internal fun deckPageBackground(): Color = if (deckGlassActive()) Color.Transpar
 @Composable
 internal fun deckInsetFill(): Color = if (deckGlassActive()) MaterialTheme.colorScheme.surfaceVariant else DeckPalette.surfaceVariant
 
+/** A card's fill: the glass card's on the XMB glass, else [fallback] (the card's own colour; dialogs and menus keep it too). */
+@Composable
+internal fun deckCardFillOr(fallback: Color): Color = if (deckGlassActive()) deckCardFill() else fallback
+
 /** A secondary button's fill: the palette's surface, or the glass card's own on the XMB glass. */
 @Composable
 internal fun deckButtonFill(): Color = if (deckGlassActive()) deckCardFill() else DeckPalette.surface

@@ -1,5 +1,6 @@
 package com.winhub.hernandez.store
 
+import com.winhub.hernandez.ui.screens.deckCardFillOr
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -1246,7 +1247,7 @@ private fun CustomSaveRow(
             modifier = Modifier
                 .size(width = 44.dp, height = 60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surface),
+                .background(deckCardFillOr(MaterialTheme.colorScheme.surface)),
             contentAlignment = Alignment.Center,
         ) {
             if (bmp != null) {
@@ -1439,7 +1440,7 @@ private fun EpicSaveRow(
             modifier = Modifier
                 .size(width = 44.dp, height = 60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surface),
+                .background(deckCardFillOr(MaterialTheme.colorScheme.surface)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -1734,7 +1735,7 @@ private fun GogSaveRow(
             modifier = Modifier
                 .size(width = 44.dp, height = 60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surface),
+                .background(deckCardFillOr(MaterialTheme.colorScheme.surface)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

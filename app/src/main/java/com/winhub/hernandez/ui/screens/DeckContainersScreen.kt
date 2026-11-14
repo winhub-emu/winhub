@@ -406,7 +406,7 @@ private fun DeckStorageContainersTab(
                 modifier = Modifier
                     .height(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(DeckPalette.surface)
+                    .background(deckCardFillOr(DeckPalette.surface))
                     .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp))
                     .clickable { onDefaults() }
                     .padding(horizontal = 16.dp),
@@ -519,7 +519,7 @@ private fun DeckCronosCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(12.dp),
     ) {
@@ -538,7 +538,7 @@ private fun DeckCronosCard(
             modifier = Modifier
                 .size(width = 84.dp, height = 112.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(DeckPalette.surfaceVariant),
+                .background(deckInsetFill()),
         ) {
             if (cover != null) {
                 Image(
@@ -615,7 +615,7 @@ private fun DeckOutlineButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(DeckPalette.surfaceVariant)
+            .background(deckInsetFill())
             .border(1.dp, DeckPalette.line2, RoundedCornerShape(12.dp))
             .deckOuterFocusStroke(interaction, RoundedCornerShape(12.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
@@ -838,7 +838,7 @@ private fun DeckContainerCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(DeckPalette.groupShape)
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
@@ -933,7 +933,7 @@ private fun DeckContainerCard(
                         .fillMaxWidth(0.5f)
                         .heightIn(max = 320.dp)
                         .clip(DeckPalette.groupShape)
-                        .background(DeckPalette.surfaceVariant)
+                        .background(deckInsetFill())
                         .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                         .deckDialogNav { menuOpen = false }
                         .verticalScroll(rememberScrollState())
@@ -1028,7 +1028,7 @@ internal fun DeckPropertiesDialog(container: Container, onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .clip(DeckPalette.groupShape)
-                .background(DeckPalette.surface)
+                .background(deckCardFillOr(DeckPalette.surface))
                 .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
                 .deckDialogNav(onDismiss)
                 .padding(horizontal = 20.dp, vertical = 18.dp),
@@ -1082,7 +1082,7 @@ internal fun DeckPropertiesDialog(container: Container, onDismiss: () -> Unit) {
                             .weight(1f)
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(DeckPalette.surfaceVariant),
+                            .background(deckInsetFill()),
                     ) {
                         Box(
                             modifier = Modifier

@@ -643,7 +643,7 @@ fun InputControlsScreen() {
                                 DropdownMenu(
                                     expanded = showProfileDropdown,
                                     onDismissRequest = { showProfileDropdown = false },
-                                    modifier = Modifier.background(DeckPalette.surfaceVariant),
+                                    modifier = Modifier.background(deckInsetFill()),
                                 ) {
                                     DropdownMenuItem(text = { Text("-- Select Profile --", color = DeckPalette.onBackground) }, onClick = {
                                         selectedProfileIdx = 0; loadProfile(0); showProfileDropdown = false
@@ -660,7 +660,7 @@ fun InputControlsScreen() {
                                 DropdownMenu(
                                     expanded = showOverflow,
                                     onDismissRequest = { showOverflow = false },
-                                    modifier = Modifier.background(DeckPalette.surfaceVariant),
+                                    modifier = Modifier.background(deckInsetFill()),
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("New profile", color = DeckPalette.onBackground) },
@@ -857,7 +857,7 @@ fun InputControlsScreen() {
                                                     DropdownMenu(
                                                         expanded = copyMenuForId == controller.getId(),
                                                         onDismissRequest = { copyMenuForId = null },
-                                                                                                                modifier = Modifier.background(DeckPalette.surfaceVariant)
+                                                                                                                modifier = Modifier.background(deckInsetFill())
                                                     ) {
                                                         DropdownMenuItem(text = { Text("From Default / Any Controller", color = DeckPalette.onBackground) }, onClick = {
                                                             // #333: reload from disk first (the editor saves to a separate profile
@@ -1411,7 +1411,7 @@ private fun DeckPadRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(shape)
-                .background(DeckPalette.surfaceVariant),
+                .background(deckInsetFill()),
         ) {
             Icon(Icons.Default.Gamepad, null, tint = tint, modifier = Modifier.size(22.dp))
         }

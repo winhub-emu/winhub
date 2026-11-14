@@ -361,7 +361,7 @@ private fun DeckAction(
             .deckRing(interaction, RoundedCornerShape(12.dp))
             .alpha(if (enabled) 1f else 0.42f)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (primary) DeckPalette.primary else DeckPalette.surface)
+            .background(if (primary) DeckPalette.primary else deckCardFillOr(DeckPalette.surface))
             .border(
                 1.dp,
                 if (primary) DeckPalette.primary else DeckPalette.line,
@@ -675,7 +675,7 @@ internal fun DeckSearchField(
                     } else false
                 }
                 .clip(shape)
-                .background(DeckPalette.surface)
+                .background(deckCardFillOr(DeckPalette.surface))
                 .border(1.dp, if (focused) DeckPalette.primary else DeckPalette.line, shape),
             decorationBox = { inner ->
                 Row(
@@ -732,7 +732,7 @@ internal fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit
             .fillMaxWidth()
             .heightIn(min = 72.dp)
             .clip(shape)
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(10.dp),
@@ -802,7 +802,7 @@ private fun DeckCatalogCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
             .padding(10.dp),
     ) {
@@ -814,7 +814,7 @@ private fun DeckCatalogCard(
                     .clip(RoundedCornerShape(9.dp))
                     .background(
                         if (item.isDriver) DeckPalette.primary.copy(alpha = 0.14f)
-                        else DeckPalette.surfaceVariant,
+                        else deckInsetFill(),
                     ),
             ) {
                 Icon(
@@ -962,7 +962,7 @@ private fun DeckSourceCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, shape)
             .deckRing(interaction, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
@@ -1139,7 +1139,7 @@ private fun DeckSavedFolder(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, shape),
     ) {
         Row(
@@ -1181,7 +1181,7 @@ private fun DeckSavedFolder(
                 color = DeckPalette.onSurfaceVariant,
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(DeckPalette.surfaceVariant)
+                    .background(deckInsetFill())
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
             Spacer(Modifier.width(8.dp))
@@ -1402,7 +1402,7 @@ private fun DeckInstalledRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
             .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
     ) {
@@ -1452,7 +1452,7 @@ private fun DeckInstalledComponents(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(DeckPalette.surface)
+            .background(deckCardFillOr(DeckPalette.surface))
             .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp)),
     ) {
         Row(
@@ -1494,7 +1494,7 @@ private fun DeckInstalledComponents(
                 color = DeckPalette.onSurfaceVariant,
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(DeckPalette.surfaceVariant)
+                    .background(deckInsetFill())
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
             Spacer(Modifier.width(8.dp))
