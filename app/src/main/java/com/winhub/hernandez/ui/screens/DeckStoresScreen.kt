@@ -219,7 +219,7 @@ internal fun deckSignedIn(context: Context, screen: Screen): Boolean = when (scr
 }
 
 /** One owned game: cover art, and how to open its real per-store detail screen. */
-private data class DeckOwnedGame(
+internal data class DeckOwnedGame(
     val title: String,
     val art: String?,
     val open: (Context) -> Unit,
@@ -229,6 +229,10 @@ private data class DeckOwnedGame(
     val isXbox: Boolean = false,
     val xbox: com.winhub.hernandez.store.xbox.XboxGame? = null,
     val steamAppId: Int = 0,
+    /** Installed on this device (the Home's store shelves tell installed games from owned-only ones). */
+    val installed: Boolean = false,
+    /** The store's size for the game in bytes, 0 when it doesn't say (GOG). */
+    val sizeBytes: Long = 0L,
 )
 
 /**
@@ -236,7 +240,7 @@ private data class DeckOwnedGame(
  * `SteamRepository`'s SQLite cache (its header art needs no hash). Wrapped in `runCatching` so a
  * store that has never synced simply draws nothing rather than taking the screen down.
  */
-private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame> = runCatching {
+internal fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame> = runCatching {
     when (screen) {
         Screen.Gog -> GogLibraryRepo.cached(context).map { g ->
             val c = GogLibraryRepo.toCatalogItem(g)
@@ -244,6 +248,7 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
                 title = g.title,
                 art = c.tallImageUrl ?: c.imageUrl,
                 gog = g,
+                installed = com.winhub.hernandez.store.GogInstallState.isInstalled(context, g.gameId),
                 open = { ctx ->
                     ctx.startActivity(Intent(ctx, GogGameDetailActivity::class.java).apply {
                         putExtra("game_id", g.gameId)
@@ -262,6 +267,8 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
                 title = g.title,
                 art = g.artCover.ifBlank { null } ?: g.artSquare.ifBlank { null },
                 epic = g,
+                installed = g.isInstalled,
+                sizeBytes = g.installSize,
                 open = { ctx ->
                     ctx.startActivity(Intent(ctx, EpicGameDetailActivity::class.java).apply {
                         putExtra("app_name", g.appName)
@@ -280,6 +287,8 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
                 title = g.title,
                 art = g.artUrl.ifBlank { null } ?: g.heroUrl.ifBlank { null },
                 amazon = g,
+                installed = g.isInstalled,
+                sizeBytes = g.installSize,
                 open = { ctx ->
                     ctx.startActivity(Intent(ctx, AmazonGameDetailActivity::class.java).apply {
                         putExtra("product_id", g.productId)
@@ -314,6 +323,8 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
                     title = g.name,
                     art = g.headerUrl,
                     steamAppId = g.appId,
+                    installed = g.isInstalled,
+                    sizeBytes = g.sizeBytes,
                     open = { ctx ->
                         ctx.startActivity(
                             Intent(ctx, SteamGameDetailActivity::class.java)
@@ -324,6 +335,11 @@ private fun deckOwnedGames(context: Context, screen: Screen): List<DeckOwnedGame
             }
         else -> emptyList()
     }
+}.getOrDefault(emptyList())
+
+/** One store's whole owned library for the Home's store shelf: installed games first, then A to Z. */
+internal fun deckShelfGames(context: Context, screen: Screen): List<DeckOwnedGame> = runCatching {
+    deckOwnedGames(context, screen).sortedWith(compareByDescending<DeckOwnedGame> { it.installed }.thenBy { it.title.lowercase() })
 }.getOrDefault(emptyList())
 
 /** The selected store's own cached library, sorted by title — never mixed with other stores. */

@@ -88,32 +88,32 @@ import kotlin.math.floor
 // the options column and draws this in place of the centred row.
 
 /** The backdrop's gradient ends in this very dark navy, at [XMB_STEAM_FADE_MAX] of full strength at the bottom edge. */
-private val XMB_STEAM_NAVY = Color(0xFF060B16)
+internal val XMB_STEAM_NAVY = Color(0xFF060B16)
 private const val XMB_STEAM_FADE_MAX = 0.88f
 
 /** The covers that are not the focused one are dimmed this much (an opaque black overlay, so the backdrop never shows through) while the options are open. */
 private const val XMB_STEAM_DIM = 0.45f
 
 /** A soft shadow under the title, the subtitle and the tabs: they sit over art that is no longer darkened. */
-private val XMB_STEAM_TEXT = TextStyle(
+internal val XMB_STEAM_TEXT = TextStyle(
     shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 2f), 6f),
     platformStyle = PlatformTextStyle(includeFontPadding = false),
 )
 
 /** Tight lines: no padding above or below a text's glyphs, so the title and the subtitle under it are exactly their gap apart. */
-private val XMB_STEAM_TIGHT = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
+internal val XMB_STEAM_TIGHT = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
 
 /** The title's line box hugs its glyphs from above: the line is cut from below (the descenders hang out of it), so the subtitle can sit right under. */
-private val XMB_STEAM_TOP = LineHeightStyle(LineHeightStyle.Alignment.Top, LineHeightStyle.Trim.Both)
+internal val XMB_STEAM_TOP = LineHeightStyle(LineHeightStyle.Alignment.Top, LineHeightStyle.Trim.Both)
 
 /** The subtitle's text: nearly white, a hair under the title's white. */
-private val XMB_STEAM_MUTED = Color.White.copy(alpha = 0.9f)
+internal val XMB_STEAM_MUTED = Color.White.copy(alpha = 0.9f)
 
 /** The tabs' text: near white; the one under the cursor is pure white in a thin white outline pill. */
 private val XMB_STEAM_TAB_INK = Color.White.copy(alpha = 0.97f)
 
 /** The cards' corners are nearly square, as on the Steam Deck. */
-private val XMB_STEAM_CORNER = 14.dp
+internal val XMB_STEAM_CORNER = 14.dp
 
 /** A tab's text sits this far (dp) in from the edge of its highlight. */
 private const val XMB_STEAM_TAB_PAD = 10f
@@ -147,6 +147,22 @@ private fun XmbSteamPicture(
 }
 
 /**
+ * The Home backdrop's gradient: a dark scrim for the shell's header at the top, and from [from] (a share of the screen's height)
+ * to the bottom edge the navy's strength eases in over several stops, so there is no visible start, band or edge.
+ */
+internal fun xmbSteamBottomFade(from: Float): Brush =
+    Brush.verticalGradient(
+        0f to Color.Black.copy(alpha = 0.55f),
+        0.20f to Color.Transparent,
+        from to XMB_STEAM_NAVY.copy(alpha = 0f),
+        from + (1f - from) * 0.15f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.064f),
+        from + (1f - from) * 0.30f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.231f),
+        from + (1f - from) * 0.50f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.538f),
+        from + (1f - from) * 0.75f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.846f),
+        1f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX),
+    )
+
+/**
  * The Home backdrop: [game]'s own landscape art (its own pick, Steam's, SteamGridDB's, found by LabArt off the main thread and kept on
  * the device) crossfading as the cursor moves, cropped to fill the whole screen (a landscape hero is scaled to the screen's height, a
  * portrait or low-res one to its width, so no band of anything else shows under it and there is no seam). A dark scrim over the top
@@ -176,24 +192,7 @@ internal fun XmbSteamBackdrop(game: Shortcut?, picture: Any?, fadeFrom: Float, l
             }
         }
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = xmbSteamBackdropDim(lift(), blurs) }.background(Color.Black))
-        Box(
-            Modifier.fillMaxSize().background(
-                // Top: a dark scrim for the shell's header. Bottom: from [from] (clear) to the bottom edge, the navy's
-                // strength eases in and out over several stops (0, .06, .23, .54, .85, 1 of full), so there is no visible start,
-                // band or edge. This box is drawn over the hero art and under the content box (covers, title, tabs), and the shell's
-                // hints are drawn over all of it.
-                Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.55f),
-                    0.20f to Color.Transparent,
-                    from to XMB_STEAM_NAVY.copy(alpha = 0f),
-                    from + (1f - from) * 0.15f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.064f),
-                    from + (1f - from) * 0.30f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.231f),
-                    from + (1f - from) * 0.50f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.538f),
-                    from + (1f - from) * 0.75f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX * 0.846f),
-                    1f to XMB_STEAM_NAVY.copy(alpha = XMB_STEAM_FADE_MAX),
-                ),
-            ),
-        )
+        Box(Modifier.fillMaxSize().background(xmbSteamBottomFade(from)))
     }
 }
 
@@ -573,7 +572,7 @@ private fun XmbSteamTitle(
 // page last showed is pure white in a thin white outline pill on a faint accent fill; the rest are bold light grey. A tab's count
 // (a ring for the downloads, the friends online) is drawn as an overlay just right of its name, so it moves nothing.
 @Composable
-private fun XmbSteamTabs(
+internal fun XmbSteamTabs(
     tabs: List<XmbAction>,
     sel: Int,
     active: Boolean,

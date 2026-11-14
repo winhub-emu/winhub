@@ -777,7 +777,8 @@ private fun DeckHome(
         SteamHomeKeys.active = steamStyle
         onDispose { SteamHomeKeys.active = false }
     }
-    LaunchedEffect(deckTabs) { deckTabs.bind(4) }
+    // The Steam style adds a shelf per store (Steam, Epic, GOG, Amazon) after All / Recent / Favourites.
+    LaunchedEffect(deckTabs, steamStyle) { deckTabs.bind(if (steamStyle) STEAM_HOME_SHELVES else 4) }
     // L2/R2 step the tabs page's tabs while it is up (not the shelves), so the shelf stays where it was.
     val shelfHold = remember { intArrayOf(deckTabs.index) }
     val shelfFrozen = steamStyle && steamPageOpen
@@ -1077,6 +1078,8 @@ private fun DeckHome(
             else -> all
         }
     }
+    // Steam style: a store's whole owned library has its own shelf (see XmbStoreShelf.kt).
+    val storeShelf: DeckStore? = if (steamStyle && shelf >= 3) DeckStore.entries.getOrNull(shelf - 3) else null
     LaunchedEffect(shelf) { selected = 0; allFocused = false }
     val sel = selected.coerceIn(0, (visible.size - 1).coerceAtLeast(0))
     val current = visible.getOrNull(sel)
@@ -1427,7 +1430,17 @@ private fun DeckHome(
                     badges = steamBadges,
                     downloadRing = steamRing,
                 ) {
-                    if (steamShortcuts.isEmpty()) {
+                    if (storeShelf != null) XmbStoreShelfHome(
+                        store = storeShelf,
+                        signedIn = steamSignedIn[storeShelf] == true,
+                        tabs = steamTabs,
+                        tabSel = steamPageTab,
+                        badges = steamBadges,
+                        downloadRing = steamRing,
+                        canTakeFocus = { shortcutSettingsFor == null && !classicMenu && !steamPageOpen && !addModeMenu },
+                        focusTick = steamFocusTick + steamPageClosed,
+                        onSignIn = { openStoreNow(storeShelf.screen) },
+                    ) else if (steamShortcuts.isEmpty()) {
                         if (entries != null) SteamEmptyHome(
                             focus = heroFocus,
                             enabled = shortcutSettingsFor == null && !xmbNested && !classicMenu && !steamPageOpen,
@@ -1541,7 +1554,7 @@ private fun DeckHome(
                     color = DeckPalette.primary,
                     modifier = Modifier.align(Alignment.Center),
                 )
-            } else if (!portrait && visible.isEmpty() && entries.orEmpty().isNotEmpty()) {
+            } else if (!portrait && storeShelf == null && visible.isEmpty() && entries.orEmpty().isNotEmpty()) {
                 Text(
                     if (xmbStyle) "Nothing on this shelf yet - press Y on a game to favourite it" else "Nothing on this shelf yet - open a game's menu (Y) to favourite it",
                     color = DeckPalette.onSurfaceVariant,
@@ -1559,6 +1572,13 @@ private fun DeckHome(
                 fillWidth = false,
                 height = 30.dp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = if (fullXmb) 38.dp else 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
+            )
+            // Steam style hides the shelf tabs above; a slim strip says which shelf L2 / R2 are on.
+            if (!portrait && !allOpen && steamStyle && !steamPageOpen) XmbShelfStrip(
+                labels = STEAM_HOME_SHELF_LABELS,
+                selected = shelf,
+                onSelect = { deckTabs.select(it) },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp).graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
             if (!portrait && !allOpen) DeckStatusStrip(
                 Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = 12.dp).graphicsLayer { alpha = 1f - launchT.value },
@@ -2771,6 +2791,10 @@ private fun DeckStatusStrip(modifier: Modifier = Modifier) {
 
 /** Which layer of the XMB home is up: the games, one game's quick menu, or the store cards. */
 private enum class HomeMode { GAMES, OPTIONS, STORES }
+
+/** The Steam style's shelves: All, Recent, Favourites, then one per store (see [XmbStoreShelfHome]). */
+private val STEAM_HOME_SHELF_LABELS = listOf("All", "Recent", "Favourites", "Steam", "Epic", "GOG", "Amazon")
+private val STEAM_HOME_SHELVES = STEAM_HOME_SHELF_LABELS.size
 
 /** One row of the game's quick menu. */
 private class DeckMenuAction(
