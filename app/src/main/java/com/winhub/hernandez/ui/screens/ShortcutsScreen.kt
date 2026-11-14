@@ -8937,6 +8937,18 @@ internal fun ShortcutSettingsDialogScreen(
 internal fun DeckShortcutSettingsScreen(
     shortcut: Shortcut,
     onDismiss: () -> Unit,
+    xmbLook: Boolean = false,
+) {
+    // [xmbLook] (the landscape Home): the page on the glass over the game's own art, with a slim rail of small tabs.
+    if (xmbLook) XmbSettingsPageHost(shortcut) { DeckShortcutSettingsBody(shortcut, onDismiss, xmb = true) }
+    else DeckShortcutSettingsBody(shortcut, onDismiss, xmb = false)
+}
+
+@Composable
+private fun DeckShortcutSettingsBody(
+    shortcut: Shortcut,
+    onDismiss: () -> Unit,
+    xmb: Boolean,
 ) {
     val context = LocalContext.current
     val res = context.resources
@@ -9616,7 +9628,7 @@ internal fun DeckShortcutSettingsScreen(
     // Portrait ignores the preference: tabs always run across the top as a Deck strip ("portrait").
     val portraitDeck = LocalDeckPortrait.current
     val layoutPref = remember(portraitDeck) {
-        if (portraitDeck) "portrait" else PreferenceManager.getDefaultSharedPreferences(context)
+        if (xmb) "rail" else if (portraitDeck) "portrait" else PreferenceManager.getDefaultSharedPreferences(context)
             .getString("container_editor_layout", "rail")?.takeIf { it != "tabs" } ?: "rail"
     }
     // "pages" layout: whether a category page is open (false = the category list page).
@@ -9631,9 +9643,9 @@ internal fun DeckShortcutSettingsScreen(
     }
     var configSection by remember { mutableStateOf<String?>(null) }
 
-    Surface(color = DeckPalette.background, modifier = Modifier.fillMaxSize()) {
+    Surface(color = if (xmb) Color.Transparent else DeckPalette.background, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
+            if (!xmb) Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -9698,7 +9710,18 @@ internal fun DeckShortcutSettingsScreen(
                 }
             } else {
             Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (layoutPref == "rail") {
+                if (layoutPref == "rail" && xmb) {
+                    XmbSettingsRail(
+                        kicker = "Shortcut settings",
+                        title = shortcut.name,
+                        labels = tabTitles,
+                        icons = tabTitles.map { shortcutTabIcon(it) },
+                        selected = tabIndices.indexOf(selectedTab).coerceAtLeast(0),
+                        onSelect = { selectedTab = tabIndices[it] },
+                        onBack = onDismiss,
+                        modifier = Modifier.width(220.dp).fillMaxHeight(),
+                    )
+                } else if (layoutPref == "rail") {
                     DeckEditorCategoryRail(
                         labels = tabTitles,
                         icons = tabTitles.map { shortcutTabIcon(it) },

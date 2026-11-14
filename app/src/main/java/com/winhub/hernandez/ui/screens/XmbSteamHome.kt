@@ -67,6 +67,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.ui.deck.ScreenScale
+import com.winhub.hernandez.ui.deck.rememberXmbGlass
+import com.winhub.hernandez.ui.deck.rememberXmbPageArtLook
 import com.winhub.hernandez.ui.deck.XMB_FOCUS_OUTLINE
 import com.winhub.hernandez.ui.deck.XmbTabPill
 import com.winhub.hernandez.ui.deck.xmbBadgeEndRoom
@@ -192,6 +194,36 @@ internal fun XmbSteamBackdrop(game: Shortcut?, picture: Any?, fadeFrom: Float, l
                 ),
             ),
         )
+    }
+}
+
+/**
+ * The art behind a game's settings page: the game's cover and landscape art as the Home backdrop shows them with the options open
+ * (blurred by [XMB_STEAM_BACKDROP_BLUR] dp and dimmed), under a veil of the glass (see [xmbPageArtLookFor]) so the see-through panels
+ * on top are tinted by it and their text stays readable. Nothing when the game has neither a cover nor landscape art (the glass
+ * page shows as it is). Fills its parent.
+ */
+@Composable
+internal fun XmbGamePageArt(game: Shortcut, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val path = game.file.path
+    LaunchedEffect(path) { withContext(Dispatchers.IO) { LabArt.resolve(context, game) } }
+    val tick = LabArt.tick
+    val hero = remember(path, tick) { XmbSteamHero(path, LabArt.models(game, "bg")) }
+    val picture: Any? = game.icon
+    val glass = rememberXmbGlass()
+    val look = rememberXmbPageArtLook()
+    if (picture == null && hero.models.isEmpty()) return
+    val blurs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    Box(modifier) {
+        XmbSteamBlurred({ 1f }, blurs) {
+            XmbHomeBackdrop(picture)
+            if (hero.models.isNotEmpty()) {
+                XmbSteamPicture(hero.pics, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alignment = Alignment.TopCenter)
+            }
+        }
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = xmbSteamBackdropDim(1f, blurs) }.background(Color.Black))
+        Box(Modifier.fillMaxSize().background(glass.base.copy(alpha = look.veil)))
     }
 }
 

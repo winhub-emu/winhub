@@ -1715,7 +1715,7 @@ private fun DeckHome(
                             settingsFocus.moveFocusOrStep(dir)
                         },
                 ) {
-                    DeckShortcutSettingsScreen(shortcut = sc, onDismiss = closeSettings)
+                    DeckShortcutSettingsScreen(shortcut = sc, onDismiss = closeSettings, xmbLook = !portrait)
                 }
             }
 

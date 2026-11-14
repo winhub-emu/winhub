@@ -310,6 +310,70 @@ internal fun xmbGlassFor(background: Color, surface: Color, onBackground: Color,
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// A page on a game's art (the game's settings): the blurred art behind the glass, under a veil of the glass base.
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** The least of the glass base laid over the game's art: what is left of the art shows through the see-through panels as a tint. */
+internal const val XMB_PAGE_ART_VEIL = 0.70f
+
+/** The brightest the art is taken to be once blurred and dimmed (a grey of this value), which is what the text is held to. */
+internal const val XMB_PAGE_ART_CEILING = 0.35f
+
+/** How the page on a game's art is drawn: the share of the glass base over the art, and the secondary text lifted for the lighter ground. */
+internal class XmbPageArtLook(val veil: Float, val secondaryText: Color)
+
+/** The page's ground at its lightest: the brightest art under [veil] of the base. */
+private fun xmbPageArtGround(glass: XmbGlass, veil: Float): Color =
+    overColor(Color(XMB_PAGE_ART_CEILING, XMB_PAGE_ART_CEILING, XMB_PAGE_ART_CEILING), glass.base.copy(alpha = veil))
+
+/** Every opaque colour text can end up on over that page (see [xmbGlassGrounds]). */
+internal fun xmbPageArtGrounds(glass: XmbGlass, veil: Float): List<Color> {
+    val page = xmbPageArtGround(glass, veil)
+    return xmbGlassGrounds(page, page, glass.frost)
+}
+
+/**
+ * The look of a page on a game's art: the veil starts at [XMB_PAGE_ART_VEIL] and thickens (to the plain base at 1) only as far
+ * as it takes for [onSurface] to keep [XMB_GLASS_MIN_CONTRAST] on every ground, and the secondary text is moved towards
+ * [onBackground] as far as it takes to keep [XMB_GLASS_TARGET_CONTRAST] on them (see [xmbGlassSecondaryText]).
+ */
+internal fun xmbPageArtLookFor(glass: XmbGlass, onSurface: Color, onBackground: Color): XmbPageArtLook {
+    val ink = xmbLuminance(onSurface.red, onSurface.green, onSurface.blue)
+    var steps = (XMB_PAGE_ART_VEIL * 100f).roundToInt()
+    while (steps < 100) {
+        val grounds = xmbPageArtGrounds(glass, steps / 100f)
+        if (grounds.all { xmbContrast(ink, xmbLuminance(it.red, it.green, it.blue)) >= XMB_GLASS_MIN_CONTRAST }) break
+        steps++
+    }
+    val veil = steps / 100f
+    return XmbPageArtLook(veil, xmbGlassSecondaryText(xmbPageArtGrounds(glass, veil), onBackground, glass.secondaryText))
+}
+
+/** The look of a page on a game's art for the current theme; recomputed only when the colour scheme changes. */
+@Composable
+internal fun rememberXmbPageArtLook(): XmbPageArtLook {
+    val glass = rememberXmbGlass()
+    val cs = MaterialTheme.colorScheme
+    return remember(glass, cs.onSurface, cs.onBackground) { xmbPageArtLookFor(glass, cs.onSurface, cs.onBackground) }
+}
+
+/** The glass pages' theme with the secondary text lifted for a page on a game's art ([enabled]; off: [content] as is). */
+@Composable
+internal fun XmbPageArtTheme(enabled: Boolean, content: @Composable () -> Unit) {
+    if (!enabled || LocalXmbGlass.current == null) {
+        content()
+        return
+    }
+    val look = rememberXmbPageArtLook()
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme.copy(onSurfaceVariant = look.secondaryText),
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes,
+        content = content,
+    )
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // The glass: drawing and theming.
 // ---------------------------------------------------------------------------------------------------------------------
 

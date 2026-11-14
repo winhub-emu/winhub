@@ -64,6 +64,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.winhub.hernandez.ui.deck.xmbGlassCard
+import com.winhub.hernandez.ui.deck.xmbOnGlass
 import com.winhub.hernandez.store.deckTileFocus
 import com.winhub.hernandez.ui.moveFocusOrStep
 import androidx.compose.runtime.setValue
@@ -606,9 +608,14 @@ internal fun DeckGroup(title: String, content: @Composable ColumnScope.() -> Uni
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(DeckPalette.groupShape)
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, DeckPalette.groupShape),
+            // On the XMB glass (a game's settings page) the card is glass, with the glass's own edge instead of the hairline.
+            .then(
+                if (xmbOnGlass()) Modifier.xmbGlassCard(DeckPalette.groupShape)
+                else Modifier
+                    .clip(DeckPalette.groupShape)
+                    .background(DeckPalette.surface)
+                    .border(1.dp, DeckPalette.line, DeckPalette.groupShape),
+            ),
         content = content,
     )
 }

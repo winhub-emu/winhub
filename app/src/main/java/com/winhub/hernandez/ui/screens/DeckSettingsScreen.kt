@@ -814,7 +814,7 @@ internal fun DeckSettingsScreen() {
             )
             DeckChoiceRow(
                 label = "Game settings",
-                hint = "What a game's Settings opens from Home. Classic is the Deck's settings page, compact with every tab. XMB keeps the settings as XMB columns beside the game",
+                hint = "What a game's Settings opens from Home. Classic opens the settings page on glass over the game's art, with small tabs and every setting. XMB keeps the settings as XMB columns beside the game",
                 options = listOf(
                     GameSettingsStyle.CLASSIC to "Classic",
                     GameSettingsStyle.XMB to "XMB",
