@@ -246,13 +246,11 @@ internal fun SaveManagerScreen(
     // rememberSaveable so the active section survives process death (the manifest now also carries
     // orientation in configChanges, so rotation no longer recreates the Activity and drops it).
     var selectedTab by rememberSaveable { mutableStateOf(0) }
-    // "Apply Settings layout everywhere": in Deck mode the sections can follow the Settings
-    // page's tabs / side rail / category pages instead of always using the top strip.
+    // In Deck mode the sections follow the Settings page's side rail / category pages.
     val deckPrefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
-    val universalLayout = remember { deckPrefs.getBoolean("deck_universal_layout", false) }
     val portraitDeck = com.winhub.hernandez.ui.screens.LocalDeckPortrait.current
-    val sectionLayout = if (deckMode && universalLayout && !portraitDeck) {
-        deckPrefs.getString("settings_layout", "rail") ?: "rail"
+    val sectionLayout = if (deckMode && !portraitDeck) {
+        deckPrefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail"
     } else {
         "tabs"
     }

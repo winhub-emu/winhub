@@ -139,9 +139,6 @@ internal fun DeckSettingsScreen() {
     // requested default — and is independent of the container editor's choice.
     val portraitUi = LocalDeckPortrait.current
     var settingsLayout by remember { mutableStateOf(if (portraitUi) (if (prefs.getString(PORTRAIT_TABS_PREF, "strip") != "pages") "portrait" else "pages") else prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail") }
-    // One switch to make Save Manager and Contents follow the Settings Layout above instead of
-    // always using their top strip. Off by default so the classic Deck tabs stay untouched.
-    var universalLayout by remember { mutableStateOf(prefs.getBoolean("deck_universal_layout", false)) }
     var settingsTab by remember { mutableStateOf(0) }
     var forceMali by remember { mutableStateOf(prefs.getBoolean(com.winhub.hernandez.core.MaliPanvk.PREF_FORCE, false)) }
     // The categories are this page's sub-tabs: L2/R2 step them, like Contents and Storage.
@@ -943,7 +940,7 @@ internal fun DeckSettingsScreen() {
             )
             if (!portraitUi) DeckChoiceRow(
                 label = "Settings Layout",
-                hint = "How this Settings page arranges its categories",
+                hint = "How the Settings page, Save Manager and Contents arrange their categories",
                 options = listOf(
                     "rail" to "Side Rail",
                     "pages" to "Category Pages",
@@ -955,15 +952,6 @@ internal fun DeckSettingsScreen() {
                     prefs.edit().putString("settings_layout", it).apply()
                 },
             )
-            if (!portraitUi) DeckRow(
-                label = "Apply Settings layout everywhere",
-                hint = "Save Manager and Contents use the Settings Layout choice above",
-            ) {
-                DeckToggle(universalLayout) {
-                    universalLayout = it
-                    prefs.edit().putBoolean("deck_universal_layout", it).apply()
-                }
-            }
         }
 
         }

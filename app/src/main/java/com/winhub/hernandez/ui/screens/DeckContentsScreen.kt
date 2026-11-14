@@ -163,18 +163,14 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
     val tab = tabs.index
     LaunchedEffect(tabs) { tabs.bind(DeckContentsTab.values().size) }
 
-    // "Apply Settings layout everywhere" makes Contents follow the Settings page's own choice
-    // (top tabs / side rail / category pages) instead of always using the top strip.
+    // Contents follows the Settings page's own choice (side rail / category pages).
     val context = LocalContext.current
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
-    val universalLayout = prefs.getBoolean("deck_universal_layout", false)
     val portraitStrip = rememberPortraitStrip()
     val layout = if (LocalDeckPortrait.current) {
         if (portraitStrip) "portrait" else "pages"
-    } else if (universalLayout) {
-        prefs.getString("settings_layout", "rail") ?: "rail"
     } else {
-        "tabs"
+        prefs.getString("settings_layout", "rail")?.takeIf { it != "tabs" } ?: "rail"
     }
     var pagesCategoryOpen by remember { mutableStateOf(false) }
     val tabLabels = DeckContentsTab.values().map { it.label }
