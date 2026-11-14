@@ -448,6 +448,20 @@ val themePresets: List<ThemePreset> = listOf(
         line             = Color(0xFF2A3220),
         line2            = Color(0xFF38432B),
     ),
+    // Neutral near-black grays with a soft blue accent: the theme the Glass look is tuned on. Its surfaces carry no colour, so
+    // the glass derived from them is plain charcoal instead of a tint of the theme's family. The glass panels' fills are fairly
+    // light, so onSurfaceVariant is lifted a little by the glass's contrast helper to stay readable on the lightest glass.
+    ThemePreset(
+        name             = "Charcoal",
+        background       = Color(0xFF151515),
+        surface          = Color(0xFF1F1F1F),
+        surfaceVariant   = Color(0xFF2A2A2A),
+        primary          = Color(0xFF8AB4FF),
+        onSurface        = Color(0xFFE8E8E8),
+        onSurfaceVariant = Color(0xFFC0C0C0),
+        onPrimary        = Color(0xFF06142E),
+        divider          = Color(0xFF2E2E2E),
+    ),
     // Hidden slot backing the legacy custom-accent picker. Not listed in the Appearance picker.
     ThemePreset(
         name          = "Custom",
@@ -465,6 +479,9 @@ val CUSTOM_PRESET_INDEX = themePresets.size - 1
 // The app's default theme. Resolved by name so reordering or adding presets above it can never
 // silently point the app at a different colour scheme.
 val DEFAULT_PRESET_INDEX = themePresets.indexOfFirst { it.name == "Marcescence" }.coerceAtLeast(0)
+
+/** The theme the Glass look is tuned on (see its entry above). Resolved by name, like the default. */
+val CHARCOAL_PRESET_INDEX = themePresets.indexOfFirst { it.name == "Charcoal" }.coerceAtLeast(0)
 
 /** The user-selectable themes (the hidden Custom slot is excluded). */
 val selectableThemePresets: List<ThemePreset> = themePresets.filter { it.name != "Custom" }

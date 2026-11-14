@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.preference.PreferenceManager
+import com.winhub.hernandez.ui.screens.GlassLook
 
 // Small pieces of the XMB interface that the store screens (StoreXmb.kt) and the XMB kit lean on.
 
@@ -43,8 +44,11 @@ internal object StoreStyle {
     const val DECK = "deck"
     const val XMB = "xmb"
 
-    fun isXmb(context: Context): Boolean =
-        PreferenceManager.getDefaultSharedPreferences(context).getString(KEY, DECK) == XMB
+    /** The XMB store pages: chosen, or implied by the Glass look (the stores are on the glass with it). */
+    fun isXmb(context: Context): Boolean {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        return prefs.getString(KEY, DECK) == XMB || GlassLook.read(prefs) == GlassLook.GLASS
+    }
 }
 
 /**

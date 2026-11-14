@@ -8,6 +8,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.preference.PreferenceManager
+import com.winhub.hernandez.ui.screens.GlassLook
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -137,6 +139,22 @@ object AppThemeState {
                 themePrefs.edit().putInt("preset_index", CUSTOM_PRESET_INDEX).apply()
             }
             themePrefs.edit().putBoolean("preset_schema_v4", true).apply()
+        }
+        // One-time remap: Charcoal was inserted before Custom, so a saved Custom (the old last index) follows it.
+        if (!themePrefs.getBoolean("preset_schema_v5", false)) {
+            if (themePrefs.getInt("preset_index", DEFAULT_PRESET_INDEX) == CUSTOM_PRESET_INDEX - 1) {
+                themePrefs.edit().putInt("preset_index", CUSTOM_PRESET_INDEX).apply()
+            }
+            themePrefs.edit().putBoolean("preset_schema_v5", true).apply()
+        }
+        // One-time: the Glass look is the default and looks plain on Charcoal, whose surfaces carry no colour; whoever is still on
+        // the default theme starts on it. A chosen theme, or the Material look, is left alone.
+        if (!themePrefs.getBoolean("glass_theme_v1", false)) {
+            val glass = GlassLook.read(PreferenceManager.getDefaultSharedPreferences(context)) == GlassLook.GLASS
+            if (glass && themePrefs.getInt("preset_index", DEFAULT_PRESET_INDEX) == DEFAULT_PRESET_INDEX) {
+                themePrefs.edit().putInt("preset_index", CHARCOAL_PRESET_INDEX).apply()
+            }
+            themePrefs.edit().putBoolean("glass_theme_v1", true).apply()
         }
         _presetIndex.value = themePrefs.getInt("preset_index", DEFAULT_PRESET_INDEX)
             .coerceIn(0, themePresets.size - 1)

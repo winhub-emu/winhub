@@ -55,6 +55,8 @@ import com.winhub.hernandez.store.SteamPrefs
 import com.winhub.hernandez.store.SteamRegion
 import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.theme.AppThemeState
+import com.winhub.hernandez.ui.theme.CHARCOAL_PRESET_INDEX
+import com.winhub.hernandez.ui.theme.DEFAULT_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.ThemePreset
 import com.winhub.hernandez.ui.theme.selectableThemePresets
 import android.app.Activity
@@ -812,6 +814,10 @@ internal fun DeckSettingsScreen() {
                 onPick = {
                     uiLook = it
                     prefs.edit().putString(GlassLook.KEY, it).apply()
+                    // Glass is tuned on Charcoal (neutral surfaces): the default theme moves to it, a chosen one stays.
+                    if (it == GlassLook.GLASS && AppThemeState.presetIndex.value == DEFAULT_PRESET_INDEX) {
+                        AppThemeState.setPreset(CHARCOAL_PRESET_INDEX)
+                    }
                 },
             )
             DeckChoiceRow(
@@ -866,7 +872,7 @@ internal fun DeckSettingsScreen() {
         DeckGroup(title = "Stores") {
             DeckChoiceRow(
                 label = "Store style",
-                hint = "XMB opens each store as its own full-screen XMB page, in Home cards and in the Stores tab",
+                hint = "XMB opens each store as its own full-screen XMB page, in Home cards and in the Stores tab. The Glass look always uses XMB",
                 options = listOf(
                     StoreStyle.DECK to "Deck",
                     StoreStyle.XMB to "XMB",
