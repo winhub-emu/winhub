@@ -245,7 +245,6 @@ internal fun SocialHubScreen(deck: Boolean = false, onExit: (() -> Unit)? = null
                         selected = tab,
                         onSelect = select,
                         // Deck switches sub-tabs with L2/R2 and keeps D-pad focus in the page.
-                        padFocus = !deck,
                         modifier = Modifier.width(180.dp).fillMaxHeight().padding(end = 12.dp),
                     )
                 }

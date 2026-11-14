@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Text
@@ -101,6 +102,17 @@ internal fun rememberXmbHintDensity(): Density {
 /** Card fill: the XMB glass page's own, else the theme surface at 90%. */
 @Composable
 internal fun deckCardFill(): Color = xmbPageFrost()?.card ?: MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
+
+/**
+ * A focusable element whose text and icons turn accent-coloured while the gliding outline is on it (XMB). [content] gets the
+ * element's highlight [item] (hand it to [deckFocusRingInk]) and the colour scheme AS INKED: read colours from that `cs`, not
+ * from one taken outside, or the ink never reaches them. Outside XMB it is just [content].
+ */
+@Composable
+internal fun DeckInk(content: @Composable (item: XmbHighlightItem, cs: ColorScheme) -> Unit) {
+    val item = rememberXmbHighlightItem()
+    XmbInk(item) { content(item, MaterialTheme.colorScheme) }
+}
 
 /**
  * [deckFocusRing] for an element wrapped in [XmbInk]: under a highlight host it registers [item] as the stop (so the element's

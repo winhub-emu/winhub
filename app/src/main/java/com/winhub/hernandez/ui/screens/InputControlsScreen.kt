@@ -576,7 +576,6 @@ fun InputControlsScreen() {
                             labels = sections,
                             selected = selectedTab,
                             onSelect = { deckTabs.select(it) },
-                            padFocus = false,
                             modifier = Modifier.width(200.dp).fillMaxHeight(),
                         )
                         Spacer(Modifier.width(16.dp))

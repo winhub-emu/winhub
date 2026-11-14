@@ -182,6 +182,7 @@ import com.winhub.hernandez.ui.deck.DeckActions
 import com.winhub.hernandez.ui.deck.DeckStore
 import com.winhub.hernandez.ui.deck.LocalDeckActions
 import com.winhub.hernandez.ui.deck.XmbKeyboardHost
+import com.winhub.hernandez.ui.deck.XmbHighlightHost
 import com.winhub.hernandez.ui.deck.XmbTabsPageHost
 import com.winhub.hernandez.ui.deck.rememberXmbDownloadRing
 import com.winhub.hernandez.ui.deck.rememberXmbFriendsBadge
@@ -304,6 +305,14 @@ private fun deckSections() = listOf(
  */
 @Composable
 internal fun DeckModeScreen() {
+    val context = LocalContext.current
+    val portrait = remember { AppOrientation.mode(context) == AppOrientation.PORTRAIT }
+    // The Glass look: one gliding outline for the whole window, which every focusable of the shell registers with.
+    XmbHighlightHost(enabled = rememberGlassLook() && !portrait, modifier = Modifier.fillMaxSize()) { DeckModeBody() }
+}
+
+@Composable
+private fun DeckModeBody() {
     val context = LocalContext.current
     // Portrait app-orientation pref: touch-first layout with every tab in a bottom bar.
     val portrait = remember { AppOrientation.mode(context) == AppOrientation.PORTRAIT }

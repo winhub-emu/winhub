@@ -65,6 +65,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.winhub.hernandez.ui.deck.xmbHighlight
+import com.winhub.hernandez.ui.deck.xmbHighlightHostOrNull
 import com.winhub.hernandez.ui.deck.deckCardFill
 import com.winhub.hernandez.ui.deck.xmbGlassCard
 import com.winhub.hernandez.ui.deck.xmbPageFrost
@@ -181,6 +183,9 @@ internal class DeckDragRegistry {
     /** The window view this frame lives in; items from another window (a Dialog) must not register. */
     var view: View? = null
 
+    /** The frame's corner shape: the outline of an item that registers with the XMB highlight instead of this frame's ring. */
+    var shape: Shape = RoundedCornerShape(14.dp)
+
     private val handler = Handler(Looper.getMainLooper())
     private var clearToken = 0
     private var pendingClear: Runnable? = null
@@ -227,6 +232,8 @@ internal val LocalDeckDrag = compositionLocalOf<DeckDragRegistry?> { null }
 internal fun Modifier.deckDragItem(key: Any, selfOnly: Boolean = false): Modifier {
     val registry = LocalDeckDrag.current
     val view = LocalView.current
+    // The XMB interface draws one gliding outline for the window (see XmbHighlightHost): the item is a stop of it, and the frame's own ring stays off.
+    if (xmbHighlightHostOrNull() != null) return this.xmbHighlight(registry?.shape ?: RoundedCornerShape(14.dp), wholeSubtree = !selfOnly)
     DisposableEffect(registry, key) {
         onDispose {
             registry?.bounds?.remove(key)
@@ -269,6 +276,7 @@ internal fun Modifier.deckRing(
 ): Modifier {
     val registry = LocalDeckDrag.current
     val view = LocalView.current
+    if (xmbHighlightHostOrNull() != null) return this.xmbHighlight(shape)
     return if (registry != null && registry.view === view) deckDragSelf() else deckOuterFocusStroke(interaction, shape, focusColor = focusColor)
 }
 
@@ -291,6 +299,8 @@ internal fun DeckDragFrame(
 ) {
     val registry = remember { DeckDragRegistry() }
     registry.view = LocalView.current
+    registry.shape = shape
+    val onHost = xmbHighlightHostOrNull() != null
     var hasFocus by remember { mutableStateOf(false) }
     val left = remember { Animatable(0f) }
     val top = remember { Animatable(0f) }
@@ -361,7 +371,7 @@ internal fun DeckDragFrame(
             .drawWithContent {
                 drawContent()
                 // [target] is null once the focused item is gone (tab/page swap): never repaint the last rect.
-                if (target != null && hasFocus && armed && !DeckTouchMode.touch && right.value > left.value) {
+                if (!onHost && target != null && hasFocus && armed && !DeckTouchMode.touch && right.value > left.value) {
                     val g = gap.toPx()
                     val radius = shape.topStart.toPx(
                         Size(right.value - left.value, bottom.value - top.value),

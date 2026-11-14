@@ -476,7 +476,6 @@ internal fun DeckSettingsScreen() {
                     labels = settingsTabs,
                     selected = settingsTab,
                     onSelect = { settingsTab = it; subTabs.select(it) },
-                    padFocus = false,
                     modifier = Modifier
                         .width(200.dp)
                         .fillMaxHeight()

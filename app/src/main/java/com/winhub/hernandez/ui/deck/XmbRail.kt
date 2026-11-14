@@ -73,9 +73,8 @@ internal fun xmbIsRailMoveKey(key: Key): Boolean = key == Key.DirectionUp || key
 
 /** The state of one rail: make it with [rememberXmbRailState], hand it to [xmbRailGroup] and every [xmbRailItem]. */
 @Stable
-internal class XmbRailState(internal val scope: CoroutineScope) {
-    /** On the selected tab (only that one carries it). */
-    val selectedRequester = FocusRequester()
+internal class XmbRailState(internal val scope: CoroutineScope, val selectedRequester: FocusRequester = FocusRequester()) {
+    // [selectedRequester]: on the selected tab (only that one carries it); a host that wants to focus that tab itself passes its own.
 
     /** Uptime (ms) of the last Up / Down key down inside the rail; 0 = none. */
     internal var lastMoveAt = 0L
@@ -101,9 +100,9 @@ internal class XmbRailState(internal val scope: CoroutineScope) {
 }
 
 @Composable
-internal fun rememberXmbRailState(): XmbRailState {
+internal fun rememberXmbRailState(requester: FocusRequester? = null): XmbRailState {
     val scope = rememberCoroutineScope()
-    return remember(scope) { XmbRailState(scope) }
+    return remember(scope, requester) { if (requester != null) XmbRailState(scope, requester) else XmbRailState(scope) }
 }
 
 /**

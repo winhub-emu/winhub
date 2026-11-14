@@ -10,6 +10,18 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.platform.LocalDensity
+import com.winhub.hernandez.ui.deck.DeckInk
+import com.winhub.hernandez.ui.deck.deckFocusRingInk
+import com.winhub.hernandez.ui.deck.rememberXmbHome
+import com.winhub.hernandez.ui.deck.rememberXmbRailState
+import com.winhub.hernandez.ui.deck.xmbRailGroup
+import com.winhub.hernandez.ui.deck.xmbRailItem
+import com.winhub.hernandez.ui.deck.xmbSelectedInk
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -268,7 +280,6 @@ internal fun DeckContainerDetailScreen(
                     labels = tabTitles,
                     selected = tab,
                     onSelect = { tabs.select(it) },
-                    padFocus = false,
                     modifier = Modifier
                         .width(200.dp)
                         .fillMaxHeight()
@@ -969,70 +980,80 @@ internal fun DeckEditorCategoryRail(
     dots: List<Color>? = null,
     // Per-row glyph; null falls back to the same label-based set the portrait chips use.
     icons: List<ImageVector>? = null,
-    // Landing on a row selects it (D-pad browsing), and the selected row can be refocused by L2/R2.
+    // Without the XMB rail: landing on a row selects it (D-pad browsing), and the selected row can be refocused by L2/R2.
     selectOnFocus: Boolean = false,
     selectedFocus: FocusRequester? = null,
-    // False for sub-tab rails: the pad switches them with L2/R2 only, so D-pad focus never lands on them (touch still taps).
+    // False only where the pad must never land on the rail (touch still taps).
     padFocus: Boolean = true,
 ) {
+    // The XMB rail: Up / Down moves between the tabs AND shows each, Left from the page lands on the shown one (XmbRail.kt).
+    val rail = if (rememberXmbHome()) rememberXmbRailState(selectedFocus) else null
+    // Each tab is only as tall as its two lines of name.
+    val rowHeight = with(LocalDensity.current) { (16.sp * 2).toDp() } + 10.dp
+    val shape = RoundedCornerShape(14.dp)
     Column(
         // Scrollable: with many categories the tail ran off the bottom of the rail, so those
         // options were visible-ish but unreachable (no way to scroll, and D-pad focus could not
         // bring them on screen). Compose auto-scrolls to the focused row once it can scroll.
-        modifier = modifier.verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = (if (rail != null) modifier.xmbRailGroup(rail) else modifier).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         labels.forEachIndexed { i, label ->
             val isSel = i == selected
-            val bg by animateColorAsState(
-                targetValue = if (isSel) Deck.secondary.copy(alpha = 0.18f) else Color.Transparent,
-                animationSpec = tween(220, easing = DeckEase),
-                label = "railItemBg",
-            )
-            val accent by animateDpAsState(
-                targetValue = if (isSel) 4.dp else 0.dp,
-                animationSpec = tween(240, easing = DeckEase),
-                label = "railItemAccent",
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(bg)
-                    .focusProperties { canFocus = padFocus }
-                    .then(if (isSel && selectedFocus != null) Modifier.focusRequester(selectedFocus) else Modifier)
-                    .onFocusChanged { if (it.isFocused && selectOnFocus && !isSel) onSelect(i) }
-                    .clickable { onSelect(i) }
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
+            val shownInk = xmbSelectedInk()
+            DeckInk { item, cs ->
+                val accent = cs.primary
+                Row(
                     modifier = Modifier
-                        .width(accent)
-                        .height(22.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Deck.secondary),
-                )
-                Spacer(Modifier.width(10.dp))
-                dots?.getOrNull(i)?.let { dot ->
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                        .fillMaxWidth()
+                        .height(rowHeight)
+                        .focusProperties { canFocus = padFocus }
+                        .then(if (rail == null && isSel && selectedFocus != null) Modifier.focusRequester(selectedFocus) else Modifier)
+                        .then(
+                            if (rail == null && selectOnFocus) Modifier.onFocusChanged { if (it.isFocused && !isSel) onSelect(i) }
+                            else Modifier,
+                        )
+                        .xmbRailItem(rail, isSel) { onSelect(i) }
+                        .deckFocusRingInk(shape, item, scaleTo = 1.02f)
+                        .clip(shape)
+                        .background(if (isSel) accent.copy(alpha = 0.16f) else Color.Transparent)
+                        .clickable { onSelect(i) }
+                        .drawBehind {
+                            if (isSel) {
+                                val w = 4.dp.toPx()
+                                drawRoundRect(
+                                    color = accent,
+                                    topLeft = Offset(0f, size.height * 0.22f),
+                                    size = Size(w, size.height * 0.56f),
+                                    cornerRadius = CornerRadius(w / 2, w / 2),
+                                )
+                            }
+                        }
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    dots?.getOrNull(i)?.let { dot ->
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Icon(
+                        imageVector = icons?.getOrNull(i) ?: portraitTabIcon(label),
+                        contentDescription = null,
+                        tint = if (isSel) accent else cs.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
                     Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = label,
+                        // The shown tab's text keeps its accent when the outline moves on into the page.
+                        color = if (isSel) (shownInk ?: cs.onSurface) else cs.onSurfaceVariant,
+                        fontSize = 13.5.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                Icon(
-                    imageVector = icons?.getOrNull(i) ?: portraitTabIcon(label),
-                    contentDescription = null,
-                    tint = if (isSel) Deck.primary else Deck.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = label,
-                    color = if (isSel) Deck.onBackground else Deck.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1,
-                )
             }
         }
     }

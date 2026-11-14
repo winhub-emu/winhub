@@ -196,7 +196,6 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                             labels = listOf("Cronos", "Containers"),
                             selected = subtab,
                             onSelect = { tabs.select(it) },
-                            padFocus = false,
                             modifier = Modifier.width(200.dp).fillMaxHeight(),
                         )
                         Spacer(Modifier.width(16.dp))
