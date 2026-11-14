@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +18,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,26 +50,14 @@ internal fun XmbSettingsPageHost(shortcut: Shortcut, content: @Composable () -> 
     }
 }
 
-/** The game Home last had in focus: the glass pages show its art behind them, so there is something to see through. */
-internal object GlassArt {
-    var game by mutableStateOf<Shortcut?>(null)
-}
-
 /**
- * A Deck page on the glass (the Glass look): the glass behind it with the last focused game's blurred art on it, and the glass
- * theme in it. Fills its parent.
+ * A Deck page on the glass (the Glass look): the glass theme in it, on the Deck's plain background (the one Material and the Full
+ * XMB Home have), so the cards and controls are the glass and the page behind them stays simple. Fills its parent.
  */
 @Composable
 internal fun XmbGlassPage(content: @Composable () -> Unit) {
-    val art = GlassArt.game
     XmbGlassTheme(enabled = true) {
-        XmbPageArtTheme(enabled = art != null) {
-            Box(Modifier.fillMaxSize()) {
-                XmbGlassBackdrop(Modifier.matchParentSize())
-                if (art != null) XmbGamePageArt(art, Modifier.matchParentSize())
-                content()
-            }
-        }
+        Box(Modifier.fillMaxSize().background(DeckPalette.background)) { content() }
     }
 }
 

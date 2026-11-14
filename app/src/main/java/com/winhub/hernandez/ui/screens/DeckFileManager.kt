@@ -347,9 +347,7 @@ private fun FmLocationsPanel(ui: DeckFmUi, act: DeckFmActions, modifier: Modifie
     val shape = RoundedCornerShape(20.dp)
     Column(
         modifier = modifier
-            .clip(shape)
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line)
             .verticalScroll(rememberScrollState())
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -483,9 +481,7 @@ private fun FmCard(modifier: Modifier = Modifier, content: @Composable () -> Uni
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, shape),
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line),
     ) { content() }
 }
 
@@ -659,7 +655,7 @@ private fun FmIconButton(
         modifier = Modifier
             .size(44.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (active) DeckPalette.primary.copy(alpha = 0.18f) else DeckPalette.surfaceVariant.copy(alpha = 0.55f))
+            .background(if (active) DeckPalette.primary.copy(alpha = 0.18f) else deckInsetFill())
             .then(
                 if (enabled) Modifier.clickable(onClick = onClick)
                 else Modifier.focusProperties { canFocus = false },
@@ -718,7 +714,7 @@ private fun FmPill(
                 when {
                     primary && enabled -> DeckPalette.primary
                     danger && enabled -> DeckPalette.error.copy(alpha = 0.12f)
-                    else -> DeckPalette.surfaceVariant
+                    else -> deckInsetFill()
                 },
             )
             .then(
@@ -911,9 +907,7 @@ private fun FmParentRow(onTap: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(DeckPalette.surface.copy(alpha = 0.6f))
-            .border(1.dp, DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface.copy(alpha = 0.6f), DeckPalette.line)
             .deckDragItem("fm-parent-row", selfOnly = true)
             .deckBringIntoView()
             .clickable(onClick = onTap)
@@ -921,7 +915,7 @@ private fun FmParentRow(onTap: () -> Unit) {
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(DeckPalette.surfaceVariant),
+            modifier = Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(deckInsetFill()),
         ) {
             Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = DeckPalette.primary, modifier = Modifier.size(22.dp))
         }
@@ -941,9 +935,7 @@ private fun FmParentTile(onTap: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(DeckPalette.surface.copy(alpha = 0.6f))
-            .border(1.dp, DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface.copy(alpha = 0.6f), DeckPalette.line)
             .deckDragItem("fm-parent-tile", selfOnly = true)
             .deckBringIntoView()
             .clickable(onClick = onTap)
@@ -992,9 +984,8 @@ private fun FmRow(file: File, ui: DeckFmUi, act: DeckFmActions, onFocused: (File
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(if (selected) DeckPalette.primary.copy(alpha = 0.18f) else DeckPalette.surface)
-            .border(1.dp, if (selected) DeckPalette.primary else DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line)
+            .then(if (selected) Modifier.background(DeckPalette.primary.copy(alpha = 0.18f)).border(1.dp, DeckPalette.primary, shape) else Modifier)
             .deckDragItem("fm-row-${file.absolutePath}", selfOnly = true)
             .deckBringIntoView()
             .onFocusChanged { if (it.isFocused) onFocused(file) }
@@ -1067,9 +1058,8 @@ private fun FmTile(file: File, ui: DeckFmUi, act: DeckFmActions, onFocused: (Fil
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(if (selected) DeckPalette.primary.copy(alpha = 0.18f) else DeckPalette.surface)
-            .border(1.dp, if (selected) DeckPalette.primary else DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line)
+            .then(if (selected) Modifier.background(DeckPalette.primary.copy(alpha = 0.18f)).border(1.dp, DeckPalette.primary, shape) else Modifier)
             .deckDragItem("fm-grid-${file.absolutePath}", selfOnly = true)
             .deckBringIntoView()
             .onFocusChanged { if (it.isFocused) onFocused(file) }
@@ -1165,9 +1155,7 @@ private fun FmFavCard(file: File, ui: DeckFmUi, act: DeckFmActions, onFocused: (
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(DeckPalette.surface)
-            .border(1.dp, DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line)
             .deckDragItem("fm-fav-${file.absolutePath}", selfOnly = true)
             .deckBringIntoView()
             .onFocusChanged { if (it.isFocused) onFocused(file) }
