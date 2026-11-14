@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.screens
 
+import com.winhub.hernandez.ui.deck.XmbRailPick
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -487,6 +488,7 @@ internal fun DeckSettingsScreen() {
         LaunchedEffect(settingsTab, settingsPagesCategoryOpen) {
             if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
             kotlinx.coroutines.delay(80)
+            if (XmbRailPick.fresh()) return@LaunchedEffect
             runCatching { tabContentFocus.requestFocus() }
         }
         Column(

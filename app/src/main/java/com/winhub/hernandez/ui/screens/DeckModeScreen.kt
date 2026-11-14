@@ -600,7 +600,8 @@ private fun DeckModeBody() {
                     onOpenSocial = openSocial,
                     onLeave = leaveToHome,
                 )
-                if (barOverlay) Box(Modifier.align(Alignment.TopStart)) {
+                // A game's settings page is a full page of its own: the bar steps aside so it never sits on the page's header.
+                if (barOverlay && !PortraitPageState.editor) Box(Modifier.align(Alignment.TopStart)) {
                     DeckFloatingTabs(
                         sections = railSections,
                         selected = section,

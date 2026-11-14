@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.screens
 
+import com.winhub.hernandez.ui.deck.XmbRailPick
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -294,6 +295,7 @@ internal fun DeckContainerDetailScreen(
         LaunchedEffect(tab, pagesCategoryOpen) {
             if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
             kotlinx.coroutines.delay(220)
+            if (XmbRailPick.fresh()) return@LaunchedEffect
             runCatching { tabContentFocus.requestFocus() }
         }
         // ── Tab content — L1/R1 drag the page sideways, DroidDeck's long glide ──

@@ -51,6 +51,19 @@ internal const val XMB_RAIL_MOVE_WINDOW_MS = 400L
 /** The wait between landing on a tab by D-pad and switching to it. */
 internal const val XMB_RAIL_SELECT_DELAY_MS = 70L
 
+/**
+ * When a tab was last shown by a D-pad move inside the rail. A page that moves focus into its content when its tab changes (so
+ * a tap or L1 / R1 lands on the page) leaves focus where it is while this is fresh: Up / Down walks the rail and never pulls
+ * the focus into the page.
+ */
+internal object XmbRailPick {
+    @Volatile private var at = 0L
+
+    fun mark() { at = SystemClock.uptimeMillis() }
+
+    fun fresh(): Boolean = SystemClock.uptimeMillis() - at < 700L
+}
+
 /** What a tab does when it gains focus. */
 internal enum class XmbRailAct { NONE, SELECT, REDIRECT }
 
@@ -134,7 +147,7 @@ internal fun Modifier.xmbRailItem(state: XmbRailState?, selected: Boolean, onSel
             if (st.isFocused) {
                 state.cancelPending()
                 when (xmbRailFocusAct(selectedNow, xmbRailMoveFresh(SystemClock.uptimeMillis(), state.lastMoveAt))) {
-                    XmbRailAct.SELECT -> state.selectSoon { if (!selectedNow) selectNow() }
+                    XmbRailAct.SELECT -> state.selectSoon { if (!selectedNow) { XmbRailPick.mark(); selectNow() } }
                     XmbRailAct.REDIRECT -> state.scope.launch { runCatching { state.selectedRequester.requestFocus() } }
                     XmbRailAct.NONE -> Unit
                 }

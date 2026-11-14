@@ -2,6 +2,7 @@
 
 package com.winhub.hernandez.ui.screens
 
+import com.winhub.hernandez.ui.deck.XmbRailPick
 import com.winhub.hernandez.core.PresetScope
 import com.winhub.hernandez.core.PresetOverrides
 import android.app.Activity
@@ -9740,6 +9741,7 @@ private fun DeckShortcutSettingsBody(
                 LaunchedEffect(selectedTab, pagesCategoryOpen) {
                     if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
                     kotlinx.coroutines.delay(80)
+                    if (XmbRailPick.fresh()) return@LaunchedEffect
                     runCatching { tabContentFocus.requestFocus() }
                 }
                 Box(modifier = Modifier.weight(1f).fillMaxHeight().focusRequester(tabContentFocus).focusGroup()) {

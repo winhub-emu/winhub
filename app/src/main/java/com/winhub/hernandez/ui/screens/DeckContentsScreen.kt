@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.screens
 
+import com.winhub.hernandez.ui.deck.XmbRailPick
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -288,6 +289,7 @@ internal fun DeckContentsScreen(vm: ContentsHubViewModel = viewModel()) {
         LaunchedEffect(tab, pagesCategoryOpen) {
             if (firstTabShown) { firstTabShown = false; return@LaunchedEffect }
             kotlinx.coroutines.delay(220)
+            if (XmbRailPick.fresh()) return@LaunchedEffect
             runCatching { tabContentFocus.requestFocus() }
         }
                         AnimatedContent(

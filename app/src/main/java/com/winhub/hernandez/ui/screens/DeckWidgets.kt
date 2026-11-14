@@ -406,6 +406,8 @@ internal fun Modifier.deckOuterFocusStroke(
     gap: Dp = 3.dp,
     focusColor: Color = DeckPalette.primary,
 ): Modifier {
+    // Under the XMB highlight the item is a stop of the window's one outline (see deckDragItem): no ring of its own.
+    if (xmbHighlightHostOrNull() != null) return this
     val focused by interaction.collectIsFocusedAsState()
     return drawWithContent {
         drawContent()

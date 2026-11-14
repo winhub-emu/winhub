@@ -35,11 +35,11 @@ internal val liquidSections = setOf(
 
 /**
  * A tab's own page background. In portrait the shell draws the backdrop (liquid or plain), so the page
- * stays transparent there and the waves show through; elsewhere it paints [color].
+ * stays transparent there and the waves show through, and so does a page on the XMB glass; elsewhere it paints [color].
  */
 @Composable
 internal fun Modifier.deckPageBackground(color: Color = DeckPalette.background): Modifier =
-    if (LocalDeckPortrait.current) this else this.background(color)
+    if (LocalDeckPortrait.current || deckGlassActive()) this else this.background(color)
 
 /**
  * True while portrait Home has a game page open over the grid. The page paints its own background, so

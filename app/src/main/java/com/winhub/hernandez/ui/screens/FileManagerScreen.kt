@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.screens
 
+import com.winhub.hernandez.ui.deck.xmbGlassCard
 import android.app.Activity
 import android.content.Intent
 import android.widget.Toast
@@ -1499,7 +1500,7 @@ fun FileManagerScreen(
             // The picker has no shell behind it, so it keeps its own background in portrait too.
             .then(
                 if (deckMode && !pickMode && LocalDeckPortrait.current) Modifier
-                else Modifier.background(if (deckMode) DeckPalette.background else MaterialTheme.colorScheme.background)
+                else Modifier.background(if (deckMode) deckPageBackground() else MaterialTheme.colorScheme.background)
             ),
     ) {
         if (deckMode && !pickMode) PortraitScreenTitle("Files")
@@ -2390,6 +2391,7 @@ private fun FileItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
+            .then(if (deckGlassActive()) Modifier.xmbGlassCard(rowShape) else Modifier)
             .deckDragItem("fm-row-${file.absolutePath}")
             .then(if (deck) Modifier.deckOuterFocusStroke(rowInteraction, rowShape) else Modifier)
             .deckBringIntoView()
@@ -2405,11 +2407,12 @@ private fun FileItemRow(
         colors = CardDefaults.cardColors(
             containerColor = when {
                 selected -> DeckPalette.primary.copy(alpha = 0.18f)
-                deck -> deckCardFillOr(DeckPalette.surface)
-                else -> deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer)
+                deckGlassActive() -> Color.Transparent
+                deck -> DeckPalette.surface
+                else -> MaterialTheme.colorScheme.surfaceContainer
             },
         ),
-        border = BorderStroke(
+        border = if (deckGlassActive()) (if (selected) BorderStroke(1.dp, DeckPalette.primary) else null) else BorderStroke(
             1.dp,
             when {
                 deck && rowFocused -> Color.Transparent
@@ -2615,6 +2618,7 @@ private fun FavoriteCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 3.dp)
+            .then(if (deckGlassActive()) Modifier.xmbGlassCard(favShape) else Modifier)
             .deckDragItem("fm-fav-${file.absolutePath}")
             .then(if (deck) Modifier.deckOuterFocusStroke(favInteraction, favShape) else Modifier)
             .deckBringIntoView()
@@ -2625,9 +2629,9 @@ private fun FavoriteCard(
             ),
         shape = favShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (deck) deckCardFillOr(DeckPalette.surface) else deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer),
+            containerColor = if (deckGlassActive()) Color.Transparent else if (deck) DeckPalette.surface else MaterialTheme.colorScheme.surfaceContainer,
         ),
-        border = BorderStroke(
+        border = if (deckGlassActive()) null else BorderStroke(
             1.dp,
             if (deck) (if (favFocused) Color.Transparent else DeckPalette.line)
             else MaterialTheme.colorScheme.outline,
@@ -2768,6 +2772,7 @@ private fun FileGridTile(
         Card(
             modifier = Modifier
                 .padding(4.dp)
+                .then(if (deckGlassActive()) Modifier.xmbGlassCard(tileShape) else Modifier)
                 .deckDragItem("fm-grid-${file.absolutePath}")
                 .then(if (deck) Modifier.deckOuterFocusStroke(tileInteraction, tileShape) else Modifier)
                 .deckBringIntoView()
@@ -2781,11 +2786,12 @@ private fun FileGridTile(
             colors = CardDefaults.cardColors(
                 containerColor = when {
                     selected -> DeckPalette.primary.copy(alpha = 0.18f)
-                    deck -> deckCardFillOr(DeckPalette.surface)
-                    else -> deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer)
+                    deckGlassActive() -> Color.Transparent
+                    deck -> DeckPalette.surface
+                    else -> MaterialTheme.colorScheme.surfaceContainer
                 },
             ),
-            border = BorderStroke(
+            border = if (deckGlassActive()) (if (selected) BorderStroke(1.dp, DeckPalette.primary) else null) else BorderStroke(
                 1.dp,
                 when {
                     deck && tileFocused -> Color.Transparent
