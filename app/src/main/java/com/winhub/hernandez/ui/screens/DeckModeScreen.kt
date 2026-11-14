@@ -1090,6 +1090,8 @@ private fun DeckHome(
             if (c != null && f.isFile) runCatching { Shortcut(c, f) }.getOrNull() else null
         }
     }
+    // The game the glass pages show the art of: the last one Home had in focus.
+    LaunchedEffect(xmbShortcut?.file?.path) { xmbShortcut?.let { GlassArt.game = it } }
     // A game added without Game Details (genres, year, score, description) gets them from the Steam store the first time it is
     // chosen, so Home's info pane has something to show without scraping by hand. Games already filled in are left alone.
     val detailsTried = remember { mutableSetOf<String>() }

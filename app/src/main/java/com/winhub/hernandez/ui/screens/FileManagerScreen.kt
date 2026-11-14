@@ -1558,11 +1558,10 @@ fun FileManagerScreen(
                     end = if (deckMode) 12.dp else 0.dp,
                     top = if (deckMode) 6.dp else 0.dp,
                 )
-                .clip(RoundedCornerShape(if (deckMode) 14.dp else 0.dp))
-                .background(if (deckMode) deckCardFillOr(DeckPalette.surface) else deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer))
-                .then(
-                    if (deckMode) Modifier.border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
-                    else Modifier,
+                .deckCard(
+                    RoundedCornerShape(if (deckMode) 14.dp else 0.dp),
+                    if (deckMode) DeckPalette.surface else MaterialTheme.colorScheme.surfaceContainer,
+                    if (deckMode) DeckPalette.line else null,
                 )
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {

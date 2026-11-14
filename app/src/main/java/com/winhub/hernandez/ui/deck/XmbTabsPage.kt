@@ -1,5 +1,7 @@
 package com.winhub.hernandez.ui.deck
 
+import com.winhub.hernandez.ui.screens.GlassArt
+import com.winhub.hernandez.ui.screens.XmbGamePageArt
 import com.winhub.hernandez.ui.screens.rememberGlassLook
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -369,6 +371,8 @@ private fun XmbTabsPageBody(
             .focusable(),
     ) {
         XmbGlassBackdrop(Modifier.fillMaxSize())
+        // On the Glass look the last focused game's art is behind the page, like the other glass pages.
+        if (xmbOnGlass()) GlassArt.game?.let { XmbGamePageArt(it, Modifier.fillMaxSize()) }
         Column(Modifier.fillMaxSize().padding(top = top)) {
             XmbTabsBar(
                 tabs = tabs,

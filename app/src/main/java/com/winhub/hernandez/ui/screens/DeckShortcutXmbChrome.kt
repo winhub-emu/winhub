@@ -17,6 +17,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,13 +52,25 @@ internal fun XmbSettingsPageHost(shortcut: Shortcut, content: @Composable () -> 
     }
 }
 
-/** A Deck page on the glass (the Glass look): the glass behind it and the glass theme in it. Fills its parent. */
+/** The game Home last had in focus: the glass pages show its art behind them, so there is something to see through. */
+internal object GlassArt {
+    var game by mutableStateOf<Shortcut?>(null)
+}
+
+/**
+ * A Deck page on the glass (the Glass look): the glass behind it with the last focused game's blurred art on it, and the glass
+ * theme in it. Fills its parent.
+ */
 @Composable
 internal fun XmbGlassPage(content: @Composable () -> Unit) {
+    val art = GlassArt.game
     XmbGlassTheme(enabled = true) {
-        Box(Modifier.fillMaxSize()) {
-            XmbGlassBackdrop(Modifier.matchParentSize())
-            content()
+        XmbPageArtTheme(enabled = art != null) {
+            Box(Modifier.fillMaxSize()) {
+                XmbGlassBackdrop(Modifier.matchParentSize())
+                if (art != null) XmbGamePageArt(art, Modifier.matchParentSize())
+                content()
+            }
         }
     }
 }
