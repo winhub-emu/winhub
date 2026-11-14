@@ -67,7 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.winhub.hernandez.ui.deck.deckCardFill
 import com.winhub.hernandez.ui.deck.xmbGlassCard
-import com.winhub.hernandez.ui.deck.xmbOnGlass
+import com.winhub.hernandez.ui.deck.xmbPageFrost
 import com.winhub.hernandez.store.deckTileFocus
 import com.winhub.hernandez.ui.moveFocusOrStep
 import androidx.compose.runtime.setValue
@@ -580,13 +580,21 @@ internal object DeckPalette {
         }
 }
 
+/** True on a page that sits on the XMB glass (not in a dialog, menu or sheet, which keep the plain Deck look). */
+@Composable
+internal fun deckGlassActive(): Boolean = xmbPageFrost() != null
+
+/** A page's own background: clear on the glass, so the glass shows through; else the Deck's. */
+@Composable
+internal fun deckPageBackground(): Color = if (deckGlassActive()) Color.Transparent else DeckPalette.background
+
 /** A control's inset fill: the palette's, or on the XMB glass the glass's raised frost, so it reads as a groove in the glass card. */
 @Composable
-internal fun deckInsetFill(): Color = if (xmbOnGlass()) MaterialTheme.colorScheme.surfaceVariant else DeckPalette.surfaceVariant
+internal fun deckInsetFill(): Color = if (deckGlassActive()) MaterialTheme.colorScheme.surfaceVariant else DeckPalette.surfaceVariant
 
 /** A secondary button's fill: the palette's surface, or the glass card's own on the XMB glass. */
 @Composable
-internal fun deckButtonFill(): Color = if (xmbOnGlass()) deckCardFill() else DeckPalette.surface
+internal fun deckButtonFill(): Color = if (deckGlassActive()) deckCardFill() else DeckPalette.surface
 
 /**
  * DroidDeck's settings group — an uppercase eyebrow with a hairline rule, then the rows in a
@@ -620,7 +628,7 @@ internal fun DeckGroup(title: String, content: @Composable ColumnScope.() -> Uni
             .fillMaxWidth()
             // On the XMB glass (a game's settings page) the card is glass, with the glass's own edge instead of the hairline.
             .then(
-                if (xmbOnGlass()) Modifier.xmbGlassCard(DeckPalette.groupShape)
+                if (deckGlassActive()) Modifier.xmbGlassCard(DeckPalette.groupShape)
                 else Modifier
                     .clip(DeckPalette.groupShape)
                     .background(DeckPalette.surface)

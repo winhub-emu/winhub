@@ -41,6 +41,33 @@ internal object GameSettingsStyle {
     fun isClassic(prefs: SharedPreferences): Boolean = read(prefs) == CLASSIC
 }
 
+/**
+ * The interface look (Settings > Appearance, landscape): Glass puts every Deck page on the XMB glass, with see-through cards and
+ * controls, and a game's settings on the game's own art; Material is the plain Deck look. Home keeps its own style either way.
+ */
+internal object GlassLook {
+    const val KEY = "ui_look"
+    const val GLASS = "glass"
+    const val MATERIAL = "material"
+
+    fun read(prefs: SharedPreferences): String = if (prefs.getString(KEY, GLASS) == MATERIAL) MATERIAL else GLASS
+}
+
+/** True while the Glass look is chosen; follows the setting live. */
+@Composable
+internal fun rememberGlassLook(): Boolean {
+    val prefs = PreferenceManager.getDefaultSharedPreferences(LocalContext.current)
+    var look by remember { mutableStateOf(GlassLook.read(prefs)) }
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+            if (key == GlassLook.KEY) look = GlassLook.read(p)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    return look == GlassLook.GLASS
+}
+
 /** The saved Home style; follows the setting live, so the rail updates the moment it is flipped. */
 @Composable
 internal fun rememberHomeStyle(): String {

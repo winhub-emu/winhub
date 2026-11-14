@@ -1376,7 +1376,7 @@ fun FileManagerScreen(
                 // The picker has no shell behind it, so it keeps its own background in portrait too.
                 .then(
                     if (!pickMode && LocalDeckPortrait.current) Modifier
-                    else Modifier.background(DeckPalette.background)
+                    else Modifier.background(deckPageBackground())
                 ),
         ) {
             DeckFileManagerContent(

@@ -77,7 +77,7 @@ internal fun DeckInstallShell(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Deck.background)
+            .background(deckPageBackground())
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {

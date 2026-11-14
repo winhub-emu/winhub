@@ -105,7 +105,7 @@ internal fun DeckDownloadsPanel(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Deck.background)
+            .background(deckPageBackground())
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 14.dp),
     ) {

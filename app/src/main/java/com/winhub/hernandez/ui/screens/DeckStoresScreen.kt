@@ -1066,7 +1066,7 @@ internal fun DeckStoresScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Deck.background)
+            .background(deckPageBackground())
             .onPreviewKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 if (e.key == Key.ButtonX) {

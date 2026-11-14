@@ -1715,7 +1715,7 @@ private fun DeckHome(
                             settingsFocus.moveFocusOrStep(dir)
                         },
                 ) {
-                    DeckShortcutSettingsScreen(shortcut = sc, onDismiss = closeSettings, xmbLook = !portrait)
+                    DeckShortcutSettingsScreen(shortcut = sc, onDismiss = closeSettings, xmbLook = rememberGlassLook() && !portrait)
                 }
             }
 
@@ -1986,6 +1986,7 @@ private fun DeckPaneContent(
     onOpenSocial: () -> Unit = {},
     onLeave: () -> Unit = {},
 ) {
+    val glassLook = rememberGlassLook()
     // Every tab switch slides the incoming pane up from the bottom while the outgoing one
     // drops away — one motion for the whole shell.
     AnimatedContent(
@@ -2001,6 +2002,8 @@ private fun DeckPaneContent(
         modifier = Modifier.fillMaxSize(),
         label = "deckSection",
     ) { currentSection ->
+        val glassPage = glassLook && !portrait && currentSection != "home"
+        val body: @Composable () -> Unit = {
         when (currentSection) {
             "home" -> DeckHome(
                 heroFocus = homeFocus,
@@ -2056,6 +2059,8 @@ private fun DeckPaneContent(
             // gets its own requester instead of sharing the rail's homeHeroFocus.
             else -> DeckHome(onEditContainer = onEditContainer, onOpenStore = onOpenStore, onOpenSocial = onOpenSocial)
         }
+        }
+        if (glassPage) XmbGlassPage(body) else body()
     }
 }
 

@@ -62,6 +62,17 @@ internal fun XmbSettingsPageHost(shortcut: Shortcut, content: @Composable () -> 
     }
 }
 
+/** A Deck page on the glass (the Glass look): the glass behind it and the glass theme in it. Fills its parent. */
+@Composable
+internal fun XmbGlassPage(content: @Composable () -> Unit) {
+    XmbGlassTheme(enabled = true) {
+        Box(Modifier.fillMaxSize()) {
+            XmbGlassBackdrop(Modifier.matchParentSize())
+            content()
+        }
+    }
+}
+
 /**
  * The page's rail: a fixed block (back arrow, kicker and the game's name, which wraps to two lines at most) over the small tabs.
  * A tab is one 40 dp line (icon and name) with an accent bar and tint while it is the shown one; A / tap shows it.

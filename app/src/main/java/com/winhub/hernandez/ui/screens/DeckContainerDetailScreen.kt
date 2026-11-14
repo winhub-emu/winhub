@@ -171,7 +171,7 @@ internal fun DeckContainerDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Deck.background),
+            .background(deckPageBackground()),
     ) {
         // ── Header ───────────────────────────────────────────────────────────
         Row(

@@ -1,5 +1,6 @@
 package com.winhub.hernandez.ui.deck
 
+import com.winhub.hernandez.ui.screens.rememberGlassLook
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -163,6 +164,7 @@ internal fun XmbTabsPageHost(
     downloadRing: XmbDownloadRing? = null,
     home: @Composable () -> Unit,
 ) {
+    val glassLook = rememberGlassLook()
     val progress = animateFloatAsState(if (open) 1f else 0f, tween(XMB_TABS_SLIDE_MS, easing = FastOutSlowInEasing), label = "xmbTabsPage")
     val openNow by rememberUpdatedState(open)
     // The page is composed while it is up or still sliding away; derived, so the animation does not recompose this per frame.
@@ -180,7 +182,9 @@ internal fun XmbTabsPageHost(
             // Under the page and over the Home: while the page rises or sinks, a strip of the Home still shows above it, and a tap on that
             // must not reach the games (a cover would open its options under the page).
             Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } })
-            XmbTabsPageBody(open, progress, tab, onTab, onClose, signedIn, games, onStore, onAddGame, badges, downloadRing)
+            XmbGlassTheme(enabled = glassLook) {
+                XmbTabsPageBody(open, progress, tab, onTab, onClose, signedIn, games, onStore, onAddGame, badges, downloadRing)
+            }
         }
     }
 }

@@ -160,6 +160,8 @@ internal fun DeckSettingsScreen() {
     var storeStyle by remember { mutableStateOf(if (StoreStyle.isXmb(context)) StoreStyle.XMB else StoreStyle.DECK) }
     // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
     var homeStyle by remember { mutableStateOf(DeckHomeStyle.read(prefs)) }
+    // Interface look ("glass" | "material"); every Deck page follows it live.
+    var uiLook by remember { mutableStateOf(GlassLook.read(prefs)) }
     // What a game's Settings opens from the Steam / Full XMB Home ("classic" | "xmb"); read when the game's options are built.
     var gameSettingsStyle by remember { mutableStateOf(GameSettingsStyle.read(prefs)) }
     // Navigation sounds ("steamos" | "phone" | "off"); DeckSound reads it on every sound.
@@ -799,6 +801,19 @@ internal fun DeckSettingsScreen() {
 
         // ── Home ── (landscape only: portrait Home is always the cover grid)
         if (!portraitUi) DeckGroup(title = "Home") {
+            DeckChoiceRow(
+                label = "Interface look",
+                hint = "Glass puts every page on see-through glass, and a game's settings on the game's own art. Material is the plain look. Home keeps its own style either way",
+                options = listOf(
+                    GlassLook.GLASS to "Glass",
+                    GlassLook.MATERIAL to "Material",
+                ),
+                selected = uiLook,
+                onPick = {
+                    uiLook = it
+                    prefs.edit().putString(GlassLook.KEY, it).apply()
+                },
+            )
             DeckChoiceRow(
                 label = "Home style",
                 hint = "Full XMB puts the stores and Social on Home as cards above your games. Steam keeps one row of covers at the bottom, with Stores, Downloads, Friends and Social as pages that slide up. Both hide those tabs",
