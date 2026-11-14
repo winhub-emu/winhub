@@ -1,6 +1,8 @@
 package com.winhub.hernandez.store
 
+import com.winhub.hernandez.ui.screens.deckCard
 import com.winhub.hernandez.ui.screens.deckCardFillOr
+import com.winhub.hernandez.ui.screens.deckGlassActive
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -1235,9 +1237,7 @@ private fun CustomSaveRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .deckCard(RoundedCornerShape(12.dp), MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.outline)
             .deckDragItem(dragKey, selfOnly = true)
             .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
@@ -1425,9 +1425,7 @@ private fun EpicSaveRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .deckCard(RoundedCornerShape(12.dp), MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.outline)
             // Tapping the card opens the Epic store detail page. The Up/Down IconButtons keep their own
             // click handlers so they stay independently tappable (not swallowed by the card click).
             .deckDragItem(dragKey, selfOnly = true)
@@ -1720,9 +1718,7 @@ private fun GogSaveRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+            .deckCard(RoundedCornerShape(12.dp), MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.outline)
             // Tapping the card opens the GOG store detail page. The Up/Down IconButtons keep their own
             // click handlers so they stay independently tappable (not swallowed by the card click).
             .deckDragItem(dragKey, selfOnly = true)
@@ -1851,10 +1847,9 @@ private fun SaveStatusRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .deckCard(RoundedCornerShape(12.dp), MaterialTheme.colorScheme.surfaceVariant, null)
             .border(
-                width = if (highlighted) 2.dp else 1.dp,
+                width = if (highlighted) 2.dp else if (deckGlassActive()) 0.dp else 1.dp,
                 color = if (highlighted) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(12.dp),

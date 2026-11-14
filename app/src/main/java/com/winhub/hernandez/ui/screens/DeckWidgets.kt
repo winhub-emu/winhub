@@ -606,6 +606,15 @@ internal fun deckInsetFill(): Color = if (deckGlassActive()) MaterialTheme.color
 @Composable
 internal fun deckCardFillOr(fallback: Color): Color = if (deckGlassActive()) deckCardFill() else fallback
 
+/**
+ * A card's look: on the XMB glass the settings' glass card (see [xmbGlassCard]: shadow, sheen and edge light, no border);
+ * else clipped to [shape], filled with [fill] and, with a [line], outlined by it.
+ */
+@Composable
+internal fun Modifier.deckCard(shape: Shape, fill: Color, line: Color?): Modifier =
+    if (deckGlassActive()) this.xmbGlassCard(shape)
+    else this.clip(shape).background(fill).then(if (line != null) Modifier.border(1.dp, line, shape) else Modifier)
+
 /** A secondary button's fill: the palette's surface, or the glass card's own on the XMB glass. */
 @Composable
 internal fun deckButtonFill(): Color = if (deckGlassActive()) deckCardFill() else DeckPalette.surface

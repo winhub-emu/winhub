@@ -1591,9 +1591,7 @@ fun FileManagerScreen(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
-                        .clip(driveChipShape)
-                        .background(deckCardFillOr(MaterialTheme.colorScheme.surfaceContainer))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), driveChipShape)
+                        .deckCard(driveChipShape, MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                         .clickable { showDriveMenu = true }
                         .deckSelfFocusStroke(driveChipShape)
                         .padding(horizontal = 10.dp, vertical = 5.dp),

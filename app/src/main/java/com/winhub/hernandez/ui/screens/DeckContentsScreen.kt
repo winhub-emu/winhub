@@ -674,9 +674,7 @@ internal fun DeckSearchField(
                         true
                     } else false
                 }
-                .clip(shape)
-                .background(deckCardFillOr(DeckPalette.surface))
-                .border(1.dp, if (focused) DeckPalette.primary else DeckPalette.line, shape),
+                .deckCard(shape, DeckPalette.surface, if (focused) DeckPalette.primary else DeckPalette.line),
             decorationBox = { inner ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -731,9 +729,7 @@ internal fun DeckCategoryCard(category: DeckContentCategory, onClick: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
-            .clip(shape)
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(10.dp),
     ) {
@@ -801,9 +797,7 @@ private fun DeckCatalogCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
+            .deckCard(RoundedCornerShape(14.dp), DeckPalette.surface, DeckPalette.line)
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
@@ -961,9 +955,7 @@ private fun DeckSourceCard(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, shape)
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line)
             .deckRing(interaction, shape)
             .clickable(interactionSource = interaction, indication = null, onClick = onOpen)
             .padding(10.dp),
@@ -1138,9 +1130,7 @@ private fun DeckSavedFolder(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, shape),
+            .deckCard(shape, DeckPalette.surface, DeckPalette.line),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1401,9 +1391,7 @@ private fun DeckInstalledRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp))
+            .deckCard(RoundedCornerShape(14.dp), DeckPalette.surface, DeckPalette.line)
             .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
     ) {
         Box(
@@ -1451,9 +1439,7 @@ private fun DeckInstalledComponents(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, RoundedCornerShape(14.dp)),
+            .deckCard(RoundedCornerShape(14.dp), DeckPalette.surface, DeckPalette.line),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

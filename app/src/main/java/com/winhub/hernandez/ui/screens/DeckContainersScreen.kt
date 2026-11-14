@@ -405,9 +405,7 @@ private fun DeckStorageContainersTab(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .height(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(deckCardFillOr(DeckPalette.surface))
-                    .border(1.dp, DeckPalette.line, RoundedCornerShape(12.dp))
+                    .deckCard(RoundedCornerShape(12.dp), DeckPalette.surface, DeckPalette.line)
                     .clickable { onDefaults() }
                     .padding(horizontal = 16.dp),
             ) {
@@ -518,9 +516,7 @@ private fun DeckCronosCard(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(DeckPalette.groupShape)
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
+            .deckCard(DeckPalette.groupShape, DeckPalette.surface, DeckPalette.line)
             .padding(12.dp),
     ) {
         // Cover + details open the game; the remove buttons beside them are separate focus targets,
@@ -837,9 +833,7 @@ private fun DeckContainerCard(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(DeckPalette.groupShape)
-            .background(deckCardFillOr(DeckPalette.surface))
-            .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
+            .deckCard(DeckPalette.groupShape, DeckPalette.surface, DeckPalette.line)
             .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
     ) {
         // Same container glyph as the normal Containers tab; tinted so it follows the Deck theme.
@@ -1027,9 +1021,7 @@ internal fun DeckPropertiesDialog(container: Container, onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .clip(DeckPalette.groupShape)
-                .background(deckCardFillOr(DeckPalette.surface))
-                .border(1.dp, DeckPalette.line, DeckPalette.groupShape)
+                .deckCard(DeckPalette.groupShape, DeckPalette.surface, DeckPalette.line)
                 .deckDialogNav(onDismiss)
                 .padding(horizontal = 20.dp, vertical = 18.dp),
         ) {
