@@ -50,6 +50,6 @@ internal val DeckGraphiteScheme = darkColorScheme(
 internal fun DeckStoreTheme(content: @Composable () -> Unit) {
     rememberDeckMotion()
     // The XMB store style brings its own glass theme (StoreXmbTheme); the Graphite palette must not paint over it.
-    if (StoreStyle.isXmb(LocalContext.current)) content()
+    if (LocalStoreXmb.current || StoreStyle.isXmb(LocalContext.current)) content()
     else MaterialTheme(colorScheme = DeckGraphiteScheme, content = content)
 }

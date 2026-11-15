@@ -146,7 +146,7 @@ class SteamMainActivity : ComponentActivity() {
         applyIntent(intent)
 
         setContent {
-            StoreXmbTheme {
+            StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                     if (loggedIn.value) {
                         SteamStorefrontHost(

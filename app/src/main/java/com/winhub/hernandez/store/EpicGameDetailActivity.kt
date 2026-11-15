@@ -159,7 +159,7 @@ class EpicGameDetailActivity : ComponentActivity() {
         dlcJson = catalogItemId?.let { prefs!!.getString("epic_dlcs_$it", null) }
 
         setContent {
-            StoreXmbTheme {
+            StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                 EpicGameDetailScreen(
                     appName = appName!!,

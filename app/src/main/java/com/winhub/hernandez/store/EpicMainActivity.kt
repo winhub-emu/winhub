@@ -83,7 +83,7 @@ class EpicMainActivity : ComponentActivity() {
         startTab = intent?.getIntExtra(EXTRA_TAB, 0) ?: 0
         refreshView()
         setContent {
-            StoreXmbTheme {
+            StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                 if (isLoggedIn) {
                     EpicStorefrontHost(

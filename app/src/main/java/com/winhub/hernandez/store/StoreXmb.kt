@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -141,8 +142,9 @@ internal val LocalStoreXmb = staticCompositionLocalOf { false }
  * screen edges and the content sits in the even camera frame, clear of the keyboard; otherwise [content] is untouched.
  */
 @Composable
-internal fun StoreXmbScreen(content: @Composable () -> Unit) {
-    val xmb = rememberXmbHome()
+internal fun StoreXmbScreen(glassInLandscape: Boolean = false, content: @Composable () -> Unit) {
+    val config = LocalConfiguration.current
+    val xmb = rememberXmbHome() || (glassInLandscape && config.screenWidthDp > config.screenHeightDp)
     XmbScreenWindow(xmb)
     XmbDarkScheme(xmb) {
     // XMB home: the XMB keyboard replaces Android's for every text field on the screen. The Back hint is inside it, so it can
@@ -250,8 +252,8 @@ internal fun StoreKeyboardTheme(content: @Composable () -> Unit) {
  * [StoreXmbScreen], so in XMB-home mode the page is full screen like the rest of the store; elsewhere it is just the theme.
  */
 @Composable
-internal fun StoreXmbTheme(content: @Composable () -> Unit) {
-    com.winhub.hernandez.ui.theme.WinlatorTheme { StoreXmbScreen(content) }
+internal fun StoreXmbTheme(glassInLandscape: Boolean = false, content: @Composable () -> Unit) {
+    com.winhub.hernandez.ui.theme.WinlatorTheme { StoreXmbScreen(glassInLandscape, content) }
 }
 
 /**

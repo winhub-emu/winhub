@@ -319,7 +319,7 @@ class SteamGameDetailActivity : ComponentActivity(), SteamRepository.SteamEventL
         if (SteamPrefs.isLoggedIn) SteamForegroundService.start(this)
 
         setContent {
-            StoreXmbTheme {
+            StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                 SteamGameDetailScreen(
                     appId = appId,

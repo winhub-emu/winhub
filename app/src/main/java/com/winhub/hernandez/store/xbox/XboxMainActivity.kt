@@ -141,7 +141,7 @@ class XboxMainActivity : ComponentActivity() {
         startTab = intent?.getIntExtra(EXTRA_TAB, 1) ?: 1
         refreshAccount()
         setContent {
-            com.winhub.hernandez.store.StoreXmbTheme {
+            com.winhub.hernandez.store.StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                 val signedIn = account
                 if (signedIn != null) {

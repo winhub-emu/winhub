@@ -160,7 +160,7 @@ class AmazonGameDetailActivity : ComponentActivity() {
         loadUpdateStatus()
 
         setContent {
-            StoreXmbTheme {
+            StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                 Box(Modifier.fillMaxSize()) {
                 AmazonGameDetailScreen(

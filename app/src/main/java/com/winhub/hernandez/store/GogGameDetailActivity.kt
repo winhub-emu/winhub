@@ -243,7 +243,7 @@ class GogGameDetailActivity : ComponentActivity(), GogRedistInstaller.Host {
         loadMedia()
 
         setContent {
-            StoreXmbTheme {
+            StoreXmbTheme(glassInLandscape = true) {
                 DeckStoreTheme {
                 GogGameDetailScreen(
                     headerBitmap = headerBitmap,
