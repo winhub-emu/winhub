@@ -2,6 +2,7 @@ package com.winhub.hernandez.ui.screens
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -95,6 +96,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -1180,8 +1182,21 @@ internal fun DeckLaunchMethodDialog(
         Triple("Raw", "Raw .exe", "Run the game directly - no Steam layer"),
     )
 
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
+        if (landscape) DeckLaunchLandscapeCard(
+            gameName = shortcut.name,
+            heading = heading,
+            confirmLabel = confirmLabel,
+            method = method,
+            onMethod = { method = it },
+            goldbergMode = goldbergMode,
+            onGoldbergMode = { goldbergMode = it },
+            rememberChoice = rememberChoice,
+            onRemember = { rememberChoice = it },
+            onDismiss = onDismiss,
+            onConfirm = { onLaunch(method, if (method == "Goldberg") goldbergMode else null, rememberChoice) },
+        ) else Column(
             Modifier
                 .fillMaxWidth(0.92f)
                 .heightIn(max = 560.dp)
@@ -1219,7 +1234,7 @@ internal fun DeckLaunchMethodDialog(
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                 ) {
                     Icon(
-                        Icons.Filled.PlayArrow,
+                        painterResource(launchMethodIcon(mode)),
                         contentDescription = null,
                         tint = if (picked) DeckPalette.primary else DeckPalette.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
