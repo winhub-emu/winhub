@@ -347,7 +347,7 @@ private fun DeckModeBody() {
     }
     val openSocial: () -> Unit = {
         // The XMB store style gives Social a full-screen XMB page of its own, like the stores.
-        if (StoreStyle.isXmb(context)) context.startActivity(Intent(context, SocialHubActivity::class.java))
+        if (!portrait && StoreStyle.isXmb(context)) context.startActivity(Intent(context, SocialHubActivity::class.java))
         else { section = "social_hub"; deckDetail = null }
     }
     val leaveToHome: () -> Unit = { storeTarget = null; section = "home"; deckDetail = null }
@@ -2083,7 +2083,7 @@ private fun DeckPaneContent(
             "contents" -> DeckContentsScreen()
             // The full Save Manager (Steam / Custom / Epic / GOG / Settings), in Deck chrome.
             "saves" -> SaveManagerScreen(deckMode = true)
-            "social_hub" -> if (StoreStyle.isXmb(LocalContext.current)) SocialXmbEntry()
+            "social_hub" -> if (!LocalDeckPortrait.current && StoreStyle.isXmb(LocalContext.current)) SocialXmbEntry()
                 else SocialHubScreen(deck = true, onExit = if (fullXmb) onLeave else null)
             "settings" -> DeckSettingsScreen()
             // Defensive fallback only; never composes alongside the "home" branch, so it
