@@ -77,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.preference.PreferenceManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.winhub.hernandez.core.AppOrientation
 import com.winhub.hernandez.store.GitHubAuthClient
@@ -86,19 +87,25 @@ import com.winhub.hernandez.ui.screens.contents.ContentsHubViewModel
 import com.winhub.hernandez.ui.screens.contents.ContentsTypes
 import com.winhub.hernandez.ui.screens.contents.HubSource
 import com.winhub.hernandez.ui.screens.contents.RemoteSourceRepository
+import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.theme.AppThemeState
+import com.winhub.hernandez.ui.theme.CHARCOAL_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.CUSTOM_PRESET_INDEX
+import com.winhub.hernandez.ui.theme.DEFAULT_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.themePresets
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
-private val WIZARD_STEPS = listOf("Layout", "Theme", "Contents", "Social Hub", "Install")
-private const val LAST_STEP = 3
+private val WIZARD_STEPS = listOf("Layout", "Theme", "Home", "Sounds", "Stores", "Contents", "Social Hub", "Install")
+private const val LAST_STEP = 6
 private const val LAYOUT = 0
 private const val THEME = 1
-private const val CONTENTS = 2
-private const val SOCIAL = 3
+internal const val HOME = 2
+internal const val SOUNDS = 3
+internal const val STORES = 4
+private const val CONTENTS = 5
+private const val SOCIAL = 6
 
 /** One ticked extra, with where it came from so the install plan can say so. */
 internal data class ExtraPick(val content: FirstRunContent, val type: String, val source: String)
@@ -113,6 +120,54 @@ internal class FirstRunViewModel : ViewModel() {
     val repo = MutableStateFlow<String?>(null)
     val socialSkipped = MutableStateFlow(false)
 
+    // The console choices (Home, Sounds): the defaults the setup recommends. They are saved to the preferences Settings uses, at once,
+    // so the screens that follow (and the first launch) already have them.
+    val look = MutableStateFlow(GlassLook.GLASS)
+    val home = MutableStateFlow(DeckHomeStyle.STEAM)
+    val gameSettings = MutableStateFlow(GameSettingsStyle.CLASSIC)
+    val store = MutableStateFlow(StoreStyle.XMB)
+    val sounds = MutableStateFlow(DeckSound.STEAMOS)
+    val view = MutableStateFlow(PreviewView.HOME)
+    private var seeded = false
+
+    /** Saves the recommended defaults for what the user hasn't set yet and shows what is saved. */
+    fun seed(context: Context) {
+        if (seeded) return
+        seeded = true
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        fun saved(key: String, default: String): String {
+            prefs.getString(key, null)?.let { return it }
+            prefs.edit().putString(key, default).apply()
+            return default
+        }
+        look.value = if (saved(GlassLook.KEY, GlassLook.GLASS) == GlassLook.MATERIAL) GlassLook.MATERIAL else GlassLook.GLASS
+        home.value = saved(DeckHomeStyle.KEY, DeckHomeStyle.STEAM).let { if (it == DeckHomeStyle.STEAM) DeckHomeStyle.STEAM else DeckHomeStyle.FULL_XMB }
+        gameSettings.value = saved(GameSettingsStyle.KEY, GameSettingsStyle.CLASSIC).let { if (it == GameSettingsStyle.XMB) GameSettingsStyle.XMB else GameSettingsStyle.CLASSIC }
+        store.value = saved(StoreStyle.KEY, StoreStyle.XMB).let { if (it == StoreStyle.DECK) StoreStyle.DECK else StoreStyle.XMB }
+        sounds.value = saved(DeckSound.KEY, DeckSound.STEAMOS)
+        moveThemeForGlass()
+    }
+
+    // Glass is tuned on Charcoal (neutral surfaces): the default theme moves to it, a chosen one stays.
+    private fun moveThemeForGlass() {
+        if (look.value == GlassLook.GLASS && AppThemeState.presetIndex.value == DEFAULT_PRESET_INDEX) AppThemeState.setPreset(CHARCOAL_PRESET_INDEX)
+    }
+
+    private fun put(context: Context, key: String, value: String) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit().putString(key, value).apply()
+    }
+
+    fun setLook(context: Context, value: String) { look.value = value; put(context, GlassLook.KEY, value); moveThemeForGlass() }
+    fun setHome(context: Context, value: String) { home.value = value; put(context, DeckHomeStyle.KEY, value) }
+    fun setGameSettings(context: Context, value: String) { gameSettings.value = value; put(context, GameSettingsStyle.KEY, value) }
+    fun setStore(context: Context, value: String) { store.value = value; put(context, StoreStyle.KEY, value) }
+    fun setSounds(context: Context, value: String) {
+        sounds.value = value
+        put(context, DeckSound.KEY, value)
+        DeckSound.init(context)
+        DeckSound.play(DeckSound.SELECT)
+    }
+
     fun toggle(item: ContentsHubViewModel.CatalogItem, label: String) {
         extras.update { current ->
             if (item.downloadUrl in current) current - item.downloadUrl
@@ -125,7 +180,7 @@ internal class FirstRunViewModel : ViewModel() {
 
 /**
  * First-open wizard shown before the system files and components are installed: layout, theme,
- * extra contents (the Contents tab's browser) and Social Hub sign-in. [onInstall] receives the
+ * the console look (Home, sounds), store sign-in, extra contents (the Contents tab's browser) and Social Hub sign-in. [onInstall] receives the
  * extras to install after the four pinned components.
  */
 @Composable
@@ -173,6 +228,7 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
     // The layout step starts on the orientation the device is held in. Save that now, so a user who
     // just taps Next gets the Deck layout the preview showed instead of the unset default.
     LaunchedEffect(Unit) {
+        vm.seed(ctx)
         if (AppOrientation.mode(ctx) == AppOrientation.AUTO) {
             AppOrientation.setMode(ctx, initialOrientation(ctx, config.screenWidthDp > config.screenHeightDp))
         }
@@ -274,7 +330,7 @@ private fun WizardHeader(step: Int, wide: Boolean) {
                         )
                     }
                 }
-                if (wide) {
+                if (wide && on) {
                     Text(
                         label,
                         color = if (on) DeckPalette.onBackground else DeckPalette.onSurfaceVariant,
@@ -329,6 +385,9 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
                 ctx.findActivity()?.let { AppOrientation.apply(it) }
             }
             THEME -> ThemeStep(wide, mod)
+            HOME -> HomeStep(vm, portraitChosen, mod)
+            SOUNDS -> SoundsStep(vm, mod)
+            STORES -> StoresStep(mod)
             CONTENTS -> ContentsStep(vm, hub, mod)
             else -> SocialStep(vm, mod)
         }
@@ -336,6 +395,9 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
     val right: @Composable (Modifier) -> Unit = { mod ->
         when (step) {
             LAYOUT, THEME -> MiniDeckPreview(portrait = portraitChosen, compact = !wide, modifier = mod)
+            HOME -> if (portraitChosen) Unit else HomePreview(vm, mod)
+            SOUNDS -> SoundTry(mod)
+            STORES -> StorePerks(mod)
             CONTENTS -> InstallPlan(extras.values.toList(), mod)
             else -> SocialPerks(mod)
         }
@@ -356,11 +418,11 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
 }
 
 @Composable
-private fun StepHeading(step: Int, title: String, lede: String, recommended: Boolean = false) {
+internal fun StepHeading(step: Int, title: String, lede: String, recommended: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
-                "STEP ${step + 1} OF ${WIZARD_STEPS.size}",
+                "STEP ${step + 1} OF ${LAST_STEP + 1}",
                 color = DeckPalette.primary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -378,16 +440,17 @@ private fun StepHeading(step: Int, title: String, lede: String, recommended: Boo
 @Composable
 private fun LayoutStep(selected: String, modifier: Modifier, onPick: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = modifier.verticalScroll(rememberScrollState())) {
-        StepHeading(LAYOUT, "How do you play?", "Pick the layout that fits how you hold your device. The preview shows the Deck home.")
+        StepHeading(LAYOUT, "How do you play?", "Pick the layout that fits how you hold your device. Landscape is the better choice if you want a console experience.")
         WizChoice(
             title = "Landscape",
-            body = "Controller, dock or TV. Side rail, wide grid, button hints along the bottom.",
+            body = "Controller, dock or TV. Side rail, wide grid, button hints along the bottom. The full console experience: Steam-style Home, XMB stores, SteamOS sounds.",
             selected = selected == AppOrientation.LANDSCAPE,
             onClick = { onPick(AppOrientation.LANDSCAPE) },
+            badge = "Recommended",
         ) { OrientationGlyph(portrait = false) }
         WizChoice(
             title = "Portrait",
-            body = "One hand on a phone. Chips replace the rail, big touch targets.",
+            body = "One hand on a phone. Chips replace the rail, big touch targets. The console Home options are landscape only.",
             selected = selected == AppOrientation.PORTRAIT,
             onClick = { onPick(AppOrientation.PORTRAIT) },
         ) { OrientationGlyph(portrait = true) }
@@ -414,11 +477,12 @@ private fun OrientationGlyph(portrait: Boolean) {
 }
 
 @Composable
-private fun WizChoice(
+internal fun WizChoice(
     title: String,
     body: String,
     selected: Boolean,
     onClick: () -> Unit,
+    badge: String? = null,
     leading: @Composable () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -438,7 +502,10 @@ private fun WizChoice(
     ) {
         leading()
         Column(Modifier.weight(1f)) {
-            Text(title, color = DeckPalette.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, color = DeckPalette.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (badge != null) DeckBadge(badge, DeckPalette.primary)
+            }
             Text(body, color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
         }
         Tick(selected)
@@ -446,7 +513,7 @@ private fun WizChoice(
 }
 
 @Composable
-private fun Tick(on: Boolean) {
+internal fun Tick(on: Boolean) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -533,7 +600,7 @@ private fun ThemeCard(
 
 // ── Preview device (steps 1 and 2) ────────────────────────────────────────────
 
-private val PREVIEW_COVERS = listOf(
+internal val PREVIEW_COVERS = listOf(
     0xFF6A3D7A to 0xFF1D2A52, 0xFFC26B3A to 0xFF3A1D52, 0xFF2E6F8E to 0xFF10243A, 0xFF8E3A52 to 0xFF2A1020,
     0xFF3A8E5A to 0xFF0F2A1C, 0xFF8E7A3A to 0xFF2A2210, 0xFF4A3A8E to 0xFF14102A, 0xFF8E3A3A to 0xFF2A1010,
 )

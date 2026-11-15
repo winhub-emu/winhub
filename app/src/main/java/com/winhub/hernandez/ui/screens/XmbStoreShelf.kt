@@ -406,7 +406,7 @@ private fun StoreShelfMessage(title: String, body: String, action: String?, onAc
 
 private const val SKELETON_CARDS = 9
 
-private fun DeckStore.mark(): StoreMark = when (this) {
+internal fun DeckStore.mark(): StoreMark = when (this) {
     DeckStore.STEAM -> StoreMark.STEAM
     DeckStore.EPIC -> StoreMark.EPIC
     DeckStore.GOG -> StoreMark.GOG

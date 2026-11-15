@@ -188,7 +188,7 @@ internal fun launchStoreActivity(context: Context, screen: Screen): Boolean {
 }
 
 /** WinHub's real per-store login Activities (what each store's Sign in opens). */
-private fun launchDeckLogin(context: Context, screen: Screen) {
+internal fun launchDeckLogin(context: Context, screen: Screen) {
     val cls = when (screen) {
         Screen.Gog -> GogLoginActivity::class.java
         Screen.Epic -> EpicLoginActivity::class.java
