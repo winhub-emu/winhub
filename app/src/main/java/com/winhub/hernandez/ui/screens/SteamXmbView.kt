@@ -560,9 +560,11 @@ internal fun SteamXmbView(
                         } ?: return@onPreviewKeyEvent false
                         val held = e.nativeKeyEvent.repeatCount != 0
                         if (held && (k == XmbKey.Up || k == XmbKey.Down) && !navGate.allow(false)) return@onPreviewKeyEvent true
+                        val depthBefore = nav.depth
                         val handled = nav.onKey(k, xmbScope)
-                        // The ways in and out of a column have their own sound (the column depth); a step inside one sounds here.
-                        if (handled && k != XmbKey.A && k != XmbKey.B) xmbNavSound(k)
+                        // The ways in and out of a column have their own sound (the column depth); a step inside one sounds here, and so
+                        // does an A or B that stayed in the column (a toggle, a choice, a cancel).
+                        if (handled && (k != XmbKey.A && k != XmbKey.B || nav.depth == depthBefore)) xmbNavSound(k)
                         return@onPreviewKeyEvent handled
                     }
                     // Steam home, the covers holding the cursor: Start adds a game (the shell's hint says so).

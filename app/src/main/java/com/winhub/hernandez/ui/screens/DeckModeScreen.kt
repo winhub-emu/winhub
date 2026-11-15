@@ -535,8 +535,9 @@ private fun DeckModeBody() {
                     if (DeckConsole.screensaver) { DeckConsole.poke(); return@onPreviewKeyEvent true }
                     if (e.type == KeyEventType.KeyDown) { DeckTouchMode.touch = false; DeckConsole.poke() }
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    // The pages (Settings, Containers...) have no sounds of their own; Home's own layers play theirs.
-                    if (section != "home" && !editTracker.editing) deckPageKeySound(e, pageGate)
+                    // The pages (Settings, Containers...) have no sounds of their own; Home's own layers play theirs, except the
+                    // game's settings editor, which is a page opened over Home.
+                    if ((section != "home" || PortraitPageState.editor) && !editTracker.editing) deckPageKeySound(e, pageGate)
                     when (e.key) {
                         Key.ButtonB -> {
                             DeckSound.play(DeckSound.BACK)

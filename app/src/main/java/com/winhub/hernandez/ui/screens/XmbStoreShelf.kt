@@ -128,6 +128,15 @@ internal fun XmbStoreShelfHome(
         animate(pos.floatValue, target.toFloat(), animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)) { v, _ -> pos.floatValue = v }
     }
 
+    // A step along the row sounds like one on the other shelves; a held key sounds no faster than the gate lets it.
+    val soundGate = remember { KeyRepeatGate() }
+    fun stepTo(to: Int, fresh: Boolean) {
+        val next = to.coerceIn(0, (n - 1).coerceAtLeast(0))
+        if (next == target) return
+        target = next
+        if (soundGate.allow(fresh)) DeckSound.play(DeckSound.MOVE)
+    }
+
     val focus = remember { FocusRequester() }
     LaunchedEffect(focusTick) { if (canTakeFocus()) runCatching { focus.requestFocus() } }
     val hintInset = LocalXmbHintInset.current
@@ -138,8 +147,8 @@ internal fun XmbStoreShelfHome(
             .onPreviewKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.key) {
-                    Key.DirectionLeft -> { target = (target - 1).coerceAtLeast(0); true }
-                    Key.DirectionRight -> { target = (target + 1).coerceAtMost((n - 1).coerceAtLeast(0)); true }
+                    Key.DirectionLeft -> { stepTo(target - 1, e.nativeKeyEvent.repeatCount == 0); true }
+                    Key.DirectionRight -> { stepTo(target + 1, e.nativeKeyEvent.repeatCount == 0); true }
                     // Down opens the tabs page on its last used tab; a held Down opens it once.
                     Key.DirectionDown -> {
                         if (tabs.isNotEmpty() && e.nativeKeyEvent.repeatCount == 0) tabs[tabSel.coerceIn(0, tabs.lastIndex)].onClick()
@@ -148,6 +157,7 @@ internal fun XmbStoreShelfHome(
                     Key.DirectionUp -> true
                     Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
                         if (e.nativeKeyEvent.repeatCount == 0) {
+                            DeckSound.play(DeckSound.SELECT)
                             if (!signedIn) onSignIn() else list?.getOrNull(target)?.open?.invoke(context)
                         }
                         true
@@ -190,7 +200,7 @@ internal fun XmbStoreShelfHome(
                     val game = list[i]
                     key(i, game.title) {
                         StoreShelfCard(game, store, i, pos, sl, row, accent, i == target, slots) {
-                            if (i != target) target = i else game.open(context)
+                            if (i != target) { target = i; DeckSound.play(DeckSound.MOVE) } else { DeckSound.play(DeckSound.SELECT); game.open(context) }
                         }
                     }
                 }
