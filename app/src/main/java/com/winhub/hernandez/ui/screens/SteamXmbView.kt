@@ -1106,7 +1106,7 @@ private fun XmbActionRow(action: XmbAction, selected: Boolean, accent: Color, ic
 }
 
 @Composable
-private fun XmbActionRowContent(action: XmbAction, selected: Boolean, accent: Color, iconBox: Float, modifier: Modifier) {
+internal fun XmbActionRowContent(action: XmbAction, selected: Boolean, accent: Color, iconBox: Float, modifier: Modifier) {
     val ring = if (action.danger) DangerRed else accent
     val boxShape = RoundedCornerShape(10.dp)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {

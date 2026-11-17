@@ -65,4 +65,11 @@
     <string name="retro_step_folder_title">Where are your ROMs?</string>
     <string name="retro_step_folder_none">Not chosen yet. WinHub looks in ROMs and Games when you open the retro library.</string>
     <string name="retro_step_folder_note">Use one folder per console inside it (NES, SNES, GBA, PS2…). Games start in the emulator you have installed for the console.</string>
+
+    <string name="retro_opt_play">Play</string>
+    <string name="retro_opt_consoles">Consoles</string>
+    <string name="retro_opt_consoles_sub">Pick the consoles the library shows</string>
+    <string name="retro_emulator_in_use">In use</string>
+    <string name="retro_info_never">Not played yet</string>
+    <string name="retro_info_played">Last played: %1$s</string>
 </resources>
