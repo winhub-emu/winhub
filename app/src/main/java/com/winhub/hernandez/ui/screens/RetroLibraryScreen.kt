@@ -313,6 +313,18 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
             }
         }
     }
+    val removeGame = { sys: RetroSystem, game: RetroGame ->
+        val current = ready
+        if (current != null) {
+            RetroLibrary.excludePath(context, game.path)
+            // The cursor lands on the neighbour that takes its place.
+            (games.getOrNull(target + 1) ?: games.getOrNull(target - 1))?.let { RetroSession.lastGame[sys.id] = it.path }
+            val next = RetroScan(current.scan.bySystem.mapValues { (_, list) -> list.filter { it.path != game.path } }.filterValues { it.isNotEmpty() })
+            RetroSession.scan = next
+            state = RetroState.Ready(current.path, next)
+            Toast.makeText(context, R.string.retro_removed, Toast.LENGTH_SHORT).show()
+        }
+    }
     val optionsMenu = {
         val items = ArrayList<RetroMenuItem>()
         if (system != null) {
@@ -324,6 +336,24 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
                     menu = null
                     scope.launch(Dispatchers.IO) { RetroArt.clearMisses(context, system.id); scrapeTick++ }
                 }
+            }
+        }
+        if (system != null && focusedGame != null) {
+            items += RetroMenuItem(context.getString(R.string.retro_opt_remove), focusedGame.title) {
+                // Cancel is the one the cursor starts on, so a double press never removes by accident.
+                menu = listOf(
+                    RetroMenuItem(context.getString(R.string.retro_remove_yes), context.getString(R.string.retro_remove_yes_sub, focusedGame.title)) {
+                        menu = null; removeGame(system, focusedGame)
+                    },
+                    RetroMenuItem(context.getString(R.string.retro_remove_cancel), null) { menu = null },
+                )
+                menuSel = 1
+            }
+        }
+        val hidden = RetroLibrary.excludedPaths(context).size
+        if (hidden > 0) {
+            items += RetroMenuItem(context.getString(R.string.retro_opt_restore), context.getString(R.string.retro_opt_restore_sub, hidden)) {
+                RetroLibrary.clearExcluded(context); menu = null; rescan()
             }
         }
         items += RetroMenuItem(context.getString(R.string.retro_opt_folder), root ?: RetroLibrary.romRoot(context)) { menu = null; chooseFolder() }
@@ -355,7 +385,8 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = maxWidth.value
-        val h = maxHeight.value - topInset.value
+        val screenH = maxHeight.value
+        val h = screenH - topInset.value
         val sl = remember(w, h, hintInset, ss) {
             XmbSteamLayout(w, h, ss.dp(XMB_PEEK_CLIP).value, max(hintInset.value, 16f * ss.factor), ss.factor, 48f, 0f)
         }
@@ -398,7 +429,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
                 .pointerInput(Unit) { detectTapGestures { } },
         ) {
             // The same backdrop as the PC Home: the focused cover, blurred, with the navy fade toward the strip.
-            XmbSteamBackdrop(null, backdropCover, (topInset.value + sl.tabsTop - XMB_STEAM_FADE_LEAD * ss.factor) / maxHeight.value.coerceAtLeast(1f))
+            XmbSteamBackdrop(null, backdropCover, (topInset.value + sl.tabsTop - XMB_STEAM_FADE_LEAD * ss.factor) / screenH.coerceAtLeast(1f))
 
             Box(Modifier.fillMaxSize().padding(top = topInset)) {
                 when (val s = state) {

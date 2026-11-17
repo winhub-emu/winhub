@@ -36,6 +36,7 @@ internal object RetroLibrary {
     private const val PREFS = "retro_prefs"
     private const val KEY_ROOT = "rom_root"
     private const val KEY_EMU = "emu_"
+    private const val KEY_EXCLUDED = "excluded"
 
     val RETROARCH_PACKAGES = listOf("com.retroarch.aarch64", "org.libretro.retroarch")
 
@@ -65,6 +66,17 @@ internal object RetroLibrary {
 
     fun setEmulatorChoice(context: Context, systemId: String, packageName: String?) {
         prefs(context).edit().apply { if (packageName == null) remove(KEY_EMU + systemId) else putString(KEY_EMU + systemId, packageName) }.apply()
+    }
+
+    /** ROM paths the user removed from the library: a scan never brings them back (the files themselves are untouched). */
+    fun excludedPaths(context: Context): Set<String> = prefs(context).getStringSet(KEY_EXCLUDED, emptySet()).orEmpty().toSet()
+
+    fun excludePath(context: Context, path: String) {
+        prefs(context).edit().putStringSet(KEY_EXCLUDED, excludedPaths(context) + path).apply()
+    }
+
+    fun clearExcluded(context: Context) {
+        prefs(context).edit().remove(KEY_EXCLUDED).apply()
     }
 
     fun isInstalled(context: Context, packageName: String): Boolean = try {
@@ -139,7 +151,8 @@ internal object RetroLibrary {
         val root = File(rootPath)
         if (!root.isDirectory) return null
         val catalog = RetroCatalog.get(context)
-        val files = walk(root).filter { isRomFile(it) }.toList()
+        val excluded = excludedPaths(context)
+        val files = walk(root).filter { isRomFile(it) && it.absolutePath !in excluded }.toList()
 
         // A cue sheet or playlist stands for the tracks and discs it lists, which are not games of their own.
         val referenced = HashSet<String>()

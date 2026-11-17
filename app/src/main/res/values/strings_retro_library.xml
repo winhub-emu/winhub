@@ -34,6 +34,13 @@
     <string name="retro_opt_covers_sub">Downloads box art for this console</string>
     <string name="retro_opt_folder">ROM folder</string>
     <string name="retro_opt_rescan">Rescan library</string>
+    <string name="retro_opt_remove">Remove game</string>
+    <string name="retro_remove_yes">Remove from library</string>
+    <string name="retro_remove_yes_sub">\u201c%1$s\u201d \u2013 the ROM file stays on the device</string>
+    <string name="retro_remove_cancel">Cancel</string>
+    <string name="retro_removed">Removed from the library</string>
+    <string name="retro_opt_restore">Show removed games</string>
+    <string name="retro_opt_restore_sub">%1$d hidden</string>
     <string name="retro_emulator_auto">Automatic</string>
     <string name="retro_emulator_auto_sub">The first installed emulator</string>
     <string name="retro_emulator_none">No emulator installed for this console</string>
