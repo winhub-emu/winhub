@@ -97,15 +97,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
-private val WIZARD_STEPS = listOf("Layout", "Theme", "Home", "Sounds", "Stores", "Contents", "Social Hub", "Install")
-private const val LAST_STEP = 6
+private val WIZARD_STEPS = listOf("Layout", "Theme", "Home", "Sounds", "Stores", "Retro", "Contents", "Social Hub", "Install")
+private const val LAST_STEP = 7
 private const val LAYOUT = 0
 private const val THEME = 1
 internal const val HOME = 2
 internal const val SOUNDS = 3
 internal const val STORES = 4
-private const val CONTENTS = 5
-private const val SOCIAL = 6
+internal const val RETRO = 5
+private const val CONTENTS = 6
+private const val SOCIAL = 7
 
 /** One ticked extra, with where it came from so the install plan can say so. */
 internal data class ExtraPick(val content: FirstRunContent, val type: String, val source: String)
@@ -388,6 +389,7 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
             HOME -> HomeStep(vm, portraitChosen, mod)
             SOUNDS -> SoundsStep(vm, mod)
             STORES -> StoresStep(mod)
+            RETRO -> RetroStep(mod)
             CONTENTS -> ContentsStep(vm, hub, mod)
             else -> SocialStep(vm, mod)
         }
@@ -398,15 +400,16 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
             HOME -> if (portraitChosen) Unit else HomePreview(vm, mod)
             SOUNDS -> SoundTry(mod)
             STORES -> StorePerks(mod)
+            RETRO -> RetroFolderCard(mod)
             CONTENTS -> InstallPlan(extras.values.toList(), mod)
             else -> SocialPerks(mod)
         }
     }
 
     if (wide) {
-        val rightWeight = if (step == CONTENTS) 0.8f else 1f
+        val rightWeight = if (step == CONTENTS) 0.8f else if (step == RETRO) 0.7f else 1f
         Row(horizontalArrangement = Arrangement.spacedBy(30.dp), modifier = Modifier.fillMaxSize()) {
-            left(Modifier.weight(if (step == CONTENTS) 1.5f else 1.05f).fillMaxHeight())
+            left(Modifier.weight(if (step == CONTENTS) 1.5f else if (step == RETRO) 1.3f else 1.05f).fillMaxHeight())
             right(Modifier.weight(rightWeight).fillMaxHeight())
         }
     } else {

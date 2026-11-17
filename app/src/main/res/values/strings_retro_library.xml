@@ -48,4 +48,21 @@
 
     <string name="retro_no_emulator">No emulator installed for %1$s. Install one and try again.</string>
     <string name="retro_launch_failed">Could not start %1$s</string>
+
+    <string name="retro_filter_all">All</string>
+    <string name="retro_empty_no_consoles_title">Pick your consoles</string>
+    <string name="retro_empty_no_consoles_body">The retro library shows the games of the consoles you pick. You can change them any time in Settings, Retro library.</string>
+
+    <string name="retro_pick_title">Retro consoles</string>
+    <string name="retro_pick_lede">The retro library shows the games of the consoles ticked here</string>
+    <string name="retro_pick_all">Select all</string>
+    <string name="retro_pick_none">Clear</string>
+    <string name="retro_pick_count">%1$d picked</string>
+    <string name="retro_pick_done">Done</string>
+
+    <string name="retro_step_title">Pick your retro consoles</string>
+    <string name="retro_step_lede">Tick the consoles you play. Their games show up in the retro library, with their covers and backgrounds from SteamGridDB. Skip this if you don\'t play retro games.</string>
+    <string name="retro_step_folder_title">Where are your ROMs?</string>
+    <string name="retro_step_folder_none">Not chosen yet. WinHub looks in ROMs and Games when you open the retro library.</string>
+    <string name="retro_step_folder_note">Use one folder per console inside it (NES, SNES, GBA, PS2…). Games start in the emulator you have installed for the console.</string>
 </resources>

@@ -7,6 +7,9 @@ import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.winhub.hernandez.store.StarLaunchBridge
+import org.json.JSONException
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -37,6 +40,8 @@ internal object RetroLibrary {
     private const val KEY_ROOT = "rom_root"
     private const val KEY_EMU = "emu_"
     private const val KEY_EXCLUDED = "excluded"
+    private const val KEY_ENABLED = "enabled_systems"
+    private const val KEY_PLAYED = "lp:"
 
     val RETROARCH_PACKAGES = listOf("com.retroarch.aarch64", "org.libretro.retroarch")
 
@@ -67,6 +72,21 @@ internal object RetroLibrary {
     fun setEmulatorChoice(context: Context, systemId: String, packageName: String?) {
         prefs(context).edit().apply { if (packageName == null) remove(KEY_EMU + systemId) else putString(KEY_EMU + systemId, packageName) }.apply()
     }
+
+    /** The consoles the user picked (Settings, first-run setup): only their games are shown. Empty until picked. */
+    fun enabledSystems(context: Context): Set<String> = prefs(context).getStringSet(KEY_ENABLED, emptySet()).orEmpty().toSet()
+
+    fun setEnabledSystems(context: Context, ids: Set<String>) {
+        prefs(context).edit().putStringSet(KEY_ENABLED, ids).apply()
+    }
+
+    fun markPlayed(context: Context, path: String) {
+        prefs(context).edit().putLong(KEY_PLAYED + path, System.currentTimeMillis()).apply()
+    }
+
+    /** When each game was last started, by ROM path. */
+    fun lastPlayed(context: Context): Map<String, Long> =
+        prefs(context).all.mapNotNull { (k, v) -> if (k.startsWith(KEY_PLAYED) && v is Long) k.removePrefix(KEY_PLAYED) to v else null }.toMap()
 
     /** ROM paths the user removed from the library: a scan never brings them back (the files themselves are untouched). */
     fun excludedPaths(context: Context): Set<String> = prefs(context).getStringSet(KEY_EXCLUDED, emptySet()).orEmpty().toSet()
@@ -227,7 +247,7 @@ internal object RetroLibrary {
             launchStandalone(context, emulator, game)
         }
         return result.fold(
-            onSuccess = { RetroLaunchResult.Started },
+            onSuccess = { markPlayed(context, game.path); RetroLaunchResult.Started },
             onFailure = { e ->
                 Log.w(TAG, "Launch of ${game.path} in ${emulator.packageName} failed", e)
                 RetroLaunchResult.Failed(e.message ?: "Could not start ${emulator.name}")
@@ -330,15 +350,25 @@ private object ArcadeNames {
     }
 }
 
-/** Cover pictures: what is already on the device next to a ROM or in a media folder, and the free libretro thumbnail server. */
+/**
+ * Pictures of a game, kept on the device: its grid (the cover) and its hero (the background), both from SteamGridDB, with the free
+ * libretro thumbnail server as a second source for the grid. A cover already on the device (beside the ROM, or in an ES-DE style
+ * media folder) is used as it is.
+ */
 internal object RetroArt {
     private val IMAGE_EXTENSIONS = listOf("png", "jpg", "jpeg", "webp")
     private val MEDIA_DIRS = listOf("covers", "box2dfront", "boxart", "images", "box")
 
     private fun safeName(name: String) = name.replace(Regex("[&*/:`<>?\\\\|\"]"), "_")
 
-    private fun cacheFile(context: Context, game: RetroGame) =
-        File(context.filesDir, "retro_art/${game.systemId}/${safeName(game.baseName)}.png")
+    private fun artDir(context: Context, game: RetroGame) = File(context.filesDir, "retro_art/${game.systemId}")
+
+    private fun cacheFile(context: Context, game: RetroGame) = File(artDir(context, game), "${safeName(game.baseName)}.png")
+
+    private fun heroFile(context: Context, game: RetroGame) = File(artDir(context, game), "${safeName(game.baseName)}.bg.jpg")
+
+    // A zero-length file saying "asked, and there is nothing": "none" for the grid, "nohero" for the hero.
+    private fun marker(context: Context, game: RetroGame, kind: String) = File(artDir(context, game), "${safeName(game.baseName)}.$kind")
 
     /** The cover file for [game]: one fetched earlier, a picture named like the ROM beside it, or one in a media folder. Run off the main thread. */
     fun find(context: Context, system: RetroSystem, game: RetroGame, root: String?): File? {
@@ -359,48 +389,111 @@ internal object RetroArt {
         return null
     }
 
+    /** The background picture of [game] fetched earlier, or null. Run off the main thread. */
+    fun findHero(context: Context, game: RetroGame): File? = heroFile(context, game).takeIf { it.isFile && it.length() > 0 }
+
     /**
-     * Fetches the box art of every game in [games] that has none yet from the libretro thumbnail server, which is keyed by the
-     * ROM's No-Intro / Redump name. Returns how many covers were saved. [onProgress] gets (done, total); a [stopped] that turns true
-     * ends the run. A game with no thumbnail is remembered so it isn't asked for again. Run off the main thread.
+     * Fetches what [games] still lack, in order: the game is looked up on SteamGridDB by its title, then its grid and its hero are saved
+     * (the grid from the libretro thumbnail server when SteamGridDB has none). Returns how many grids were saved. [onProgress] gets
+     * (done, total); a [stopped] that turns true ends the run; [onSaved] runs after each picture. A game with nothing to find is
+     * remembered so it isn't asked for again, and a network failure is not remembered. Run off the main thread.
      */
     fun download(
         context: Context,
-        system: RetroSystem,
         games: List<RetroGame>,
         root: String?,
         stopped: () -> Boolean,
         onProgress: (Int, Int) -> Unit,
         onSaved: () -> Unit = {},
     ): Int {
-        val folder = system.thumbnails ?: return 0
+        val catalog = RetroCatalog.get(context)
         var saved = 0
         games.forEachIndexed { i, game ->
             if (stopped()) return saved
             onProgress(i, games.size)
-            val target = cacheFile(context, game)
-            val miss = File(target.path.removeSuffix(".png") + ".none")
-            if (miss.exists() || find(context, system, game, root) != null) return@forEachIndexed
-            val url = "https://thumbnails.libretro.com/${Uri.encode(folder)}/Named_Boxarts/${Uri.encode(safeName(game.baseName))}.png"
-            when (fetch(url, target)) {
-                Fetch.SAVED -> { saved++; onSaved() }
-                Fetch.MISSING -> runCatching { target.parentFile?.mkdirs(); miss.createNewFile() }
-                Fetch.FAILED -> Unit
+            val system = catalog.byId[game.systemId] ?: return@forEachIndexed
+            val needGrid = find(context, system, game, root) == null && !marker(context, game, "none").exists()
+            val needHero = findHero(context, game) == null && !marker(context, game, "nohero").exists()
+            if (!needGrid && !needHero) return@forEachIndexed
+            val id = searchGameId(context, game.title)
+            if (id < 0) return@forEachIndexed
+
+            if (needGrid) {
+                var grid = Fetch.MISSING
+                if (id > 0) firstImageUrl(context, "grids/game/$id?dimensions=600x900,342x482,660x930&types=static&nsfw=false&mimes=image/jpeg,image/png&limit=1")
+                    ?.let { grid = fetch(it, cacheFile(context, game)) }
+                val folder = system.thumbnails
+                if (grid == Fetch.MISSING && folder != null) {
+                    val url = "https://thumbnails.libretro.com/${Uri.encode(folder)}/Named_Boxarts/${Uri.encode(safeName(game.baseName))}.png"
+                    grid = fetch(url, cacheFile(context, game))
+                }
+                when (grid) {
+                    Fetch.SAVED -> { saved++; onSaved() }
+                    Fetch.MISSING -> touch(marker(context, game, "none"))
+                    Fetch.FAILED -> Unit
+                }
+            }
+            if (needHero) {
+                var hero = Fetch.MISSING
+                if (id > 0) firstImageUrl(context, "heroes/game/$id?types=static&nsfw=false&mimes=image/jpeg,image/png&limit=1")
+                    ?.let { hero = fetch(it, heroFile(context, game)) }
+                when (hero) {
+                    Fetch.SAVED -> onSaved()
+                    Fetch.MISSING -> touch(marker(context, game, "nohero"))
+                    Fetch.FAILED -> Unit
+                }
             }
         }
         onProgress(games.size, games.size)
         return saved
     }
 
-    /** Forgets which games of [systemId] had no thumbnail, so the next [download] asks for them again. */
-    fun clearMisses(context: Context, systemId: String) {
-        File(context.filesDir, "retro_art/$systemId").listFiles { f -> f.name.endsWith(".none") }?.forEach { it.delete() }
+    /** Forgets which games had nothing to find, so the next [download] asks for them again. */
+    fun clearMisses(context: Context) {
+        File(context.filesDir, "retro_art").listFiles()?.forEach { dir ->
+            dir.listFiles { f -> f.name.endsWith(".none") || f.name.endsWith(".nohero") }?.forEach { it.delete() }
+        }
+    }
+
+    private fun touch(f: File) {
+        try {
+            f.parentFile?.mkdirs()
+            f.createNewFile()
+        } catch (e: IOException) {
+            Log.w(TAG, "Could not write ${f.path}", e)
+        }
+    }
+
+    /** SteamGridDB's id for the game that best matches [title]: above 0 when found, 0 when there is none, -1 when the lookup failed. */
+    private fun searchGameId(context: Context, title: String): Int {
+        val body = StarLaunchBridge.sgdbGet(context, "search/autocomplete/" + Uri.encode(title)) ?: return -1
+        return try {
+            JSONObject(body).optJSONArray("data")?.optJSONObject(0)?.optInt("id", 0) ?: 0
+        } catch (e: JSONException) {
+            Log.w(TAG, "Unreadable SteamGridDB search answer", e)
+            -1
+        }
+    }
+
+    private fun firstImageUrl(context: Context, path: String): String? {
+        val body = StarLaunchBridge.sgdbGet(context, path) ?: return null
+        return try {
+            JSONObject(body).optJSONArray("data")?.optJSONObject(0)?.optString("url")?.takeIf { it.isNotEmpty() }
+        } catch (e: JSONException) {
+            Log.w(TAG, "Unreadable SteamGridDB image answer", e)
+            null
+        }
     }
 
     private enum class Fetch { SAVED, MISSING, FAILED }
 
     private fun fetch(url: String, target: File): Fetch {
-        val conn = URL(url).openConnection() as HttpURLConnection
+        val conn = try {
+            URL(url).openConnection() as HttpURLConnection
+        } catch (e: IOException) {
+            Log.w(TAG, "Bad picture address: $url", e)
+            return Fetch.FAILED
+        }
         conn.connectTimeout = 8_000
         conn.readTimeout = 8_000
         return try {
@@ -415,7 +508,7 @@ internal object RetroArt {
                 else -> Fetch.FAILED
             }
         } catch (e: IOException) {
-            Log.w(TAG, "Cover fetch failed: $url", e)
+            Log.w(TAG, "Picture fetch failed: $url", e)
             Fetch.FAILED
         } finally {
             conn.disconnect()

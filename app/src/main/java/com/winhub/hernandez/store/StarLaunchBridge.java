@@ -771,6 +771,15 @@ public final class StarLaunchBridge {
     }
 
     /**
+     * One SteamGridDB API v2 GET for the retro library: [path] is what follows ".../api/v2/" (for example
+     * "search/autocomplete/Zelda"). Uses the user's own key when they set one in Settings, else the bundled one, which never
+     * leaves this class. BLOCKING - call off the main thread. Returns the JSON body, or null on any failure.
+     */
+    public static String sgdbGet(Context ctx, String path) {
+        return httpGet("https://www.steamgriddb.com/api/v2/" + path, sgdbKey(ctx));
+    }
+
+    /**
      * Same request, with an explicit SteamGridDB bearer token so a caller that has a Context can
      * pass the user's own key (see {@link #sgdbKey}). Split out rather than duplicated so there is
      * still exactly ONE SteamGridDB HTTP path in the app.

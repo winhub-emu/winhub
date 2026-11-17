@@ -69,6 +69,7 @@ import java.util.concurrent.Executors
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import com.winhub.hernandez.MainActivity
+import com.winhub.hernandez.retro.RetroLibrary
 import com.winhub.hernandez.util.InAppFilePicker
 import com.winhub.hernandez.contentdialog.ContentDialog
 import com.winhub.hernandez.core.AppUtils
@@ -160,6 +161,18 @@ internal fun DeckSettingsScreen() {
     var storeStyle by remember { mutableStateOf(if (StoreStyle.isXmb(context)) StoreStyle.XMB else StoreStyle.DECK) }
     // Deck Home's layout ("classic" | "full_xmb"); the shell and DeckHome follow it live.
     var homeStyle by remember { mutableStateOf(DeckHomeStyle.read(prefs)) }
+    // The retro library's ROM folder and the consoles it shows.
+    var retroRoot by remember { mutableStateOf(RetroLibrary.romRoot(context)) }
+    var retroConsoleCount by remember { mutableStateOf(RetroLibrary.enabledSystems(context).size) }
+    var showRetroConsoles by remember { mutableStateOf(false) }
+    val retroFolderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }?.let {
+                RetroLibrary.setRomRoot(context, it)
+                retroRoot = it
+            }
+        }
+    }
     // Interface look ("glass" | "material"); every Deck page follows it live.
     var uiLook by remember { mutableStateOf(GlassLook.read(prefs)) }
     // What a game's Settings opens from the Steam / Full XMB Home ("classic" | "xmb"); read when the game's options are built.
@@ -844,6 +857,28 @@ internal fun DeckSettingsScreen() {
                     prefs.edit().putString(GameSettingsStyle.KEY, it).apply()
                 },
             )
+        }
+
+        // ── Retro library ── (landscape only, like the Home it switches on)
+        if (!portraitUi) DeckGroup(title = "Retro library") {
+            DeckRow(
+                label = "ROM folder",
+                hint = retroRoot ?: "Not chosen yet. WinHub looks in ROMs and Games when you open the retro library",
+            ) {
+                DeckButton("Choose", primary = false) {
+                    retroFolderLauncher.launch(InAppFilePicker.buildDirIntent(context, "ROM folder", retroRoot))
+                }
+            }
+            DeckRow(
+                label = "Consoles",
+                hint = if (retroConsoleCount == 0) "None picked. Pick the consoles whose games the retro library shows" else "$retroConsoleCount picked",
+            ) {
+                DeckButton("Choose", primary = false) { showRetroConsoles = true }
+            }
+        }
+        if (showRetroConsoles) RetroConsolesDialog {
+            showRetroConsoles = false
+            retroConsoleCount = RetroLibrary.enabledSystems(context).size
         }
 
         // ── Sounds ──
