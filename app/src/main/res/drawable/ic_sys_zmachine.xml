@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Infocom Z-machine — text-adventure terminal with a prompt, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Monitor -->
+    <path android:fillColor="#3E3A35"
+          android:pathData="M128,130 L472,130 Q490,130 490,148 L490,392 Q490,410 472,410 L128,410 Q110,410 110,392 L110,148 Q110,130 128,130 Z"/>
+
+    <!-- Screen -->
+    <path android:fillColor="#0B0F0A"
+          android:pathData="M148,158 L452,158 Q460,158 460,166 L460,360 Q460,368 452,368 L148,368 Q140,368 140,360 L140,166 Q140,158 148,158 Z"/>
+
+    <!-- Story text -->
+    <path android:fillColor="#FFB300"
+          android:pathData="M165,185 L365,185 L365,195 L165,195 Z M165,205 L415,205 L415,215 L165,215 Z M165,225 L315,225 L315,235 L165,235 Z"/>
+
+    <!-- Prompt -->
+    <path android:fillColor="#FFB300"
+          android:pathData="M165,272 L190,287 L165,302 L165,292 L176,287 L165,282 Z"/>
+
+    <!-- Cursor -->
+    <path android:fillColor="#FFB300"
+          android:pathData="M200,295 L226,295 L226,303 L200,303 Z"/>
+
+    <!-- Stand -->
+    <path android:fillColor="#2E2B27"
+          android:pathData="M250,410 L350,410 L370,450 L230,450 Z"/>
+</vector>

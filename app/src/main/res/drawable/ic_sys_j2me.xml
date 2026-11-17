@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Java ME — candybar feature phone with small screen and keypad, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Phone body -->
+    <path android:fillColor="#455A64"
+          android:pathData="M255,105 L345,105 Q375,105 375,135 L375,465 Q375,495 345,495 L255,495 Q225,495 225,465 L225,135 Q225,105 255,105 Z"/>
+
+    <path android:fillColor="#607D8B"
+          android:pathData="M259,117 L341,117 Q363,117 363,139 L363,461 Q363,483 341,483 L259,483 Q237,483 237,461 L237,139 Q237,117 259,117 Z"/>
+
+    <!-- Screen -->
+    <path android:fillColor="#B2EBF2"
+          android:pathData="M258,145 L342,145 Q348,145 348,151 L348,249 Q348,255 342,255 L258,255 Q252,255 252,249 L252,151 Q252,145 258,145 Z"/>
+
+    <!-- Screen content -->
+    <path android:fillColor="#00838F"
+          android:pathData="M265,165 L305,165 L305,173 L265,173 Z M265,182 L335,182 L335,190 L265,190 Z M290,215 L310,215 L310,235 L290,235 Z"/>
+
+    <!-- D-pad -->
+    <path android:fillColor="#CFD8DC"
+          android:pathData="M300,290 m-22,0 a22,22 0 1 0 44,0 a22,22 0 1 0 -44,0"/>
+
+    <path android:fillColor="#90A4AE"
+          android:pathData="M300,290 m-8,0 a8,8 0 1 0 16,0 a8,8 0 1 0 -16,0"/>
+
+    <!-- Keypad -->
+    <path android:fillColor="#CFD8DC"
+          android:pathData="M255,330 L281,330 L281,350 L255,350 Z M291,330 L317,330 L317,350 L291,350 Z M327,330 L353,330 L353,350 L327,350 Z M255,360 L281,360 L281,380 L255,380 Z M291,360 L317,360 L317,380 L291,380 Z M327,360 L353,360 L353,380 L327,380 Z M255,390 L281,390 L281,410 L255,410 Z M291,390 L317,390 L317,410 L291,410 Z M327,390 L353,390 L353,410 L327,410 Z M255,420 L281,420 L281,440 L255,440 Z M291,420 L317,420 L317,440 L291,440 Z M327,420 L353,420 L353,440 L327,440 Z"/>
+</vector>

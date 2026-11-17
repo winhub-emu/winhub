@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original Microsoft Xbox (2001) — the big "Duke" controller: chunky dark shell with fat handles,
+     the green-X jewel in the middle, sticks, D-pad and the coloured A/B/X/Y buttons. Flat-style.
+     Deliberately distinct from the green Xbox 360 sphere (ic_sys_xbox360). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Body — the big 'Duke' shell -->
+    <path android:fillColor="#2E2E2E"
+          android:strokeColor="#141414" android:strokeWidth="12"
+          android:pathData="M44,236 C44,150 132,112 214,122 C258,128 280,134 300,134 C320,134 342,128 386,122 C468,112 556,150 556,236 L574,404 C584,488 540,552 474,552 C418,552 394,512 380,462 L220,462 C206,512 182,552 126,552 C60,552 16,488 26,404 Z"/>
+
+    <!-- Face plate -->
+    <path android:fillColor="#3B3B3B"
+          android:pathData="M96,240 C96,184 156,160 216,166 L384,166 C444,160 504,184 504,240 L516,350 C520,384 500,406 470,406 L130,406 C100,406 80,384 84,350 Z"/>
+
+    <!-- Left stick base -->
+    <path android:fillColor="#141414"
+          android:pathData="M108,246 a52,52 0 1 0 104,0 a52,52 0 1 0 -104,0"/>
+
+    <!-- Left stick cap -->
+    <path android:fillColor="#4C4C4C"
+          android:pathData="M126,246 a34,34 0 1 0 68,0 a34,34 0 1 0 -68,0"/>
+
+    <!-- D-pad -->
+    <path android:fillColor="#181818"
+          android:pathData="M206,330 h34 v38 h38 v34 h-38 v38 h-34 v-38 h-38 v-34 h38 Z"/>
+
+    <!-- Right stick base -->
+    <path android:fillColor="#141414"
+          android:pathData="M338,378 a48,48 0 1 0 96,0 a48,48 0 1 0 -96,0"/>
+
+    <!-- Right stick cap -->
+    <path android:fillColor="#4C4C4C"
+          android:pathData="M355,378 a31,31 0 1 0 62,0 a31,31 0 1 0 -62,0"/>
+
+    <!-- Y (yellow) -->
+    <path android:fillColor="#F2C21B"
+          android:pathData="M427,202 a23,23 0 1 0 46,0 a23,23 0 1 0 -46,0"/>
+
+    <!-- X (blue) -->
+    <path android:fillColor="#2B7BE4"
+          android:pathData="M383,246 a23,23 0 1 0 46,0 a23,23 0 1 0 -46,0"/>
+
+    <!-- B (red) -->
+    <path android:fillColor="#D8342C"
+          android:pathData="M471,246 a23,23 0 1 0 46,0 a23,23 0 1 0 -46,0"/>
+
+    <!-- A (green) -->
+    <path android:fillColor="#3DAE2B"
+          android:pathData="M427,290 a23,23 0 1 0 46,0 a23,23 0 1 0 -46,0"/>
+
+    <!-- White button -->
+    <path android:fillColor="#EDEDED"
+          android:pathData="M498,312 a14,14 0 1 0 28,0 a14,14 0 1 0 -28,0"/>
+
+    <!-- Black button -->
+    <path android:fillColor="#0B0B0B"
+          android:strokeColor="#5A5A5A" android:strokeWidth="3"
+          android:pathData="M468,342 a14,14 0 1 0 28,0 a14,14 0 1 0 -28,0"/>
+
+    <!-- Jewel -->
+    <path android:fillColor="#121212"
+          android:strokeColor="#5DBB2F" android:strokeWidth="12"
+          android:pathData="M226,240 a64,64 0 1 0 128,0 a64,64 0 1 0 -128,0"/>
+
+    <!-- Jewel X -->
+    <path android:strokeColor="#7AD03A" android:strokeWidth="22"
+          android:strokeLineCap="round" android:strokeLineJoin="round"
+          android:pathData="M258,208 L322,272 M322,208 L258,272"/>
+</vector>

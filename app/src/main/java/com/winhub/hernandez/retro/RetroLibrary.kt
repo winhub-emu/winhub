@@ -358,6 +358,7 @@ internal object RetroArt {
         root: String?,
         stopped: () -> Boolean,
         onProgress: (Int, Int) -> Unit,
+        onSaved: () -> Unit = {},
     ): Int {
         val folder = system.thumbnails ?: return 0
         var saved = 0
@@ -369,13 +370,18 @@ internal object RetroArt {
             if (miss.exists() || find(context, system, game, root) != null) return@forEachIndexed
             val url = "https://thumbnails.libretro.com/${Uri.encode(folder)}/Named_Boxarts/${Uri.encode(safeName(game.baseName))}.png"
             when (fetch(url, target)) {
-                Fetch.SAVED -> saved++
+                Fetch.SAVED -> { saved++; onSaved() }
                 Fetch.MISSING -> runCatching { target.parentFile?.mkdirs(); miss.createNewFile() }
                 Fetch.FAILED -> Unit
             }
         }
         onProgress(games.size, games.size)
         return saved
+    }
+
+    /** Forgets which games of [systemId] had no thumbnail, so the next [download] asks for them again. */
+    fun clearMisses(context: Context, systemId: String) {
+        File(context.filesDir, "retro_art/$systemId").listFiles { f -> f.name.endsWith(".none") }?.forEach { it.delete() }
     }
 
     private enum class Fetch { SAVED, MISSING, FAILED }

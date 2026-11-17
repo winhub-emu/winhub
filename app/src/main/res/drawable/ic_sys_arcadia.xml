@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Emerson Arcadia 2001 — compact light console with two keypad controllers, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Console body -->
+    <path android:fillColor="#D9D6CF"
+          android:pathData="M185,250 L415,250 Q430,250 430,265 L430,375 Q430,390 415,390 L185,390 Q170,390 170,375 L170,265 Q170,250 185,250 Z"/>
+    <path android:fillColor="#B9B5AC"
+          android:pathData="M170,350 L430,350 L430,375 Q430,390 415,390 L185,390 Q170,390 170,375 Z"/>
+    <!-- Cartridge slot -->
+    <path android:fillColor="#2A2A2E"
+          android:pathData="M230,275 L370,275 L370,300 L230,300 Z"/>
+    <!-- Brand stripe -->
+    <path android:fillColor="#C62828"
+          android:pathData="M190,320 L410,320 L410,332 L190,332 Z"/>
+    <!-- Left controller (keypad + disc) -->
+    <path android:fillColor="#2A2A2E"
+          android:pathData="M70,265 L140,265 Q150,265 150,275 L150,405 Q150,415 140,415 L70,415 Q60,415 60,405 L60,275 Q60,265 70,265 Z"/>
+    <path android:fillColor="#9E9E9E"
+          android:pathData="M105,295 m-22,0 a22,22 0 1 0 44,0 a22,22 0 1 0 -44,0"/>
+    <path android:fillColor="#BDBDBD"
+          android:pathData="M75,335 L93,335 L93,350 L75,350 Z M97,335 L115,335 L115,350 L97,350 Z M119,335 L137,335 L137,350 L119,350 Z M75,357 L93,357 L93,372 L75,372 Z M97,357 L115,357 L115,372 L97,372 Z M119,357 L137,357 L137,372 L119,372 Z M75,379 L93,379 L93,394 L75,394 Z M97,379 L115,379 L115,394 L97,394 Z M119,379 L137,379 L137,394 L119,394 Z"/>
+    <!-- Right controller -->
+    <path android:fillColor="#2A2A2E"
+          android:pathData="M460,265 L530,265 Q540,265 540,275 L540,405 Q540,415 530,415 L460,415 Q450,415 450,405 L450,275 Q450,265 460,265 Z"/>
+    <path android:fillColor="#9E9E9E"
+          android:pathData="M495,295 m-22,0 a22,22 0 1 0 44,0 a22,22 0 1 0 -44,0"/>
+    <path android:fillColor="#BDBDBD"
+          android:pathData="M465,335 L483,335 L483,350 L465,350 Z M487,335 L505,335 L505,350 L487,350 Z M509,335 L527,335 L527,350 L509,350 Z M465,357 L483,357 L483,372 L465,372 Z M487,357 L505,357 L505,372 L487,372 Z M509,357 L527,357 L527,372 L509,372 Z M465,379 L483,379 L483,394 L465,394 Z M487,379 L505,379 L505,394 L487,394 Z M509,379 L527,379 L527,394 L509,394 Z"/>
+</vector>

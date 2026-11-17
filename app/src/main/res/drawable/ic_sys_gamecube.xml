@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nintendo GameCube — the purple cube with carry handle and disc lid, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Carry handle -->
+    <path android:fillColor="#4A3FA8"
+          android:pathData="M362,150 Q420,150 420,205 L398,205 Q398,172 362,172 Z"/>
+
+    <!-- Cube body -->
+    <path android:fillColor="#5B4FC4"
+          android:pathData="M185,195 L415,195 Q430,195 430,210 L430,430 Q430,445 415,445 L185,445 Q170,445 170,430 L170,210 Q170,195 185,195 Z"/>
+    <!-- Right side shade -->
+    <path android:fillColor="#4A3FA8"
+          android:pathData="M400,195 L415,195 Q430,195 430,210 L430,430 Q430,445 415,445 L400,445 Z"/>
+
+    <!-- Disc lid (circular, top) -->
+    <path android:fillColor="#4636A0"
+          android:pathData="M300,310 m-95,0 a95,95 0 1 0 190,0 a95,95 0 1 0 -190,0"/>
+    <path android:fillColor="#6D61D6"
+          android:pathData="M300,310 m-78,0 a78,78 0 1 0 156,0 a78,78 0 1 0 -156,0"/>
+    <!-- Lid center pivot -->
+    <path android:fillColor="#3A2E86"
+          android:pathData="M300,310 m-14,0 a14,14 0 1 0 28,0 a14,14 0 1 0 -28,0"/>
+
+    <!-- Power button -->
+    <path android:fillColor="#2EA0FF"
+          android:pathData="M210,420 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+</vector>

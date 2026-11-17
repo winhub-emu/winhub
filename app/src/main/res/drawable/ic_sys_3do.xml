@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Panasonic 3DO (FZ-1) — black horizontal console with disc lid, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Console body -->
+    <path android:fillColor="#1B1B1F"
+          android:pathData="M110,225 L490,225 Q505,225 505,240 L505,375 Q505,390 490,390 L110,390 Q95,390 95,375 L95,240 Q95,225 110,225 Z"/>
+    <!-- Top highlight -->
+    <path android:fillColor="#2C2C32"
+          android:pathData="M110,225 L490,225 Q505,225 505,240 L505,256 L95,256 L95,240 Q95,225 110,225 Z"/>
+
+    <!-- Disc lid (raised circle, left of center) -->
+    <path android:fillColor="#101013"
+          android:pathData="M235,308 m-78,0 a78,78 0 1 0 156,0 a78,78 0 1 0 -156,0"/>
+    <path android:fillColor="#34343C"
+          android:pathData="M235,308 m-60,0 a60,60 0 1 0 120,0 a60,60 0 1 0 -120,0"/>
+    <path android:fillColor="#101013"
+          android:pathData="M235,308 m-14,0 a14,14 0 1 0 28,0 a14,14 0 1 0 -28,0"/>
+
+    <!-- Open/eject button -->
+    <path android:fillColor="#C0392B"
+          android:pathData="M360,290 L420,290 L420,310 L360,310 Z"/>
+    <!-- Power LED -->
+    <path android:fillColor="#2ECC71"
+          android:pathData="M390,345 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+    <!-- Controller port -->
+    <path android:fillColor="#34343C"
+          android:pathData="M435,330 L470,330 L470,360 L435,360 Z"/>
+</vector>

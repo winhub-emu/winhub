@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Microsoft Xbox — green "nexus" sphere with the white X, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Green sphere -->
+    <path android:fillColor="#107C10"
+          android:pathData="M300,300 m-240,0 a240,240 0 1 0 480,0 a240,240 0 1 0 -480,0"/>
+
+    <!-- White X — two crossing blades, round caps/joins for a soft, on-brand look -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="64"
+          android:strokeLineCap="round" android:strokeLineJoin="round"
+          android:pathData="M170,170 L430,430 M430,170 L170,430"/>
+</vector>

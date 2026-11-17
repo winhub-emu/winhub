@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Apple Macintosh — classic beige compact all-in-one, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Case -->
+    <path android:fillColor="#E3DCCB"
+          android:pathData="M201,110 L399,110 Q415,110 415,126 L415,414 Q415,430 399,430 L201,430 Q185,430 185,414 L185,126 Q185,110 201,110 Z"/>
+
+    <!-- Foot -->
+    <path android:fillColor="#CFC6B0"
+          android:pathData="M185,400 L415,400 L415,414 Q415,430 399,430 L201,430 Q185,430 185,414 Z"/>
+
+    <!-- Bezel -->
+    <path android:fillColor="#BDB4A0"
+          android:pathData="M218,140 L382,140 Q390,140 390,148 L390,282 Q390,290 382,290 L218,290 Q210,290 210,282 L210,148 Q210,140 218,140 Z"/>
+
+    <!-- Screen -->
+    <path android:fillColor="#F5F5F0"
+          android:pathData="M225,155 L375,155 L375,275 L225,275 Z"/>
+
+    <!-- Happy Mac -->
+    <path android:fillColor="#212121"
+          android:pathData="M282,195 m-6,0 a6,6 0 1 0 12,0 a6,6 0 1 0 -12,0 M318,195 m-6,0 a6,6 0 1 0 12,0 a6,6 0 1 0 -12,0 M275,225 Q300,245 325,225 L322,232 Q300,250 278,232 Z"/>
+
+    <!-- Floppy slot -->
+    <path android:fillColor="#5D5546"
+          android:pathData="M290,318 L380,318 L380,326 L290,326 Z"/>
+
+    <path android:fillColor="#E53935"
+          android:pathData="M205,370 L211,370 L211,376 L205,376 Z"/>
+
+    <path android:fillColor="#FB8C00"
+          android:pathData="M211,370 L217,370 L217,376 L211,376 Z"/>
+
+    <path android:fillColor="#1E88E5"
+          android:pathData="M217,370 L223,370 L223,376 L217,376 Z"/>
+</vector>

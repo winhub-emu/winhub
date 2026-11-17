@@ -18,3 +18,9 @@ CPU / GPU / RAM-bus performance levels on Samsung Galaxy devices.
 - Source: https://developer.samsung.com/galaxy-performance
 - If you redistribute a build that bundles this SDK, verify your right to redistribute it under
   the license you accepted.
+
+## Console illustrations (retro library)
+
+The retro library's console pictures (`ic_sys_*` in `app/src/main/res/drawable*`) are KyleBing's
+**retro-game-console-icons** (GPL-3.0, <https://github.com/KyleBing/retro-game-console-icons>), plus
+flat icons in the same style for consoles that pack lacks. They are GPL-3.0 like this project.

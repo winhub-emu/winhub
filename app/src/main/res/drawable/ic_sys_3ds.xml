@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nintendo 3DS — open clamshell, flat-style approximation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Top lid -->
+    <path android:fillColor="#00A0C8"
+          android:pathData="M195,120 L405,120 Q420,120 420,135 L420,295 L180,295 L180,135 Q180,120 195,120 Z"/>
+    <!-- Top screen (widescreen) -->
+    <path android:fillColor="#15202B"
+          android:pathData="M210,150 L390,150 L390,265 L210,265 Z"/>
+    <path android:fillColor="#29ABE2"
+          android:pathData="M222,162 L378,162 L378,253 L222,253 Z"/>
+
+    <!-- Hinge -->
+    <path android:fillColor="#0B7E9E"
+          android:pathData="M180,295 L420,295 L420,312 L180,312 Z"/>
+
+    <!-- Bottom deck -->
+    <path android:fillColor="#0C8BB0"
+          android:pathData="M170,312 L430,312 L430,465 Q430,480 415,480 L185,480 Q170,480 170,465 Z"/>
+    <!-- Bottom touch screen -->
+    <path android:fillColor="#15202B"
+          android:pathData="M250,330 L350,330 L350,455 L250,455 Z"/>
+    <path android:fillColor="#3C4A57"
+          android:pathData="M260,340 L340,340 L340,445 L260,445 Z"/>
+
+    <!-- Circle Pad (left) -->
+    <path android:fillColor="#0A6A86"
+          android:pathData="M212,360 m-26,0 a26,26 0 1 0 52,0 a26,26 0 1 0 -52,0"/>
+    <path android:fillColor="#E8EEF2"
+          android:pathData="M212,360 m-15,0 a15,15 0 1 0 30,0 a15,15 0 1 0 -30,0"/>
+
+    <!-- Face buttons (right) -->
+    <path android:fillColor="#E8EEF2"
+          android:pathData="M388,345 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0
+                            M388,395 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0
+                            M364,370 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0
+                            M412,370 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+</vector>

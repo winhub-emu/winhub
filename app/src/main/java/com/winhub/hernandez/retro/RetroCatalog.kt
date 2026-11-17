@@ -31,6 +31,8 @@ internal data class RetroSystem(
     val emulators: List<String>,
     val defaultEmulator: String?,
     val label: String?,
+    /** Key into the bundled console illustrations (see RetroIcons); null falls back to the system's id. */
+    val iconKey: String?,
     val year: Int,
     val brand: String?,
     val kind: String?,
@@ -108,6 +110,7 @@ internal class RetroCatalog(val systems: List<RetroSystem>, val emulators: List<
                     emulators = p.stringList("emulators"),
                     defaultEmulator = p.optString("defaultEmulator").ifEmpty { null },
                     label = p.optString("label").ifEmpty { null },
+                    iconKey = p.optString("icon").ifEmpty { null },
                     year = p.optInt("releaseYear", 0),
                     brand = p.optString("brand").ifEmpty { null },
                     kind = p.optString("kind").ifEmpty { null },

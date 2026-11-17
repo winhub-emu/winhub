@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Philips CD-i — dark hi-fi style player with disc tray and blue display, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Body -->
+    <path android:fillColor="#2B2D33"
+          android:pathData="M80,245 L520,245 Q535,245 535,260 L535,375 Q535,390 520,390 L80,390 Q65,390 65,375 L65,260 Q65,245 80,245 Z"/>
+    <path android:fillColor="#3A3D45"
+          android:pathData="M80,245 L520,245 Q535,245 535,260 L535,272 L65,272 L65,260 Q65,245 80,245 Z"/>
+    <!-- Disc tray -->
+    <path android:fillColor="#15161A"
+          android:pathData="M100,300 L330,300 L330,325 L100,325 Z"/>
+    <path android:fillColor="#4A4E58"
+          android:pathData="M105,307 L325,307 L325,312 L105,312 Z"/>
+    <!-- Display -->
+    <path android:fillColor="#0E1A2E"
+          android:pathData="M360,295 L500,295 L500,335 L360,335 Z"/>
+    <path android:fillColor="#4FC3F7"
+          android:pathData="M372,308 L420,308 L420,322 L372,322 Z M430,308 L452,308 L452,322 L430,322 Z M462,308 L488,308 L488,322 L462,322 Z"/>
+    <!-- Buttons -->
+    <path android:fillColor="#5A5E68"
+          android:pathData="M100,350 L135,350 L135,368 L100,368 Z M145,350 L180,350 L180,368 L145,368 Z M190,350 L225,350 L225,368 L190,368 Z"/>
+    <!-- Power LED -->
+    <path android:fillColor="#66BB6A"
+          android:pathData="M500,360 m-8,0 a8,8 0 1 0 16,0 a8,8 0 1 0 -16,0"/>
+</vector>

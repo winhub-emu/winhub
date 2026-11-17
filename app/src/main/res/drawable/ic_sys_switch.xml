@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nintendo Switch — flat-style approximation in the KyleBing console-icon spirit. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Left Joy-Con (neon red) -->
+    <path android:fillColor="#FF3C28"
+          android:pathData="M150,190 L210,190 L210,410 L150,410 Q105,410 105,365 L105,235 Q105,190 150,190 Z"/>
+    <!-- Right Joy-Con (neon blue) -->
+    <path android:fillColor="#0AB9E6"
+          android:pathData="M450,190 L390,190 L390,410 L450,410 Q495,410 495,365 L495,235 Q495,190 450,190 Z"/>
+
+    <!-- Center console body -->
+    <path android:fillColor="#2B2B2B"
+          android:pathData="M210,190 L390,190 L390,410 L210,410 Z"/>
+    <!-- Screen -->
+    <path android:fillColor="#29ABE2"
+          android:pathData="M224,206 L376,206 L376,394 L224,394 Z"/>
+
+    <!-- Left analog stick -->
+    <path android:fillColor="#1A1A1A"
+          android:pathData="M155,260 m-23,0 a23,23 0 1 0 46,0 a23,23 0 1 0 -46,0"/>
+    <!-- Left d-pad dots -->
+    <path android:fillColor="#1A1A1A"
+          android:pathData="M155,330 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M155,375 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M132,352 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M178,352 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- Right analog stick -->
+    <path android:fillColor="#1A1A1A"
+          android:pathData="M445,340 m-23,0 a23,23 0 1 0 46,0 a23,23 0 1 0 -46,0"/>
+    <!-- Right face buttons -->
+    <path android:fillColor="#1A1A1A"
+          android:pathData="M445,235 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0
+                            M445,283 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0
+                            M421,259 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0
+                            M469,259 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0"/>
+</vector>

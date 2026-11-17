@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- VTech CreatiVision — black console with two docked controllers on top, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Body -->
+    <path android:fillColor="#1C1C20"
+          android:pathData="M85,250 L515,250 Q530,250 530,265 L530,385 Q530,400 515,400 L85,400 Q70,400 70,385 L70,265 Q70,250 85,250 Z"/>
+    <!-- Docked controllers (two rubber keypads with joystick discs) -->
+    <path android:fillColor="#2E2E34"
+          android:pathData="M95,265 L285,265 L285,385 L95,385 Z M315,265 L505,265 L505,385 L315,385 Z"/>
+    <path android:fillColor="#E0E0E0"
+          android:pathData="M140,325 m-30,0 a30,30 0 1 0 60,0 a30,30 0 1 0 -60,0 M360,325 m-30,0 a30,30 0 1 0 60,0 a30,30 0 1 0 -60,0"/>
+    <path android:fillColor="#9E9E9E"
+          android:pathData="M140,325 m-12,0 a12,12 0 1 0 24,0 a12,12 0 1 0 -24,0 M360,325 m-12,0 a12,12 0 1 0 24,0 a12,12 0 1 0 -24,0"/>
+    <path android:fillColor="#9E9E9E"
+          android:pathData="M195,285 L270,285 L270,300 L195,300 Z M195,307 L270,307 L270,322 L195,322 Z M195,329 L270,329 L270,344 L195,344 Z M195,351 L270,351 L270,366 L195,366 Z M415,285 L490,285 L490,300 L415,300 Z M415,307 L490,307 L490,322 L415,322 Z M415,329 L490,329 L490,344 L415,344 Z M415,351 L490,351 L490,366 L415,366 Z"/>
+    <!-- Orange VTech accent -->
+    <path android:fillColor="#F57C00"
+          android:pathData="M70,388 L530,388 L530,400 L70,400 Z"/>
+</vector>

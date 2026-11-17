@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nintendo Wii — white vertical console on its stand, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Stand base -->
+    <path android:fillColor="#BFC6CC"
+          android:pathData="M250,452 L350,452 Q366,452 366,468 L366,478 L234,478 L234,468 Q234,452 250,452 Z"/>
+
+    <!-- Console body -->
+    <path android:fillColor="#F4F6F8"
+          android:pathData="M268,120 L332,120 Q344,120 344,132 L344,452 L256,452 L256,132 Q256,120 268,120 Z"/>
+    <!-- Side shade -->
+    <path android:fillColor="#DDE2E6"
+          android:pathData="M326,120 L332,120 Q344,120 344,132 L344,452 L326,452 Z"/>
+
+    <!-- Disc slot with blue glow -->
+    <path android:fillColor="#1F6FE0"
+          android:pathData="M270,182 L330,182 L330,190 L270,190 Z"/>
+
+    <!-- SD flap -->
+    <path android:fillColor="#DDE2E6"
+          android:pathData="M272,220 L328,220 L328,250 L272,250 Z"/>
+
+    <!-- Buttons -->
+    <path android:fillColor="#C8CED3"
+          android:pathData="M286,300 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+    <path android:fillColor="#C8CED3"
+          android:pathData="M286,340 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+</vector>

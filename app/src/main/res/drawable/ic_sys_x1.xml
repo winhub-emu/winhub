@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sharp X1 — red-trimmed desktop computer with monitor and keyboard, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Monitor -->
+    <path android:fillColor="#ECEFF1"
+          android:pathData="M162,120 L438,120 Q450,120 450,132 L450,298 Q450,310 438,310 L162,310 Q150,310 150,298 L150,132 Q150,120 162,120 Z"/>
+
+    <!-- Screen -->
+    <path android:fillColor="#101418"
+          android:pathData="M178,140 L422,140 Q428,140 428,146 L428,274 Q428,280 422,280 L178,280 Q172,280 172,274 L172,146 Q172,140 178,140 Z"/>
+
+    <!-- Text -->
+    <path android:fillColor="#4FC3F7"
+          android:pathData="M195,165 L285,165 L285,175 L195,175 Z M195,185 L345,185 L345,195 L195,195 Z M195,205 L255,205 L255,215 L195,215 Z"/>
+
+    <!-- Red trim -->
+    <path android:fillColor="#C62828"
+          android:pathData="M150,295 L450,295 L450,310 L150,310 Z"/>
+
+    <!-- System unit -->
+    <path android:fillColor="#CFD8DC"
+          android:pathData="M156,318 L444,318 Q450,318 450,324 L450,346 Q450,352 444,352 L156,352 Q150,352 150,346 L150,324 Q150,318 156,318 Z"/>
+
+    <!-- Drive slot -->
+    <path android:fillColor="#37474F"
+          android:pathData="M175,330 L275,330 L275,338 L175,338 Z"/>
+
+    <!-- Keyboard -->
+    <path android:fillColor="#CFD8DC"
+          android:pathData="M110,375 L490,375 L505,440 L95,440 Z"/>
+
+    <!-- Keys -->
+    <path android:fillColor="#37474F"
+          android:pathData="M130,388 L152,388 L152,402 L130,402 Z M156,388 L178,388 L178,402 L156,402 Z M182,388 L204,388 L204,402 L182,402 Z M208,388 L230,388 L230,402 L208,402 Z M234,388 L256,388 L256,402 L234,402 Z M260,388 L282,388 L282,402 L260,402 Z M286,388 L308,388 L308,402 L286,402 Z M312,388 L334,388 L334,402 L312,402 Z M338,388 L360,388 L360,402 L338,402 Z M364,388 L386,388 L386,402 L364,402 Z M390,388 L412,388 L412,402 L390,402 Z M416,388 L438,388 L438,402 L416,402 Z M442,388 L464,388 L464,402 L442,402 Z M468,388 L490,388 L490,402 L468,402 Z M134,406 L156,406 L156,420 L134,420 Z M160,406 L182,406 L182,420 L160,420 Z M186,406 L208,406 L208,420 L186,420 Z M212,406 L234,406 L234,420 L212,420 Z M238,406 L260,406 L260,420 L238,420 Z M264,406 L286,406 L286,420 L264,420 Z M290,406 L312,406 L312,420 L290,420 Z M316,406 L338,406 L338,420 L316,420 Z M342,406 L364,406 L364,420 L342,420 Z M368,406 L390,406 L390,420 L368,420 Z M394,406 L416,406 L416,420 L394,420 Z M420,406 L442,406 L442,420 L420,420 Z M446,406 L468,406 L468,420 L446,420 Z M472,406 L494,406 L494,420 L472,420 Z"/>
+</vector>

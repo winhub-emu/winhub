@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PC / Steam — flat monitor with a game controller on-screen. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Monitor bezel -->
+    <path android:fillColor="#2B2B2B"
+          android:pathData="M80,100 L520,100 Q540,100 540,120 L540,390 Q540,410 520,410 L80,410 Q60,410 60,390 L60,120 Q60,100 80,100 Z"/>
+
+    <!-- Screen (blue-grey) -->
+    <path android:fillColor="#1A3A5C"
+          android:pathData="M90,120 L510,120 L510,390 L90,390 Z"/>
+
+    <!-- Monitor stand / neck -->
+    <path android:fillColor="#2B2B2B"
+          android:pathData="M280,410 L320,410 L320,460 L280,460 Z"/>
+
+    <!-- Monitor base -->
+    <path android:fillColor="#2B2B2B"
+          android:pathData="M200,460 L400,460 Q410,460 410,470 L410,485 Q410,495 400,495 L200,495 Q190,495 190,485 L190,470 Q190,460 200,460 Z"/>
+
+    <!-- Controller body on screen -->
+    <path android:fillColor="#4D7FFF"
+          android:pathData="M210,220 L390,220 Q400,220 405,230 L420,270 Q425,282 415,290 L385,315 Q375,322 370,335 L370,360 L230,360 L230,335 Q225,322 215,315 L185,290 Q175,282 180,270 L195,230 Q200,220 210,220 Z"/>
+
+    <!-- Left grip -->
+    <path android:fillColor="#3E7BFF"
+          android:pathData="M195,255 L175,285 Q165,300 170,320 L185,340 L215,325 L215,255 Z"/>
+
+    <!-- Right grip -->
+    <path android:fillColor="#3E7BFF"
+          android:pathData="M405,255 L425,285 Q435,300 430,320 L415,340 L385,325 L385,255 Z"/>
+
+    <!-- Left analog stick -->
+    <path android:fillColor="#1E3F6F"
+          android:pathData="M255,265 m-22,0 a22,22 0 1 0 44,0 a22,22 0 1 0 -44,0"/>
+
+    <!-- Right analog stick -->
+    <path android:fillColor="#1E3F6F"
+          android:pathData="M340,305 m-22,0 a22,22 0 1 0 44,0 a22,22 0 1 0 -44,0"/>
+
+    <!-- Face buttons (A B X Y) -->
+    <path android:fillColor="#0AB9E6"
+          android:pathData="M360,255 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0"/>
+    <path android:fillColor="#FF3C28"
+          android:pathData="M382,277 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0"/>
+    <path android:fillColor="#FFDD00"
+          android:pathData="M338,277 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0"/>
+    <path android:fillColor="#3FD3A6"
+          android:pathData="M360,299 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0"/>
+
+    <!-- Center button (Steam-like circle) -->
+    <path android:fillColor="#FFFFFF"
+          android:pathData="M300,285 m-16,0 a16,16 0 1 0 32,0 a16,16 0 1 0 -32,0"/>
+    <path android:fillColor="#4D7FFF"
+          android:pathData="M300,285 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+</vector>

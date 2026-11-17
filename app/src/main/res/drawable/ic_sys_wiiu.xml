@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nintendo Wii U — the GamePad tablet controller, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- GamePad body -->
+    <path android:fillColor="#F4F6F8"
+          android:pathData="M150,200 L450,200 Q478,200 478,228 L478,372 Q478,400 450,400 L150,400 Q122,400 122,372 L122,228 Q122,200 150,200 Z"/>
+    <path android:fillColor="#DDE2E6"
+          android:pathData="M150,388 L450,388 Q478,388 478,372 L478,360 L122,360 L122,372 Q122,388 150,388 Z"/>
+
+    <!-- Center screen -->
+    <path android:fillColor="#15202B"
+          android:pathData="M215,228 L385,228 L385,372 L215,372 Z"/>
+    <path android:fillColor="#29ABE2"
+          android:pathData="M227,240 L373,240 L373,360 L227,360 Z"/>
+
+    <!-- Left analog stick -->
+    <path android:fillColor="#C8CED3"
+          android:pathData="M178,250 m-20,0 a20,20 0 1 0 40,0 a20,20 0 1 0 -40,0"/>
+    <path android:fillColor="#9AA2A9"
+          android:pathData="M178,250 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+    <!-- D-pad -->
+    <path android:fillColor="#9AA2A9"
+          android:pathData="M167,320 L189,320 L189,350 L167,350 Z
+                            M156,331 L200,331 L200,339 L156,339 Z"/>
+
+    <!-- Right analog stick -->
+    <path android:fillColor="#C8CED3"
+          android:pathData="M422,250 m-20,0 a20,20 0 1 0 40,0 a20,20 0 1 0 -40,0"/>
+    <path android:fillColor="#9AA2A9"
+          android:pathData="M422,250 m-10,0 a10,10 0 1 0 20,0 a10,10 0 1 0 -20,0"/>
+    <!-- Face buttons -->
+    <path android:fillColor="#9AA2A9"
+          android:pathData="M422,310 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M422,346 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M404,328 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M440,328 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+</vector>

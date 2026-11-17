@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sony PlayStation Vita — handheld, flat-style approximation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Oval body -->
+    <path android:fillColor="#1A1A1A"
+          android:pathData="M165,205 L435,205 Q500,205 500,300 Q500,395 435,395 L165,395 Q100,395 100,300 Q100,205 165,205 Z"/>
+
+    <!-- Screen -->
+    <path android:fillColor="#0E1620"
+          android:pathData="M200,235 L400,235 L400,365 L200,365 Z"/>
+    <path android:fillColor="#29ABE2"
+          android:pathData="M212,247 L388,247 L388,353 L212,353 Z"/>
+
+    <!-- D-pad (left) -->
+    <path android:fillColor="#3A3A3A"
+          android:pathData="M150,285 L172,285 L172,315 L150,315 Z
+                            M139,296 L183,296 L183,304 L139,304 Z"/>
+    <!-- Left analog stick -->
+    <path android:fillColor="#3A3A3A"
+          android:pathData="M161,348 m-18,0 a18,18 0 1 0 36,0 a18,18 0 1 0 -36,0"/>
+    <path android:fillColor="#0E0E0E"
+          android:pathData="M161,348 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- Face buttons (right) -->
+    <path android:fillColor="#7C8794"
+          android:pathData="M439,283 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M439,317 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M422,300 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0
+                            M456,300 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+    <!-- Right analog stick -->
+    <path android:fillColor="#3A3A3A"
+          android:pathData="M439,348 m-18,0 a18,18 0 1 0 36,0 a18,18 0 1 0 -36,0"/>
+    <path android:fillColor="#0E0E0E"
+          android:pathData="M439,348 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+</vector>

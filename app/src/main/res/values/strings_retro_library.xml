@@ -6,6 +6,9 @@
     <string name="retro_back">Back</string>
     <string name="retro_hint_options">Options</string>
     <string name="retro_hint_back">Back</string>
+    <string name="retro_hint_consoles">Consoles</string>
+    <string name="retro_consoles_title">Consoles</string>
+    <string name="retro_consoles_count">%1$d with games</string>
     <string name="retro_systems_count">%1$d consoles · %2$d games</string>
     <plurals name="retro_games_count">
         <item quantity="one">%d game</item>

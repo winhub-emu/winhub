@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Games — game controller in front of an Android device. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Phone body -->
+    <path android:fillColor="#3DDC84"
+          android:pathData="M200,60 L400,60 Q430,60 430,90 L430,510 Q430,540 400,540 L200,540 Q170,540 170,510 L170,90 Q170,60 200,60 Z"/>
+
+    <!-- Screen area -->
+    <path android:fillColor="#1A1A2E"
+          android:pathData="M190,110 L410,110 L410,460 L190,460 Z"/>
+
+    <!-- Home indicator -->
+    <path android:fillColor="#2EAA6C"
+          android:pathData="M270,480 L330,480 Q335,480 335,485 L335,495 Q335,500 330,500 L270,500 Q265,500 265,495 L265,485 Q265,480 270,480 Z"/>
+
+    <!-- Camera dot -->
+    <path android:fillColor="#2EAA6C"
+          android:pathData="M300,80 m-8,0 a8,8 0 1 0 16,0 a8,8 0 1 0 -16,0"/>
+
+    <!-- Game controller on screen -->
+    <!-- Controller body -->
+    <path android:fillColor="#4D7FFF"
+          android:pathData="M225,200 L375,200 Q390,200 395,215 L410,255 Q415,270 405,278 L380,295 Q368,302 365,318 L365,345 L235,345 L235,318 Q232,302 220,295 L195,278 Q185,270 190,255 L205,215 Q210,200 225,200 Z"/>
+
+    <!-- Left grip -->
+    <path android:fillColor="#3E7BFF"
+          android:pathData="M205,235 L188,265 Q180,280 185,298 L200,316 L228,302 L228,235 Z"/>
+
+    <!-- Right grip -->
+    <path android:fillColor="#3E7BFF"
+          android:pathData="M395,235 L412,265 Q420,280 415,298 L400,316 L372,302 L372,235 Z"/>
+
+    <!-- Left stick -->
+    <path android:fillColor="#1E3F6F"
+          android:pathData="M256,248 m-18,0 a18,18 0 1 0 36,0 a18,18 0 1 0 -36,0"/>
+
+    <!-- Right stick -->
+    <path android:fillColor="#1E3F6F"
+          android:pathData="M340,292 m-18,0 a18,18 0 1 0 36,0 a18,18 0 1 0 -36,0"/>
+
+    <!-- A button (green) -->
+    <path android:fillColor="#3DDC84"
+          android:pathData="M368,242 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- B button (red) -->
+    <path android:fillColor="#FF3C28"
+          android:pathData="M387,261 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- X button (blue) -->
+    <path android:fillColor="#0AB9E6"
+          android:pathData="M349,261 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- Y button (yellow) -->
+    <path android:fillColor="#FFDD00"
+          android:pathData="M368,280 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+</vector>

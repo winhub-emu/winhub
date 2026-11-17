@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sony PlayStation 2 — vertical "fat" tower, flat-style approximation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Tower body -->
+    <path android:fillColor="#161616"
+          android:pathData="M232,110 L368,110 Q380,110 380,122 L380,478 Q380,490 368,490 L232,490 Q220,490 220,478 L220,122 Q220,110 232,110 Z"/>
+    <!-- Front face panel (slightly lighter) -->
+    <path android:fillColor="#222222"
+          android:pathData="M244,128 L356,128 L356,472 L244,472 Z"/>
+
+    <!-- Disc tray seam -->
+    <path android:fillColor="#0C0C0C"
+          android:pathData="M244,250 L356,250 L356,258 L244,258 Z"/>
+
+    <!-- Vertical blue accent strip (the PS2 light bar) -->
+    <path android:fillColor="#1F6FE0"
+          android:pathData="M244,128 L256,128 L256,472 L244,472 Z"/>
+
+    <!-- Power / reset buttons -->
+    <path android:fillColor="#2EA0FF"
+          android:pathData="M300,210 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0"/>
+    <path android:fillColor="#444444"
+          android:pathData="M334,210 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- USB slots -->
+    <path android:fillColor="#0C0C0C"
+          android:pathData="M285,300 L345,300 L345,312 L285,312 Z
+                            M285,326 L345,326 L345,338 L285,338 Z"/>
+
+    <!-- Controller / memory card ports -->
+    <path android:fillColor="#3A3A3A"
+          android:pathData="M278,380 L322,380 L322,430 L278,430 Z"/>
+    <path android:fillColor="#0C0C0C"
+          android:pathData="M286,392 L314,392 L314,418 L286,418 Z"/>
+</vector>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fantasy console / homebrew engine — playful handheld with a pixel heart, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Body -->
+    <path android:fillColor="#7E57C2"
+          android:pathData="M214,110 L386,110 Q420,110 420,144 L420,456 Q420,490 386,490 L214,490 Q180,490 180,456 L180,144 Q180,110 214,110 Z"/>
+
+    <path android:fillColor="#9575CD"
+          android:pathData="M218,122 L382,122 Q408,122 408,148 L408,452 Q408,478 382,478 L218,478 Q192,478 192,452 L192,148 Q192,122 218,122 Z"/>
+
+    <!-- Screen -->
+    <path android:fillColor="#1A1530"
+          android:pathData="M222,145 L378,145 Q388,145 388,155 L388,285 Q388,295 378,295 L222,295 Q212,295 212,285 L212,155 Q212,145 222,145 Z"/>
+
+    <!-- Pixel heart -->
+    <path android:fillColor="#FF4081"
+          android:pathData="M270,190 L290,190 L290,200 L310,200 L310,190 L330,190 L330,200 L340,200 L340,230 L330,230 L330,240 L320,240 L320,250 L310,250 L310,260 L290,260 L290,250 L280,250 L280,240 L270,240 L270,230 L260,230 L260,200 L270,200 Z"/>
+
+    <!-- D-pad -->
+    <path android:fillColor="#FFD54F"
+          android:pathData="M232,350 L292,350 L292,370 L232,370 Z M252,330 L272,330 L272,390 L252,390 Z"/>
+
+    <!-- Buttons -->
+    <path android:fillColor="#4DD0E1"
+          android:pathData="M345,345 m-16,0 a16,16 0 1 0 32,0 a16,16 0 1 0 -32,0 M375,375 m-16,0 a16,16 0 1 0 32,0 a16,16 0 1 0 -32,0"/>
+</vector>

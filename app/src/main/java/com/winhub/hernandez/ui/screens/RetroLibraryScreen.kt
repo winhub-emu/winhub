@@ -1,18 +1,24 @@
 package com.winhub.hernandez.ui.screens
 
+import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import android.util.TypedValue
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -27,8 +33,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -39,7 +47,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -48,7 +58,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -69,6 +83,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -80,34 +95,44 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.winhub.hernandez.R
 import com.winhub.hernandez.retro.RetroArt
 import com.winhub.hernandez.retro.RetroCatalog
 import com.winhub.hernandez.retro.RetroGame
+import com.winhub.hernandez.retro.RetroIcons
 import com.winhub.hernandez.retro.RetroLaunchResult
 import com.winhub.hernandez.retro.RetroLibrary
 import com.winhub.hernandez.retro.RetroScan
 import com.winhub.hernandez.retro.RetroSystem
-import com.winhub.hernandez.store.FolderPickerActivity
 import com.winhub.hernandez.ui.LocalTopBarOverlayInset
+import com.winhub.hernandez.ui.LocalXmbHintInset
 import com.winhub.hernandez.ui.deck.DeckFloatingHint
 import com.winhub.hernandez.ui.deck.DeckGlyph
 import com.winhub.hernandez.ui.deck.GlyphKind
+import com.winhub.hernandez.ui.deck.ScreenScale
+import com.winhub.hernandez.ui.deck.XMB_FOCUS_OUTLINE
 import com.winhub.hernandez.ui.deck.rememberScreenScale
+import com.winhub.hernandez.ui.deck.rememberXmbLogo
+import com.winhub.hernandez.ui.deck.xmbInkColor
+import com.winhub.hernandez.util.InAppFilePicker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.floor
+import kotlin.math.max
 
-// The retro library: every console the ROM folder has games for, then that console's games, in the look of the Home's All Games page.
-// A game starts in the console's installed emulator (see RetroLibrary). Select on a pad, or the chip at the top left, switches back to
-// the PC library.
+// The retro library, laid out like the PC Home: one row of covers (the current console's games) over the focused game's blurred cover,
+// its title and console under it, and the consoles as the strip below. Up / Down (L2 / R2) change console, Y lists them all. A game starts in
+// the console's installed emulator (see RetroLibrary). Select on a pad, or the chip at the top left, switches back to the PC library.
 
 private val PAGE_TEXT = Color(0xFFEDEDED)
 private val PAGE_MUTED = Color(0xFFB4B4B4)
@@ -119,10 +144,13 @@ private sealed interface RetroState {
     data class Ready(val path: String, val scan: RetroScan) : RetroState
 }
 
-// The last scan, kept for the process so switching back and forth between the libraries doesn't walk the ROM folder every time.
+// What outlives the screen for the process: the last scan, so switching between the libraries doesn't walk the ROM folder every time,
+// and where the cursor was.
 private object RetroSession {
     @Volatile var scan: RetroScan? = null
     @Volatile var root: String? = null
+    @Volatile var lastSystemId: String? = null
+    val lastGame = HashMap<String, String>()
 }
 
 private class RetroMenuItem(val label: String, val sub: String?, val onPick: () -> Unit)
@@ -153,23 +181,27 @@ internal fun RetroSwitchChip(label: String, hasPad: Boolean, onClick: () -> Unit
 @Composable
 internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
     val context = LocalContext.current
-    val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val accent = MaterialTheme.colorScheme.primary
     val ss = rememberScreenScale()
     val catalog = remember { RetroCatalog.get(context) }
     val hasPad = rememberGamepadConnected()
+    val deckTabs = LocalDeckTabs.current
+    val fullXmb = rememberFullXmb()
+    val topInset = LocalTopBarOverlayInset.current
+    val hintInset = LocalXmbHintInset.current
 
     var tick by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<RetroState>(RetroState.Loading) }
-    // The cursor is kept by key (a system id, or a game's path), so it follows its item through a rescan.
-    var openSystemId by rememberSaveable { mutableStateOf<String?>(null) }
-    var selKey by rememberSaveable { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf<List<RetroMenuItem>?>(null) }
     var menuSel by remember { mutableIntStateOf(0) }
+    var pageOpen by rememberSaveable { mutableStateOf(false) }
     var coverProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    // Bumped when new covers have been saved, so the cells look again for their picture.
+    // Bumped when a cover has been saved (so the cards look again for their picture), when the emulator choice changed and when the
+    // covers are asked for again.
     var coverVersion by remember { mutableIntStateOf(0) }
+    var emuTick by remember { mutableIntStateOf(0) }
+    var scrapeTick by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(tick) {
         state = RetroState.Loading
@@ -178,106 +210,133 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
     val rescan = { RetroSession.scan = null; tick++ }
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        result.data?.getStringExtra("path")?.takeIf { it.isNotBlank() }?.let {
-            RetroLibrary.setRomRoot(context, it)
-            rescan()
+        if (result.resultCode == Activity.RESULT_OK) {
+            InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }?.let {
+                RetroLibrary.setRomRoot(context, it)
+                rescan()
+            }
         }
     }
-    val chooseFolder = { folderPicker.launch(Intent(context, FolderPickerActivity::class.java)) }
+    val chooseFolder = {
+        folderPicker.launch(
+            InAppFilePicker.buildDirIntent(context, context.getString(R.string.retro_choose_folder), RetroLibrary.romRoot(context)),
+        )
+    }
 
     val ready = state as? RetroState.Ready
     val scan = ready?.scan
+    val root = ready?.path
     val systems = remember(scan) {
         if (scan == null) emptyList() else catalog.systems
             .filter { scan.bySystem[it.id].orEmpty().isNotEmpty() }
             .sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { it.name }))
     }
-    val openSystem = systems.firstOrNull { it.id == openSystemId }
-    val games = remember(scan, openSystem) { openSystem?.let { scan?.bySystem?.get(it.id) }.orEmpty() }
-    val count = if (openSystem != null) games.size else systems.size
-    val sel = remember(selKey, openSystem, systems, games) {
-        (if (openSystem != null) games.indexOfFirst { it.path == selKey } else systems.indexOfFirst { it.id == selKey }).coerceAtLeast(0)
-    }
-    val moveSel = { i: Int ->
-        if (openSystem != null) games.getOrNull(i)?.let { selKey = it.path } else systems.getOrNull(i)?.let { selKey = it.id }
-    }
-    val root = ready?.path
 
-    val openSystemAt = { s: RetroSystem ->
-        openSystemId = s.id
-        selKey = scan?.bySystem?.get(s.id)?.firstOrNull()?.path
+    // The console is the shell's sub-tab (L2 / R2 step it), put back as it was when this screen goes, so the PC shelf is where it was.
+    DisposableEffect(deckTabs) {
+        val saved = deckTabs.index
+        onDispose {
+            deckTabs.bind(max(deckTabs.count, saved + 1))
+            deckTabs.select(saved, quiet = true)
+        }
     }
-    val closeSystem = {
-        selKey = openSystemId
-        openSystemId = null
+    var restored by remember { mutableStateOf(false) }
+    LaunchedEffect(systems) {
+        if (systems.isEmpty()) {
+            deckTabs.bind(0)
+        } else {
+            deckTabs.bind(systems.size)
+            val at = systems.indexOfFirst { it.id == RetroSession.lastSystemId }
+            deckTabs.select(if (at >= 0) at else 0, quiet = true)
+            restored = true
+        }
     }
-    val play = { system: RetroSystem, game: RetroGame ->
-        when (val r = RetroLibrary.launch(context, system, game)) {
+    val systemIdx = deckTabs.index.coerceIn(0, (systems.size - 1).coerceAtLeast(0))
+    val system = systems.getOrNull(systemIdx)
+    LaunchedEffect(system?.id, restored) { if (restored) RetroSession.lastSystemId = system?.id }
+
+    val games = remember(scan, system) { system?.let { scan?.bySystem?.get(it.id) }.orEmpty() }
+    val start = remember(system?.id, games) { games.indexOfFirst { it.path == RetroSession.lastGame[system?.id] }.coerceAtLeast(0) }
+    var target by remember(system?.id, games) { mutableIntStateOf(start) }
+    val pos = remember(system?.id, games) { mutableFloatStateOf(start.toFloat()) }
+    LaunchedEffect(target, system?.id, games) {
+        animate(pos.floatValue, target.toFloat(), animationSpec = tween(220)) { v, _ -> pos.floatValue = v }
+        val sys = system
+        val game = games.getOrNull(target)
+        if (sys != null && game != null) RetroSession.lastGame[sys.id] = game.path
+    }
+    val focusedGame = games.getOrNull(target)
+    val emulatorName = remember(system?.id, state, emuTick) { system?.let { RetroLibrary.resolveEmulator(context, it)?.name } }
+
+    // The covers of the console on screen are fetched as it is looked at (the games from the cursor on first), so the library fills in
+    // by itself; a game the server has no picture for is remembered and not asked again.
+    LaunchedEffect(system?.id, games, scrapeTick) {
+        val sys = system ?: return@LaunchedEffect
+        if (sys.thumbnails == null || games.isEmpty()) return@LaunchedEffect
+        val from = target.coerceIn(0, games.lastIndex)
+        val ordered = games.drop(from) + games.take(from)
+        withContext(Dispatchers.IO) {
+            coverProgress = 0 to ordered.size
+            RetroArt.download(
+                context, sys, ordered, root,
+                stopped = { !isActive },
+                onProgress = { d, t -> coverProgress = d to t },
+                onSaved = { coverVersion++ },
+            )
+            coverProgress = null
+        }
+    }
+
+    val play = { sys: RetroSystem, game: RetroGame ->
+        when (val r = RetroLibrary.launch(context, sys, game)) {
             RetroLaunchResult.Started -> Unit
             RetroLaunchResult.NoEmulator ->
-                Toast.makeText(context, context.getString(R.string.retro_no_emulator, system.name), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.retro_no_emulator, sys.name), Toast.LENGTH_LONG).show()
             is RetroLaunchResult.Failed -> {
                 android.util.Log.w("RetroLibrary", "Launch failed: ${r.reason}")
-                Toast.makeText(context, context.getString(R.string.retro_launch_failed, system.name), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.retro_launch_failed, sys.name), Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    val startCovers = { system: RetroSystem, list: List<RetroGame> ->
-        if (coverProgress == null) {
-            if (system.thumbnails == null) {
-                Toast.makeText(context, R.string.retro_covers_no_source, Toast.LENGTH_SHORT).show()
-            } else scope.launch(Dispatchers.IO) {
-                coverProgress = 0 to list.size
-                val saved = RetroArt.download(context, system, list, root, stopped = { !isActive }, onProgress = { d, t -> coverProgress = d to t })
-                coverProgress = null
-                if (saved > 0) coverVersion++
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, context.resources.getQuantityString(R.plurals.retro_covers_saved, saved, saved), Toast.LENGTH_SHORT).show()
-                }
+    val emulatorMenu = { sys: RetroSystem ->
+        val installed = RetroLibrary.emulatorsFor(context, sys).filter { RetroLibrary.isInstalled(context, it.packageName) }
+        if (installed.isEmpty()) {
+            listOf(RetroMenuItem(context.getString(R.string.retro_emulator_none), null) { menu = null })
+        } else {
+            listOf(
+                RetroMenuItem(context.getString(R.string.retro_emulator_auto), context.getString(R.string.retro_emulator_auto_sub)) {
+                    RetroLibrary.setEmulatorChoice(context, sys.id, null); emuTick++; menu = null
+                },
+            ) + installed.map { e ->
+                RetroMenuItem(e.name, null) { RetroLibrary.setEmulatorChoice(context, sys.id, e.packageName); emuTick++; menu = null }
             }
         }
-    }
-
-    val emulatorMenu = { system: RetroSystem ->
-        val all = RetroLibrary.emulatorsFor(context, system)
-        val installed = all.filter { RetroLibrary.isInstalled(context, it.packageName) }
-        val auto = RetroMenuItem(stringResource0(context, R.string.retro_emulator_auto), stringResource0(context, R.string.retro_emulator_auto_sub)) {
-            RetroLibrary.setEmulatorChoice(context, system.id, null); menu = null
-        }
-        val picks = installed.map { e ->
-            RetroMenuItem(e.name, null) { RetroLibrary.setEmulatorChoice(context, system.id, e.packageName); menu = null }
-        }
-        if (picks.isEmpty()) {
-            listOf(RetroMenuItem(stringResource0(context, R.string.retro_emulator_none), null) { menu = null })
-        } else listOf(auto) + picks
     }
     val optionsMenu = {
         val items = ArrayList<RetroMenuItem>()
-        if (openSystem != null) {
-            val current = RetroLibrary.resolveEmulator(context, openSystem)?.name ?: stringResource0(context, R.string.retro_emulator_none_short)
-            items += RetroMenuItem(stringResource0(context, R.string.retro_opt_emulator), current) {
-                menu = emulatorMenu(openSystem); menuSel = 0
+        if (system != null) {
+            items += RetroMenuItem(context.getString(R.string.retro_opt_emulator), emulatorName ?: context.getString(R.string.retro_emulator_none_short)) {
+                menu = emulatorMenu(system); menuSel = 0
             }
-            if (openSystem.thumbnails != null) {
-                items += RetroMenuItem(stringResource0(context, R.string.retro_opt_covers), stringResource0(context, R.string.retro_opt_covers_sub)) {
-                    menu = null; startCovers(openSystem, games)
+            if (system.thumbnails != null) {
+                items += RetroMenuItem(context.getString(R.string.retro_opt_covers), context.getString(R.string.retro_opt_covers_sub)) {
+                    menu = null
+                    scope.launch(Dispatchers.IO) { RetroArt.clearMisses(context, system.id); scrapeTick++ }
                 }
             }
         }
-        items += RetroMenuItem(stringResource0(context, R.string.retro_opt_folder), root ?: RetroLibrary.romRoot(context)) {
-            menu = null; chooseFolder()
-        }
-        items += RetroMenuItem(stringResource0(context, R.string.retro_opt_rescan), null) { menu = null; rescan() }
+        items += RetroMenuItem(context.getString(R.string.retro_opt_folder), root ?: RetroLibrary.romRoot(context)) { menu = null; chooseFolder() }
+        items += RetroMenuItem(context.getString(R.string.retro_opt_rescan), null) { menu = null; rescan() }
         menu = items
         menuSel = 0
     }
 
-    // B goes up one level: the options, then the console's games, then back to the PC library.
+    // B goes up one level: the options, then the consoles page, then back to the PC library.
     val goBack: () -> Unit = {
         when {
             menu != null -> menu = null
-            openSystem != null -> closeSystem()
+            pageOpen -> pageOpen = false
             else -> onSwitchToPc()
         }
     }
@@ -291,26 +350,16 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { withFrameNanos { }; runCatching { focusRequester.requestFocus() } }
-
-    val topInset = LocalTopBarOverlayInset.current
-    val padH = ss.dp(16f)
-    val gap = ss.dp(12f)
-    val header = remember(topInset, ss.factor) { xmbAllHeader(topInset.value, ss.factor) }
-    val gridState = rememberLazyGridState()
+    // Back from the consoles page the keys return to the row.
+    LaunchedEffect(pageOpen) { if (!pageOpen) { withFrameNanos { }; runCatching { focusRequester.requestFocus() } } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val avail = maxWidth - padH * 2
-        val cols = if (openSystem != null) xmbGridColumns(avail.value, gap.value, ss.dp(80f).value)
-        else xmbGridColumns(avail.value, gap.value, ss.dp(150f).value, wanted = 4, minCols = 2)
-        val bottomMarginPx = with(density) { 8.dp.toPx() }
-        val topMarginPx = with(density) { header.band.dp.toPx() }
-        LaunchedEffect(sel, openSystem?.id, count) {
-            withFrameNanos { }
-            if (count > 0) gridState.reveal(sel + 1, topMarginPx, bottomMarginPx)
+        val w = maxWidth.value
+        val h = maxHeight.value - topInset.value
+        val sl = remember(w, h, hintInset, ss) {
+            XmbSteamLayout(w, h, ss.dp(XMB_PEEK_CLIP).value, max(hintInset.value, 16f * ss.factor), ss.factor, 48f, 0f)
         }
-
-        val selectedGame = if (openSystem != null) games.getOrNull(sel) else null
-        val backdrop = rememberCover(openSystem, selectedGame, root, coverVersion)
+        val backdropCover = rememberCover(system, focusedGame, root, coverVersion)
 
         Box(
             Modifier
@@ -318,7 +367,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { e ->
-                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (e.type != KeyEventType.KeyDown || pageOpen) return@onPreviewKeyEvent false
                     val items = menu
                     if (items != null) {
                         return@onPreviewKeyEvent when (e.key) {
@@ -329,126 +378,81 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
                             else -> false
                         }
                     }
-                    val page = cols * 3
                     when (e.key) {
-                        Key.DirectionLeft -> { moveSel(xmbGridMove(sel, XmbMove.LEFT, cols, count, page)); true }
-                        Key.DirectionRight -> { moveSel(xmbGridMove(sel, XmbMove.RIGHT, cols, count, page)); true }
-                        Key.DirectionUp -> { moveSel(xmbGridMove(sel, XmbMove.UP, cols, count, page)); true }
-                        Key.DirectionDown -> { moveSel(xmbGridMove(sel, XmbMove.DOWN, cols, count, page)); true }
+                        Key.DirectionLeft -> { target = (target - 1).coerceAtLeast(0); true }
+                        Key.DirectionRight -> { target = (target + 1).coerceAtMost(games.lastIndex).coerceAtLeast(0); true }
+                        Key.DirectionUp -> { deckTabs.step(-1); true }
+                        Key.DirectionDown -> { deckTabs.step(1); true }
                         Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
-                            if (openSystem != null) games.getOrNull(sel)?.let { play(openSystem, it) }
-                            else systems.getOrNull(sel)?.let(openSystemAt)
+                            if (system != null) focusedGame?.let { play(system, it) }
                             true
                         }
+                        Key.ButtonY -> { if (systems.isNotEmpty()) pageOpen = true; true }
                         Key.ButtonX -> { if (ready != null) optionsMenu(); true }
                         Key.ButtonSelect -> { onSwitchToPc(); true }
                         Key.ButtonB, Key.Escape -> { goBack(); true }
                         else -> false
                     }
                 }
-                // Nothing under the page may react to a touch that lands on it.
+                // Nothing under the screen may react to a touch that lands on it.
                 .pointerInput(Unit) { detectTapGestures { } },
         ) {
-            XmbHomeBackdrop(backdrop)
+            // The same backdrop as the PC Home: the focused cover, blurred, with the navy fade toward the strip.
+            XmbSteamBackdrop(null, backdropCover, (topInset.value + sl.tabsTop - XMB_STEAM_FADE_LEAD * ss.factor) / maxHeight.value.coerceAtLeast(1f))
 
-            when (val s = state) {
-                RetroState.Loading -> CircularProgressIndicator(color = accent, modifier = Modifier.align(Alignment.Center))
-                RetroState.NoRoot -> RetroEmpty(
-                    stringResource(R.string.retro_empty_no_folder_title), stringResource(R.string.retro_empty_no_folder_body), Modifier.align(Alignment.Center), chooseFolder,
-                )
-                is RetroState.Missing -> RetroEmpty(
-                    stringResource(R.string.retro_empty_missing_title), stringResource(R.string.retro_empty_missing_body, s.path), Modifier.align(Alignment.Center), chooseFolder,
-                )
-                is RetroState.Ready -> if (count == 0) {
-                    RetroEmpty(
-                        stringResource(R.string.retro_empty_none_title), stringResource(R.string.retro_empty_none_body, s.path), Modifier.align(Alignment.Center), chooseFolder,
+            Box(Modifier.fillMaxSize().padding(top = topInset)) {
+                when (val s = state) {
+                    RetroState.Loading -> CircularProgressIndicator(color = accent, modifier = Modifier.align(Alignment.Center))
+                    RetroState.NoRoot -> RetroEmpty(
+                        stringResource(R.string.retro_empty_no_folder_title), stringResource(R.string.retro_empty_no_folder_body), Modifier.align(Alignment.Center), chooseFolder,
                     )
-                } else {
-                    val fadeStartPx = with(density) { header.fadeStart.dp.toPx() }
-                    val fadeEndPx = with(density) { header.band.dp.toPx() }
-                    LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Fixed(cols),
-                        contentPadding = PaddingValues(start = padH, end = padH, top = 0.dp, bottom = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(gap),
-                        verticalArrangement = Arrangement.spacedBy(gap),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                            .drawWithContent {
-                                drawContent()
-                                drawRect(
-                                    Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black, startY = fadeStartPx, endY = fadeEndPx),
-                                    blendMode = BlendMode.DstIn,
-                                )
-                            },
-                    ) {
-                        item(key = "retro-header", span = { GridItemSpan(maxLineSpan) }) {
-                            Spacer(Modifier.fillMaxWidth().height((header.band.dp - gap).coerceAtLeast(0.dp)))
-                        }
-                        if (openSystem != null) {
-                            items(games.size, key = { games[it].path }) { i ->
-                                val g = games[i]
-                                GameCell(openSystem, g, i == sel, accent, root, coverVersion) { selKey = g.path; play(openSystem, g) }
-                            }
-                        } else {
-                            items(systems.size, key = { systems[it].id }) { i ->
-                                val sys = systems[i]
-                                SystemTile(sys, s.scan.bySystem[sys.id].orEmpty().size, i == sel, accent) { selKey = sys.id; openSystemAt(sys) }
-                            }
-                        }
+                    is RetroState.Missing -> RetroEmpty(
+                        stringResource(R.string.retro_empty_missing_title), stringResource(R.string.retro_empty_missing_body, s.path), Modifier.align(Alignment.Center), chooseFolder,
+                    )
+                    is RetroState.Ready -> if (system == null) {
+                        RetroEmpty(
+                            stringResource(R.string.retro_empty_none_title), stringResource(R.string.retro_empty_none_body, s.path), Modifier.align(Alignment.Center), chooseFolder,
+                        )
+                    } else {
+                        RetroHomeRow(
+                            system, games, root, coverVersion, emulatorName, target, pos, sl, accent, ss,
+                            onCard = { i -> if (i == target) play(system, games[i]) else target = i },
+                            onStep = { delta -> target = (target + delta).coerceIn(0, games.lastIndex) },
+                        )
+                        RetroConsoleStrip(
+                            systems, systemIdx, sl, ss, accent, Modifier.align(Alignment.TopCenter).offset(y = sl.tabsTop.dp),
+                        ) { deckTabs.select(it) }
                     }
                 }
             }
 
-            // The header: the switch chip, then (inside a console) the back arrow, the title and the count; the pad hints on the right.
-            val hintTap = Modifier.heightIn(min = 40.dp).widthIn(min = 40.dp)
-            val backSrc = remember { MutableInteractionSource() }
-            Row(
-                Modifier
-                    .align(Alignment.TopStart)
-                    .fillMaxWidth()
-                    .padding(start = (padH - 12.dp).coerceAtLeast(0.dp), end = (padH - ss.dp(8f)).coerceAtLeast(0.dp), top = header.top.dp)
-                    .height(header.height.dp)
-                    .pointerInput(Unit) { detectTapGestures { } },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RetroSwitchChip(stringResource(R.string.retro_switch_to_pc).uppercase(), hasPad, onSwitchToPc, Modifier.padding(start = 8.dp))
-                if (openSystem != null) {
-                    Box(
-                        Modifier.padding(start = ss.dp(8f)).size(48.dp).clip(CircleShape).xmbClick(backSrc) { closeSystem() },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.retro_back),
-                            tint = Color(0xFFDDDDDD), modifier = Modifier.size(24.dp),
+            // Top left the switch; top right the hints for the consoles page and the options, and the cover progress.
+            val top = topInset + (if (fullXmb) 38.dp else 8.dp)
+            RetroSwitchChip(
+                stringResource(R.string.retro_switch_to_pc).uppercase(), hasPad, onSwitchToPc,
+                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = top),
+            )
+            if (ready != null && system != null) {
+                val hintTap = Modifier.heightIn(min = 40.dp).widthIn(min = 40.dp)
+                Row(
+                    Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = top),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    coverProgress?.let { (done, total) ->
+                        Text(
+                            stringResource(R.string.retro_covers_progress, done, total), color = PAGE_MUTED, fontSize = ss.sp(14f),
+                            maxLines = 1, modifier = Modifier.padding(end = 8.dp),
                         )
                     }
-                }
-                Row(Modifier.weight(1f).padding(start = ss.dp(8f)), verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        openSystem?.name ?: stringResource(R.string.retro_title), color = Color.White, fontSize = ss.sp(16f),
-                        fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                    DeckFloatingHint(
+                        "Y".takeIf { hasPad }, GlyphKind.Y, stringResource(R.string.retro_hint_consoles), { pageOpen = true }, hintTap,
+                        icon = Icons.Filled.GridView, description = stringResource(R.string.retro_hint_consoles),
                     )
-                    val progress = coverProgress
-                    val subtitle = when {
-                        progress != null -> stringResource(R.string.retro_covers_progress, progress.first, progress.second)
-                        openSystem != null -> gamesLabel(games.size)
-                        scan != null -> stringResource(R.string.retro_systems_count, systems.size, scan.total)
-                        else -> null
-                    }
-                    if (subtitle != null) Text(
-                        subtitle, color = PAGE_MUTED, fontSize = ss.sp(14f), maxLines = 1, modifier = Modifier.padding(start = ss.dp(8f), bottom = 1.dp),
+                    DeckFloatingHint(
+                        "X".takeIf { hasPad }, GlyphKind.X, stringResource(R.string.retro_hint_options), { optionsMenu() }, hintTap,
+                        icon = Icons.Filled.MoreHoriz, description = stringResource(R.string.retro_hint_options),
                     )
                 }
-                if (ready != null) DeckFloatingHint(
-                    "X".takeIf { hasPad }, GlyphKind.X, stringResource(R.string.retro_hint_options), { optionsMenu() }, hintTap,
-                    icon = Icons.Filled.MoreHoriz, description = stringResource(R.string.retro_hint_options),
-                )
-                DeckFloatingHint(
-                    "B".takeIf { hasPad }, GlyphKind.B, stringResource(R.string.retro_hint_back), { goBack() }, hintTap,
-                    icon = Icons.AutoMirrored.Filled.ArrowBack, description = stringResource(R.string.retro_hint_back),
-                )
             }
 
             val items = menu
@@ -460,7 +464,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
                 Column(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = (header.top + header.height).dp, end = padH)
+                        .padding(top = top + 52.dp, end = 16.dp)
                         .widthIn(min = 240.dp, max = 360.dp)
                         .clip(shape)
                         .background(Color(0xEE16171B))
@@ -485,15 +489,19 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit) {
                     }
                 }
             }
+
+            if (pageOpen && systems.isNotEmpty()) {
+                RetroConsolesPage(
+                    systems = systems,
+                    counts = { s -> scan?.bySystem?.get(s.id).orEmpty().size },
+                    current = systemIdx,
+                    onPick = { i -> deckTabs.select(i); pageOpen = false },
+                    onClose = { pageOpen = false },
+                )
+            }
         }
     }
 }
-
-@Composable
-private fun gamesLabel(n: Int): String = LocalContext.current.resources.getQuantityString(R.plurals.retro_games_count, n, n)
-
-// Reads a string resource inside plain lambdas, which are not composable.
-private fun stringResource0(context: Context, id: Int): String = context.getString(id)
 
 /** Finds the ROM folder (the saved one, else the best usual place) and scans it. Run off the main thread. */
 private fun loadState(context: Context): RetroState {
@@ -510,6 +518,355 @@ private fun loadState(context: Context): RetroState {
     RetroSession.scan = scan
     return RetroState.Ready(root, scan)
 }
+
+// ── The row (the PC Home's: one row of covers over the backdrop, the focused card larger, its title under it) ──
+
+@Composable
+private fun RetroHomeRow(
+    system: RetroSystem,
+    games: List<RetroGame>,
+    root: String?,
+    coverVersion: Int,
+    emulatorName: String?,
+    target: Int,
+    pos: MutableFloatState,
+    sl: XmbSteamLayout,
+    accent: Color,
+    ss: ScreenScale,
+    onCard: (Int) -> Unit,
+    onStep: (Int) -> Unit,
+) {
+    val row = remember(sl, games.size) { XmbSteamRow(games.size, sl.fW, sl.fW, sl.gap, sl.w, sl.edge) }
+    // Only the covers near the cursor are composed; each one's place is read from `pos` in its graphics layer.
+    val base by remember { derivedStateOf { floor(pos.floatValue).toInt() } }
+    Box(
+        Modifier
+            .fillMaxSize()
+            // A swipe along the row moves the cursor, a card at a time.
+            .pointerInput(games.size) {
+                var acc = 0f
+                val stepPx = 48.dp.toPx()
+                detectHorizontalDragGestures(onDragStart = { acc = 0f }) { _, dx ->
+                    acc += dx
+                    while (acc <= -stepPx) { onStep(1); acc += stepPx }
+                    while (acc >= stepPx) { onStep(-1); acc -= stepPx }
+                }
+            },
+    ) {
+        for (i in xmbSteamWindow(base.toFloat(), games.size, sl.w, sl.fW + sl.gap)) {
+            key(games[i].path) {
+                RetroCover(system, games[i], i, i == target, root, coverVersion, pos, sl, row, accent) { onCard(i) }
+            }
+        }
+        RetroTitle(system, games.getOrNull(target), emulatorName, sl, row, target, pos, accent, ss)
+    }
+}
+
+@Composable
+private fun RetroCover(
+    system: RetroSystem,
+    game: RetroGame,
+    index: Int,
+    focused: Boolean,
+    root: String?,
+    coverVersion: Int,
+    pos: MutableFloatState,
+    sl: XmbSteamLayout,
+    row: XmbSteamRow,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(XMB_STEAM_CORNER)
+    val src = remember { MutableInteractionSource() }
+    val cover = rememberCover(system, game, root, coverVersion)
+    Box(
+        Modifier
+            .zIndex(if (focused) 1f else 0f)
+            .size(sl.fW.dp, sl.fH.dp)
+            .graphicsLayer {
+                val p = pos.floatValue
+                val sc = xmbSteamScale(index, p)
+                translationX = row.x(index, p).dp.toPx()
+                translationY = sl.cardTop.dp.toPx()
+                scaleX = sc
+                scaleY = sc
+                transformOrigin = TransformOrigin(0f, 1f)
+            }
+            .clip(shape)
+            .background(Color(0xFF111111))
+            .then(if (focused) Modifier.border(1.5.dp, XMB_FOCUS_OUTLINE, shape) else Modifier)
+            .xmbClick(src, onClick),
+    ) {
+        if (cover != null) {
+            Image(
+                bitmap = remember(cover) { cover.asImageBitmap() },
+                contentDescription = game.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            XmbMonogram(game.title, accent)
+        }
+    }
+}
+
+// Under the focused card, left aligned with it (it follows the card as the row glides): the game's name, bold, and below it the console and
+// the emulator in tiny light capitals behind a small play arrow.
+@Composable
+private fun RetroTitle(
+    system: RetroSystem,
+    game: RetroGame?,
+    emulatorName: String?,
+    sl: XmbSteamLayout,
+    row: XmbSteamRow,
+    target: Int,
+    pos: MutableFloatState,
+    accent: Color,
+    ss: ScreenScale,
+) {
+    val ink = remember(accent) { xmbInkColor(accent, Color.White, XMB_STEAM_NAVY) }
+    AnimatedContent(
+        targetState = game,
+        contentKey = { it?.path },
+        transitionSpec = { xmbTitleTransition() },
+        label = "retroTitle",
+        modifier = Modifier
+            .offset(0.dp, sl.titleY.dp - ss.dp(XMB_STEAM_TITLE_NUDGE))
+            .width(sl.titleW.dp)
+            .graphicsLayer {
+                translationX = sl.titleX(row, target, pos.floatValue).dp.toPx() + ss.dp(XMB_STEAM_TITLE_INSET).toPx()
+            },
+    ) { g ->
+        if (g != null) {
+            val meta = if (emulatorName != null) "${system.name} · $emulatorName" else system.name
+            Column {
+                Text(
+                    g.title, color = Color.White, fontSize = ss.sp(16f), fontWeight = FontWeight.Black,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.offset(y = ss.dp(XMB_STEAM_TITLE_NUDGE)),
+                    style = XMB_STEAM_TEXT.copy(lineHeight = ss.sp(15f), lineHeightStyle = XMB_STEAM_TOP),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = ink.copy(alpha = 0.9f), modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(2.dp))
+                    Text(
+                        meta.uppercase(), color = XMB_STEAM_MUTED, fontSize = ss.sp(10f), fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                        style = XMB_STEAM_TEXT.copy(lineHeight = ss.sp(10f), lineHeightStyle = XMB_STEAM_TIGHT),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// The consoles, in the place and shape of the PC Home's text tabs: the current one and two either side, the current one in a thin white
+// outline with its illustration. A tap picks one; Y lists them all.
+@Composable
+private fun RetroConsoleStrip(
+    systems: List<RetroSystem>,
+    selected: Int,
+    sl: XmbSteamLayout,
+    ss: ScreenScale,
+    accent: Color,
+    modifier: Modifier,
+    onSelect: (Int) -> Unit,
+) {
+    val first = (selected - 2).coerceAtMost(systems.size - 5).coerceAtLeast(0)
+    val last = (first + 4).coerceAtMost(systems.lastIndex)
+    Row(modifier.height(XMB_STEAM_TABS_H.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        for (i in first..last) {
+            val on = i == selected
+            val shape = RoundedCornerShape(14.dp)
+            val icon = RetroIcons.of(LocalContext.current, systems[i])
+            Row(
+                Modifier
+                    .heightIn(min = 40.dp)
+                    .clip(shape)
+                    .background(if (on) accent.copy(alpha = 0.22f) else Color.Transparent)
+                    .then(if (on) Modifier.border(1.dp, Color.White, shape) else Modifier)
+                    .xmbClick(remember { MutableInteractionSource() }) { onSelect(i) }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (on && icon != 0) RetroIcon(icon, Modifier.size(22.dp))
+                Text(
+                    systems[i].name.uppercase(),
+                    color = if (on) Color.White else Color.White.copy(alpha = 0.7f),
+                    fontSize = ss.sp(10f),
+                    letterSpacing = 1.2.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    style = XMB_STEAM_TEXT,
+                )
+            }
+        }
+    }
+}
+
+// ── The consoles page: every console with games, as tiles ──
+
+@Composable
+private fun RetroConsolesPage(
+    systems: List<RetroSystem>,
+    counts: (RetroSystem) -> Int,
+    current: Int,
+    onPick: (Int) -> Unit,
+    onClose: () -> Unit,
+) {
+    val density = LocalDensity.current
+    val accent = MaterialTheme.colorScheme.primary
+    val ss = rememberScreenScale()
+    val topInset = LocalTopBarOverlayInset.current
+    var sel by remember { mutableIntStateOf(current) }
+    val padH = ss.dp(16f)
+    val gap = ss.dp(12f)
+    val header = remember(topInset, ss.factor) { xmbAllHeader(topInset.value, ss.factor) }
+    val gridState = rememberLazyGridState()
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { withFrameNanos { }; runCatching { focusRequester.requestFocus() } }
+    val backSrc = remember { MutableInteractionSource() }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val avail = maxWidth - padH * 2
+        val cols = xmbGridColumns(avail.value, gap.value, ss.dp(150f).value, wanted = 4, minCols = 2)
+        val bottomMarginPx = with(density) { 8.dp.toPx() }
+        val topMarginPx = with(density) { header.band.dp.toPx() }
+        LaunchedEffect(sel) {
+            withFrameNanos { }
+            gridState.reveal(sel + 1, topMarginPx, bottomMarginPx)
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xF2060B16))
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val page = cols * 3
+                    when (e.key) {
+                        Key.DirectionLeft -> { sel = xmbGridMove(sel, XmbMove.LEFT, cols, systems.size, page); true }
+                        Key.DirectionRight -> { sel = xmbGridMove(sel, XmbMove.RIGHT, cols, systems.size, page); true }
+                        Key.DirectionUp -> { sel = xmbGridMove(sel, XmbMove.UP, cols, systems.size, page); true }
+                        Key.DirectionDown -> { sel = xmbGridMove(sel, XmbMove.DOWN, cols, systems.size, page); true }
+                        Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { onPick(sel); true }
+                        Key.ButtonY, Key.ButtonB, Key.Escape -> { onClose(); true }
+                        else -> false
+                    }
+                }
+                .pointerInput(Unit) { detectTapGestures { } },
+        ) {
+            val fadeStartPx = with(density) { header.fadeStart.dp.toPx() }
+            val fadeEndPx = with(density) { header.band.dp.toPx() }
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(cols),
+                contentPadding = PaddingValues(start = padH, end = padH, top = 0.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(gap),
+                verticalArrangement = Arrangement.spacedBy(gap),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black, startY = fadeStartPx, endY = fadeEndPx),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    },
+            ) {
+                item(key = "retro-header", span = { GridItemSpan(maxLineSpan) }) {
+                    Spacer(Modifier.fillMaxWidth().height((header.band.dp - gap).coerceAtLeast(0.dp)))
+                }
+                items(systems.size, key = { systems[it].id }) { i ->
+                    val s = systems[i]
+                    ConsoleTile(s, counts(s), i == sel, i == current, accent) { sel = i; onPick(i) }
+                }
+            }
+            Row(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .padding(start = (padH - 12.dp).coerceAtLeast(0.dp), end = padH, top = header.top.dp)
+                    .height(header.height.dp)
+                    .pointerInput(Unit) { detectTapGestures { } },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.size(48.dp).clip(CircleShape).xmbClick(backSrc) { onClose() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.retro_back),
+                        tint = Color(0xFFDDDDDD), modifier = Modifier.size(24.dp),
+                    )
+                }
+                Text(
+                    stringResource(R.string.retro_consoles_title), color = Color.White, fontSize = ss.sp(16f), fontWeight = FontWeight.Light,
+                    maxLines = 1, modifier = Modifier.padding(start = ss.dp(4f)),
+                )
+                Text(
+                    stringResource(R.string.retro_consoles_count, systems.size), color = PAGE_MUTED, fontSize = ss.sp(14f),
+                    maxLines = 1, modifier = Modifier.padding(start = ss.dp(8f)),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConsoleTile(system: RetroSystem, count: Int, selected: Boolean, current: Boolean, accent: Color, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val shape = RoundedCornerShape(12.dp)
+    val src = remember { MutableInteractionSource() }
+    val icon = remember(system.id) { RetroIcons.of(context, system) }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.35f)
+            .then(if (selected) Modifier.shadow(12.dp, shape, ambientColor = accent, spotColor = accent) else Modifier)
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.30f), Color(0xFF101114))))
+            .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier.border(1.dp, Color.White.copy(alpha = if (current) 0.4f else 0.08f), shape))
+            .xmbClick(src, onClick)
+            .padding(12.dp),
+    ) {
+        if (icon != 0) {
+            RetroIcon(icon, Modifier.align(Alignment.TopCenter).fillMaxWidth(0.62f).aspectRatio(1.6f))
+        } else {
+            Text(system.badge, color = Color.White.copy(alpha = 0.92f), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.align(Alignment.TopStart))
+        }
+        Column(Modifier.align(Alignment.BottomStart)) {
+            Text(
+                system.name, color = if (selected) Color.White else PAGE_TEXT, fontSize = 14.sp, lineHeight = 17.sp,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(gamesLabel(count), color = PAGE_MUTED, fontSize = 14.sp, maxLines = 1)
+        }
+    }
+}
+
+/** A console illustration: a vector drawable as it is, a PNG decoded off the main thread at a sensible size. */
+@Composable
+private fun RetroIcon(@DrawableRes res: Int, modifier: Modifier) {
+    val resources = LocalContext.current.resources
+    val isVector = remember(res) {
+        val value = TypedValue()
+        resources.getValue(res, value, true)
+        value.string?.endsWith(".xml") == true
+    }
+    if (isVector) {
+        Image(painterResource(res), contentDescription = null, contentScale = ContentScale.Fit, modifier = modifier)
+    } else {
+        val bmp = rememberXmbLogo(res)
+        if (bmp != null) Image(bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = modifier)
+    }
+}
+
+@Composable
+private fun gamesLabel(n: Int): String = LocalContext.current.resources.getQuantityString(R.plurals.retro_games_count, n, n)
 
 @Composable
 private fun RetroEmpty(title: String, body: String, modifier: Modifier, onChoose: () -> Unit) {
@@ -532,75 +889,6 @@ private fun RetroEmpty(title: String, body: String, modifier: Modifier, onChoose
             Icon(Icons.Filled.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
             Text(stringResource(R.string.retro_choose_folder), color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
         }
-    }
-}
-
-@Composable
-private fun SystemTile(system: RetroSystem, count: Int, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    val src = remember { MutableInteractionSource() }
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(1.6f)
-            .then(if (selected) Modifier.shadow(12.dp, shape, ambientColor = accent, spotColor = accent) else Modifier)
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.38f), Color(0xFF101114))))
-            .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), shape))
-            .xmbClick(src, onClick)
-            .padding(12.dp),
-    ) {
-        Text(system.badge, color = Color.White.copy(alpha = 0.92f), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.align(Alignment.TopStart))
-        Column(Modifier.align(Alignment.BottomStart)) {
-            Text(
-                system.name, color = if (selected) Color.White else PAGE_TEXT, fontSize = 14.sp, lineHeight = 17.sp,
-                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            )
-            Text(gamesLabel(count), color = PAGE_MUTED, fontSize = 14.sp, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun GameCell(
-    system: RetroSystem,
-    game: RetroGame,
-    selected: Boolean,
-    accent: Color,
-    root: String?,
-    coverVersion: Int,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(8.dp)
-    val src = remember { MutableInteractionSource() }
-    val cover = rememberCover(system, game, root, coverVersion)
-    Column(Modifier.fillMaxWidth()) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(2f / 3f)
-                .then(if (selected) Modifier.shadow(12.dp, shape, ambientColor = accent, spotColor = accent) else Modifier)
-                .clip(shape)
-                .background(Color(0xFF111111))
-                .then(if (selected) Modifier.border(2.dp, accent, shape) else Modifier)
-                .xmbClick(src, onClick),
-        ) {
-            if (cover != null) {
-                Image(
-                    bitmap = remember(cover) { cover.asImageBitmap() },
-                    contentDescription = game.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                XmbMonogram(game.title, accent)
-            }
-        }
-        Text(
-            game.title, color = if (selected) Color.White else PAGE_TEXT, fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 5.dp, start = 2.dp, end = 2.dp),
-        )
     }
 }
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sony PlayStation 3 — "fat" horizontal console with curved top, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Body with gently curved top edge -->
+    <path android:fillColor="#161616"
+          android:pathData="M120,260 Q120,210 300,205 Q480,210 480,260 L480,400 Q480,412 468,412 L132,412 Q120,412 120,400 Z"/>
+    <!-- Glossy top highlight -->
+    <path android:fillColor="#2A2A2A"
+          android:pathData="M130,255 Q160,222 300,219 Q440,222 470,255 L470,275 Q300,250 130,275 Z"/>
+
+    <!-- Slot-loading disc drive seam -->
+    <path android:fillColor="#0B0B0B"
+          android:pathData="M165,330 L300,330 L300,340 L165,340 Z"/>
+
+    <!-- Blue power LED -->
+    <path android:fillColor="#2EA0FF"
+          android:pathData="M360,335 m-12,0 a12,12 0 1 0 24,0 a12,12 0 1 0 -24,0"/>
+    <!-- Red eject LED -->
+    <path android:fillColor="#FF4136"
+          android:pathData="M404,335 m-9,0 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0"/>
+
+    <!-- Feet -->
+    <path android:fillColor="#0B0B0B"
+          android:pathData="M150,412 L210,412 L210,428 L150,428 Z
+                            M390,412 L450,412 L450,428 L390,428 Z"/>
+</vector>

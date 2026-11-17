@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Atari Jaguar — black curved console, top cartridge slot, red accent, flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Body: low dome with flared base -->
+    <path android:fillColor="#141417"
+          android:pathData="M90,395 Q90,300 175,265 Q300,215 425,265 Q510,300 510,395 Z"/>
+    <path android:fillColor="#232328"
+          android:pathData="M120,380 Q125,310 190,285 Q300,245 410,285 Q475,310 480,380 Z"/>
+    <!-- Cartridge slot on top -->
+    <path android:fillColor="#0A0A0C"
+          android:pathData="M235,230 L365,230 L355,262 L245,262 Z"/>
+    <path android:fillColor="#3A3A42"
+          android:pathData="M250,238 L350,238 L346,250 L254,250 Z"/>
+    <!-- Red "Jaguar" accent stripe -->
+    <path android:fillColor="#D32F2F"
+          android:pathData="M175,345 Q300,318 425,345 L425,357 Q300,330 175,357 Z"/>
+    <!-- Power button + LED -->
+    <path android:fillColor="#3A3A42"
+          android:pathData="M150,355 m-16,0 a16,16 0 1 0 32,0 a16,16 0 1 0 -32,0"/>
+    <path android:fillColor="#E53935"
+          android:pathData="M455,360 m-7,0 a7,7 0 1 0 14,0 a7,7 0 1 0 -14,0"/>
+    <!-- Base shadow line -->
+    <path android:fillColor="#0A0A0C"
+          android:pathData="M90,395 L510,395 L500,410 L100,410 Z"/>
+</vector>
