@@ -755,6 +755,7 @@ private fun DeckHome(
     portrait: Boolean = false,
     onOpenStore: (Screen) -> Unit = {},
     onOpenSocial: () -> Unit = {},
+    onSwitchToRetro: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as Activity
@@ -1356,7 +1357,11 @@ private fun DeckHome(
                 .fillMaxSize()
                 // Portrait lets the shell's liquid backdrop show through.
                 .then(if (portrait) Modifier else Modifier.background(Deck.background))
-                .clipToBounds(),
+                .clipToBounds()
+                // Select switches to the retro library whenever Home has nothing else open.
+                .onPreviewKeyEvent { e ->
+                    if (!portrait && !overlayOpen && e.type == KeyEventType.KeyDown && e.key == Key.ButtonSelect) { onSwitchToRetro(); true } else false
+                },
         ) {
             if (!portrait && !steamStyle) {
                 // On the All Games card the wall is made of the library's own covers.
@@ -1564,6 +1569,16 @@ private fun DeckHome(
                 )
             }
 
+            // The switch to the retro library, top left.
+            if (!portrait && !overlayOpen) RetroSwitchChip(
+                label = context.getString(R.string.retro_switch_to_retro).uppercase(),
+                hasPad = rememberGamepadConnected(),
+                onClick = onSwitchToRetro,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 16.dp, top = if (fullXmb) 38.dp else 8.dp)
+                    .graphicsLayer { alpha = homeFade * (1f - launchT.value) },
+            )
             // Shelves (L2/R2) top centre, status top right.
             if (!portrait && !allOpen && !steamStyle) DeckStretchyTabs(
                 labels = listOf("All", "Recent", "Favourites", "Store games"),
@@ -2018,6 +2033,8 @@ private fun DeckPaneContent(
     onLeave: () -> Unit = {},
 ) {
     val glassLook = rememberGlassLook()
+    // Home is either the PC library (DeckHome) or the retro one; the choice outlives a tab switch.
+    var retro by rememberSaveable { mutableStateOf(false) }
     // Every tab switch slides the incoming pane up from the bottom while the outgoing one
     // drops away — one motion for the whole shell.
     AnimatedContent(
@@ -2036,12 +2053,13 @@ private fun DeckPaneContent(
         val glassPage = glassLook && !portrait && currentSection != "home"
         val body: @Composable () -> Unit = {
         when (currentSection) {
-            "home" -> DeckHome(
+            "home" -> if (retro && !portrait) RetroLibraryScreen(onSwitchToPc = { retro = false }) else DeckHome(
                 heroFocus = homeFocus,
                 onEditContainer = onEditContainer,
                 portrait = portrait,
                 onOpenStore = onOpenStore,
                 onOpenSocial = onOpenSocial,
+                onSwitchToRetro = { retro = true },
             )
             "containers" -> AnimatedContent(
                 targetState = deckDetail,

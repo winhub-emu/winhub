@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="retro_switch_to_retro">Switch to retro</string>
+    <string name="retro_switch_to_pc">Switch to PC library</string>
+    <string name="retro_title">Retro library</string>
+    <string name="retro_back">Back</string>
+    <string name="retro_hint_options">Options</string>
+    <string name="retro_hint_back">Back</string>
+    <string name="retro_systems_count">%1$d consoles · %2$d games</string>
+    <plurals name="retro_games_count">
+        <item quantity="one">%d game</item>
+        <item quantity="other">%d games</item>
+    </plurals>
+    <plurals name="retro_covers_saved">
+        <item quantity="one">%d cover saved</item>
+        <item quantity="other">%d covers saved</item>
+    </plurals>
+    <string name="retro_covers_progress">Covers %1$d / %2$d</string>
+    <string name="retro_covers_no_source">No cover source for this console</string>
+
+    <string name="retro_choose_folder">Choose ROM folder</string>
+    <string name="retro_empty_no_folder_title">Choose your ROM folder</string>
+    <string name="retro_empty_no_folder_body">Pick the folder that holds one folder per console (NES, SNES, GBA, PS2…). WinHub finds the games and the emulators you have installed.</string>
+    <string name="retro_empty_missing_title">ROM folder not found</string>
+    <string name="retro_empty_missing_body">%1$s is not available. Is the SD card inserted?</string>
+    <string name="retro_empty_none_title">No games found</string>
+    <string name="retro_empty_none_body">Nothing in %1$s matches a console. Put each console\'s games in a folder named after it, for example SNES or PS2.</string>
+
+    <string name="retro_opt_emulator">Emulator</string>
+    <string name="retro_opt_covers">Get covers</string>
+    <string name="retro_opt_covers_sub">Downloads box art for this console</string>
+    <string name="retro_opt_folder">ROM folder</string>
+    <string name="retro_opt_rescan">Rescan library</string>
+    <string name="retro_emulator_auto">Automatic</string>
+    <string name="retro_emulator_auto_sub">The first installed emulator</string>
+    <string name="retro_emulator_none">No emulator installed for this console</string>
+    <string name="retro_emulator_none_short">None installed</string>
+
+    <string name="retro_no_emulator">No emulator installed for %1$s. Install one and try again.</string>
+    <string name="retro_launch_failed">Could not start %1$s</string>
+</resources>

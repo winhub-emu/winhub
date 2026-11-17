@@ -386,7 +386,7 @@ internal fun XmbAllGamesPage(
 // scroll under) and [bottomMarginPx] under it (the page's bottom padding); an item that isn't composed at all is
 // jumped to first, which puts it at the very top, and then moved down clear of the header. The grid has no top content padding, so
 // the item offsets are measured from the grid's top edge.
-private suspend fun LazyGridState.reveal(index: Int, topMarginPx: Float, bottomMarginPx: Float) {
+internal suspend fun LazyGridState.reveal(index: Int, topMarginPx: Float, bottomMarginPx: Float) {
     val seen = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
     val info = if (seen != null) seen else {
         scrollToItem(index)
