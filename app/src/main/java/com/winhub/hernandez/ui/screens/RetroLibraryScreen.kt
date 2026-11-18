@@ -24,6 +24,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
@@ -105,6 +107,7 @@ import com.winhub.hernandez.retro.RetroGame
 import com.winhub.hernandez.retro.RetroIcons
 import com.winhub.hernandez.retro.RetroLaunchResult
 import com.winhub.hernandez.retro.RetroLibrary
+import com.winhub.hernandez.retro.RetroMeta
 import com.winhub.hernandez.retro.RetroScan
 import com.winhub.hernandez.retro.RetroSystem
 import com.winhub.hernandez.ui.LocalTopBarOverlayInset
@@ -201,6 +204,8 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     LaunchedEffect(optsOpen) { liftAnim.animateTo(if (optsOpen) 1f else 0f, tween(300)) }
     val lift = { liftAnim.value }
     var consolesDialog by remember { mutableStateOf(false) }
+    var detailsFor by remember { mutableStateOf<RetroGame?>(null) }
+    var metaTick by remember { mutableIntStateOf(0) }
     var enabled by remember { mutableStateOf(RetroLibrary.enabledSystems(context)) }
     var coverProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     // Bumped when a picture has been saved (so the cards look again for theirs), when the emulator choice changed and when the
@@ -233,6 +238,8 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     val scan = ready?.scan
     val root = ready?.path
     val played = remember(scan) { RetroLibrary.lastPlayed(context) }
+    // What the user edited about the games (name, description, metadata); read again when they save.
+    val metaMap = remember(scan, metaTick) { RetroLibrary.allMeta(context) }
     // The consoles picked in Settings that have games, oldest first; the library's filters.
     val consoles = remember(scan, enabled) {
         if (scan == null) emptyList() else catalog.systems
@@ -240,9 +247,10 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
             .sortedWith(compareBy({ if (it.year == 0) Int.MAX_VALUE else it.year }, { it.name }))
     }
     // All the games of those consoles, the ones played last first.
-    val allGames = remember(scan, enabled, played) {
+    val allGames = remember(scan, enabled, played, metaMap) {
         if (scan == null) emptyList() else scan.bySystem
             .filterKeys { it in enabled }.values.flatten()
+            .map { g -> metaMap[g.path]?.name?.takeIf { it.isNotBlank() }?.let { g.copy(title = it) } ?: g }
             .sortedWith(compareByDescending<RetroGame> { played[it.path] ?: 0L }.thenBy { it.title.lowercase() })
     }
 
@@ -352,6 +360,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
             actIdx = 0
             subActions = null
             optsOpen = true
+            DeckSound.play(DeckSound.SELECT)
         }
     }
     val closeOpts = { optsOpen = false; subActions = null }
@@ -359,6 +368,9 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     val mainActions: List<XmbAction> = if (!optsOpen || focusedSystem == null || focusedGame == null) emptyList() else {
         val items = ArrayList<XmbAction>()
         items += XmbAction(context.getString(R.string.retro_opt_play), Icons.Filled.PlayArrow) { closeOpts(); play(focusedSystem, focusedGame) }
+        items += XmbAction(context.getString(R.string.retro_opt_details), Icons.Filled.Edit, subtitle = context.getString(R.string.retro_opt_details_sub)) {
+            closeOpts(); detailsFor = focusedGame
+        }
         items += XmbAction(context.getString(R.string.retro_opt_emulator), Icons.Filled.SportsEsports, subtitle = emulatorName ?: context.getString(R.string.retro_emulator_none_short)) {
             parentIdx = actIdx; subActions = emulatorActions(focusedSystem); actIdx = 0
         }
@@ -397,6 +409,22 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     // The options belong to one game: another console, another game list or a rescan closes them.
     LaunchedEffect(shelfName, games) { optsOpen = false; subActions = null }
 
+    // The cursor along the row and down the column, with the Deck's move sound when it really moved.
+    val stepGame = { delta: Int ->
+        val next = (target + delta).coerceIn(0, games.lastIndex.coerceAtLeast(0))
+        if (next != target) {
+            target = next
+            DeckSound.play(DeckSound.MOVE)
+        }
+    }
+    val stepAction = { delta: Int ->
+        val next = (actIdx + delta).coerceIn(0, actions.lastIndex.coerceAtLeast(0))
+        if (next != actIdx) {
+            actIdx = next
+            DeckSound.play(DeckSound.MOVE)
+        }
+    }
+
     // B goes up one level: the emulator list, then the options, then back to the PC library.
     val goBack: () -> Unit = {
         if (subActions != null) {
@@ -419,7 +447,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     // The keys are the Home's: taken when the screen opens, when the games are there, when the dialog closes and when the app comes
     // back to the front (after an emulator or the folder picker).
     LaunchedEffect(Unit) { withFrameNanos { }; runCatching { focus.requestFocus() } }
-    LaunchedEffect(ready != null, consolesDialog) { if (!consolesDialog) { withFrameNanos { }; runCatching { focus.requestFocus() } } }
+    LaunchedEffect(ready != null, consolesDialog, detailsFor) { if (!consolesDialog && detailsFor == null) { withFrameNanos { }; runCatching { focus.requestFocus() } } }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) runCatching { focus.requestFocus() } }
@@ -446,24 +474,24 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     if (optsOpen) {
                         return@onPreviewKeyEvent when (e.key) {
-                            Key.DirectionUp -> { actIdx = (actIdx - 1).coerceAtLeast(0); true }
-                            Key.DirectionDown -> { actIdx = (actIdx + 1).coerceAtMost(actions.lastIndex).coerceAtLeast(0); true }
-                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { actions.getOrNull(actIdx)?.onClick?.invoke(); true }
+                            Key.DirectionUp -> { stepAction(-1); true }
+                            Key.DirectionDown -> { stepAction(1); true }
+                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { DeckSound.play(DeckSound.SELECT); actions.getOrNull(actIdx)?.onClick?.invoke(); true }
                             Key.ButtonB, Key.Escape, Key.ButtonX -> { goBack(); true }
                             // The cursor moving on closes the options, as on the PC Home.
-                            Key.DirectionLeft -> { closeOpts(); target = (target - 1).coerceAtLeast(0); true }
-                            Key.DirectionRight -> { closeOpts(); target = (target + 1).coerceAtMost(games.lastIndex).coerceAtLeast(0); true }
+                            Key.DirectionLeft -> { closeOpts(); stepGame(-1); true }
+                            Key.DirectionRight -> { closeOpts(); stepGame(1); true }
                             Key.ButtonSelect -> { onSwitchToPc(); true }
                             else -> false
                         }
                     }
                     when (e.key) {
-                        Key.DirectionLeft -> { target = (target - 1).coerceAtLeast(0); true }
-                        Key.DirectionRight -> { target = (target + 1).coerceAtMost(games.lastIndex).coerceAtLeast(0); true }
+                        Key.DirectionLeft -> { stepGame(-1); true }
+                        Key.DirectionRight -> { stepGame(1); true }
                         Key.DirectionUp -> { deckTabs.step(-1); true }
                         Key.DirectionDown -> { deckTabs.step(1); true }
                         Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter, Key.ButtonX -> { openOpts(); true }
-                        Key.ButtonY -> { if (ready != null) consolesDialog = true; true }
+                        Key.ButtonY -> { if (ready != null) { DeckSound.play(DeckSound.SELECT); consolesDialog = true }; true }
                         Key.ButtonSelect -> { onSwitchToPc(); true }
                         Key.ButtonB, Key.Escape -> { goBack(); true }
                         else -> false
@@ -503,14 +531,16 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                                 if (optsOpen) {
                                     // A tap on the lifted card closes the options; on another card it moves the cursor there.
                                     closeOpts()
+                                    DeckSound.play(DeckSound.BACK)
                                     if (i != liftIdx) target = i
                                 } else if (i == target) {
                                     openOpts()
                                 } else {
                                     target = i
+                                    DeckSound.play(DeckSound.MOVE)
                                 }
                             },
-                            onStep = { delta -> target = (target + delta).coerceIn(0, games.lastIndex) },
+                            onStep = { delta -> stepGame(delta) },
                         )
                         RetroFilterStrip(
                             listOf(stringResource(R.string.retro_filter_all)) + consoles.map { it.name },
@@ -519,8 +549,12 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                             Modifier.align(Alignment.TopCenter).offset(y = sl.tabsTop.dp).graphicsLayer { alpha = 1f - lift() },
                         ) { deckTabs.select(it) }
                         // The options: the column under the lifted card and the game's details beside it.
-                        RetroOptions(actions, actIdx, sl, accent, lift, optsOpen) { i -> actIdx = i; actions.getOrNull(i)?.onClick?.invoke() }
-                        if (focusedGame != null) RetroInfo(focusedGame, focusedSystem, emulatorName, played[focusedGame.path], sl, ss, lift)
+                        RetroOptions(actions, actIdx, sl, accent, lift, optsOpen, onStep = { delta -> stepAction(delta) }) { i ->
+                            DeckSound.play(DeckSound.SELECT)
+                            actIdx = i
+                            actions.getOrNull(i)?.onClick?.invoke()
+                        }
+                        if (focusedGame != null) RetroInfo(focusedGame, focusedSystem, emulatorName, played[focusedGame.path], metaMap[focusedGame.path], sl, ss, lift)
                     }
                 }
             }
@@ -541,6 +575,15 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     }
 
     if (consolesDialog) RetroConsolesDialog { consolesDialog = false; enabled = RetroLibrary.enabledSystems(context) }
+    detailsFor?.let { game ->
+        RetroGameDetailsDialog(game, metaMap[game.path] ?: RetroMeta()) { saved ->
+            if (saved != null) {
+                RetroLibrary.setMeta(context, game.path, saved)
+                metaTick++
+            }
+            detailsFor = null
+        }
+    }
 }
 
 /** Finds the ROM folder (the saved one, else the best usual place) and scans it. Run off the main thread. */
@@ -743,6 +786,7 @@ private fun RetroOptions(
     accent: Color,
     lift: () -> Float,
     live: Boolean,
+    onStep: (Int) -> Unit,
     onPick: (Int) -> Unit,
 ) {
     val rowH = 48f
@@ -754,7 +798,18 @@ private fun RetroOptions(
             .offset(sl.edge.dp, sl.colTop.dp)
             .width((iconBox + 12f + labelW).dp)
             .height((sl.nVis * rowH + extra).dp)
-            .graphicsLayer { alpha = lift() },
+            .graphicsLayer { alpha = lift() }
+            // A swipe up or down the column moves the chosen row, a row at a time.
+            .pointerInput(live, actions.size) {
+                if (!live) return@pointerInput
+                var acc = 0f
+                val stepPx = rowH.dp.toPx()
+                detectVerticalDragGestures(onDragStart = { acc = 0f }) { _, dy ->
+                    acc += dy
+                    while (acc <= -stepPx) { onStep(1); acc += stepPx }
+                    while (acc >= stepPx) { onStep(-1); acc -= stepPx }
+                }
+            },
     ) {
         actions.forEachIndexed { i, a ->
             key("$i:${a.label}") {
@@ -782,6 +837,7 @@ private fun RetroInfo(
     system: RetroSystem?,
     emulatorName: String?,
     lastPlayed: Long?,
+    meta: RetroMeta?,
     sl: XmbSteamLayout,
     ss: ScreenScale,
     lift: () -> Float,
@@ -801,7 +857,15 @@ private fun RetroInfo(
             if (emulatorName != null) "$console · $emulatorName" else console,
             color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-        Text(java.io.File(game.path).name, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        meta?.line?.takeIf { it.isNotEmpty() }?.let {
+            Text(it, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        val description = meta?.description.orEmpty()
+        if (description.isNotEmpty()) {
+            Text(description, color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        } else {
+            Text(java.io.File(game.path).name, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
         Text(stringResource(R.string.retro_info_played, played), color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1)
     }
 }

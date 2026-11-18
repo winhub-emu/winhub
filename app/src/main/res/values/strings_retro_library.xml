@@ -72,4 +72,17 @@
     <string name="retro_emulator_in_use">In use</string>
     <string name="retro_info_never">Not played yet</string>
     <string name="retro_info_played">Last played: %1$s</string>
+
+    <string name="retro_opt_details">Game details</string>
+    <string name="retro_opt_details_sub">Name, description and more</string>
+    <string name="retro_details_title">Game details</string>
+    <string name="retro_details_name">Name</string>
+    <string name="retro_details_description">Description</string>
+    <string name="retro_details_developer">Developer</string>
+    <string name="retro_details_publisher">Publisher</string>
+    <string name="retro_details_genre">Genre</string>
+    <string name="retro_details_year">Release year</string>
+    <string name="retro_details_players">Players</string>
+    <string name="retro_details_save">Save</string>
+    <string name="retro_details_reset">Reset to the file\'s own</string>
 </resources>

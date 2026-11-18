@@ -23,6 +23,21 @@ internal data class RetroGame(val title: String, val path: String, val systemId:
     val baseName: String get() = File(path).nameWithoutExtension
 }
 
+/** What the user wrote about a game: shown on the retro library instead of what the scan made of the file name. Blank fields mean "nothing". */
+internal data class RetroMeta(
+    val name: String = "",
+    val description: String = "",
+    val developer: String = "",
+    val publisher: String = "",
+    val genre: String = "",
+    val year: String = "",
+    val players: String = "",
+) {
+    /** Genre, developer, publisher, year and players that are filled in, joined for one line. */
+    val line: String
+        get() = listOf(genre, developer, publisher, year, players).filter { it.isNotBlank() }.joinToString(" \u00b7 ")
+}
+
 /** What a scan of the ROM folder found, grouped by system. */
 internal class RetroScan(val bySystem: Map<String, List<RetroGame>>) {
     val total: Int get() = bySystem.values.sumOf { it.size }
@@ -87,6 +102,37 @@ internal object RetroLibrary {
     /** When each game was last started, by ROM path. */
     fun lastPlayed(context: Context): Map<String, Long> =
         prefs(context).all.mapNotNull { (k, v) -> if (k.startsWith(KEY_PLAYED) && v is Long) k.removePrefix(KEY_PLAYED) to v else null }.toMap()
+
+    private fun metaPrefs(context: Context) = context.getSharedPreferences("retro_meta", Context.MODE_PRIVATE)
+
+    /** The details the user edited, by ROM path. */
+    fun allMeta(context: Context): Map<String, RetroMeta> =
+        metaPrefs(context).all.mapNotNull { (path, json) -> (json as? String)?.let(::parseMeta)?.let { path to it } }.toMap()
+
+    /** Saves [meta] for [path]; an empty one forgets the edits. */
+    fun setMeta(context: Context, path: String, meta: RetroMeta) {
+        val edit = metaPrefs(context).edit()
+        if (meta == RetroMeta()) {
+            edit.remove(path)
+        } else {
+            val json = JSONObject()
+                .put("name", meta.name).put("description", meta.description).put("developer", meta.developer)
+                .put("publisher", meta.publisher).put("genre", meta.genre).put("year", meta.year).put("players", meta.players)
+            edit.putString(path, json.toString())
+        }
+        edit.apply()
+    }
+
+    private fun parseMeta(json: String): RetroMeta? = try {
+        val o = JSONObject(json)
+        RetroMeta(
+            o.optString("name"), o.optString("description"), o.optString("developer"), o.optString("publisher"),
+            o.optString("genre"), o.optString("year"), o.optString("players"),
+        )
+    } catch (e: JSONException) {
+        Log.w(TAG, "Unreadable game details", e)
+        null
+    }
 
     /** ROM paths the user removed from the library: a scan never brings them back (the files themselves are untouched). */
     fun excludedPaths(context: Context): Set<String> = prefs(context).getStringSet(KEY_EXCLUDED, emptySet()).orEmpty().toSet()
