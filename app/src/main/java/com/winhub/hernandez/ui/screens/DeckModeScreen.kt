@@ -2056,7 +2056,7 @@ private fun DeckPaneContent(
         val glassPage = glassLook && !portrait && currentSection != "home"
         val body: @Composable () -> Unit = {
         when (currentSection) {
-            "home" -> if (retro && portrait) RetroPortraitScreen(onSwitchToPc = { retro = false }) else if (retro) RetroLibraryScreen(onSwitchToPc = { retro = false }, focus = homeFocus) else DeckHome(
+            "home" -> if (retro && portrait) RetroPortraitScreen(onSwitchToPc = { retro = false }) else if (retro) XmbKeyboardHost { RetroLibraryScreen(onSwitchToPc = { retro = false }, focus = homeFocus) } else DeckHome(
                 heroFocus = homeFocus,
                 onEditContainer = onEditContainer,
                 portrait = portrait,

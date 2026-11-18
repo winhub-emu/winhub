@@ -45,7 +45,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
@@ -124,6 +123,7 @@ import com.winhub.hernandez.ui.deck.rememberXmbLogo
 import com.winhub.hernandez.ui.deck.lastPlayedLabel
 import com.winhub.hernandez.ui.deck.xmbInkColor
 import com.winhub.hernandez.util.InAppFilePicker
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -198,17 +198,33 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     var tick by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<RetroState>(RetroState.Loading) }
     // The options are the PC Home's: A lifts the card to the left and opens a column of options under it (an XMB dropdown). [actIdx] is
-    // the chosen row, [subActions] a nested column (the emulators, the removal confirm) and [parentIdx] the row it was opened from.
+    // the chosen row. What a row opens (Game details, Emulator, the removal confirm) is a nested XMB column, the PC Home's own menus.
     var optsOpen by remember { mutableStateOf(false) }
     var liftIdx by remember { mutableIntStateOf(0) }
     var actIdx by remember { mutableIntStateOf(0) }
-    var parentIdx by remember { mutableIntStateOf(0) }
-    var subActions by remember { mutableStateOf<List<XmbAction>?>(null) }
+    val nav = remember { XmbNavState() }
+    val nested = nav.depth > 0
+    val appCtx = context
+    val coScope = scope
+    val xmbScope = remember(nav) {
+        object : XmbScope {
+            override val context: Context get() = appCtx
+            override val scope: CoroutineScope get() = coScope
+            override fun push(menu: XmbMenu) = nav.push(menu)
+            override fun pop() = nav.pop()
+            override fun popToRoot() = nav.popTo(0)
+            override fun refresh() = nav.bump()
+            override fun toast(message: String) { Toast.makeText(appCtx, message, Toast.LENGTH_SHORT).show() }
+            override fun saved() { nav.savedAt = System.currentTimeMillis() }
+            override fun confirm(confirm: XmbConfirm, onOk: () -> Unit) = nav.push(xmbConfirmMenu(nav, confirm, onOk))
+            override fun reloadGames() {}
+        }
+    }
+    val navGate = remember { KeyRepeatGate() }
     val liftAnim = remember { Animatable(0f) }
     LaunchedEffect(optsOpen) { liftAnim.animateTo(if (optsOpen) 1f else 0f, tween(300)) }
     val lift = { liftAnim.value }
     var consolesDialog by remember { mutableStateOf(false) }
-    var detailsFor by remember { mutableStateOf<RetroGame?>(null) }
     var metaTick by remember { mutableIntStateOf(0) }
     var enabled by remember { mutableStateOf(RetroLibrary.enabledSystems(context)) }
     var coverProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -329,24 +345,77 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
         }
     }
 
-    val emulatorActions = { sys: RetroSystem ->
-        val installed = RetroLibrary.emulatorsFor(context, sys).filter { RetroLibrary.isInstalled(context, it.packageName) }
-        val chosen = RetroLibrary.emulatorChoice(context, sys.id)
-        if (installed.isEmpty()) {
-            listOf(XmbAction(context.getString(R.string.retro_emulator_none), Icons.Filled.SportsEsports) { subActions = null; actIdx = parentIdx })
-        } else {
-            listOf(
-                XmbAction(context.getString(R.string.retro_emulator_auto), Icons.Filled.SportsEsports, subtitle = context.getString(R.string.retro_emulator_auto_sub)) {
-                    RetroLibrary.setEmulatorChoice(context, sys.id, null); emuTick++; optsOpen = false; subActions = null
-                },
-            ) + installed.map { e ->
-                XmbAction(
-                    e.name, Icons.Filled.SportsEsports,
-                    subtitle = if (e.packageName == chosen) context.getString(R.string.retro_emulator_in_use) else e.packageName,
-                ) {
-                    RetroLibrary.setEmulatorChoice(context, sys.id, e.packageName); emuTick++; optsOpen = false; subActions = null
-                }
+    // The emulator a console's games start in: one choice row, whose choices column lists "Automatic" and the installed apps.
+    val emulatorMenu = { sys: RetroSystem ->
+        XmbMenu(context.getString(R.string.retro_opt_emulator), Icons.Filled.SportsEsports) {
+            val installed = RetroLibrary.emulatorsFor(appCtx, sys).filter { RetroLibrary.isInstalled(appCtx, it.packageName) }
+            val auto = appCtx.getString(R.string.retro_emulator_auto)
+            if (installed.isEmpty()) {
+                listOf(XmbRow.Info("none", appCtx.getString(R.string.retro_emulator_none), Icons.Filled.SportsEsports))
+            } else {
+                val names = installed.map { it.name }.distinct()
+                val chosen = RetroLibrary.emulatorChoice(appCtx, sys.id)?.let { c -> installed.firstOrNull { it.packageName == c }?.name } ?: auto
+                listOf(
+                    XmbRow.Choice(
+                        key = "app", label = sys.name, icon = Icons.Filled.SportsEsports,
+                        options = listOf(auto) + names, selected = chosen,
+                        subtitle = appCtx.getString(R.string.retro_emulator_auto_sub),
+                        onSelect = { name ->
+                            val pkg = installed.firstOrNull { it.name == name }?.packageName
+                            RetroLibrary.setEmulatorChoice(appCtx, sys.id, if (name == auto) null else pkg)
+                            emuTick++
+                            saved()
+                            refresh()
+                        },
+                    ),
+                )
             }
+        }
+    }
+    // The game's details as text rows (typed with the XMB's keyboard); each change is kept as it is made, as in the PC Home's settings.
+    val detailsMenu = { game: RetroGame, base: String ->
+        XmbMenu(context.getString(R.string.retro_details_title), Icons.Filled.Edit) {
+            val m = RetroLibrary.meta(appCtx, game.path) ?: RetroMeta()
+            fun keep(next: RetroMeta) {
+                RetroLibrary.setMeta(appCtx, game.path, next)
+                metaTick++
+                saved()
+                refresh()
+            }
+            listOf(
+                XmbRow.Text(
+                    key = "name", label = appCtx.getString(R.string.retro_details_name), icon = Icons.Filled.Edit,
+                    value = m.name.ifBlank { base }, placeholder = base, onCommit = { keep(m.copy(name = it.trim())) },
+                ),
+                XmbRow.Text(
+                    key = "description", label = appCtx.getString(R.string.retro_details_description), icon = Icons.Filled.Edit,
+                    value = m.description, onCommit = { keep(m.copy(description = it.trim())) },
+                ),
+                XmbRow.Text(
+                    key = "developer", label = appCtx.getString(R.string.retro_details_developer), icon = Icons.Filled.Edit,
+                    value = m.developer, onCommit = { keep(m.copy(developer = it.trim())) },
+                ),
+                XmbRow.Text(
+                    key = "publisher", label = appCtx.getString(R.string.retro_details_publisher), icon = Icons.Filled.Edit,
+                    value = m.publisher, onCommit = { keep(m.copy(publisher = it.trim())) },
+                ),
+                XmbRow.Text(
+                    key = "genre", label = appCtx.getString(R.string.retro_details_genre), icon = Icons.Filled.Edit,
+                    value = m.genre, onCommit = { keep(m.copy(genre = it.trim())) },
+                ),
+                XmbRow.Text(
+                    key = "year", label = appCtx.getString(R.string.retro_details_year), icon = Icons.Filled.Edit,
+                    value = m.year, numeric = true, onCommit = { keep(m.copy(year = it.trim())) },
+                ),
+                XmbRow.Text(
+                    key = "players", label = appCtx.getString(R.string.retro_details_players), icon = Icons.Filled.Edit,
+                    value = m.players, onCommit = { keep(m.copy(players = it.trim())) },
+                ),
+                XmbRow.Action(
+                    key = "reset", label = appCtx.getString(R.string.retro_details_reset), icon = Icons.Filled.Delete, danger = true,
+                    onClick = { keep(RetroMeta()) },
+                ),
+            )
         }
     }
     val removeGame = { sys: RetroSystem, game: RetroGame ->
@@ -365,37 +434,49 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
         if (focusedSystem != null && focusedGame != null) {
             liftIdx = target
             actIdx = 0
-            subActions = null
+            nav.popTo(0)
             optsOpen = true
             DeckSound.play(DeckSound.SELECT)
         }
     }
-    val closeOpts = { optsOpen = false; subActions = null }
-    // Built only while the options are open: Play first, then the emulator to launch from, then the library's own.
+    val closeOpts = { optsOpen = false; nav.popTo(0) }
+    val runAction = { a: XmbAction ->
+        val mk = a.menu
+        if (mk != null) {
+            nav.push(mk(xmbScope))
+        } else {
+            DeckSound.play(DeckSound.SELECT)
+            a.onClick()
+        }
+    }
+    // Built only while the options are open: Play first, then the game's details, the emulator to launch from, then the library's own.
     val mainActions: List<XmbAction> = if (!optsOpen || focusedSystem == null || focusedGame == null) emptyList() else {
         val items = ArrayList<XmbAction>()
+        // The scan's own name for the game, which the name field shows until it is edited.
+        val baseTitle = scan?.bySystem?.get(focusedSystem.id)?.firstOrNull { it.path == focusedGame.path }?.title ?: focusedGame.title
         items += XmbAction(context.getString(R.string.retro_opt_play), Icons.Filled.PlayArrow) { closeOpts(); play(focusedSystem, focusedGame) }
-        items += XmbAction(context.getString(R.string.retro_opt_details), Icons.Filled.Edit, subtitle = context.getString(R.string.retro_opt_details_sub)) {
-            closeOpts(); detailsFor = focusedGame
-        }
-        items += XmbAction(context.getString(R.string.retro_opt_emulator), Icons.Filled.SportsEsports, subtitle = emulatorName ?: context.getString(R.string.retro_emulator_none_short)) {
-            parentIdx = actIdx; subActions = emulatorActions(focusedSystem); actIdx = 0
-        }
+        items += XmbAction(
+            context.getString(R.string.retro_opt_details), Icons.Filled.Edit, subtitle = context.getString(R.string.retro_opt_details_sub),
+            menu = { detailsMenu(focusedGame, baseTitle) },
+        )
+        items += XmbAction(
+            context.getString(R.string.retro_opt_emulator), Icons.Filled.SportsEsports,
+            subtitle = emulatorName ?: context.getString(R.string.retro_emulator_none_short),
+            menu = { emulatorMenu(focusedSystem) },
+        )
         items += XmbAction(context.getString(R.string.retro_opt_covers), Icons.Filled.PhotoLibrary, subtitle = context.getString(R.string.retro_opt_covers_sub)) {
             closeOpts()
             scope.launch(Dispatchers.IO) { RetroArt.clearMisses(context); scrapeTick++ }
         }
         items += XmbAction(context.getString(R.string.retro_opt_remove), Icons.Filled.Delete, subtitle = focusedGame.title, danger = true) {
-            // Cancel is the first row, so a double press never removes by accident.
-            parentIdx = actIdx
-            subActions = listOf(
-                XmbAction(context.getString(R.string.retro_remove_cancel), Icons.Filled.Close) { subActions = null; actIdx = parentIdx },
-                XmbAction(
-                    context.getString(R.string.retro_remove_yes), Icons.Filled.Delete,
-                    subtitle = context.getString(R.string.retro_remove_yes_sub, focusedGame.title), danger = true,
-                ) { closeOpts(); removeGame(focusedSystem, focusedGame) },
-            )
-            actIdx = 0
+            // A confirm column that opens on Cancel, so a stray A never removes.
+            xmbScope.confirm(
+                XmbConfirm(
+                    context.getString(R.string.retro_opt_remove),
+                    context.getString(R.string.retro_remove_yes_sub, focusedGame.title),
+                    context.getString(R.string.retro_remove_yes), danger = true,
+                ),
+            ) { removeGame(focusedSystem, focusedGame) }
         }
         items += XmbAction(context.getString(R.string.retro_opt_consoles), Icons.Filled.GridView, subtitle = context.getString(R.string.retro_opt_consoles_sub)) {
             closeOpts(); consolesDialog = true
@@ -412,9 +493,16 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
         items += XmbAction(context.getString(R.string.retro_opt_rescan), Icons.Filled.Refresh) { closeOpts(); rescan() }
         items
     }
-    val actions = subActions ?: mainActions
-    // The options belong to one game: another console, another game list or a rescan closes them.
-    LaunchedEffect(shelfName, games) { optsOpen = false; subActions = null }
+    val actions = mainActions
+    // The options belong to one game: another console, a rescan or a removal closes them (an edit of the game's details does not).
+    LaunchedEffect(shelfName, scan) { optsOpen = false; nav.popTo(0) }
+    // The game list is re-sorted by an edited name: the lifted card follows the cursor.
+    LaunchedEffect(target) { if (optsOpen) liftIdx = target }
+    // The nested columns have their own sounds: a way in and a way out.
+    var soundArmed by remember { mutableStateOf(false) }
+    val depthNow = nav.depth
+    LaunchedEffect(depthNow) { if (soundArmed) DeckSound.play(if (depthNow > 0) DeckSound.SELECT else DeckSound.BACK) }
+    LaunchedEffect(Unit) { soundArmed = true }
 
     // The cursor along the row and down the column, with the Deck's move sound when it really moved.
     val stepGame = { delta: Int ->
@@ -434,9 +522,8 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
 
     // B goes up one level: the emulator list, then the options, then back to the PC library.
     val goBack: () -> Unit = {
-        if (subActions != null) {
-            subActions = null
-            actIdx = parentIdx
+        if (nav.depth > 0) {
+            nav.pop()
         } else if (optsOpen) {
             optsOpen = false
         } else {
@@ -454,7 +541,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     // The keys are the Home's: taken when the screen opens, when the games are there, when the dialog closes and when the app comes
     // back to the front (after an emulator or the folder picker).
     LaunchedEffect(Unit) { withFrameNanos { }; runCatching { focus.requestFocus() } }
-    LaunchedEffect(ready != null, consolesDialog, detailsFor) { if (!consolesDialog && detailsFor == null) { withFrameNanos { }; runCatching { focus.requestFocus() } } }
+    LaunchedEffect(ready != null, consolesDialog) { if (!consolesDialog) { withFrameNanos { }; runCatching { focus.requestFocus() } } }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) runCatching { focus.requestFocus() } }
@@ -471,6 +558,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
         }
         val backdropCover = rememberCover(focusedSystem, focusedGame, root, coverVersion)
         val backdropHero = rememberHero(focusedGame, coverVersion)
+        val rootAlpha by animateFloatAsState(if (nested) 0f else 1f, tween(260), label = "retroRootAlpha")
 
         Box(
             Modifier
@@ -479,11 +567,39 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                 .focusable()
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (nav.depth > 0) {
+                        // Typing into a Text row: the field gets the keys; A = done, B = cancel.
+                        if (nav.editingKey != null) {
+                            return@onPreviewKeyEvent when (e.key) {
+                                Key.ButtonA -> { nav.commitEdit(xmbScope); true }
+                                Key.ButtonB -> { nav.pop(); true }
+                                else -> false
+                            }
+                        }
+                        val k = when (e.key) {
+                            Key.DirectionUp -> XmbKey.Up
+                            Key.DirectionDown -> XmbKey.Down
+                            Key.DirectionLeft -> XmbKey.Left
+                            Key.DirectionRight -> XmbKey.Right
+                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> XmbKey.A
+                            Key.ButtonB, Key.Escape -> XmbKey.B
+                            Key.ButtonL1 -> XmbKey.L1
+                            Key.ButtonR1 -> XmbKey.R1
+                            else -> null
+                        } ?: return@onPreviewKeyEvent false
+                        val held = e.nativeKeyEvent.repeatCount != 0
+                        if (held && (k == XmbKey.Up || k == XmbKey.Down) && !navGate.allow(false)) return@onPreviewKeyEvent true
+                        val depthBefore = nav.depth
+                        val handled = nav.onKey(k, xmbScope)
+                        // A step inside a column sounds here, and so does an A or B that stayed in it; the ways in and out sound by the depth.
+                        if (handled && (k != XmbKey.A && k != XmbKey.B || nav.depth == depthBefore)) xmbNavSound(k)
+                        return@onPreviewKeyEvent handled
+                    }
                     if (optsOpen) {
                         return@onPreviewKeyEvent when (e.key) {
                             Key.DirectionUp -> { stepAction(-1); true }
                             Key.DirectionDown -> { stepAction(1); true }
-                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { DeckSound.play(DeckSound.SELECT); actions.getOrNull(actIdx)?.onClick?.invoke(); true }
+                            Key.ButtonA, Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> { actions.getOrNull(actIdx)?.let(runAction); true }
                             Key.ButtonB, Key.Escape, Key.ButtonX -> { goBack(); true }
                             // The cursor moving on closes the options, as on the PC Home.
                             Key.DirectionLeft -> { closeOpts(); stepGame(-1); true }
@@ -532,30 +648,35 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                             stringResource(R.string.retro_choose_folder), Modifier.align(Alignment.Center), chooseFolder,
                         )
                     } else {
-                        RetroHomeRow(
-                            games, catalog, root, coverVersion, emulatorName, target, pos, sl, accent, ss, liftIdx, lift,
-                            onCard = { i ->
-                                if (optsOpen) {
-                                    // A tap on the lifted card closes the options; on another card it moves the cursor there.
-                                    closeOpts()
-                                    DeckSound.play(DeckSound.BACK)
-                                    if (i != liftIdx) target = i
-                                } else if (i == target) {
-                                    openOpts()
-                                } else {
-                                    target = i
-                                    DeckSound.play(DeckSound.MOVE)
-                                }
-                            },
-                            onStep = { delta -> stepGame(delta) },
-                        )
-                        // The options: the column under the lifted card and the game's details beside it.
-                        RetroOptions(actions, actIdx, sl, accent, lift, optsOpen, onStep = { delta -> stepAction(delta) }) { i ->
-                            DeckSound.play(DeckSound.SELECT)
-                            actIdx = i
-                            actions.getOrNull(i)?.onClick?.invoke()
+                        // Everything of the row fades out while a nested column is open, as on the PC Home.
+                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = rootAlpha; translationY = (1f - rootAlpha) * -12.dp.toPx() }) {
+                            RetroHomeRow(
+                                games, catalog, root, coverVersion, emulatorName, target, pos, sl, accent, ss, liftIdx, lift,
+                                onCard = { i ->
+                                    if (optsOpen) {
+                                        // A tap on the lifted card closes the options; on another card it moves the cursor there.
+                                        closeOpts()
+                                        DeckSound.play(DeckSound.BACK)
+                                        if (i != liftIdx) target = i
+                                    } else if (i == target) {
+                                        openOpts()
+                                    } else {
+                                        target = i
+                                        DeckSound.play(DeckSound.MOVE)
+                                    }
+                                },
+                                onStep = { delta -> stepGame(delta) },
+                            )
+                            // The options: the column under the lifted card and the game's details beside it.
+                            RetroOptions(actions, actIdx, sl, accent, lift, optsOpen, onStep = { delta -> stepAction(delta) }) { i ->
+                                actIdx = i
+                                actions.getOrNull(i)?.let(runAction)
+                            }
+                            if (focusedGame != null) RetroInfo(focusedGame, focusedSystem, emulatorName, played[focusedGame.path], metaMap[focusedGame.path], sl, ss, lift)
                         }
-                        if (focusedGame != null) RetroInfo(focusedGame, focusedSystem, emulatorName, played[focusedGame.path], metaMap[focusedGame.path], sl, ss, lift)
+                        if (nested) {
+                            XmbNestedLayer(nav, xmbScope, w, h, false, accent, focusedGame?.title.orEmpty(), backdropCover, actions.map { it.icon }, actIdx)
+                        }
                     }
                 }
             }
@@ -590,15 +711,6 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     }
 
     if (consolesDialog) RetroConsolesDialog { consolesDialog = false; enabled = RetroLibrary.enabledSystems(context) }
-    detailsFor?.let { game ->
-        RetroGameDetailsDialog(game, metaMap[game.path] ?: RetroMeta()) { saved ->
-            if (saved != null) {
-                RetroLibrary.setMeta(context, game.path, saved)
-                metaTick++
-            }
-            detailsFor = null
-        }
-    }
 }
 
 /** Finds the ROM folder (the saved one, else the best usual place) and scans it. Run off the main thread. */

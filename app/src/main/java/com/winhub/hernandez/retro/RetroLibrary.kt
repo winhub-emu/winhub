@@ -109,6 +109,9 @@ internal object RetroLibrary {
     fun allMeta(context: Context): Map<String, RetroMeta> =
         metaPrefs(context).all.mapNotNull { (path, json) -> (json as? String)?.let(::parseMeta)?.let { path to it } }.toMap()
 
+    /** The details the user edited for one game, or null. */
+    fun meta(context: Context, path: String): RetroMeta? = metaPrefs(context).getString(path, null)?.let(::parseMeta)
+
     /** Saves [meta] for [path]; an empty one forgets the edits. */
     fun setMeta(context: Context, path: String, meta: RetroMeta) {
         val edit = metaPrefs(context).edit()
