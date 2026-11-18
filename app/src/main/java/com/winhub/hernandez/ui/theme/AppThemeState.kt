@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.combine
 
 object AppThemeState {
     private lateinit var themePrefs: SharedPreferences
+    // Kept so a theme change can put that theme's launcher icon on (AppIcon), whichever screen made the change.
+    private var appContext: Context? = null
 
     private val _presetIndex = MutableStateFlow(DEFAULT_PRESET_INDEX)
     val presetIndex: StateFlow<Int> = _presetIndex
@@ -170,6 +172,8 @@ object AppThemeState {
         _generalTabStyle.value = if (themePrefs.getBoolean("general_tab_style_horizontal", true)) "horizontal" else "vertical"
         _topBarOpacity.value = themePrefs.getFloat("top_bar_opacity", 1f).coerceIn(0f, 1f)
         refreshDeckPreset()
+        appContext = context.applicationContext
+        AppIcon.apply(context)
     }
 
     /** Show or hide the drawer's Stores section. Default on, so nothing changes until asked. */
@@ -219,6 +223,7 @@ object AppThemeState {
         _presetIndex.value = index.coerceIn(0, themePresets.size - 1)
         themePrefs.edit().putInt("preset_index", _presetIndex.value).apply()
         refreshDeckPreset()
+        appContext?.let { AppIcon.apply(it) }
     }
 
     fun setCustomAccent(color: Color) {

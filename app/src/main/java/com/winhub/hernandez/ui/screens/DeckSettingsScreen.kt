@@ -55,6 +55,7 @@ import com.winhub.hernandez.fexcore.FEXCorePresetManager
 import com.winhub.hernandez.store.SteamPrefs
 import com.winhub.hernandez.store.SteamRegion
 import com.winhub.hernandez.ui.deck.StoreStyle
+import com.winhub.hernandez.ui.theme.AppIcon
 import com.winhub.hernandez.ui.theme.AppThemeState
 import com.winhub.hernandez.ui.theme.CHARCOAL_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.DEFAULT_PRESET_INDEX
@@ -166,6 +167,7 @@ internal fun DeckSettingsScreen() {
     var retroConsoleCount by remember { mutableStateOf(RetroLibrary.enabledSystems(context).size) }
     var showRetroConsoles by remember { mutableStateOf(false) }
     var retroHidden by remember { mutableStateOf(RetroLibrary.excludedPaths(context).size) }
+    var appIcon by remember { mutableStateOf(AppIcon.choice(context)) }
     val retroFolderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }?.let {
@@ -790,6 +792,16 @@ internal fun DeckSettingsScreen() {
                     ThemePreviewDots(
                         themeChoices.firstOrNull { it.name == selectedTheme } ?: themeChoices.first(),
                     )
+                },
+            )
+            DeckChoiceRow(
+                label = "App icon",
+                hint = "The four circles of the launcher icon. Default keeps them blue, Follow the theme gives them the theme's colour, or pick a colour. The launcher can take a moment to change, and may drop a shortcut you pinned to the home screen",
+                options = AppIcon.options,
+                selected = appIcon,
+                onPick = {
+                    appIcon = it
+                    AppIcon.setChoice(context, it)
                 },
             )
         }

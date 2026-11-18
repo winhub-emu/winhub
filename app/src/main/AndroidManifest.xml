@@ -93,11 +93,285 @@
             android:screenOrientation="sensor"
             android:exported="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation">
+        </activity>
+
+        <!-- The launcher icon: one alias per icon, exactly one enabled at a time (see ui/theme/AppIcon.kt). The default one is the blue circles. -->
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_default"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_purple"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_purple"
+            android:roundIcon="@mipmap/ic_launcher_purple"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_red"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_red"
+            android:roundIcon="@mipmap/ic_launcher_red"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_green"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_green"
+            android:roundIcon="@mipmap/ic_launcher_green"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_monochrome"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_monochrome"
+            android:roundIcon="@mipmap/ic_launcher_monochrome"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_pink"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_pink"
+            android:roundIcon="@mipmap/ic_launcher_pink"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_halloween"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_halloween"
+            android:roundIcon="@mipmap/ic_launcher_halloween"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_ocean"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_ocean"
+            android:roundIcon="@mipmap/ic_launcher_ocean"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_amber"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_amber"
+            android:roundIcon="@mipmap/ic_launcher_amber"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_sunset"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_sunset"
+            android:roundIcon="@mipmap/ic_launcher_sunset"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_nord"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_nord"
+            android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_midnight"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_midnight"
+            android:roundIcon="@mipmap/ic_launcher_midnight"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_christmas"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_christmas"
+            android:roundIcon="@mipmap/ic_launcher_christmas"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_dracula"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_dracula"
+            android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_gruvbox"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_gruvbox"
+            android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_solarized"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_solarized"
+            android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_tokyo_night"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_tokyo_night"
+            android:roundIcon="@mipmap/ic_launcher_tokyo_night"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_catppuccin"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_catppuccin"
+            android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_rose_pine"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_rose_pine"
+            android:roundIcon="@mipmap/ic_launcher_rose_pine"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_cyberpunk"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_cyberpunk"
+            android:roundIcon="@mipmap/ic_launcher_cyberpunk"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_synthwave"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_synthwave"
+            android:roundIcon="@mipmap/ic_launcher_synthwave"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_forest"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_forest"
+            android:roundIcon="@mipmap/ic_launcher_forest"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.winhub.hernandez.AppIcon_charcoal"
+            android:targetActivity="com.winhub.hernandez.MainActivity"
+            android:icon="@mipmap/ic_launcher_charcoal"
+            android:roundIcon="@mipmap/ic_launcher_charcoal"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
 
         <!-- colorMode|touchscreen|uiMode on top of the usual set so MOVING BETWEEN DISPLAYS does not
              recreate the session. A game launched on a TV ("TV" tab) and then unplugged is handed back
