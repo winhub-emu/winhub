@@ -11,15 +11,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.store.LocalStoreXmb
@@ -45,6 +53,43 @@ import com.winhub.hernandez.ui.screens.LocalDeckMode
 
 // The Social Hub panes in the Deck store-page look (surface cards on a hairline, Deck buttons, the empty-state
 // block). Outside Deck Mode (the classic app, the in-game drawer) each piece falls back to the Material look it had.
+
+/**
+ * True on the Steam Home's Social page (landscape): the panes fold their toolbars into one row and lay their cards out in two
+ * columns, so a few posts or configs do not stretch a long way across the screen.
+ */
+internal val LocalSocialWide = compositionLocalOf { false }
+
+/** A list of cards: one column, or two on the wide Social page. */
+@Composable
+internal fun <T> SocialCardList(
+    rows: List<T>,
+    key: (T) -> Any,
+    modifier: Modifier = Modifier,
+    spacing: Dp = 8.dp,
+    verticalPadding: Dp = 0.dp,
+    card: @Composable (T) -> Unit,
+) {
+    if (LocalSocialWide.current) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = modifier,
+            contentPadding = PaddingValues(vertical = verticalPadding),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+        ) {
+            gridItems(rows, key = key) { card(it) }
+        }
+    } else {
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(vertical = verticalPadding),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+        ) {
+            items(rows, key = key) { card(it) }
+        }
+    }
+}
 
 /** A row / card surface: Deck surface on a hairline in Deck Mode, the tinted Material card elsewhere. */
 @Composable

@@ -401,14 +401,34 @@ internal fun SocialConfigsContent() {
     } else {
         DeckDragFrame(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
+            val wide = LocalSocialWide.current
+            val sourceChips: @Composable () -> Unit = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToggleChip(
+                        text = stringResource(R.string.social_hub_configs_tab_library),
+                        checked = libraryTab,
+                        onClick = { libraryTab = true },
+                    )
+                    ToggleChip(
+                        text = stringResource(R.string.social_hub_configs_tab_shared),
+                        checked = !libraryTab,
+                        onClick = { libraryTab = false },
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 if (LocalDeckMode.current) {
                     SocialSectionLabel(
                         stringResource(R.string.social_hub_subtab_configs),
                         libGames?.size?.takeIf { libraryTab && it > 0 }?.let { "$it games" }
                             ?: configs.size.takeIf { !libraryTab && it > 0 }?.let { "$it shared" },
-                        modifier = Modifier.weight(1f),
+                        modifier = if (wide) Modifier else Modifier.weight(1f),
                     )
+                    if (wide) {
+                        Spacer(Modifier.width(16.dp))
+                        sourceChips()
+                        Spacer(Modifier.weight(1f))
+                    }
                 } else {
                     Text(
                         stringResource(R.string.social_hub_subtab_configs),
@@ -433,19 +453,10 @@ internal fun SocialConfigsContent() {
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToggleChip(
-                    text = stringResource(R.string.social_hub_configs_tab_library),
-                    checked = libraryTab,
-                    onClick = { libraryTab = true },
-                )
-                ToggleChip(
-                    text = stringResource(R.string.social_hub_configs_tab_shared),
-                    checked = !libraryTab,
-                    onClick = { libraryTab = false },
-                )
+            if (!wide) {
+                sourceChips()
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
             if (libraryTab) {
                 LibraryBody(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -470,12 +481,11 @@ internal fun SocialConfigsContent() {
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                SocialSearchField(query = query, onQueryChange = { query = it }, hint = R.string.social_hub_configs_search_hint)
-                Spacer(Modifier.height(6.dp))
-                ToggleChip(
-                    text = stringResource(R.string.social_hub_configs_matches_device),
-                    checked = matchesMyDevice,
-                    onClick = { matchesMyDevice = !matchesMyDevice },
+                SearchAndMatch(
+                    query = query,
+                    onQueryChange = { query = it },
+                    matchesMyDevice = matchesMyDevice,
+                    onMatchesChange = { matchesMyDevice = it },
                 )
                 Spacer(Modifier.height(8.dp))
 
@@ -492,12 +502,10 @@ internal fun SocialConfigsContent() {
                         }
                         configs.isEmpty() -> EmptyNote(R.string.social_hub_configs_empty, R.string.social_hub_configs_empty_hint)
                         visible.isEmpty() -> EmptyNote(R.string.social_hub_configs_no_match, R.string.social_hub_configs_no_match_hint)
-                        else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                            items(visible, key = { it.number }) { post ->
-                                ConfigRow(post) {
-                                    detailNumber = post.number
-                                    SocialHubStore.openPost(post.number)
-                                }
+                        else -> SocialCardList(rows = visible, key = { it.number }, modifier = Modifier.fillMaxSize()) { post ->
+                            ConfigRow(post) {
+                                detailNumber = post.number
+                                SocialHubStore.openPost(post.number)
                             }
                         }
                     }
@@ -671,19 +679,16 @@ private fun LibraryBody(
                 Spacer(Modifier.height(8.dp))
                 // This device's matches first; the rest keep the index order (grouped by chipset).
                 val ordered = remember(open.id, userHw) { open.configs.sortedByDescending { matches(it) } }
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                    items(ordered, key = { it.file }) { entry ->
-                        LibraryConfigRow(entry, matches(entry)) { onImport(open, entry) }
-                    }
+                SocialCardList(rows = ordered, key = { it.file }, modifier = Modifier.fillMaxSize()) { entry ->
+                    LibraryConfigRow(entry, matches(entry)) { onImport(open, entry) }
                 }
             }
             else -> {
-                SocialSearchField(query = query, onQueryChange = { query = it }, hint = R.string.social_hub_configs_search_hint)
-                Spacer(Modifier.height(6.dp))
-                ToggleChip(
-                    text = stringResource(R.string.social_hub_configs_matches_device),
-                    checked = matchesMyDevice,
-                    onClick = { matchesMyDevice = !matchesMyDevice },
+                SearchAndMatch(
+                    query = query,
+                    onQueryChange = { query = it },
+                    matchesMyDevice = matchesMyDevice,
+                    onMatchesChange = { matchesMyDevice = it },
                 )
                 Spacer(Modifier.height(8.dp))
                 val visible = remember(games, query, matchesMyDevice, userHw) {
@@ -696,8 +701,8 @@ private fun LibraryBody(
                 if (visible.isEmpty()) {
                     EmptyNote(R.string.social_hub_configs_no_match, R.string.social_hub_configs_no_match_hint)
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                        items(visible, key = { it.id }) { game -> LibraryGameRow(game) { onOpen(game.id) } }
+                    SocialCardList(rows = visible, key = { it.id }, modifier = Modifier.fillMaxSize()) { game ->
+                        LibraryGameRow(game) { onOpen(game.id) }
                     }
                 }
             }
@@ -783,6 +788,34 @@ private fun LibraryConfigRow(entry: ConfigLibrary.Entry, matchesDevice: Boolean,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/** The search box and the "matches my device" chip: stacked, or side by side on the wide Social page. */
+@Composable
+private fun SearchAndMatch(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    matchesMyDevice: Boolean,
+    onMatchesChange: (Boolean) -> Unit,
+) {
+    val search = @Composable { SocialSearchField(query = query, onQueryChange = onQueryChange, hint = R.string.social_hub_configs_search_hint) }
+    val chip = @Composable {
+        ToggleChip(
+            text = stringResource(R.string.social_hub_configs_matches_device),
+            checked = matchesMyDevice,
+            onClick = { onMatchesChange(!matchesMyDevice) },
+        )
+    }
+    if (LocalSocialWide.current) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.weight(1f)) { search() }
+            chip()
+        }
+    } else {
+        search()
+        Spacer(Modifier.height(6.dp))
+        chip()
     }
 }
 

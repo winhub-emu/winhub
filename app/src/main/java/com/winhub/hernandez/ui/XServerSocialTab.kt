@@ -506,15 +506,15 @@ private fun SocialFeed(
                     SocialButton(stringResource(R.string.social_hub_search_clear), onClick = { onQueryChange("") }, primary = false)
                 }
             } else {
-                LazyColumn(
+                SocialCardList(
+                    rows = visible,
+                    key = { it.number },
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    items(visible, key = { it.number }) { post ->
-                        Box(Modifier.deckDragItem("social-post-${post.number}")) {
-                            SocialPostRow(post) { onOpen(post) }
-                        }
+                    spacing = 6.dp,
+                    verticalPadding = 4.dp,
+                ) { post ->
+                    Box(Modifier.deckDragItem("social-post-${post.number}")) {
+                        SocialPostRow(post) { onOpen(post) }
                     }
                 }
             }
