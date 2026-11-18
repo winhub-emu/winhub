@@ -413,7 +413,9 @@ internal object RetroArt {
 
     private fun heroFile(context: Context, game: RetroGame) = File(artDir(context, game), "${safeName(game.baseName)}.bg.jpg")
 
-    // A zero-length file saying "asked, and there is nothing": "none" for the grid, "nohero" for the hero.
+    private fun wideFile(context: Context, game: RetroGame) = File(artDir(context, game), "${safeName(game.baseName)}.wide.jpg")
+
+    // A zero-length file saying "asked, and there is nothing": "none" for the grid, "nohero" for the hero, "nowide" for the banner.
     private fun marker(context: Context, game: RetroGame, kind: String) = File(artDir(context, game), "${safeName(game.baseName)}.$kind")
 
     /** The cover file for [game]: one fetched earlier, a picture named like the ROM beside it, or one in a media folder. Run off the main thread. */
@@ -435,6 +437,9 @@ internal object RetroArt {
         return null
     }
 
+    /** The banner (landscape grid) of [game] fetched earlier, or null. Run off the main thread. */
+    fun findWide(context: Context, game: RetroGame): File? = wideFile(context, game).takeIf { it.isFile && it.length() > 0 }
+
     /** The background picture of [game] fetched earlier, or null. Run off the main thread. */
     fun findHero(context: Context, game: RetroGame): File? = heroFile(context, game).takeIf { it.isFile && it.length() > 0 }
 
@@ -451,6 +456,7 @@ internal object RetroArt {
         stopped: () -> Boolean,
         onProgress: (Int, Int) -> Unit,
         onSaved: () -> Unit = {},
+        wide: Set<String> = emptySet(),
     ): Int {
         val catalog = RetroCatalog.get(context)
         var saved = 0
@@ -460,7 +466,9 @@ internal object RetroArt {
             val system = catalog.byId[game.systemId] ?: return@forEachIndexed
             val needGrid = find(context, system, game, root) == null && !marker(context, game, "none").exists()
             val needHero = findHero(context, game) == null && !marker(context, game, "nohero").exists()
-            if (!needGrid && !needHero) return@forEachIndexed
+            // The banner is only for the games that can be the first card: those in [wide].
+            val needWide = game.path in wide && findWide(context, game) == null && !marker(context, game, "nowide").exists()
+            if (!needGrid && !needHero && !needWide) return@forEachIndexed
             val id = searchGameId(context, game.title)
             if (id < 0) return@forEachIndexed
 
@@ -489,6 +497,16 @@ internal object RetroArt {
                     Fetch.FAILED -> Unit
                 }
             }
+            if (needWide) {
+                var banner = Fetch.MISSING
+                if (id > 0) firstImageUrl(context, "grids/game/$id?dimensions=460x215,920x430&types=static&nsfw=false&mimes=image/jpeg,image/png&limit=1")
+                    ?.let { banner = fetch(it, wideFile(context, game)) }
+                when (banner) {
+                    Fetch.SAVED -> onSaved()
+                    Fetch.MISSING -> touch(marker(context, game, "nowide"))
+                    Fetch.FAILED -> Unit
+                }
+            }
         }
         onProgress(games.size, games.size)
         return saved
@@ -497,7 +515,7 @@ internal object RetroArt {
     /** Forgets which games had nothing to find, so the next [download] asks for them again. */
     fun clearMisses(context: Context) {
         File(context.filesDir, "retro_art").listFiles()?.forEach { dir ->
-            dir.listFiles { f -> f.name.endsWith(".none") || f.name.endsWith(".nohero") }?.forEach { it.delete() }
+            dir.listFiles { f -> f.name.endsWith(".none") || f.name.endsWith(".nohero") || f.name.endsWith(".nowide") }?.forEach { it.delete() }
         }
     }
 

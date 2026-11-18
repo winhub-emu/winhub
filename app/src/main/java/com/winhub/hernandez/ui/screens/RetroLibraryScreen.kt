@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.util.LruCache
 import android.util.TypedValue
 import android.widget.Toast
@@ -74,9 +75,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -298,7 +301,9 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     LaunchedEffect(shelfName, games, scrapeTick) {
         if (games.isEmpty()) return@LaunchedEffect
         val from = target.coerceIn(0, games.lastIndex)
-        val ordered = games.drop(from) + games.take(from)
+        // The first card is a banner, as on the PC Home: the first game and the ones played last get one. They come first.
+        val banners = (listOfNotNull(games.firstOrNull()?.path) + played.entries.sortedByDescending { it.value }.take(5).map { it.key }).toSet()
+        val ordered = (games.filter { it.path in banners } + games.drop(from) + games.take(from)).distinct()
         withContext(Dispatchers.IO) {
             coverProgress = 0 to ordered.size
             RetroArt.download(
@@ -306,6 +311,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                 stopped = { !isActive },
                 onProgress = { d, t -> coverProgress = d to t },
                 onSaved = { coverVersion++ },
+                wide = banners,
             )
             coverProgress = null
         }
@@ -649,7 +655,8 @@ private fun RetroHomeRow(
     onCard: (Int) -> Unit,
     onStep: (Int) -> Unit,
 ) {
-    val row = remember(sl, games.size) { XmbSteamRow(games.size, sl.fW, sl.fW, sl.gap, sl.w, sl.edge) }
+    // The first card (the game played last) is wide, the others are covers.
+    val row = remember(sl, games.size) { sl.row(games.size) }
     // Only the covers near the cursor are composed; each one's place is read from `pos` in its graphics layer.
     val base by remember { derivedStateOf { floor(pos.floatValue).toInt() } }
     Box(
@@ -699,7 +706,7 @@ private fun RetroCover(
     Box(
         Modifier
             .zIndex(if (focused || lifted) 1f else 0f)
-            .size(sl.fW.dp, sl.fH.dp)
+            .size((if (index == 0) sl.wideW else sl.fW).dp, sl.fH.dp)
             .graphicsLayer {
                 val p = pos.floatValue
                 val l = lift()
@@ -717,7 +724,9 @@ private fun RetroCover(
             .then(if (focused) Modifier.border(1.5.dp, XMB_FOCUS_OUTLINE, shape) else Modifier)
             .xmbClick(src, onClick),
     ) {
-        if (cover != null) {
+        if (index == 0) {
+            RetroWideArt(game, cover, coverVersion, accent)
+        } else if (cover != null) {
             Image(
                 bitmap = remember(cover) { cover.asImageBitmap() },
                 contentDescription = game.title,
@@ -729,6 +738,46 @@ private fun RetroCover(
         }
         // The cards that are not the lifted one are dimmed while the options are open (an opaque overlay, as on the PC Home).
         if (!lifted) Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0.45f * lift() }.background(Color.Black))
+    }
+}
+
+// The banner of the first card, as on the PC Home: the game's landscape grid (else its background picture) over a plain ground with the blurred
+// cover; with neither, the whole cover sharp over the blurred one, never cut to a wide card.
+@Composable
+private fun RetroWideArt(game: RetroGame, cover: Bitmap?, version: Int, accent: Color) {
+    val context = LocalContext.current
+    val wide by produceState<Bitmap?>(null, game.path, version) {
+        value = withContext(Dispatchers.IO) { RetroPictures.wide(context, game) }
+    }
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1B2230), Color(0xFF0C1018)))))
+        // Modifier.blur does nothing below API 31, where the cover would show as it is: there the ground stays plain.
+        if (cover != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Image(
+                bitmap = remember(cover) { cover.asImageBitmap() },
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f; alpha = 0.55f }.blur(22.dp),
+            )
+        }
+        val banner = wide
+        if (banner != null) {
+            Image(
+                bitmap = remember(banner) { banner.asImageBitmap() },
+                contentDescription = game.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (cover != null) {
+            Image(
+                bitmap = remember(cover) { cover.asImageBitmap() },
+                contentDescription = game.title,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            XmbMonogram(game.title, accent)
+        }
     }
 }
 
@@ -993,6 +1042,7 @@ private object RetroPictures {
     private const val CACHE_BYTES = 32 * 1024 * 1024
     private const val COVER_WIDTH = 360
     private const val HERO_WIDTH = 1280
+    private const val WIDE_WIDTH = 920
 
     private val cache = object : LruCache<String, Bitmap>(CACHE_BYTES) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -1002,6 +1052,10 @@ private object RetroPictures {
         RetroArt.find(context, system, game, root)?.let { decode(it, COVER_WIDTH) }
 
     fun hero(context: Context, game: RetroGame): Bitmap? = RetroArt.findHero(context, game)?.let { decode(it, HERO_WIDTH) }
+
+    /** The banner of the first card: the game's landscape grid, else its background picture. */
+    fun wide(context: Context, game: RetroGame): Bitmap? =
+        (RetroArt.findWide(context, game) ?: RetroArt.findHero(context, game))?.let { decode(it, WIDE_WIDTH) }
 
     private fun decode(file: java.io.File, width: Int): Bitmap? {
         val key = "${file.path}:${file.lastModified()}"
