@@ -2,9 +2,6 @@ package com.winhub.hernandez.ui.screens
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Rect
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import android.content.res.Configuration
@@ -136,11 +133,9 @@ import com.winhub.hernandez.ui.deck.storeMarkOf
 import com.winhub.hernandez.ui.findActivity
 import com.winhub.hernandez.ui.theme.DangerRed
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -240,12 +235,16 @@ internal fun SteamXmbView(
     val allCount = remember(allTotal) { context.resources.getQuantityString(R.plurals.xmb_all_games_count, allTotal, allTotal) }
     val allLabel = stringResource(R.string.xmb_all_games_open)
     var allOpen by rememberSaveable { mutableStateOf(false) }
-    // What the All Games card shows of the library (the mosaic on the card, the collage behind it while it is hovered): the
+    // What the All Games card shows of the library (the mosaic on the card, the wall behind it while it is hovered): the
     // games the row shows come first (the most recent), then the rest, games with art ahead of those without. Built from the
     // covers already decoded for the row, and kept until the game list changes.
     val libraryOrder = remember(shortcuts, allShortcuts) { if (hasAll) xmbRecentOrder(shortcuts, allShortcuts.orEmpty()) { it.file.path } else emptyList() }
     val mosaic = remember(libraryOrder) { xmbMosaicPick(libraryOrder) { it.icon != null } }
-    val collageArts = remember(libraryOrder) { xmbCollagePick(libraryOrder) { it.icon != null }.mapNotNull { it.icon } }
+    // The wall behind the hovered All Games card is the library's own covers, drifting like the Full XMB Home's.
+    val wallPicture = remember(libraryOrder) {
+        val covers = libraryOrder.mapNotNull { s -> s.icon?.let { DeckCover(s.name.orEmpty(), hueOf(s.name.orEmpty()), it) } }
+        if (covers.isEmpty()) null else XmbWallPicture(covers)
+    }
 
     // The focused game is remembered by path so it survives rotation, leaving the tab, and a
     // refresh or sort that reorders the list. The All Games card is remembered as XMB_ALL_PATH.
@@ -476,15 +475,6 @@ internal fun SteamXmbView(
         val infoH = if (!steam) m.infoH else if (m.port) m.h - infoY - 84f else m.h - infoY - max(64f, sl.bottomClear)
         // The Classic XMB's description takes this many lines (the Steam home's panel fits its blocks to its room, see XmbSteamInfo).
         val infoLines = if (m.port) 6 else 3
-        // The collage behind the hovered All Games card: a 5 x 3 grid of covers (repeated when the library is small), drawn once
-        // off the main thread.
-        val collageSpec = xmbCollageSpec(maxWidth.value / maxHeight.value.coerceAtLeast(1f), collageArts.size)
-        val collageState = remember(collageArts, collageSpec) { mutableStateOf<Bitmap?>(null) }
-        LaunchedEffect(collageState, onAll) {
-            if (onAll && collageSpec != null && collageState.value == null) {
-                collageState.value = withContext(Dispatchers.Default) { xmbCollageBitmap(collageArts, collageSpec) }
-            }
-        }
         // One card's step on screen: the Steam home's covers are drawn at their own sizes.
         val pitchPx = with(density) { (if (steam) sl.fW + sl.gap else m.pitch).dp.toPx() }
         val rowPx = with(density) { rowH.dp.toPx() }
@@ -637,10 +627,8 @@ internal fun SteamXmbView(
             // Background: black, the focused cover blurred at full brightness, one flat veil for the text. Nothing else (no accent
             // glow, no scrims, no preset colour), so the home looks the same under every preset. The All Games card has no art, so on
             // it only the black shows.
-            // On the All Games card, the collage of the games inside it (a plain Bitmap, so it is blurred, dimmed and crossfaded
-            // exactly like a cover). It is built the first time the card is hovered, then kept until the games change.
-            val collage = collageState.value
-            val picture: Any? = focused?.icon ?: (if (onAll) collage?.let { XmbCollagePicture(it) } else null)
+            // On the All Games card, the wall of the games inside it (crossfaded like a cover).
+            val picture: Any? = focused?.icon ?: (if (onAll) wallPicture else null)
             // The Steam home shows the focused game's own landscape art over that (the blurred cover stays under it until it loads).
             // Its bottom gradient starts XMB_STEAM_FADE_LEAD above the text tabs' top edge (the tabs sit in the content box, below the
             // top bar's inset), so it is already building behind the title; it is drawn under the content box, so the text and covers stay clear of it.
@@ -1166,23 +1154,17 @@ private const val XMB_BACKDROP_VEIL = 0.30f
 /** Below API 31 the backdrop art is shrunk to 1/this of its size and scaled back up, which looks blurred. */
 internal const val XMB_BACKDROP_SOFT_DIV = 16
 
-/** The collage behind the hovered All Games card is blurred only very slightly (a tenth of [XMB_BACKDROP_BLUR]). */
-private val XMB_COLLAGE_BLUR = 1.6.dp
-
-/** Below API 31 the collage is not shrunk at all (it is already a small bitmap, scaled up with filtering), so it stays only slightly soft. */
-internal const val XMB_COLLAGE_SOFT_DIV = 1
-
 /** The size [xmbBackdropSoftBitmap] shrinks a [w] x [h] picture to (by [div]); never below 1 px. */
 internal fun xmbBackdropSoftSize(w: Int, h: Int, div: Int = XMB_BACKDROP_SOFT_DIV): Pair<Int, Int> =
     max(1, w / div.coerceAtLeast(1)) to max(1, h / div.coerceAtLeast(1))
 
-/** What the backdrop shows on the All Games card: the [bitmap] collage of its games (it gets its own, lighter blur). */
-private data class XmbCollagePicture(val bitmap: Bitmap)
+/** What the backdrop shows on the All Games card: the drifting capsule wall of its games' [covers]. */
+private class XmbWallPicture(val covers: List<DeckCover>)
 
 /**
  * The home backdrop, one implementation for the games row and the All Games page: black, then [picture] blurred at full
  * brightness and crossfaded when it changes, then one flat veil for the text. [picture] is a game's cover (a [Bitmap]),
- * the All Games collage, or null for the black base alone. Fills its parent.
+ * the All Games wall, or null for the black base alone. Fills its parent.
  */
 @Composable
 internal fun XmbHomeBackdrop(picture: Any?) {
@@ -1193,8 +1175,7 @@ internal fun XmbHomeBackdrop(picture: Any?) {
         Crossfade(targetState = picture, animationSpec = tween(600), label = "xmbBackdrop") { pic ->
             when (pic) {
                 is Bitmap -> XmbBackdropBitmap(pic, nativeBlur, XMB_BACKDROP_BLUR, XMB_BACKDROP_SOFT_DIV)
-                // The collage is only slightly blurred (each crossfade layer has its own blur).
-                is XmbCollagePicture -> XmbBackdropBitmap(pic.bitmap, nativeBlur, XMB_COLLAGE_BLUR, XMB_COLLAGE_SOFT_DIV)
+                is XmbWallPicture -> DeckCapsuleWall(pic.covers, driftMs = 40_000)
             }
         }
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = XMB_BACKDROP_VEIL)))
@@ -1228,28 +1209,6 @@ private fun xmbBackdropSoftBitmap(src: Bitmap, div: Int = XMB_BACKDROP_SOFT_DIV)
     var cur = src
     while (cur.width / 2 > w && cur.height / 2 > h) cur = Bitmap.createScaledBitmap(cur, cur.width / 2, cur.height / 2, true)
     Bitmap.createScaledBitmap(cur, w, h, true)
-}.getOrNull()
-
-/**
- * The backdrop behind the hovered All Games card: [arts] (decoded covers, most recent first) tiled row by row into the grid of
- * [spec], each centre-cropped to its cell, as one small bitmap. The backdrop then treats it as any other picture (the same veil
- * and crossfade, but a much lighter blur: XMB_COLLAGE_BLUR, XMB_COLLAGE_SOFT_DIV), so it costs one draw like a cover. Cells with no cover stay black; a
- * cover that can't be drawn is skipped. Null if the bitmap can't be made.
- */
-private fun xmbCollageBitmap(arts: List<Bitmap>, spec: XmbCollageSpec): Bitmap? = runCatching {
-    val out = Bitmap.createBitmap(spec.width, spec.height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(out)
-    canvas.drawColor(android.graphics.Color.BLACK)
-    val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-    for (i in 0 until min(spec.cols * spec.rows, arts.size)) {
-        val art = arts[i]
-        val cell = xmbCellRect(i, spec.cols, spec.rows, spec.width, spec.height)
-        val crop = xmbCenterCrop(art.width, art.height, cell.width, cell.height)
-        runCatching {
-            canvas.drawBitmap(art, Rect(crop.left, crop.top, crop.right, crop.bottom), Rect(cell.left, cell.top, cell.right, cell.bottom), paint)
-        }
-    }
-    out
 }.getOrNull()
 
 // Right / lower pane: store badges, the same spec chips as the list card, playtime and Game Details.
