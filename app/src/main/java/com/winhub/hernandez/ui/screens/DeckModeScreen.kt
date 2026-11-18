@@ -176,6 +176,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
 import com.winhub.hernandez.R
+import com.winhub.hernandez.ui.deck.rememberScreenScale
 import com.winhub.hernandez.XServerDisplayActivity
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.ui.deck.DeckActions
@@ -1576,7 +1577,8 @@ private fun DeckHome(
                 onClick = onSwitchToRetro,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 16.dp, top = if (fullXmb) 38.dp else 8.dp)
+                    // Under the shell's floating tab bar (the Steam style's shelf strip sits at the same height, in the middle).
+                    .padding(start = 16.dp, top = if (steamStyle) rememberScreenScale().dp(XMB_PEEK_CLIP + 6f) else if (fullXmb) 38.dp else 8.dp)
                     .graphicsLayer { alpha = homeFade * (1f - launchT.value) },
             )
             // Shelves (L2/R2) top centre, status top right.

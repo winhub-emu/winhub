@@ -188,6 +188,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     val hasPad = rememberGamepadConnected()
     val deckTabs = LocalDeckTabs.current
     val fullXmb = rememberFullXmb()
+    val steam = rememberSteamHome()
     val topInset = LocalTopBarOverlayInset.current
     val hintInset = LocalXmbHintInset.current
 
@@ -542,12 +543,6 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                             },
                             onStep = { delta -> stepGame(delta) },
                         )
-                        RetroFilterStrip(
-                            listOf(stringResource(R.string.retro_filter_all)) + consoles.map { it.name },
-                            listOf(0) + consoles.map { RetroIcons.of(context, it) },
-                            shelf, sl, ss, accent,
-                            Modifier.align(Alignment.TopCenter).offset(y = sl.tabsTop.dp).graphicsLayer { alpha = 1f - lift() },
-                        ) { deckTabs.select(it) }
                         // The options: the column under the lifted card and the game's details beside it.
                         RetroOptions(actions, actIdx, sl, accent, lift, optsOpen, onStep = { delta -> stepAction(delta) }) { i ->
                             DeckSound.play(DeckSound.SELECT)
@@ -559,17 +554,31 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                 }
             }
 
-            // Top left the switch; top right how far the pictures are.
-            val top = topInset + (if (fullXmb) 38.dp else 8.dp)
-            RetroSwitchChip(
-                stringResource(R.string.retro_switch_to_pc).uppercase(), hasPad, onSwitchToPc,
-                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = top),
-            )
-            coverProgress?.let { (done, total) ->
-                Text(
-                    stringResource(R.string.retro_covers_progress, done, total), color = PAGE_MUTED, fontSize = ss.sp(14f),
-                    maxLines = 1, modifier = Modifier.align(Alignment.TopEnd).padding(end = 16.dp, top = top + 12.dp),
-                )
+            // The top row, under the shell's tab bar like the PC Home's shelf strip: the switch, then the filters (All and the consoles)
+            // with how far the pictures are.
+            val top = topInset + (if (steam) ss.dp(XMB_PEEK_CLIP + 6f) else if (fullXmb) 38.dp else 8.dp)
+            Row(
+                Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = top),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RetroSwitchChip(stringResource(R.string.retro_switch_to_pc).uppercase(), hasPad, onSwitchToPc)
+                if (ready != null && allGames.isNotEmpty()) {
+                    Spacer(Modifier.width(12.dp))
+                    RetroFilterStrip(
+                        listOf(stringResource(R.string.retro_filter_all)) + consoles.map { it.name },
+                        listOf(0) + consoles.map { RetroIcons.of(context, it) },
+                        shelf, ss, accent,
+                        Modifier.weight(1f).graphicsLayer { alpha = 1f - lift() },
+                    ) { deckTabs.select(it) }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                coverProgress?.let { (done, total) ->
+                    Text(
+                        stringResource(R.string.retro_covers_progress, done, total), color = PAGE_MUTED, fontSize = ss.sp(14f),
+                        maxLines = 1, modifier = Modifier.padding(start = 12.dp),
+                    )
+                }
             }
         }
     }
@@ -877,15 +886,17 @@ private fun RetroFilterStrip(
     labels: List<String>,
     icons: List<Int>,
     selected: Int,
-    sl: XmbSteamLayout,
     ss: ScreenScale,
     accent: Color,
     modifier: Modifier,
     onSelect: (Int) -> Unit,
 ) {
-    val first = (selected - 2).coerceAtMost(labels.size - 5).coerceAtLeast(0)
-    val last = (first + 4).coerceAtMost(labels.lastIndex)
-    Row(modifier.height(XMB_STEAM_TABS_H.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+  // As many filters as the room beside the switch holds, the current one in the middle of them.
+  BoxWithConstraints(modifier.height(XMB_STEAM_TABS_H.dp)) {
+    val count = (maxWidth.value / 125f).toInt().coerceIn(1, 5)
+    val first = (selected - count / 2).coerceAtMost(labels.size - count).coerceAtLeast(0)
+    val last = (first + count - 1).coerceAtMost(labels.lastIndex)
+    Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         for (i in first..last) {
             val on = i == selected
             val shape = RoundedCornerShape(14.dp)
@@ -914,6 +925,7 @@ private fun RetroFilterStrip(
             }
         }
     }
+  }
 }
 
 /** A console illustration: a vector drawable as it is, a PNG decoded off the main thread at a sensible size. */
