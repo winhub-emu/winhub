@@ -165,6 +165,7 @@ internal fun DeckSettingsScreen() {
     var retroRoot by remember { mutableStateOf(RetroLibrary.romRoot(context)) }
     var retroConsoleCount by remember { mutableStateOf(RetroLibrary.enabledSystems(context).size) }
     var showRetroConsoles by remember { mutableStateOf(false) }
+    var retroHidden by remember { mutableStateOf(RetroLibrary.excludedPaths(context).size) }
     val retroFolderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }?.let {
@@ -874,6 +875,22 @@ internal fun DeckSettingsScreen() {
                 hint = if (retroConsoleCount == 0) "None picked. Pick the consoles whose games the retro library shows" else "$retroConsoleCount picked",
             ) {
                 DeckButton("Choose", primary = false) { showRetroConsoles = true }
+            }
+            DeckRow(
+                label = "Removed games",
+                hint = if (retroHidden == 0) "None removed from the retro library" else "$retroHidden removed from the retro library. Their ROM files are untouched",
+            ) {
+                DeckButton("Show again", primary = false, enabled = retroHidden > 0) {
+                    RetroLibrary.clearExcluded(context)
+                    RetroSession.scan = null
+                    retroHidden = 0
+                }
+            }
+            DeckRow(label = "Rescan library", hint = "Looks for new and missing ROM files the next time the retro library opens") {
+                DeckButton("Rescan", primary = false) {
+                    RetroSession.scan = null
+                    Toast.makeText(context, "The retro library rescans when you open it", Toast.LENGTH_SHORT).show()
+                }
             }
         }
         if (showRetroConsoles) RetroConsolesDialog {

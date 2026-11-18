@@ -515,6 +515,11 @@ internal object RetroArt {
         return saved
     }
 
+    /** Forgets that [game] had nothing to find, so the next [download] asks for its pictures again. */
+    fun forgetMisses(context: Context, game: RetroGame) {
+        listOf("none", "nohero", "nowide").forEach { marker(context, game, it).delete() }
+    }
+
     /** Forgets which games had nothing to find, so the next [download] asks for them again. */
     fun clearMisses(context: Context) {
         File(context.filesDir, "retro_art").listFiles()?.forEach { dir ->

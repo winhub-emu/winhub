@@ -46,15 +46,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -162,6 +159,7 @@ internal fun RetroPortraitScreen(onSwitchToPc: () -> Unit) {
     var coverVersion by remember { mutableIntStateOf(0) }
     var emuTick by remember { mutableIntStateOf(0) }
     var scrapeTick by remember { mutableIntStateOf(0) }
+    var refreshPath by remember { mutableStateOf<String?>(null) }
     var metaTick by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(tick) {
@@ -213,14 +211,15 @@ internal fun RetroPortraitScreen(onSwitchToPc: () -> Unit) {
     LaunchedEffect(filter?.id, games, scrapeTick) {
         if (games.isEmpty()) return@LaunchedEffect
         val banner = games.firstOrNull { played.containsKey(it.path) }
-        val ordered = (listOfNotNull(banner) + games).distinct()
+        val refreshed = games.firstOrNull { it.path == refreshPath }
+        val ordered = (listOfNotNull(refreshed, banner) + games).distinct()
         withContext(Dispatchers.IO) {
             RetroArt.download(
                 context, ordered, root,
                 stopped = { !isActive },
                 onProgress = { _, _ -> },
                 onSaved = { coverVersion++ },
-                wide = setOfNotNull(banner?.path),
+                wide = setOfNotNull(banner?.path, refreshPath),
             )
         }
     }
@@ -313,20 +312,18 @@ internal fun RetroPortraitScreen(onSwitchToPc: () -> Unit) {
         val sys = catalog.byId[game.systemId]
         if (sys != null) {
             val emulatorName = RetroLibrary.resolveEmulator(context, sys)?.name
-            val hidden = RetroLibrary.excludedPaths(context).size
+            // This game's own options; the library's (consoles, ROM folder, removed games, rescan) are in Settings > Retro library.
             val items = buildList {
                 add(DeckConsoleItem(context.getString(R.string.retro_opt_play), Icons.Filled.PlayArrow) { retroPlay(context, sys, game) })
                 add(DeckConsoleItem(context.getString(R.string.retro_opt_details), Icons.Filled.Edit) { detailsFor = game })
                 add(DeckConsoleItem(context.getString(R.string.retro_opt_emulator), Icons.Filled.SportsEsports) { emulatorFor = game })
                 add(DeckConsoleItem(context.getString(R.string.retro_opt_covers), Icons.Filled.PhotoLibrary) {
-                    scope.launch(Dispatchers.IO) { RetroArt.clearMisses(context); scrapeTick++ }
+                    scope.launch(Dispatchers.IO) {
+                        RetroArt.forgetMisses(context, game)
+                        refreshPath = game.path
+                        scrapeTick++
+                    }
                 })
-                add(DeckConsoleItem(context.getString(R.string.retro_opt_consoles), Icons.Filled.GridView) { consolesDialog = true })
-                if (hidden > 0) add(DeckConsoleItem(context.getString(R.string.retro_opt_restore), Icons.Filled.Visibility) {
-                    RetroLibrary.clearExcluded(context); rescan()
-                })
-                add(DeckConsoleItem(context.getString(R.string.retro_opt_folder), Icons.Filled.FolderOpen) { chooseFolder() })
-                add(DeckConsoleItem(context.getString(R.string.retro_opt_rescan), Icons.Filled.Refresh) { rescan() })
                 add(DeckConsoleItem(context.getString(R.string.retro_opt_remove), Icons.Filled.Delete, danger = true) { removeFor = game })
             }
             PortraitGameMenuSheet(

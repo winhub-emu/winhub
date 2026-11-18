@@ -47,11 +47,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.CircularProgressIndicator
@@ -233,6 +230,8 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
     var coverVersion by remember { mutableIntStateOf(0) }
     var emuTick by remember { mutableIntStateOf(0) }
     var scrapeTick by remember { mutableIntStateOf(0) }
+    // A game whose pictures were asked for again by hand: fetched first, banner included.
+    var refreshPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(tick) {
         state = RetroState.Loading
@@ -318,7 +317,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
         if (games.isEmpty()) return@LaunchedEffect
         val from = target.coerceIn(0, games.lastIndex)
         // The first card is a banner, as on the PC Home: the first game and the ones played last get one. They come first.
-        val banners = (listOfNotNull(games.firstOrNull()?.path) + played.entries.sortedByDescending { it.value }.take(5).map { it.key }).toSet()
+        val banners = (listOfNotNull(games.firstOrNull()?.path) + played.entries.sortedByDescending { it.value }.take(5).map { it.key } + listOfNotNull(refreshPath)).toSet()
         val ordered = (games.filter { it.path in banners } + games.drop(from) + games.take(from)).distinct()
         withContext(Dispatchers.IO) {
             coverProgress = 0 to ordered.size
@@ -449,7 +448,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
             a.onClick()
         }
     }
-    // Built only while the options are open: Play first, then the game's details, the emulator to launch from, then the library's own.
+    // Built only while the options are open: this game's own options, Play first. The library's (consoles, ROM folder, removed games, rescan) are Settings > Retro library.
     val mainActions: List<XmbAction> = if (!optsOpen || focusedSystem == null || focusedGame == null) emptyList() else {
         val items = ArrayList<XmbAction>()
         // The scan's own name for the game, which the name field shows until it is edited.
@@ -466,7 +465,11 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
         )
         items += XmbAction(context.getString(R.string.retro_opt_covers), Icons.Filled.PhotoLibrary, subtitle = context.getString(R.string.retro_opt_covers_sub)) {
             closeOpts()
-            scope.launch(Dispatchers.IO) { RetroArt.clearMisses(context); scrapeTick++ }
+            scope.launch(Dispatchers.IO) {
+                RetroArt.forgetMisses(context, focusedGame)
+                refreshPath = focusedGame.path
+                scrapeTick++
+            }
         }
         items += XmbAction(context.getString(R.string.retro_opt_remove), Icons.Filled.Delete, subtitle = focusedGame.title, danger = true) {
             // A confirm column that opens on Cancel, so a stray A never removes.
@@ -478,19 +481,6 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                 ),
             ) { removeGame(focusedSystem, focusedGame) }
         }
-        items += XmbAction(context.getString(R.string.retro_opt_consoles), Icons.Filled.GridView, subtitle = context.getString(R.string.retro_opt_consoles_sub)) {
-            closeOpts(); consolesDialog = true
-        }
-        val hidden = RetroLibrary.excludedPaths(context).size
-        if (hidden > 0) {
-            items += XmbAction(context.getString(R.string.retro_opt_restore), Icons.Filled.Visibility, subtitle = context.getString(R.string.retro_opt_restore_sub, hidden)) {
-                RetroLibrary.clearExcluded(context); closeOpts(); rescan()
-            }
-        }
-        items += XmbAction(context.getString(R.string.retro_opt_folder), Icons.Filled.FolderOpen, subtitle = root ?: RetroLibrary.romRoot(context)) {
-            closeOpts(); chooseFolder()
-        }
-        items += XmbAction(context.getString(R.string.retro_opt_rescan), Icons.Filled.Refresh) { closeOpts(); rescan() }
         items
     }
     val actions = mainActions
@@ -624,7 +614,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
                 .pointerInput(Unit) { detectTapGestures { } },
         ) {
             // The PC Home's backdrop: the game's own background over its blurred cover, with the navy fade toward the strip.
-            RetroBackdrop(backdropCover, backdropHero, (topInset.value + sl.tabsTop - XMB_STEAM_FADE_LEAD * ss.factor) / screenH.coerceAtLeast(1f))
+            RetroBackdrop(backdropCover, backdropHero, (topInset.value + sl.tabsTop - XMB_STEAM_FADE_LEAD * ss.factor) / screenH.coerceAtLeast(1f), lift)
 
             Box(Modifier.fillMaxSize().padding(top = topInset)) {
                 when (val s = state) {
@@ -732,20 +722,25 @@ internal fun loadState(context: Context): RetroState {
 // ── The backdrop and the row (the PC Home's: one row of covers over the game's background, the focused card larger, its title under it) ──
 
 @Composable
-private fun RetroBackdrop(cover: Bitmap?, hero: Bitmap?, fadeFrom: Float) {
+private fun RetroBackdrop(cover: Bitmap?, hero: Bitmap?, fadeFrom: Float, lift: () -> Float) {
+    val blurs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     Box(Modifier.fillMaxSize()) {
-        XmbHomeBackdrop(cover)
-        Crossfade(targetState = hero, animationSpec = tween(600), label = "retroHero") { h ->
-            if (h != null) {
-                Image(
-                    bitmap = remember(h) { h.asImageBitmap() },
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    alignment = Alignment.TopCenter,
-                    modifier = Modifier.fillMaxSize(),
-                )
+        // The art blurs and dims as the options open (API 31+; below that only a stronger dim), so the options' text reads over any picture.
+        XmbSteamBlurred(lift, blurs) {
+            XmbHomeBackdrop(cover)
+            Crossfade(targetState = hero, animationSpec = tween(600), label = "retroHero") { h ->
+                if (h != null) {
+                    Image(
+                        bitmap = remember(h) { h.asImageBitmap() },
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.TopCenter,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = xmbSteamBackdropDim(lift(), blurs) }.background(Color.Black))
         Box(Modifier.fillMaxSize().background(xmbSteamBottomFade(fadeFrom.coerceIn(0.25f, 0.97f))))
     }
 }

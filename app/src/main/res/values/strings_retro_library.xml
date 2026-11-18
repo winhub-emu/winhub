@@ -31,7 +31,7 @@
 
     <string name="retro_opt_emulator">Emulator</string>
     <string name="retro_opt_covers">Get covers</string>
-    <string name="retro_opt_covers_sub">Downloads box art for this console</string>
+    <string name="retro_opt_covers_sub">Fetch this game\'s cover and background again</string>
     <string name="retro_opt_folder">ROM folder</string>
     <string name="retro_opt_rescan">Rescan library</string>
     <string name="retro_opt_remove">Remove game</string>
