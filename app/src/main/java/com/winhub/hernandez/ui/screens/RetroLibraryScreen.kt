@@ -140,7 +140,7 @@ import kotlin.math.max
 private val PAGE_TEXT = Color(0xFFEDEDED)
 private val PAGE_MUTED = Color(0xFFB4B4B4)
 
-private sealed interface RetroState {
+internal sealed interface RetroState {
     data object Loading : RetroState
     data object NoRoot : RetroState
     data class Missing(val path: String) : RetroState
@@ -149,7 +149,7 @@ private sealed interface RetroState {
 
 // What outlives the screen for the process: the last scan, so switching between the libraries doesn't walk the ROM folder every time,
 // and where the cursor was.
-private object RetroSession {
+internal object RetroSession {
     @Volatile var scan: RetroScan? = null
     @Volatile var root: String? = null
     /** The filter last on: a console id, "" for All. */
@@ -602,7 +602,7 @@ internal fun RetroLibraryScreen(onSwitchToPc: () -> Unit, focus: FocusRequester)
 }
 
 /** Finds the ROM folder (the saved one, else the best usual place) and scans it. Run off the main thread. */
-private fun loadState(context: Context): RetroState {
+internal fun loadState(context: Context): RetroState {
     var root = RetroLibrary.romRoot(context)
     if (root == null) {
         root = RetroLibrary.detectRoot(context)
@@ -995,7 +995,7 @@ internal fun RetroIcon(@DrawableRes res: Int, modifier: Modifier) {
 }
 
 @Composable
-private fun RetroEmpty(title: String, body: String, action: String, modifier: Modifier, onAction: () -> Unit) {
+internal fun RetroEmpty(title: String, body: String, action: String, modifier: Modifier, onAction: () -> Unit) {
     val ss = rememberScreenScale()
     val src = remember { MutableInteractionSource() }
     val accent = MaterialTheme.colorScheme.primary
@@ -1020,7 +1020,7 @@ private fun RetroEmpty(title: String, body: String, action: String, modifier: Mo
 
 /** A game's cover, decoded off the main thread; null while it loads and when the game has none. */
 @Composable
-private fun rememberCover(system: RetroSystem?, game: RetroGame?, root: String?, version: Int): Bitmap? {
+internal fun rememberCover(system: RetroSystem?, game: RetroGame?, root: String?, version: Int): Bitmap? {
     val context = LocalContext.current
     val bmp by produceState<Bitmap?>(null, game?.path, version) {
         value = if (system == null || game == null) null else withContext(Dispatchers.IO) { RetroPictures.cover(context, system, game, root) }
@@ -1030,7 +1030,7 @@ private fun rememberCover(system: RetroSystem?, game: RetroGame?, root: String?,
 
 /** A game's background picture, decoded off the main thread; null while it loads and when the game has none. */
 @Composable
-private fun rememberHero(game: RetroGame?, version: Int): Bitmap? {
+internal fun rememberHero(game: RetroGame?, version: Int): Bitmap? {
     val context = LocalContext.current
     val bmp by produceState<Bitmap?>(null, game?.path, version) {
         value = if (game == null) null else withContext(Dispatchers.IO) { RetroPictures.hero(context, game) }
@@ -1038,7 +1038,7 @@ private fun rememberHero(game: RetroGame?, version: Int): Bitmap? {
     return bmp
 }
 
-private object RetroPictures {
+internal object RetroPictures {
     private const val CACHE_BYTES = 32 * 1024 * 1024
     private const val COVER_WIDTH = 360
     private const val HERO_WIDTH = 1280

@@ -51,6 +51,13 @@ import androidx.compose.runtime.withFrameNanos
 /** One line saying what each game-menu row does (bannercode shows these under every row). */
 private fun menuHint(label: String): String? = when (label) {
     "Play" -> "Starts the game with its saved launch choice."
+    "Emulator" -> "Choose the app this console's games start in."
+    "Get covers" -> "Fetch the covers and backgrounds that are missing."
+    "Remove game" -> "Takes it off the library. The ROM file stays on the device."
+    "Consoles" -> "Pick the consoles the library shows."
+    "Show removed games" -> "Brings back the games you removed."
+    "ROM folder" -> "Where your ROMs are."
+    "Rescan library" -> "Looks for new and missing ROM files."
     "Launch method" -> "Choose how this game starts and whether to remember it."
     "Settings" -> "Display, graphics, controls and more, for this game only."
     "Game Doctor" -> "Finds why it won't run and offers one-tap fixes."

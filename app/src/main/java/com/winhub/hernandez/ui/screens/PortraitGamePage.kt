@@ -211,7 +211,7 @@ internal fun PortraitGamePage(
 }
 
 @Composable
-private fun PortraitPill(text: String, icon: ImageVector) {
+internal fun PortraitPill(text: String, icon: ImageVector) {
     val shape = RoundedCornerShape(16.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -229,7 +229,7 @@ private fun PortraitPill(text: String, icon: ImageVector) {
 }
 
 @Composable
-private fun PortraitStat(label: String, value: String, modifier: Modifier) {
+internal fun PortraitStat(label: String, value: String, modifier: Modifier) {
     val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
@@ -245,7 +245,7 @@ private fun PortraitStat(label: String, value: String, modifier: Modifier) {
 
 /** 56dp touch/controller button; a thicker primary border shows focus. */
 @Composable
-private fun PortraitPageButton(
+internal fun PortraitPageButton(
     label: String,
     icon: ImageVector,
     primary: Boolean,

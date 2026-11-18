@@ -85,4 +85,11 @@
     <string name="retro_details_players">Players</string>
     <string name="retro_details_save">Save</string>
     <string name="retro_details_reset">Reset to the file\'s own</string>
+
+    <string name="retro_portrait_library">Library</string>
+    <string name="retro_portrait_library_count">Library \u00b7 %1$d</string>
+    <string name="retro_portrait_last_played">Last played</string>
+    <string name="retro_portrait_console">Console</string>
+    <string name="retro_portrait_details">Details</string>
+    <string name="retro_portrait_about">ABOUT THIS GAME</string>
 </resources>

@@ -94,6 +94,8 @@ internal fun PortraitHome(
     // Holding a cover opens that game's menu.
     onMenu: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    // The switch to the retro library: the first chip of the shelf row.
+    onSwitchLibrary: (() -> Unit)? = null,
 ) {
     val state = rememberLazyGridState()
     val context = LocalContext.current
@@ -116,6 +118,7 @@ internal fun PortraitHome(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             ) {
+                if (onSwitchLibrary != null) RetroPortraitSwitchChip(context.getString(R.string.retro_switch_to_retro).uppercase(), onSwitchLibrary)
                 shelfLabels.forEachIndexed { i, label ->
                     val on = i == shelf
                     Box(
@@ -357,7 +360,7 @@ private fun PortraitSourceBadge(store: String?, modifier: Modifier) {
 
 /** WinHub wordmark on the left; on the right the clock and the Social Hub account's avatar. */
 @Composable
-private fun PortraitHeader() {
+internal fun PortraitHeader() {
     val context = LocalContext.current
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {

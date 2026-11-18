@@ -1424,6 +1424,7 @@ private fun DeckHome(
                 onPlay = { i -> visible.getOrNull(i)?.let { playEntry(it) } },
                 onAdd = { addModeMenu = true },
                 onMenu = { i -> selected = i; classicMenu = true },
+                onSwitchLibrary = onSwitchToRetro,
             ) else if (steamStyle) CompositionLocalProvider(LocalDeckActions provides steamActions) {
                 XmbTabsPageHost(
                     open = steamPageOpen,
@@ -2055,7 +2056,7 @@ private fun DeckPaneContent(
         val glassPage = glassLook && !portrait && currentSection != "home"
         val body: @Composable () -> Unit = {
         when (currentSection) {
-            "home" -> if (retro && !portrait) RetroLibraryScreen(onSwitchToPc = { retro = false }, focus = homeFocus) else DeckHome(
+            "home" -> if (retro && portrait) RetroPortraitScreen(onSwitchToPc = { retro = false }) else if (retro) RetroLibraryScreen(onSwitchToPc = { retro = false }, focus = homeFocus) else DeckHome(
                 heroFocus = homeFocus,
                 onEditContainer = onEditContainer,
                 portrait = portrait,
