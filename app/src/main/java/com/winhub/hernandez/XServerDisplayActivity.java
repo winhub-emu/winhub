@@ -445,6 +445,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
     // Playtime stats tracking
     private long startTime;
+    // Set once when the session starts (startTime is reset by every playtime save); Game Doctor's auto step-down reads it.
+    private long sessionStartedAt;
     private SharedPreferences playtimePrefs;
     private String shortcutName;
     private Handler handler;
@@ -1919,6 +1921,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
         // Record the start time
         startTime = System.currentTimeMillis();
+        sessionStartedAt = startTime;
 
         // Initialize handler for periodic saving
         handler = new Handler(Looper.getMainLooper());
@@ -5409,6 +5412,15 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 // the main thread. (Teardown above stays on-main; it's short.)
                 preloaderDialog.hint(getString(R.string.saving_on_exit));
                 new Thread(() -> {
+                    // Game Doctor: a session that died on a CPU-translation fault gets one FEX preset step safer.
+                    if (shortcut != null) {
+                        try {
+                            com.winhub.hernandez.communityconfigs.GameDoctor.INSTANCE.autoStepDown(
+                                    getApplicationContext(), shortcut, sessionStartedAt);
+                        } catch (Exception e) {
+                            Log.w("XServerDisplayActivity", "Game Doctor auto step-down errored", e);
+                        }
+                    }
                     // Controller input log: first, because it is quick and the network steps below may be
                     // cut short by a user who swipes the app away. No-op unless this launch began one.
                     if (com.winhub.hernandez.core.ControllerLog.isActive()) {

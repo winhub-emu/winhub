@@ -117,12 +117,14 @@ internal fun DeckContainerDetailScreen(
         else -> "Create Container"
     }
 
-    val tabTitles = remember {
-        listOf("General", "Graphics", "Performance", "CPU", "Input", "Environment", "Wine")
+    val advancedView = DeckSettingsMode.advanced(LocalContext.current)
+    val tabTitles = remember(advancedView) {
+        if (advancedView) listOf("General", "Graphics", "Performance", "CPU", "Input", "Environment", "Wine")
+        else listOf("Simple")
     }
     val tabs = LocalDeckTabs.current
     val tab = tabs.index
-    LaunchedEffect(tabs) { tabs.bind(tabTitles.size) }
+    LaunchedEffect(tabs, tabTitles.size) { tabs.bind(tabTitles.size) }
 
     // Which inline config section is expanded (null = all collapsed). One at a time, so a row's
     // editor pushes the rows below it down without stacking several open at once.
@@ -328,8 +330,9 @@ internal fun DeckContainerDetailScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp),
             ) {
-                when (currentTab) {
+                if (!advancedView) DeckSimpleContainerPage(viewModel) else when (currentTab) {
                     0 -> {
+                        DeckGroup("View") { DeckViewModeRow() }
                         DeckGroup("Container") {
                             DeckTextRow(
                                 label = "Container Name",

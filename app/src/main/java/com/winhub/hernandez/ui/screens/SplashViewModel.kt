@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import com.winhub.hernandez.MainActivity
+import com.winhub.hernandez.core.DriverUpdateChecker
 import com.winhub.hernandez.ui.screens.contents.ContentsInstaller
 import com.winhub.hernandez.xenvironment.ImageFs
 import com.winhub.hernandez.xenvironment.ImageFsInstaller
@@ -12,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** One component the first-run install downloads. [driver] items go through the adrenotools importer. */
 internal data class FirstRunContent(val label: String, val url: String, val driver: Boolean = false)
@@ -27,16 +29,18 @@ internal val FIRST_RUN_CONTENTS = listOf(
     ),
     FirstRunContent(
         label = "DXVK 2.4.1 gplasync",
-        url = "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync-arm64ec/dxvk-gplasync-arm64ec-2.4.1-1.wcp",
+        url = "https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync/dxvk-gplasync-2.4.1-1.wcp",
     ),
     FirstRunContent(
-        label = "FEXCore 2610 PPA unix",
-        url = "https://github.com/The412Banner/Nightlies/releases/download/FexCore/FEXCore-2610-PPA-unix.wcp",
+        label = "FEXCore 2611.1 PPA unix",
+        url = "https://github.com/The412Banner/Nightlies/releases/download/FexCore/FEXCore-2611.1-PPA-unix.wcp",
     ),
     FirstRunContent(
         label = "VKD3D 3.0.1",
         url = "https://github.com/The412Banner/Nightlies/releases/download/VKD3D-PROTON-ARM/vkd3d-proton-arm64ec-3.0.1.wcp",
     ),
+    // The URL is picked at install time from the GPU (Gen8 on A8xx, A7xx on the other Adreno chips).
+    FirstRunContent(label = "GPU driver", url = "", driver = true),
 )
 
 class SplashViewModel(app: Application) : AndroidViewModel(app) {
@@ -145,7 +149,7 @@ class SplashViewModel(app: Application) : AndroidViewModel(app) {
         ((done * 100 + pct.coerceIn(0, 100)) / slices).coerceIn(0, 100)
 
     /**
-     * One-time component setup after a fresh ImageFS extract: Proton, DXVK, FEXCore and VKD3D,
+     * One-time component setup after a fresh ImageFS extract: Proton, DXVK, FEXCore, VKD3D and the GPU driver,
      * pinned to the exact Official-catalog builds, then any extras the user ticked in the wizard,
      * installed sequentially behind the same overlay. Failures are counted, not fatal — the user
      * can retry from Contents later.
@@ -165,10 +169,15 @@ class SplashViewModel(app: Application) : AndroidViewModel(app) {
                     _progress.value = overall(slices, index + 1, pct)
                 }
             }
-            val ok = if (item.driver) {
-                ContentsInstaller.installDriverAwait(app, item.url, onStatus) != null
+            val url = if (item.driver && item.url.isBlank()) {
+                withContext(Dispatchers.IO) { DriverUpdateChecker.firstRunUrl(app) }
             } else {
-                ContentsInstaller.installAwait(app, item.url, onStatus)
+                item.url
+            }
+            val ok = when {
+                url == null -> true   // no matching driver for this GPU: nothing to install
+                item.driver -> ContentsInstaller.installDriverAwait(app, url, onStatus) != null
+                else -> ContentsInstaller.installAwait(app, url, onStatus)
             }
             if (!ok) failures++
             _progress.value = overall(slices, index + 2, 0)

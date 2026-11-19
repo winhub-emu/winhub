@@ -73,10 +73,11 @@ object GameDoctor {
     // ── Logs ──────────────────────────────────────────────────────────────────────────────────
 
     /** The tail of this game's newest log files joined together, or null when it has none. */
-    private fun readLogs(context: Context, shortcut: Shortcut): String? {
+    private fun readLogs(context: Context, shortcut: Shortcut, since: Long = 0L): String? {
         val entry = LogInventory.forGame(context, shortcut.name) ?: return null
         val files = entry.dir.listFiles { f ->
-            f.isFile && (f.extension.equals("log", ignoreCase = true) || f.extension.equals("txt", ignoreCase = true))
+            f.isFile && f.lastModified() >= since &&
+                (f.extension.equals("log", ignoreCase = true) || f.extension.equals("txt", ignoreCase = true))
         }?.sortedByDescending { it.lastModified() }?.take(MAX_LOG_FILES)
         if (files.isNullOrEmpty()) return null
         return files.joinToString("\n") { tail(it) }.ifBlank { null }
@@ -340,8 +341,10 @@ object GameDoctor {
 
     // ── Undo ──────────────────────────────────────────────────────────────────────────────────
 
-    private fun snapshotFile(context: Context, shortcut: Shortcut): File =
-        File(File(context.filesDir, "doctor_undo"), shortcut.file.absolutePath.hashCode().toUInt().toString(16) + ".desktop")
+    private fun snapshotFile(context: Context, shortcut: Shortcut): File = snapshotFile(context, shortcut.file)
+
+    private fun snapshotFile(context: Context, file: File): File =
+        File(File(context.filesDir, "doctor_undo"), file.absolutePath.hashCode().toUInt().toString(16) + ".desktop")
 
     /** Copy the shortcut's file aside so [restore] can put it back. Call before the first change. */
     fun snapshot(context: Context, shortcut: Shortcut): Boolean = try {
@@ -364,5 +367,119 @@ object GameDoctor {
     } catch (e: IOException) {
         Log.w(TAG, "restore failed", e)
         false
+    }
+
+    // ── Automatic step-down ───────────────────────────────────────────────────────────────────
+
+    private const val PREF_AUTO = "game_doctor_auto"
+    private const val PREF_NOTICES = "game_doctor_notices"
+    /** A crash this soon after launch is "the game doesn't work"; a long session that ended badly is not. */
+    private const val AUTO_MAX_SESSION_MS = 5 * 60_000L
+
+    /** Fastest to safest. The special presets (Denuvo, Unreal Engine 3, Custom) are never moved. */
+    private val FEX_LADDER = listOf(
+        FEXCorePreset.EXTREME, FEXCorePreset.PERFORMANCE, FEXCorePreset.INTERMEDIATE,
+        FEXCorePreset.COMPATIBILITY, FEXCorePreset.STABILITY,
+    )
+
+    private fun ladderIndex(preset: String): Int = when (preset) {
+        FEXCorePreset.EXTREME, FEXCorePreset.EXTREME_TSO, FEXCorePreset.EXTREME_GN -> 0
+        FEXCorePreset.PERFORMANCE, FEXCorePreset.PERFORMANCE_TSO, FEXCorePreset.PERFORMANCE_X87_FULL -> 1
+        FEXCorePreset.INTERMEDIATE -> 2
+        FEXCorePreset.COMPATIBILITY -> 3
+        FEXCorePreset.STABILITY -> 4
+        else -> -1
+    }
+
+    private fun prefs(context: Context) = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+
+    fun isAutoEnabled(context: Context): Boolean = prefs(context).getBoolean(PREF_AUTO, true)
+
+    fun setAutoEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(PREF_AUTO, on).apply()
+    }
+
+    /**
+     * Called when a session ends. When it was short and its logs show a CPU-translation fault, this game's
+     * FEX preset moves one step safer (Performance, Intermediate, Compatibility, Stability) and a notice is
+     * queued for the Deck. Only that one setting changes, only for that game, and [restore] undoes it.
+     * Returns the new preset, or null when nothing was changed. Blocking (disk).
+     */
+    fun autoStepDown(context: Context, shortcut: Shortcut, sessionStartMs: Long): String? {
+        val ctx = context.applicationContext
+        if (!isAutoEnabled(ctx)) return null
+        if (System.currentTimeMillis() - sessionStartMs > AUTO_MAX_SESSION_MS) return null
+        val emulator = effective(shortcut, "emulator") { it.getEmulator() }.lowercase()
+        if (emulator.isNotBlank() && !emulator.contains("fex")) return null
+        val current = effective(shortcut, "fexcorePreset") { it.getFEXCorePreset() }
+        val at = ladderIndex(current)
+        if (at < 0 || at >= FEX_LADDER.lastIndex) return null
+        val logs = readLogs(ctx, shortcut, sessionStartMs) ?: return null
+        if (!CRASH.containsMatchIn(logs) && !ILLEGAL_INSN.containsMatchIn(logs)) return null
+
+        val next = FEX_LADDER[at + 1]
+        if (!snapshot(ctx, shortcut)) return null
+        shortcut.putExtra("fexcorePreset", next)
+        shortcut.saveData()
+        addNotice(ctx, Notice(shortcut.name, shortcut.file.absolutePath, current, next))
+        Log.i(TAG, "${shortcut.name}: FEX preset $current -> $next after a crash")
+        return next
+    }
+
+    /** One change the doctor made on its own; [path] is the shortcut file, which [undoNotice] puts back. */
+    class Notice(val game: String, val path: String, val from: String, val to: String)
+
+    @Synchronized
+    private fun addNotice(context: Context, notice: Notice) {
+        val array = noticeArray(context)
+        array.put(
+            org.json.JSONObject().put("game", notice.game).put("path", notice.path)
+                .put("from", notice.from).put("to", notice.to),
+        )
+        prefs(context).edit().putString(PREF_NOTICES, array.toString()).apply()
+    }
+
+    private fun noticeArray(context: Context): org.json.JSONArray = try {
+        org.json.JSONArray(prefs(context).getString(PREF_NOTICES, "[]"))
+    } catch (e: org.json.JSONException) {
+        Log.w(TAG, "notices unreadable, starting over", e)
+        org.json.JSONArray()
+    }
+
+    /** The changes the doctor made on its own that the user has not seen yet, oldest first. */
+    @Synchronized
+    fun pendingNotices(context: Context): List<Notice> {
+        val array = noticeArray(context)
+        return (0 until array.length()).map {
+            val o = array.getJSONObject(it)
+            Notice(o.optString("game"), o.optString("path"), o.optString("from"), o.optString("to"))
+        }
+    }
+
+    /** Drop [notice] from the queue (seen, or undone). */
+    @Synchronized
+    fun dismissNotice(context: Context, notice: Notice) {
+        val array = noticeArray(context)
+        val kept = org.json.JSONArray()
+        for (i in 0 until array.length()) {
+            val o = array.getJSONObject(i)
+            if (o.optString("path") != notice.path || o.optString("to") != notice.to) kept.put(o)
+        }
+        prefs(context).edit().putString(PREF_NOTICES, kept.toString()).apply()
+    }
+
+    /** Put the shortcut file back the way it was before the doctor's change, and drop the notice. */
+    fun undoNotice(context: Context, notice: Notice): Boolean {
+        val ctx = context.applicationContext
+        val target = File(notice.path)
+        val source = snapshotFile(ctx, target)
+        val ok = try {
+            if (!source.isFile) false else { source.copyTo(target, overwrite = true); true }
+        } catch (e: IOException) {
+            Log.w(TAG, "undo failed", e)
+            false
+        }
+        if (ok) dismissNotice(ctx, notice)
+        return ok
     }
 }

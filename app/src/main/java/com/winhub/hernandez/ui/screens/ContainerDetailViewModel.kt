@@ -21,6 +21,7 @@ import com.winhub.hernandez.contents.ContentProfile
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.contents.WrapperManager
 import com.winhub.hernandez.core.AppUtils
+import com.winhub.hernandez.core.AutoDefaults
 import com.winhub.hernandez.core.ControllerIdentity
 import com.winhub.hernandez.core.DInputVibration
 import com.winhub.hernandez.core.DInputVisibility
@@ -40,6 +41,7 @@ import com.winhub.hernandez.core.WinePath
 import com.winhub.hernandez.core.WineRegistryEditor
 import com.winhub.hernandez.core.WineUtils
 import com.winhub.hernandez.core.WineThemeManager
+import com.winhub.hernandez.contentdialog.DXVKConfigDialog
 import com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
 import com.winhub.hernandez.fexcore.FEXCoreManager
 import com.winhub.hernandez.fexcore.FEXCorePreset
@@ -690,7 +692,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         val seedArch: String = when {
             defaultsMode -> defaultsArch
             c == null -> if (WineInfo.fromIdentifier(
-                    context, contentsManager, wineVersionEntries.firstOrNull() ?: ""
+                    context, contentsManager, newContainerWine()
                 ).isArm64EC()) NewContainerDefaults.ARCH_ARM64EC else NewContainerDefaults.ARCH_X86_64
             else -> NewContainerDefaults.ARCH_X86_64
         }
@@ -718,7 +720,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         // Wine version — NEVER templated (profiles omit it): a new container always picks its wine
         // fresh from the REAL container / first entry, so a saved profile can't force one. In defaults
         // mode the arch comes from the explicit selector (applyArch), not from any wine version.
-        selectedWineVersion = c?.wineVersion ?: wineVersionEntries.firstOrNull() ?: ""
+        selectedWineVersion = c?.wineVersion ?: newContainerWine()
         if (defaultsMode) applyArch(defaultsArch == NewContainerDefaults.ARCH_ARM64EC)
         else refreshWineDependent(selectedWineVersion)
 
@@ -929,9 +931,37 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             xrMappingIndices.add(idx)
         }
 
+        applyAutoDefaults(seedArch)
+
         // A form loaded on Wayland with an empty/"System" compositor driver gets the default now.
         resetCompositorFill()
         syncCompositorDriverWithBackend()
+    }
+
+    /** The DXVK versions the Simple page offers: the bundled ones plus the installed ones that suit this architecture. */
+    fun dxvkVersionChoices(): List<String> = DXVKConfigDialog.loadDxvkVersionList(context, contentsManager, isArm64EC)
+
+    /** The DXVK version the config names now, "" when it names none. */
+    fun dxvkVersion(): String = AutoDefaults.dxvkVersionOf(dxWrapperConfig)
+
+    fun setDxvkVersion(version: String) {
+        dxWrapperConfig = AutoDefaults.withDxvkVersion(dxWrapperConfig, version)
+    }
+
+    /** The layer a NEW container starts on: the newest installed GE-Proton arm64ec, else the first one listed. */
+    private fun newContainerWine(): String =
+        (if (defaultsMode) null else AutoDefaults.wine(context, wineVersionEntries))
+            ?: wineVersionEntries.firstOrNull() ?: ""
+
+    /**
+     * A new arm64ec container with no saved defaults profile starts on the GPU driver for this chip and
+     * DXVK 2.4.1 gplasync, when those are installed. Anything not installed keeps the normal default.
+     */
+    private fun applyAutoDefaults(arch: String) {
+        if (container != null || defaultsMode || arch != NewContainerDefaults.ARCH_ARM64EC) return
+        if (NewContainerDefaults.load(context, arch) != null) return
+        AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
+        AutoDefaults.dxvkVersion(contentsManager)?.let { dxWrapperConfig = AutoDefaults.withDxvkVersion(dxWrapperConfig, it) }
     }
 
     /** The Display backend dropdown. */
@@ -1056,10 +1086,16 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
 
         // FEXCore version (list is arch-agnostic, but the profile's saved value is arch-specific).
         loadFEXCoreVersions()
-        selectedFEXCoreVersion = archSeed?.getFEXCoreVersion() ?: DefaultVersion.FEXCORE
+        // No saved profile for a new arm64ec container: the newest PPA-unix FEXCore and the Performance preset.
+        val autoNew = container == null && !defaultsMode && archSeed == null && arch == NewContainerDefaults.ARCH_ARM64EC
+        selectedFEXCoreVersion = archSeed?.getFEXCoreVersion()
+            ?: (if (autoNew) AutoDefaults.fexVersion(fexCoreVersionEntries) else null)
+            ?: DefaultVersion.FEXCORE
 
         // FEXCore preset.
-        val fexPreset = archSeed?.getFEXCorePreset() ?: prefs.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE) ?: FEXCorePreset.INTERMEDIATE
+        val fexPreset = archSeed?.getFEXCorePreset()
+            ?: (if (autoNew) AutoDefaults.FEX_PRESET else null)
+            ?: prefs.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE) ?: FEXCorePreset.INTERMEDIATE
         selectedFEXCorePresetIndex = fexCorePresetIds.indexOf(fexPreset).takeIf { it >= 0 } ?: 0
     }
 

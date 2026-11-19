@@ -143,6 +143,7 @@ private val TV_KEYS = setOf("hTv", "tvDisplay", "tvLaunch", "tvModeId", "tvMatch
 
 internal fun xmbSettingsMenu(xmb: XmbScope, shortcut: Shortcut, host: XmbGameHost): XmbMenu {
     val p = XmbPrefs(xmb.context, shortcut).also { it.loadAsync(xmb) }
+    if (!DeckSettingsMode.advanced(xmb.context)) return xmbSimpleMenu(xmb, p)
     val tvOn = runCatching {
         com.winhub.hernandez.display.ExternalDisplay.find(xmb.context) != null ||
             com.winhub.hernandez.display.ExternalDisplay.launchOnTv(shortcut)

@@ -58,8 +58,9 @@ private val SETUP_STEPS = listOf(
     "System files",
     "GE-Proton 11.0-9 arm64ec",
     "DXVK 2.4.1 gplasync",
-    "FEXCore 2610 PPA unix",
+    "FEXCore 2611.1 PPA unix",
     "VKD3D 3.0.1",
+    "GPU driver",
 )
 
 /**

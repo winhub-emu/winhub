@@ -21,6 +21,9 @@ import com.winhub.hernandez.contents.Downloader
 object ProtonUpdateChecker {
     private const val TAG = "ProtonUpdate"
     private const val PREF_SKIP = "proton_update_skip"
+    private const val PREF_GE_KEYS = "proton_ge_keys"
+    /** The GE-Proton first run installs; known even before any catalog lookup has run. */
+    private const val PINNED_GE_KEY = "11.0-9-arm64ec-16"
     private const val GE_PREFIX = "GE-Proton"
     private const val ARM64EC_SUFFIX = "-arm64ec"
 
@@ -67,6 +70,9 @@ object ProtonUpdateChecker {
         // An installed profile's verName is the catalog row's versionName, so "<versionName>-<verCode>" lines them up.
         val installed = all.filter { it.remoteUrl.isNullOrEmpty() }.map { entryKey(it.verName, it.verCode) }.toSet()
         val geRows = all.filter { !it.remoteUrl.isNullOrEmpty() && isGeArm64ec(it) }
+        // An installed layer is just "Proton-<versionName>-<code>", so which ones are GE is remembered from the catalog.
+        PreferenceManager.getDefaultSharedPreferences(app).edit()
+            .putStringSet(PREF_GE_KEYS, geRows.map { entryKey(it.versionName, it.verCode) }.toSet()).apply()
         val have = geRows.filter { entryKey(it.versionName, it.verCode) in installed }.maxWithOrNull(ORDER) ?: return null
         val newest = geRows.maxWithOrNull(ORDER) ?: return null
         if (ORDER.compare(newest, have) <= 0) return null
@@ -84,6 +90,20 @@ object ProtonUpdateChecker {
         )
     }
 
+    /** Entry names ("Proton-11.0-9-arm64ec-16") among [entries] that are GE-Proton arm64ec builds, newest first. */
+    fun geEntriesNewestFirst(context: Context, entries: List<String>): List<String> {
+        val known = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+            .getStringSet(PREF_GE_KEYS, null).orEmpty() + PINNED_GE_KEY
+        return entries.filter { it.startsWith("Proton-") && it.removePrefix("Proton-") in known }
+            .sortedWith { a, b -> compareKeys(b.removePrefix("Proton-"), a.removePrefix("Proton-")) }
+    }
+
+    private fun compareKeys(a: String, b: String): Int {
+        val byVersion = compareVersions(a.substringBeforeLast('-'), b.substringBeforeLast('-'))
+        if (byVersion != 0) return byVersion
+        return (a.substringAfterLast('-').toIntOrNull() ?: 0).compareTo(b.substringAfterLast('-').toIntOrNull() ?: 0)
+    }
+
     /** "Skip this version": stays quiet until an even newer build appears. */
     fun skip(context: Context, available: Available) {
         PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -99,24 +119,26 @@ object ProtonUpdateChecker {
     /**
      * Moves every [switchCandidates] container onto [entryName] through [ContainerLayerUpdater.switchLine], which
      * snapshots each one first so its "Revert layer" works. A container that cannot move (running, layer gone)
-     * is left as it was and counted in [SwitchResult.failed]. Blocking: call off the main thread.
+     * is left as it was and counted in [ComponentUpdates.SwitchResult.failed]. Blocking: call off the main thread.
      */
-    fun switchAll(context: Context, entryName: String): SwitchResult {
+    fun switchAll(context: Context, entryName: String): ComponentUpdates.SwitchResult {
         val app = context.applicationContext
         val contents = ContentsManager(app).apply { syncContents() }
         val updater = ContainerLayerUpdater(app)
-        var moved = 0
+        val done = ArrayList<Pair<Container, ContainerLayerUpdater.Snapshot>>()
         val failed = ArrayList<String>()
         for (c in switchCandidates(app, entryName)) {
             updater.switchLine(contents, c, entryName).fold(
-                onSuccess = { moved++ },
+                onSuccess = { done += c to it },
                 onFailure = { failed += (it.message ?: "\"${c.name}\" could not be switched") },
             )
         }
-        return SwitchResult(moved, failed)
+        val undo: (() -> Unit)? = if (done.isEmpty()) null else ({
+            val fresh = ContentsManager(app).apply { syncContents() }
+            for ((c, snapshot) in done) updater.revert(fresh, c, snapshot)
+        })
+        return ComponentUpdates.SwitchResult(done.size, failed, undo)
     }
-
-    data class SwitchResult(val moved: Int, val failed: List<String>)
 
     private fun isGeArm64ec(p: ContentProfile): Boolean =
         p.verName.orEmpty().startsWith(GE_PREFIX) && p.versionName.orEmpty().endsWith(ARM64EC_SUFFIX)

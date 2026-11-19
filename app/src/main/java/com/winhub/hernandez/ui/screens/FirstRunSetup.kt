@@ -705,7 +705,7 @@ private fun ContentsStep(vm: FirstRunViewModel, hub: ContentsHubViewModel, modif
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier) {
         StepHeading(
             CONTENTS, "Extra contents",
-            "The same browser as the Contents tab. GE-Proton 11, DXVK, FEXCore and VKD3D are always installed. Tick anything else you want now.",
+            "The same browser as the Contents tab. GE-Proton 11, DXVK, FEXCore, VKD3D and the GPU driver for your chip are always installed. Tick anything else you want now.",
         )
         ContentsBrowser(vm, hub, Modifier.weight(1f).fillMaxWidth())
     }

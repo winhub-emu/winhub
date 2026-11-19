@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.preference.PreferenceManager
+import com.winhub.hernandez.communityconfigs.GameDoctor
 import com.winhub.hernandez.R
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.core.AppOrientation
@@ -637,6 +638,24 @@ internal fun DeckSettingsScreen() {
                     com.winhub.hernandez.core.MaliPanvk.setForced(it)
                 }
             }
+        }
+
+        // ── Settings view ──
+        DeckGroup(title = "Settings view") { DeckViewModeRow() }
+
+        // ── Game Doctor ──
+        DeckGroup(title = "Game Doctor") {
+            var doctorAuto by remember { mutableStateOf(GameDoctor.isAutoEnabled(context)) }
+            DeckRow(
+                label = "Auto step-down",
+                hint = "When a game crashes soon after launch, lower its FEX preset one step. You can undo it.",
+                control = {
+                    DeckToggle(doctorAuto) {
+                        doctorAuto = it
+                        GameDoctor.setAutoEnabled(context, it)
+                    }
+                },
+            )
         }
 
         // ── Box64 ──
