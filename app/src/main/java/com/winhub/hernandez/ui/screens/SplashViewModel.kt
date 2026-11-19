@@ -18,12 +18,12 @@ internal data class FirstRunContent(val label: String, val url: String, val driv
 
 /**
  * Pinned from the Official catalog (winlator-contents/contents.json). All four are the
- * arm64ec/PPA-unix builds matching Proton 9 arm64ec. The setup wizard shows these as "Included".
+ * arm64ec/PPA-unix builds matching GE-Proton 11 arm64ec. The setup wizard shows these as "Included".
  */
 internal val FIRST_RUN_CONTENTS = listOf(
     FirstRunContent(
-        label = "Proton 9 arm64ec",
-        url = "https://github.com/The412Banner/Nightlies/releases/download/Proton/wine/proton-9.0-arm64ec.wcp",
+        label = "GE-Proton 11.0-9 arm64ec",
+        url = "https://github.com/The412Banner/winlator-contents/releases/download/bionic-layers-20261030-v16/GE-proton-11.0-9-arm64ec.wcp",
     ),
     FirstRunContent(
         label = "DXVK 2.4.1 gplasync",

@@ -56,7 +56,7 @@ import kotlinx.coroutines.delay
 
 private val SETUP_STEPS = listOf(
     "System files",
-    "Proton 9 arm64ec",
+    "GE-Proton 11.0-9 arm64ec",
     "DXVK 2.4.1 gplasync",
     "FEXCore 2610 PPA unix",
     "VKD3D 3.0.1",

@@ -310,6 +310,7 @@ internal fun DeckModeScreen() {
     val portrait = remember { AppOrientation.mode(context) == AppOrientation.PORTRAIT }
     // The Glass look: one gliding outline for the whole window, which every focusable of the shell registers with.
     XmbHighlightHost(enabled = rememberGlassLook() && !portrait, modifier = Modifier.fillMaxSize()) { DeckModeBody() }
+    DeckProtonUpdateHost()
 }
 
 @Composable

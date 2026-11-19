@@ -32,9 +32,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Scope: same `type` + same profile `versionName` (hence same arch), strictly higher `verCode`.
  * [findNewerInstalled] covers layers already on the device; [findNewerInCatalog] covers a newer
  * build that only exists in the online catalog (the caller downloads it through the normal
- * contents path first, then runs [update] against the INSTALLED entry). TODO(cross-line): moving
- * between lines (11.0-2 → 11.0-6, GE ↔ plain) is deliberately not offered here — registry
- * defaults, DirectAudio support and game fixes differ.
+ * contents path first, then runs [update] against the INSTALLED entry). Moving between
+ * lines (11.0-2 → 11.0-6, GE ↔ plain) is not offered as an "update" — registry defaults,
+ * DirectAudio support and game fixes differ — but [switchLine] does it, with the same snapshot,
+ * when the user explicitly asks for it (the Proton update popup).
  */
 class ContainerLayerUpdater(private val context: Context) {
 
@@ -150,7 +151,57 @@ class ContainerLayerUpdater(private val context: Context) {
         }
         if (isRunning(container)) return fail("Close the running session in \"${container.name}\" first")
 
-        val snapshotDir = File(container.rootDir, "$BACKUP_DIR/${System.currentTimeMillis()}")
+        return swap(container, oldEntry, targetEntry, targetDir, targetWine.isArm64EC).map { (snapshot, written) ->
+            val msg = "Updated \"${container.name}\": $oldEntry -> $targetEntry ($written builtin files refreshed)"
+            Log.i(TAG, "$msg; snapshot ${snapshot.dir.absolutePath}")
+            msg
+        }
+    }
+
+    /**
+     * Move [container] onto [targetEntry] ACROSS layer lines (11.0-2 -> 11.0-6, GE <-> plain, Wine <->
+     * Proton) — the "Set as default" path in the Contents hub. Same steps and the same snapshot as
+     * [update], so the container's Revert layer action puts it back; what [update] guards against
+     * (registry defaults, DirectAudio support and game fixes differ between lines) is the caller's
+     * explicit choice here. Only the architecture must match: an arm64ec prefix can't run on an
+     * x86_64 layer or the reverse. Returns the snapshot taken (for an in-session undo).
+     */
+    fun switchLine(contentsManager: ContentsManager, container: Container, targetEntry: String): Result<Snapshot> {
+        val oldEntry = container.wineVersion
+        if (oldEntry == targetEntry) return Result.failure(IllegalStateException("\"${container.name}\" is already on $targetEntry"))
+        val target = contentsManager.getProfileByEntryName(targetEntry)
+            ?: return Result.failure(IllegalStateException("Layer $targetEntry is not installed"))
+        val targetDir = ContentsManager.getInstallDir(context, target)
+        if (!File(targetDir, "lib/wine").isDirectory)
+            return Result.failure(IllegalStateException("Layer $targetEntry is incomplete (no lib/wine)"))
+        // The old layer must be a contents entry: revert needs it by name (no bundled Wine any more).
+        if (parseEntry(oldEntry) == null)
+            return Result.failure(IllegalStateException("\"${container.name}\" is not on a contents layer ($oldEntry)"))
+        val targetWine = WineInfo.fromIdentifier(context, contentsManager, targetEntry)
+        if (contentsManager.getProfileByEntryName(oldEntry) != null) {
+            val oldWine = WineInfo.fromIdentifier(context, contentsManager, oldEntry)
+            if (oldWine.isArm64EC != targetWine.isArm64EC || oldWine.isWin64 != targetWine.isWin64)
+                return Result.failure(IllegalStateException("Architecture differs between $oldEntry and $targetEntry"))
+        }
+        if (isRunning(container))
+            return Result.failure(IllegalStateException("\"${container.name}\" is running"))
+        return swap(container, oldEntry, targetEntry, targetDir, targetWine.isArm64EC).map { (snapshot, written) ->
+            Log.i(TAG, "Switched \"${container.name}\": $oldEntry -> $targetEntry ($written builtin files refreshed); " +
+                "snapshot ${snapshot.dir.absolutePath}")
+            snapshot
+        }
+    }
+
+    /**
+     * The shared write half of [update] and [switchLine]: snapshot the config + hives, swap
+     * `wineVersion`, clear the tweak cache, refresh the builtin copies from [targetDir]. Every
+     * guardrail has run before this is called.
+     */
+    private fun swap(
+        container: Container, oldEntry: String, targetEntry: String, targetDir: File, targetArm64EC: Boolean,
+    ): Result<Pair<Snapshot, Int>> {
+        val time = System.currentTimeMillis()
+        val snapshotDir = File(container.rootDir, "$BACKUP_DIR/$time")
         if (!snapshotDir.mkdirs()) return fail("Couldn't create the backup folder")
         for (rel in SNAPSHOT_FILES) {
             val src = File(container.rootDir, rel)
@@ -165,10 +216,8 @@ class ContainerLayerUpdater(private val context: Context) {
         CLEARED_EXTRAS.forEach { container.putExtra(it, null) }
         container.saveData()
 
-        val written = ContainerManager.refreshCommonDlls(targetDir, targetWine.isArm64EC, container.rootDir)
-        val msg = "Updated \"${container.name}\": $oldEntry -> $targetEntry ($written builtin files refreshed)"
-        Log.i(TAG, "$msg; snapshot ${snapshotDir.absolutePath}")
-        return Result.success(msg)
+        val written = ContainerManager.refreshCommonDlls(targetDir, targetArm64EC, container.rootDir)
+        return Result.success(Snapshot(snapshotDir, oldEntry, targetEntry, time) to written)
     }
 
     /**
@@ -205,7 +254,7 @@ class ContainerLayerUpdater(private val context: Context) {
         return Result.success(msg)
     }
 
-    private fun fail(reason: String): Result<String> {
+    private fun <T> fail(reason: String): Result<T> {
         Log.w(TAG, reason)
         return Result.failure(IllegalStateException(reason))
     }
