@@ -8,6 +8,7 @@ import com.winhub.hernandez.ui.dialogs.ActiveWindowsDialog
 import com.winhub.hernandez.ui.dialogs.CastDialog
 import com.winhub.hernandez.ui.dialogs.ControllerTestDialog
 import com.winhub.hernandez.ui.dialogs.DebugDialogContent
+import com.winhub.hernandez.ui.dialogs.FirstWaylandLaunchDialog
 import com.winhub.hernandez.ui.dialogs.InputControlsDialog
 import com.winhub.hernandez.ui.dialogs.NewTaskDialog
 import com.winhub.hernandez.ui.dialogs.VibrationDialog
@@ -46,6 +47,7 @@ fun XServerDialogHost() {
         XServerDialogState.ActiveDialog.NEW_TASK       -> NewTaskDialog(state)
         XServerDialogState.ActiveDialog.CAST           -> CastDialog(state)
         XServerDialogState.ActiveDialog.CONTROLLER_TEST -> ControllerTestDialog(state)
+        XServerDialogState.ActiveDialog.FIRST_WAYLAND_LAUNCH -> FirstWaylandLaunchDialog(state)
         XServerDialogState.ActiveDialog.NONE           -> Unit
     }
 

@@ -3080,7 +3080,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
         ContextCompat.startForegroundService(this,
                 com.winhub.hernandez.core.GameSessionForegroundService.createIntent(this, shortcutName));
 
-        Runnable runnable = () -> {
+        Runnable launchSession = () -> {
             setupUI();
             if (controlsProfile.isEmpty()) {
                 // No profile defined, run the simulated dialog confirmation for input controls
@@ -3137,11 +3137,49 @@ public class XServerDisplayActivity extends AppCompatActivity {
             });
         };
 
+        // A container's first launch on Wayland: say what the wait is before it starts (see needsFirstWaylandNotice).
+        Runnable runnable = () -> {
+            if (!needsFirstWaylandNotice()) {
+                launchSession.run();
+                return;
+            }
+            firstWaylandNoticeShown = true;
+            XServerDialogState dialogState = XServerDialogState.INSTANCE;
+            dialogState.onFirstWaylandLaunchChoice = go -> {
+                if (!go) {
+                    stopService(new Intent(this, com.winhub.hernandez.core.GameSessionForegroundService.class));
+                    finish();
+                    return;
+                }
+                // Remembered off the main thread; a cancelled launch is not remembered, so it asks again.
+                final Container launched = container;
+                new Thread(() -> {
+                    launched.putExtra(FIRST_WAYLAND_LAUNCH_SEEN, "1");
+                    launched.saveData();
+                }).start();
+                launchSession.run();
+            };
+            dialogState.show(XServerDialogState.ActiveDialog.FIRST_WAYLAND_LAUNCH);
+        };
+
         if (xServer.screenInfo.height > xServer.screenInfo.width) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
             configChangedCallback = runnable;
         } else
               runnable.run();
+    }
+
+    private static final String FIRST_WAYLAND_LAUNCH_SEEN = "waylandFirstLaunchSeen";
+    private boolean firstWaylandNoticeShown = false;
+
+    /**
+     * Whether to ask before this launch: a Wayland session on a container that has not been through
+     * Wine's first-run setup (its prefix update stamp is not current) and was never confirmed here.
+     */
+    private boolean needsFirstWaylandNotice() {
+        if (!waylandMode || container == null || firstWaylandNoticeShown) return false;
+        if ("1".equals(container.getExtra(FIRST_WAYLAND_LAUNCH_SEEN, ""))) return false;
+        return !com.winhub.hernandez.xenvironment.components.GuestProgramLauncherComponent.isPrefixCurrent(imageFs);
     }
 
     // Method to parse container_id from .desktop file
@@ -6975,6 +7013,11 @@ public class XServerDisplayActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         sessionInForeground = false;
+        // A first-launch notice still on screen belongs to this instance: drop it with the activity.
+        if (XServerDialogState.INSTANCE.onFirstWaylandLaunchChoice != null) {
+            XServerDialogState.INSTANCE.onFirstWaylandLaunchChoice = null;
+            XServerDialogState.INSTANCE.dismiss();
+        }
         // The last word on the handheld's companion screen, whatever took this session down (Exit, the
         // game's own watcher, a recents swipe, the system). Every other dismissal is about telling the
         // user something sooner; this one is the guarantee that nothing is left on the handheld

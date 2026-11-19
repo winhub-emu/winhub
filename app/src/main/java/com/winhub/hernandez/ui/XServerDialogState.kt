@@ -9,7 +9,7 @@ object XServerDialogState {
 
     enum class ActiveDialog {
         NONE, VIBRATION, DEBUG, INPUT_CONTROLS, ACTIVE_WINDOWS, NEW_TASK, CAST,
-        CONTROLLER_TEST
+        CONTROLLER_TEST, FIRST_WAYLAND_LAUNCH
     }
 
     // -------------------------------------------------------------------------
@@ -751,6 +751,11 @@ object XServerDialogState {
     fun interface InputSettingsCallback {
         fun invoke(profileIndex: Int)
     }
+    /** The first-launch notice: true = go on and launch, false = cancel and leave. */
+    fun interface FirstLaunchCallback {
+        fun invoke(launch: Boolean)
+    }
+    @JvmField var onFirstWaylandLaunchChoice: FirstLaunchCallback? = null
     @JvmField var onInputControlsConfirm: InputConfirmCallback? = null
     @JvmField var onInputControlsSettings: InputSettingsCallback? = null
 

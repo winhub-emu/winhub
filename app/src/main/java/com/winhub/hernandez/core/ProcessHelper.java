@@ -145,10 +145,17 @@ public abstract class ProcessHelper {
      * Only for short, headless helpers on a worker thread (never the UI thread).
      */
     public static int execAndWait(String command, String[] envp, File workingDir, long timeoutMs) {
+        return execAndWait(command, envp, workingDir, timeoutMs, null);
+    }
+
+    /** As above; [onStarted] gets the pid as soon as the process exists, so another thread can kill it. */
+    public static int execAndWait(String command, String[] envp, File workingDir, long timeoutMs,
+                                  java.util.function.IntConsumer onStarted) {
         final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
         final int[] status = {-1};
         int pid = exec(command, envp, workingDir, (s) -> { status[0] = s; done.countDown(); });
         if (pid <= 0) return -1;
+        if (onStarted != null) onStarted.accept(pid);
         try {
             if (!done.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
                 Log.w("ProcessHelper", "execAndWait: pid " + pid + " still running after " + timeoutMs + " ms, killing it: " + command);

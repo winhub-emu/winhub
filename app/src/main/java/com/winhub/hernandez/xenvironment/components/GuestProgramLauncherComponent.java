@@ -67,6 +67,10 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
     private String fexcorePreset = FEXCorePreset.INTERMEDIATE;
     private Callback<Integer> terminationCallback;
     private static final Object lock = new Object();
+    // stop() must not wait on [lock] while start() sits in the pre-session prefix update (it holds the lock):
+    // these let it cancel that step first. Reset by every start().
+    private volatile boolean stopRequested = false;
+    private volatile int prefixUpdatePid = -1;
     private final ContentsManager contentsManager;
     private final ContentProfile wineProfile;
     private Container container;
@@ -246,6 +250,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
     @Override
     public void start() {
+        stopRequested = false;
         synchronized (lock) {
             if (wineInfo.isArm64EC())
                 extractEmulatorsDlls();
@@ -311,6 +316,10 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
 
     @Override
     public void stop() {
+        // Cancel the prefix update first (it runs under [lock]), or Exit would wait out its whole timeout.
+        stopRequested = true;
+        int updatePid = prefixUpdatePid;
+        if (updatePid > 0) ProcessHelper.killProcess(updatePid);
         synchronized (lock) {
             if (pid != -1) {
                 Process.killProcess(pid);
@@ -687,6 +696,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         // download prompt switched off for that step only (see updatePrefixBeforeSession).
         String wineLauncher = wineInfo.isArm64EC() ? winePath + "/wine" : imageFs.getBinDir() + "/box64 wine";
         updatePrefixBeforeSession(envVars, wineLauncher, rootDir, imageFs);
+        if (stopRequested) return -1;   // Exit was pressed while the prefix was updating
 
         return ProcessHelper.exec(command, envVars.toStringArray(), rootDir, (status) -> {
             synchronized (lock) {
@@ -739,6 +749,31 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
      * resort. X11 used to keep the in-session update; it now takes this step too, for the Mono reason,
      * with DISPLAY kept (unlike Wayland) so nothing else about its update changes.
      */
+    /**
+     * True when Wine's prefix update has already run for this prefix and layer (the same stamp test as
+     * wineboot's), i.e. the first-run setup work is done. A layer without wine.inf has nothing to update.
+     */
+    public static boolean isPrefixCurrent(ImageFs imageFs) {
+        File wineInf = new File(imageFs.getWinePath(), "share/wine/wine.inf");
+        if (!wineInf.isFile()) return true;
+        File stamp = new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/.update-timestamp");
+        String current = stamp.isFile() ? FileUtils.readString(stamp) : "";
+        if (current == null) current = "";
+        current = current.trim();
+        if (current.startsWith("disable")) return true;
+        int i = 0;
+        while (i < current.length() && Character.isDigit(current.charAt(i))) i++;
+        if (i == 0) return false;
+        try {
+            return Long.parseLong(current.substring(0, i)) == wineInf.lastModified() / 1000L;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private static final long PREFIX_UPDATE_TIMEOUT_MS = 45_000;
+    private static final long PREFIX_WIND_DOWN_MS = 10_000;
+
     private void updatePrefixBeforeSession(EnvVars guestEnv, String wineLauncher, File rootDir, ImageFs imageFs) {
         final String tag = "GuestProgramLauncherComponent";
         try {
@@ -778,10 +813,19 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
                     + " (" + wineInf.getPath() + "); running Wine's prefix update before the "
                     + (waylandMode ? "Wayland" : "X11") + " session, WINEDLLOVERRIDES=" + overrides);
             long t0 = System.currentTimeMillis();
-            int status = ProcessHelper.execAndWait(wineLauncher + " wineboot -h", env.toStringArray(), rootDir, 180_000);
+            // Bounded: the update itself is about 7 s. A fresh Wayland prefix has stalled here (the headless run
+            // has no display), and the session then does the same update itself, as it did before this step
+            // existed, so giving up early only costs the cosmetic first-launch size fix described above.
+            int status = ProcessHelper.execAndWait(wineLauncher + " wineboot -h", env.toStringArray(), rootDir, PREFIX_UPDATE_TIMEOUT_MS,
+                    started -> {
+                        prefixUpdatePid = started;
+                        if (stopRequested) ProcessHelper.killProcess(started);
+                    });
+            prefixUpdatePid = -1;
+            if (status == -1) Log.w(tag, "prefix update: no clean finish within " + PREFIX_UPDATE_TIMEOUT_MS + " ms (or stopped); launching anyway");
             // Let the wineserver wind down on its own (it flushes the registry on exit).
-            long deadline = System.currentTimeMillis() + 30_000;
-            while (!ProcessHelper.listRunningWineProcesses().isEmpty() && System.currentTimeMillis() < deadline) {
+            long deadline = System.currentTimeMillis() + PREFIX_WIND_DOWN_MS;
+            while (!stopRequested && !ProcessHelper.listRunningWineProcesses().isEmpty() && System.currentTimeMillis() < deadline) {
                 try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
             }
             if (!ProcessHelper.listRunningWineProcesses().isEmpty()) {
