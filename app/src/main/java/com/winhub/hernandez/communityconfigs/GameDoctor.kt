@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
 import com.winhub.hernandez.container.Shortcut
+import com.winhub.hernandez.core.DInputVisibility
 import com.winhub.hernandez.core.GPUInformation
 import com.winhub.hernandez.core.LogInventory
 import com.winhub.hernandez.core.LogRotation
@@ -11,6 +12,7 @@ import com.winhub.hernandez.core.WaylandAdapterSettings
 import com.winhub.hernandez.core.WineWaylandSupport
 import com.winhub.hernandez.ui.screens.withGraphicsDriverKeys
 import com.winhub.hernandez.fexcore.FEXCorePreset
+import com.winhub.hernandez.winhandler.WinHandler
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
@@ -313,6 +315,35 @@ object GameDoctor {
                 ) { it.putExtra("dxwrapperConfig", dxCfg.replace(Regex("(^|,)version=[^,]*"), "$1version=$version")) }
             }
         }
+
+        // Controller or keyboard not answering: the input switches, one at a time. Each shows its opposite once set.
+        val container = shortcut.container
+        val exclusiveExtra = shortcut.getExtra(DInputVisibility.EXTRA_EXCLUSIVE)
+        val exclusive = if (exclusiveExtra.isNotEmpty()) exclusiveExtra == "1" || exclusiveExtra.equals("true", true)
+        else container?.isExclusiveXInput ?: true
+        t["input_exclusive"] = if (exclusive) Tweak(
+            "input_exclusive", "Turn exclusive input off",
+            "Lets the game read controllers through every input API at once. Try it when the game ignores the pad.",
+        ) { it.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "0") } else Tweak(
+            "input_exclusive", "Turn exclusive input on",
+            "Hands the game one controller path only. Try it when buttons double up or the wrong device answers.",
+        ) { it.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1") }
+
+        if (DInputVisibility.forGame(container, shortcut)) t["input_dinput_off"] = Tweak(
+            "input_dinput_off", "Turn DInput off",
+            "Hides the pad from DirectInput so the game only sees it as an XInput controller.",
+        ) {
+            it.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1")
+            it.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt().toString())
+        }
+
+        val xinputOff = shortcut.getExtra("disableXinput", "0") == "1"
+        t["input_xinput_off"] = if (xinputOff) Tweak(
+            "input_xinput_off", "Turn XInput on", "Gives the game its XInput controller again.",
+        ) { it.putExtra("disableXinput", null) } else Tweak(
+            "input_xinput_off", "Turn XInput off",
+            "Hides the XInput controller. Some older games only behave with DirectInput.",
+        ) { it.putExtra("disableXinput", "1") }
         return t
     }
 
