@@ -1394,6 +1394,7 @@ public class ControlElement {
         float overlayOpacity = inputControlsView.getOverlayOpacity();
         boolean engaged = isEngaged();
         Rect boundingBox = getBoundingBox();
+        boolean fusion = inputControlsView.getIconStyle() == ControlsIconStyle.FUSION;
 
         int accent = resolveAccentColor();
         // resolveAccentColor() always returns a full-opacity ARGB (getAccentColor forces alpha
@@ -1411,7 +1412,7 @@ public class ControlElement {
         int pressedFillAlpha = (int) (60 * gameHubDim * effectiveOpacity);
         int pressedStrokeAlpha = (int) (220 * gameHubDim * effectiveOpacity);
         int textAlpha = (int) (255 * gameHubDim * effectiveOpacity);
-        int glassEdgeAlpha = (int) (75 * gameHubDim * effectiveOpacity);
+        int glassEdgeAlpha = fusion ? 0 : (int) (75 * gameHubDim * effectiveOpacity);
 
         int fillColor = Color.argb(fillAlpha, 0, 0, 0);
         int strokeColor = hasAccent
@@ -1429,15 +1430,25 @@ public class ControlElement {
         // Drop shadow alpha must track opacity too — otherwise the fixed-alpha blue glow
         // (0x40) keeps showing through at low opacity, reading as a solid blue fill on the
         // compact SQUARE keys (MRB/BKSP/SPACE/ENTER) while their fill/stroke/text fade out.
-        int shadowAlpha = (int) (0x40 * gameHubDim * effectiveOpacity);
+        int shadowAlpha = fusion ? 0 : (int) (0x40 * gameHubDim * effectiveOpacity);
         int shadowColor = Color.argb(shadowAlpha, Color.red(accent), Color.green(accent), Color.blue(accent));
+
+        if (fusion) {
+            fillColor = fusionShade(accent, gameHubDim, 80, 0.12f);
+            pressedFillColor = fusionShade(accent, gameHubDim, 160, 1f);
+            strokeColor = fusionLight(accent, gameHubDim, 150, 0.25f);
+            pressedStrokeColor = fusionLight(accent, gameHubDim, 230, 0.7f);
+            textColor = fusionLight(accent, gameHubDim, 210, 0.75f);
+        }
 
         if (selected && !hasAccent) {
             int highlightAlpha = (int) (255 * overlayOpacity);
             strokeColor = Color.argb(highlightAlpha, 2, 119, 189);
         }
 
-        float strokeWidth = Math.max(2f, snappingSize * 0.18f);
+        float strokeWidth = fusion
+                ? Math.max(2f, 1.5f * inputControlsView.getResources().getDisplayMetrics().density)
+                : Math.max(2f, snappingSize * 0.18f);
         paint.setStrokeWidth(strokeWidth);
         paint.setStrokeJoin(Paint.Join.ROUND);
         paint.setStrokeCap(Paint.Cap.ROUND);
@@ -1457,7 +1468,10 @@ public class ControlElement {
                     break;
                 }
 
-                if (isTrigger) {
+                if (fusion) {
+                    drawFusionKey(canvas, paint, boundingBox, isTrigger,
+                            engaged ? pressedFillColor : fillColor, engaged ? pressedStrokeColor : strokeColor);
+                } else if (isTrigger) {
                     GameHubLayout.buildTriggerPath(
                             path, triggerShape,
                             boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom);
@@ -1492,7 +1506,7 @@ public class ControlElement {
                 } else {
                     String label = getDisplayText();
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(textColor);
+                    paint.setColor(fusion && engaged ? Color.WHITE : textColor);
                     paint.setTextSize(
                             Math.min(
                                     getTextSizeForWidth(paint, label, boundingBox.width() - strokeWidth * 2),
@@ -1514,6 +1528,14 @@ public class ControlElement {
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(Color.argb(40, 255, 0, 0));
                 canvas.drawCircle(cx, cy, stickRadiusPx * deadZone, paint);
+
+                if (fusion) {
+                    float knobX = engaged ? getCurrentPosition().x : cx;
+                    float knobY = engaged ? getCurrentPosition().y : cy;
+                    drawFusionStick(canvas, paint, cx, cy, ringRadius, knobX, knobY, engaged, accent, gameHubDim,
+                            strokeColor, pressedStrokeColor, pressedFillColor);
+                    break;
+                }
 
                 int ringFillAlpha = fillAlpha;
                 int ringFill = Color.argb(ringFillAlpha, 0, 0, 0);
@@ -1557,6 +1579,11 @@ public class ControlElement {
                 float cy = boundingBox.centerY();
 
                 float radius = Math.min(boundingBox.width(), boundingBox.height()) * 0.5f;
+                if (fusion) {
+                    drawFusionDpad(canvas, paint, cx, cy, radius, fillColor, pressedFillColor, strokeColor,
+                            pressedStrokeColor, textColor);
+                    break;
+                }
                 float[] arrowCenter = new float[2];
                 float arrowGradR = radius * 0.5f;
                 for (int side = 0; side < 4; side++) {
@@ -1816,6 +1843,89 @@ public class ControlElement {
 
     private void drawGameHubShape(Canvas canvas, Paint paint, Rect bb, int color, boolean fill) {
         drawGameHubShape(canvas, paint, bb, color, fill, shape);
+    }
+
+    // FUSION palette: the accent darkened (shade) or lightened (light) toward white, scaled by the
+    // overlay opacity. Same recipe DroidDeck's on-screen pad uses for its idle/held pads.
+    private static int fusionShade(int tint, float opacity, int alpha, float factor) {
+        return Color.argb((int) (alpha * opacity),
+                (int) (Color.red(tint) * factor), (int) (Color.green(tint) * factor), (int) (Color.blue(tint) * factor));
+    }
+
+    private static int fusionLight(int tint, float opacity, int alpha, float factor) {
+        return Color.argb((int) (alpha * opacity),
+                (int) (Color.red(tint) + (255 - Color.red(tint)) * factor),
+                (int) (Color.green(tint) + (255 - Color.green(tint)) * factor),
+                (int) (Color.blue(tint) + (255 - Color.blue(tint)) * factor));
+    }
+
+    /** FUSION key: a flat tinted pad. Shoulders/triggers are wide pills, everything else keeps its own shape. */
+    private void drawFusionKey(Canvas canvas, Paint paint, Rect bb, boolean pill, int fill, int stroke) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(fill);
+        if (pill) {
+            float corner = bb.height() * 0.5f * 0.55f;
+            canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setColor(stroke);
+            canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
+            return;
+        }
+        drawGameHubShape(canvas, paint, bb, fill, true);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(stroke);
+        drawGameHubShape(canvas, paint, bb, 0, false);
+    }
+
+    /** FUSION stick: dim base disc with a lighter knob that follows the finger. */
+    private void drawFusionStick(Canvas canvas, Paint paint, float cx, float cy, float ringRadius, float knobX,
+                                 float knobY, boolean engaged, int accent, float opacity, int strokeColor,
+                                 int pressedStrokeColor, int pressedFillColor) {
+        int stroke = engaged ? pressedStrokeColor : strokeColor;
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 60, 0.12f));
+        canvas.drawCircle(cx, cy, ringRadius, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(stroke);
+        canvas.drawCircle(cx, cy, ringRadius, paint);
+        float knobRadius = ringRadius * 0.46f;
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 120, 0.35f));
+        canvas.drawCircle(knobX, knobY, knobRadius, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(stroke);
+        canvas.drawCircle(knobX, knobY, knobRadius, paint);
+    }
+
+    /** FUSION D-pad: four round pads (up, right, down, left) each with an arrow, lit one by one. */
+    private void drawFusionDpad(Canvas canvas, Paint paint, float cx, float cy, float radius, int fill,
+                                int pressedFill, int stroke, int pressedStroke, int idleText) {
+        float padRadius = radius / 3f;
+        float offset = radius * 2f / 3f;
+        float[][] dirs = {{0f, -1f}, {1f, 0f}, {0f, 1f}, {-1f, 0f}};
+        for (int i = 0; i < 4; i++) {
+            boolean held = states[i];
+            float px = cx + dirs[i][0] * offset;
+            float py = cy + dirs[i][1] * offset;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(held ? pressedFill : fill);
+            canvas.drawCircle(px, py, padRadius, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setColor(held ? pressedStroke : stroke);
+            canvas.drawCircle(px, py, padRadius, paint);
+
+            float size = padRadius * 0.34f;
+            float fx = dirs[i][0];
+            float fy = dirs[i][1];
+            path.reset();
+            path.moveTo(px + fx * size, py + fy * size);
+            path.lineTo(px - fx * size * 0.7f - fy * size, py - fy * size * 0.7f + fx * size);
+            path.lineTo(px - fx * size * 0.7f + fy * size, py - fy * size * 0.7f - fx * size);
+            path.close();
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(held ? Color.WHITE : idleText);
+            canvas.drawPath(path, paint);
+        }
     }
 
     private void drawGameHubShape(Canvas canvas, Paint paint, Rect bb, int color, boolean fill, Shape overrideShape) {
@@ -2107,8 +2217,31 @@ public class ControlElement {
         float strokeWidth = snappingSize * 0.25f;
         Rect childBounds = new Rect();
 
+        boolean fusion = inputControlsView.getIconStyle() == ControlsIconStyle.FUSION;
+        float opacity = inputControlsView.getOverlayOpacity();
+        int baseAccent = inputControlsView.getAccentColor();
+
         for (int index = 0; index < bindings.length; index++) {
             getExpandableChildBounds(index, childBounds);
+            if (fusion) {
+                boolean held = states[index];
+                drawExpandableShape(canvas, paint, childBounds,
+                        held ? fusionShade(baseAccent, opacity, 160, 1f) : fusionShade(baseAccent, opacity, 80, 0.12f), true);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(Math.max(2f, 1.5f * inputControlsView.getResources().getDisplayMetrics().density));
+                drawExpandableShape(canvas, paint, childBounds,
+                        held ? fusionLight(baseAccent, opacity, 230, 0.7f) : fusionLight(baseAccent, opacity, 150, 0.25f), false);
+                String fusionLabel = getGridCellLabel(index, 6);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(held ? Color.WHITE : fusionLight(baseAccent, opacity, 210, 0.75f));
+                paint.setTextAlign(Paint.Align.CENTER);
+                paint.setTextSize(Math.min(
+                        getTextSizeForWidth(paint, fusionLabel, childBounds.width() - strokeWidth * 2),
+                        snappingSize * 1.6f * scale));
+                canvas.drawText(fusionLabel, childBounds.centerX(),
+                        childBounds.centerY() - ((paint.descent() + paint.ascent()) * 0.5f), paint);
+                continue;
+            }
             int rawAccent = states[index]
                     ? inputControlsView.getAccentBrightColor()
                     : inputControlsView.getAccentColor();

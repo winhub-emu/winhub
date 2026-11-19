@@ -452,6 +452,10 @@ object XServerDrawerState {
     private val _overlayOpacity = MutableStateFlow(0.75f)
     val overlayOpacity: StateFlow<Float> = _overlayOpacity
 
+    // On-screen controls icon style key ("fusion" | "glass"), see ControlsIconStyle.
+    private val _controlsIconStyle = MutableStateFlow("fusion")
+    val controlsIconStyle: StateFlow<String> = _controlsIconStyle
+
     // Per-profile on-screen controls accent. When controlsFollowTheme is true the controls follow
     // the app theme accent; when false they use controlsAccentColor (ARGB). Both mirror the active
     // ControlsProfile and are seeded/persisted by the activity (see onControlsColorChange).
@@ -552,6 +556,9 @@ object XServerDrawerState {
     // Fired when the Controls-tab opacity slider moves; the activity reads overlayOpacity,
     // applies it to the live InputControlsView and persists the pref.
     @JvmField var onOverlayOpacityChange: Runnable? = null
+    // Fired when the Controls-tab icon style chip changes; the activity reads controlsIconStyle,
+    // applies it to the live InputControlsView and persists the pref.
+    @JvmField var onControlsIconStyleChange: Runnable? = null
     // Fired when the Controls-tab "Follow app theme" toggle or custom color changes; the activity
     // reads controlsFollowTheme/controlsAccentColor, writes them onto the ACTIVE ControlsProfile,
     // saves it, and invalidates the InputControlsView for a live redraw.
@@ -647,6 +654,8 @@ object XServerDrawerState {
     fun setFpsConfig(v: String) { _fpsConfig.value = v }
     fun setOverlayOpacity(v: Float) { _overlayOpacity.value = v }
     fun getOverlayOpacityValue(): Float = _overlayOpacity.value
+    fun setControlsIconStyle(v: String) { _controlsIconStyle.value = v }
+    fun getControlsIconStyleValue(): String = _controlsIconStyle.value
     fun setControlsFollowTheme(v: Boolean) { _controlsFollowTheme.value = v }
     fun getControlsFollowThemeValue(): Boolean = _controlsFollowTheme.value
     fun setControlsAccentColor(v: Int) { _controlsAccentColor.value = v }
@@ -789,6 +798,7 @@ object XServerDrawerState {
         _fpsExpanded.value = false
         _fpsConfig.value = ""
         _overlayOpacity.value = 0.75f
+        _controlsIconStyle.value = "fusion"
         _controlsFollowTheme.value = true
         _controlsAccentColor.value = AppThemeState.getCurrentAccentArgb()
         _sustainedPerfMode.value = false
@@ -819,6 +829,7 @@ object XServerDrawerState {
         onManualRefreshChange = null
         onRefreshRatePoll = null
         onOverlayOpacityChange = null
+        onControlsIconStyleChange = null
         onControlsColorChange = null
         onSustainedPerfModeChange = null
         onPerfPriorityBoostChange = null

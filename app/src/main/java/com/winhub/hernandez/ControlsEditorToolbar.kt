@@ -43,6 +43,7 @@ fun ControlsEditorToolbar(
     onRemoveClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onGroupsClick: () -> Unit,
+    onIconStyleClick: () -> Unit,
     onBackgroundClick: () -> Unit,
 ) {
     Surface(
@@ -84,6 +85,7 @@ fun ControlsEditorToolbar(
             ToolbarIconButton(iconRes = R.drawable.icon_remove, contentDescription = stringResource(R.string.remove), onClick = onRemoveClick)
             ToolbarIconButton(iconRes = R.drawable.icon_settings, contentDescription = stringResource(R.string.settings), onClick = onSettingsClick)
             ToolbarIconButton(iconRes = R.drawable.icon_group, contentDescription = stringResource(R.string.groups), onClick = onGroupsClick)
+            ToolbarIconButton(iconRes = R.drawable.icon_palette, contentDescription = stringResource(R.string.icon_style), onClick = onIconStyleClick)
             ToolbarIconButton(iconRes = R.drawable.icon_background_image, contentDescription = stringResource(R.string.set_background_image), onClick = onBackgroundClick)
         }
     }
@@ -96,6 +98,7 @@ fun InGameControlsEditorToolbar(
     onRemoveClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onGroupsClick: () -> Unit,
+    onIconStyleClick: () -> Unit,
     onDoneClick: () -> Unit,
 ) {
     Surface(
@@ -134,6 +137,7 @@ fun InGameControlsEditorToolbar(
             ToolbarIconButton(iconRes = R.drawable.icon_remove, contentDescription = stringResource(R.string.remove), onClick = onRemoveClick)
             ToolbarIconButton(iconRes = R.drawable.icon_settings, contentDescription = stringResource(R.string.settings), onClick = onSettingsClick)
             ToolbarIconButton(iconRes = R.drawable.icon_group, contentDescription = stringResource(R.string.groups), onClick = onGroupsClick)
+            ToolbarIconButton(iconRes = R.drawable.icon_palette, contentDescription = stringResource(R.string.icon_style), onClick = onIconStyleClick)
             ToolbarDivider()
             ToolbarIconButton(iconRes = R.drawable.icon_save, contentDescription = stringResource(R.string.save_and_close), onClick = onDoneClick)
         }

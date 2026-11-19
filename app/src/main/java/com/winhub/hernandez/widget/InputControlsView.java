@@ -34,6 +34,7 @@ import com.winhub.hernandez.ControlsEditorActivity;
 import com.winhub.hernandez.container.Container;
 import com.winhub.hernandez.inputcontrols.Binding;
 import com.winhub.hernandez.inputcontrols.ControlElement;
+import com.winhub.hernandez.inputcontrols.ControlsIconStyle;
 import com.winhub.hernandez.inputcontrols.ControlsProfile;
 import com.winhub.hernandez.inputcontrols.CustomIconManager;
 import com.winhub.hernandez.inputcontrols.ExternalController;
@@ -89,6 +90,7 @@ public class InputControlsView extends View {
     private ControlsProfile physicalProfile;
     private float overlayOpacity = DEFAULT_OVERLAY_OPACITY;
     private VisualStyle visualStyle = VisualStyle.GAMEHUB;
+    private ControlsIconStyle iconStyle = ControlsIconStyle.FUSION;
     private TouchpadView touchpadView;
     private XServer xServer;
     private final Bitmap[] icons = new Bitmap[256];
@@ -228,6 +230,7 @@ public class InputControlsView extends View {
         }
         editorLongPressTouchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
         preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        iconStyle = ControlsIconStyle.fromKey(preferences.getString(ControlsIconStyle.PREF_KEY, null));
     }
 
     public void setEditMode(boolean editMode) {
@@ -277,6 +280,15 @@ public class InputControlsView extends View {
 
     public void setVisualStyle(VisualStyle style) {
         visualStyle = style != null ? style : VisualStyle.GAMEHUB;
+        invalidate();
+    }
+
+    public ControlsIconStyle getIconStyle() {
+        return iconStyle;
+    }
+
+    public void setIconStyle(ControlsIconStyle style) {
+        iconStyle = style != null ? style : ControlsIconStyle.FUSION;
         invalidate();
     }
 

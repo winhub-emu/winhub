@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WinHub touch control icon styles</title>
+<style>
+:root{--bg:#121212;--su:#1c1c1c;--ln:#333;--ob:#f2f2f2;--osv:#aaa;--pr:#8ab4ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ob);font:14px/1.45 Roboto,system-ui,"Segoe UI",sans-serif;padding:16px;max-width:1500px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+p.sub{color:var(--osv);margin-bottom:14px;max-width:900px}
+.bar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;background:var(--su);border:1px solid var(--ln);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+.bar label{display:flex;align-items:center;gap:8px;color:var(--osv)}
+.bar input[type=range]{width:160px}
+.bar input[type=color]{width:38px;height:28px;border:0;background:none;padding:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px}
+.card{background:var(--su);border:1px solid var(--ln);border-radius:12px;padding:10px;overflow:hidden}
+.card h2{font-size:14px;margin:2px 4px 2px}
+.card small{display:block;color:var(--osv);margin:0 4px 8px;font-size:12px}
+canvas{display:block;width:100%;aspect-ratio:16/9;border-radius:8px;background:#0b0b0d;touch-action:none}
+details{background:var(--su);border:1px solid var(--ln);border-radius:12px;margin-top:10px}
+summary{cursor:pointer;padding:10px 14px;font-weight:600}
+summary em{font-weight:400;color:var(--osv);margin-left:8px}
+pre{overflow:auto;padding:12px 14px;border-top:1px solid var(--ln);font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#cfd8e3;tab-size:4}
+h3{margin:18px 0 6px;font-size:15px}
+.note{color:var(--osv);font-size:12px;margin-top:10px;max-width:900px}
+</style></head><body>
+<h1>Touch control icon styles: Glass and Fusion</h1>
+<p class="sub">Every shape, size, colour recipe and alpha below is a line-by-line port of the real code (listed at the bottom, pulled straight from the source files). Left: DroidDeck's on-screen pad, the source of Fusion. Middle: WinHub with the new Fusion style (default). Right: WinHub's existing Glass style. Press and hold the pads (touch or mouse, multi-touch works).</p>
+
+<div class="bar">
+  <label>Overlay opacity <input id="op" type="range" min="0" max="100" value="75"><b id="opv">75%</b></label>
+  <label>Accent <input id="ac" type="color" value="#1a9fff"></label>
+  <label><input id="hold" type="checkbox"> Hold everything (pressed state)</label>
+</div>
+
+<div class="grid">
+  <div class="card"><h2>DroidDeck on-screen pad</h2><small>OnScreenControls.kt onDraw: the reference</small><canvas id="c0" width="1280" height="720"></canvas></div>
+  <div class="card"><h2>WinHub: Fusion (new default)</h2><small>ControlElement.drawGameHub with ControlsIconStyle.FUSION</small><canvas id="c1" width="1280" height="720"></canvas></div>
+  <div class="card"><h2>WinHub: Glass (current)</h2><small>ControlElement.drawGameHub with ControlsIconStyle.GLASS, unchanged</small><canvas id="c2" width="1280" height="720"></canvas></div>
+</div>
+<p class="note">Scene: 1280x720, 1 dp = 1.6 px, WinHub snapping size = width/100 = 12.8 px (InputControlsView.onSizeChanged). WinHub element sizes come from ControlElement.computeBoundingBox: circle button 3x snap, pill 4x2 snap, D-pad 7x snap, stick 6x snap. Positions are a sample layout, not a saved profile. In WinHub the D-pad has one hit area, so in Glass any press lights all four arrows (existing behaviour); Fusion lights the pressed direction only because it reads <code>states[]</code>.</p>
+
+<h3>Source the page was built from</h3>
+<details><summary>DroidDeck OnScreenControls.kt: colours <em>lines 158-178</em></summary><pre>    private fun applySettings() {
+        for (control in controls) control.target = settings.mapping[control.id] ?: control.id
+        val tint = settings.tint
+        val alpha = settings.opacity / 100f
+        fun shade(a: Int, f: Float) = Color.argb((a * alpha).toInt(), (Color.red(tint) * f).toInt(), (Color.green(tint) * f).toInt(), (Color.blue(tint) * f).toInt())
+        fun light(a: Int, f: Float) = Color.argb(
+            (a * alpha).toInt(),
+            (Color.red(tint) + (255 - Color.red(tint)) * f).toInt(),
+            (Color.green(tint) + (255 - Color.green(tint)) * f).toInt(),
+            (Color.blue(tint) + (255 - Color.blue(tint)) * f).toInt(),
+        )
+        idleFill = shade(80, 0.12f)
+        heldFill = shade(160, 1f)
+        idleStroke = light(150, 0.25f)
+        heldStroke = light(230, 0.7f)
+        idleText = light(210, 0.75f)
+        stickFill = shade(60, 0.12f)
+        knobFill = shade(120, 0.35f)
+        stroke.strokeWidth = dp(1.5f)
+    }</pre></details>
+<details><summary>DroidDeck OnScreenControls.kt: onDraw <em>lines 384-471</em></summary><pre>    override fun onDraw(canvas: Canvas) {
+        if (!quickHidden) for (control in controls) {
+            if (!isVisible(control)) continue
+            if (control.stick &gt;= 0 &amp;&amp; settings.adaptiveSticks &amp;&amp; !editing &amp;&amp; control.pressedBy == -1) continue
+            val held = control.pressedBy != -1
+            val radius = control.radius
+            if (control.stick &gt;= 0) {
+                val bx = if (held) control.ax else control.cx
+                val by = if (held) control.ay else control.cy
+                fill.color = if (held) heldFill else stickFill
+                canvas.drawCircle(bx, by, radius, fill)
+                stroke.color = if (held) heldStroke else idleStroke
+                canvas.drawCircle(bx, by, radius, stroke)
+                val knob = radius * 0.46f
+                fill.color = if (held || control.clicked) heldFill else knobFill
+                canvas.drawCircle(bx + control.kx, by + control.ky, knob, fill)
+                stroke.color = if (held) heldStroke else idleStroke
+                canvas.drawCircle(bx + control.kx, by + control.ky, knob, stroke)
+                text.color = if (held) Color.WHITE else idleText
+                text.textSize = knob * 0.8f
+                canvas.drawText(label(control), bx + control.kx, by + control.ky + text.textSize * 0.35f, text)
+            } else if (control.wide) {
+                box.set(control.cx - control.halfW, control.cy - control.halfH, control.cx + control.halfW, control.cy + control.halfH)
+                val corner = control.halfH * 0.55f
+                fill.color = if (held) heldFill else idleFill
+                canvas.drawRoundRect(box, corner, corner, fill)
+                stroke.color = if (held) heldStroke else idleStroke
+                canvas.drawRoundRect(box, corner, corner, stroke)
+                text.color = if (held) Color.WHITE else idleText
+                text.textSize = control.halfH * 0.8f
+                canvas.drawText(label(control), control.cx, control.cy + text.textSize * 0.35f, text)
+            } else {
+                fill.color = if (held) heldFill else idleFill
+                canvas.drawCircle(control.cx, control.cy, radius, fill)
+                stroke.color = if (held) heldStroke else idleStroke
+                canvas.drawCircle(control.cx, control.cy, radius, stroke)
+                text.color = if (held) Color.WHITE else idleText
+                val direction = directions.indexOf(control.target)
+                if (direction &gt;= 0) {
+                    drawArrow(canvas, control.cx, control.cy, radius * 0.34f, direction)
+                    continue
+                }
+                val name = label(control)
+                text.textSize = if (name.length &gt; 2) dp(11f) else radius * if (name.length == 2) 0.62f else 0.85f
+                canvas.drawText(name, control.cx, control.cy + text.textSize * 0.35f, text)
+            }
+        }
+        if (editing) {
+            stroke.color = heldStroke
+            snapX?.let { canvas.drawLine(it, safe.top.toFloat(), it, (height - safe.bottom).toFloat(), stroke) }
+            snapY?.let { canvas.drawLine(safe.left.toFloat(), it, (width - safe.right).toFloat(), it, stroke) }
+            selected?.let { group -&gt;
+                val (x, y) = centre(group)
+                val single = members(group).singleOrNull()
+                if (single?.wide == true) {
+                    val pad = dp(6f)
+                    box.set(x - single.halfW - pad, y - single.halfH - pad, x + single.halfW + pad, y + single.halfH + pad)
+                    canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
+                } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
+            }
+        } else if (!buttonsOnly) {
+            val (x, y) = quickCenter()
+            val radius = dp(18f)
+            fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
+            canvas.drawCircle(x, y, radius, fill)
+            stroke.color = idleStroke
+            canvas.drawCircle(x, y, radius, stroke)
+            text.color = idleText
+            text.textSize = dp(22f)
+            canvas.drawText(if (quickHidden) &quot;+&quot; else &quot;−&quot;, x, y + text.textSize * 0.35f, text)
+        }
+        if (!editing &amp;&amp; settings.keyboardButton &amp;&amp; onKeyboard != null) {
+            val (x, y) = keyboardCenter()
+            fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
+            canvas.drawCircle(x, y, dp(18f), fill)
+            stroke.color = if (keyboardPressedBy == -1) idleStroke else heldStroke
+            canvas.drawCircle(x, y, dp(18f), stroke)
+            box.set(x - dp(10f), y - dp(7f), x + dp(10f), y + dp(7f))
+            canvas.drawRoundRect(box, dp(2f), dp(2f), stroke)
+            for (row in 0..1) for (col in 0..2) {
+                val kx = x + dp(-6f + col * 5f)
+                val ky = y + dp(-3f + row * 4f)
+                canvas.drawLine(kx, ky, kx + dp(2f), ky, stroke)
+            }
+            canvas.drawLine(x - dp(5f), y + dp(4f), x + dp(5f), y + dp(4f), stroke)
+        }
+    }</pre></details>
+<details><summary>DroidDeck OnScreenControls.kt: drawArrow <em>lines 494-509</em></summary><pre>    private fun drawArrow(canvas: Canvas, x: Float, y: Float, size: Float, direction: Int) {
+        val (fx, fy) = when (direction) {
+            0 -&gt; 0f to -1f
+            1 -&gt; 1f to 0f
+            2 -&gt; 0f to 1f
+            else -&gt; -1f to 0f
+        }
+        arrow.reset()
+        arrow.moveTo(x + fx * size, y + fy * size)
+        arrow.lineTo(x - fx * size * 0.7f - fy * size, y - fy * size * 0.7f + fx * size)
+        arrow.lineTo(x - fx * size * 0.7f + fy * size, y - fy * size * 0.7f - fx * size)
+        arrow.close()
+        fill.color = text.color
+        canvas.drawPath(arrow, fill)
+    }</pre></details>
+<details><summary>WinHub ControlElement.java: Fusion drawing <em>lines 1848-1930</em></summary><pre>    // FUSION palette: the accent darkened (shade) or lightened (light) toward white, scaled by the
+    // overlay opacity. Same recipe DroidDeck&#x27;s on-screen pad uses for its idle/held pads.
+    private static int fusionShade(int tint, float opacity, int alpha, float factor) {
+        return Color.argb((int) (alpha * opacity),
+                (int) (Color.red(tint) * factor), (int) (Color.green(tint) * factor), (int) (Color.blue(tint) * factor));
+    }
+
+    private static int fusionLight(int tint, float opacity, int alpha, float factor) {
+        return Color.argb((int) (alpha * opacity),
+                (int) (Color.red(tint) + (255 - Color.red(tint)) * factor),
+                (int) (Color.green(tint) + (255 - Color.green(tint)) * factor),
+                (int) (Color.blue(tint) + (255 - Color.blue(tint)) * factor));
+    }
+
+    /** FUSION key: a flat tinted pad. Shoulders/triggers are wide pills, everything else keeps its own shape. */
+    private void drawFusionKey(Canvas canvas, Paint paint, Rect bb, boolean pill, int fill, int stroke) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(fill);
+        if (pill) {
+            float corner = bb.height() * 0.5f * 0.55f;
+            canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setColor(stroke);
+            canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
+            return;
+        }
+        drawGameHubShape(canvas, paint, bb, fill, true);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(stroke);
+        drawGameHubShape(canvas, paint, bb, 0, false);
+    }
+
+    /** FUSION stick: dim base disc with a lighter knob that follows the finger. */
+    private void drawFusionStick(Canvas canvas, Paint paint, float cx, float cy, float ringRadius, float knobX,
+                                 float knobY, boolean engaged, int accent, float opacity, int strokeColor,
+                                 int pressedStrokeColor, int pressedFillColor) {
+        int stroke = engaged ? pressedStrokeColor : strokeColor;
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 60, 0.12f));
+        canvas.drawCircle(cx, cy, ringRadius, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(stroke);
+        canvas.drawCircle(cx, cy, ringRadius, paint);
+        float knobRadius = ringRadius * 0.46f;
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 120, 0.35f));
+        canvas.drawCircle(knobX, knobY, knobRadius, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(stroke);
+        canvas.drawCircle(knobX, knobY, knobRadius, paint);
+    }
+
+    /** FUSION D-pad: four round pads (up, right, down, left) each with an arrow, lit one by one. */
+    private void drawFusionDpad(Canvas canvas, Paint paint, float cx, float cy, float radius, int fill,
+                                int pressedFill, int stroke, int pressedStroke, int idleText) {
+        float padRadius = radius / 3f;
+        float offset = radius * 2f / 3f;
+        float[][] dirs = {{0f, -1f}, {1f, 0f}, {0f, 1f}, {-1f, 0f}};
+        for (int i = 0; i &lt; 4; i++) {
+            boolean held = states[i];
+            float px = cx + dirs[i][0] * offset;
+            float py = cy + dirs[i][1] * offset;
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(held ? pressedFill : fill);
+            canvas.drawCircle(px, py, padRadius, paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setColor(held ? pressedStroke : stroke);
+            canvas.drawCircle(px, py, padRadius, paint);
+
+            float size = padRadius * 0.34f;
+            float fx = dirs[i][0];
+            float fy = dirs[i][1];
+            path.reset();
+            path.moveTo(px + fx * size, py + fy * size);
+            path.lineTo(px - fx * size * 0.7f - fy * size, py - fy * size * 0.7f + fx * size);
+            path.lineTo(px - fx * size * 0.7f + fy * size, py - fy * size * 0.7f - fx * size);
+            path.close();
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(held ? Color.WHITE : idleText);
+            canvas.drawPath(path, paint);
+        }
+    }</pre></details>
+<details><summary>WinHub ControlElement.java: Fusion palette in drawGameHub <em>lines 1436-1442</em></summary><pre>        if (fusion) {
+            fillColor = fusionShade(accent, gameHubDim, 80, 0.12f);
+            pressedFillColor = fusionShade(accent, gameHubDim, 160, 1f);
+            strokeColor = fusionLight(accent, gameHubDim, 150, 0.25f);
+            pressedStrokeColor = fusionLight(accent, gameHubDim, 230, 0.7f);
+            textColor = fusionLight(accent, gameHubDim, 210, 0.75f);
+        }</pre></details>
+
+
+<script>
+const DP=1.6, W=1280, H=720, SNAP=W/100;
+const hexRGB=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${Math.max(0,Math.min(255,Math.trunc(a)))/255})`;
+const O={opacity:.75,accent:hexRGB('#1a9fff'),hold:false};
+
+/* ---------- shared sample layout (centres, 1280x720) ---------- */
+const BTN=[ // WinHub BUTTON elements. shape: C = CIRCLE (3x snap half), P = ROUND_RECT (4x2 snap half)
+  {k:'a',  label:'A', cx:1100,cy:545,shape:'C'},
+  {k:'b',  label:'B', cx:1180,cy:465,shape:'C'},
+  {k:'x',  label:'X', cx:1020,cy:465,shape:'C'},
+  {k:'y',  label:'Y', cx:1100,cy:385,shape:'C'},
+  {k:'lt', label:'LT',cx:150, cy:70, shape:'P',trig:'LT'},
+  {k:'lb', label:'LB',cx:150, cy:150,shape:'P',trig:'LB'},
+  {k:'rt', label:'RT',cx:1130,cy:70, shape:'P',trig:'RT'},
+  {k:'rb', label:'RB',cx:1130,cy:150,shape:'P',trig:'RB'},
+  {k:'sel',label:'SEL',cx:560,cy:660,shape:'P'},
+  {k:'sta',label:'START',cx:720,cy:660,shape:'P'},
+];
+const DPAD={k:'dpad',cx:200,cy:470,half:SNAP*7};
+const STICKS=[{k:'ls',cx:430,cy:595,half:SNAP*6,tag:'L'},{k:'rs',cx:860,cy:595,half:SNAP*6,tag:'R'}];
+
+/* ---------- interaction state ---------- */
+function mkState(){return {down:new Map(),pos:new Map()}} // pointerId -> element key
+const S=[mkState(),mkState(),mkState()];
+function bbOf(b){const hw=b.shape==='C'?SNAP*3:SNAP*4, hh=b.shape==='C'?SNAP*3:SNAP*2;return {l:b.cx-hw,t:b.cy-hh,r:b.cx+hw,b:b.cy+hh,w:hw*2,h:hh*2,cx:b.cx,cy:b.cy}}
+function isHeld(s,key){if(O.hold)return true;for(const k of s.down.values())if(k.key===key)return true;return false}
+function dpadDirs(s,cx,cy){ // states[] = up,right,down,left
+  const d=[false,false,false,false];
+  if(O.hold)return [true,true,true,true];
+  for(const k of s.down.values()) if(k.key==='dpad'){const dx=k.x-cx,dy=k.y-cy; if(Math.abs(dx)>Math.abs(dy))d[dx>0?1:3]=true; else d[dy>0?2:0]=true;}
+  return d;
+}
+function stickKnob(s,st,ring){
+  for(const k of s.down.values()) if(k.key===st.k){let dx=k.x-st.cx,dy=k.y-st.cy;const m=Math.hypot(dx,dy),lim=ring;if(m>lim){dx*=lim/m;dy*=lim/m}return {x:st.cx+dx,y:st.cy+dy,on:true}}
+  if(O.hold)return {x:st.cx+ring*.28,y:st.cy-ring*.18,on:true};
+  return {x:st.cx,y:st.cy,on:false};
+}
+
+/* ---------- text helper (ControlElement.getTextSizeForWidth + baseline maths) ---------- */
+function fitText(ctx,txt,width){ctx.font='bold 48px Roboto,Arial,sans-serif';return 48*width/ctx.measureText(txt).width}
+function drawLabel(ctx,txt,cx,cy,size,color){
+  ctx.font=`bold ${size}px Roboto,Arial,sans-serif`;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  const m=ctx.measureText(txt),asc=m.fontBoundingBoxAscent??size*.93,desc=m.fontBoundingBoxDescent??size*.25;
+  ctx.fillStyle=color;ctx.fillText(txt,cx,cy+(asc-desc)/2);
+}
+
+/* ================= WinHub: ported from ControlElement.drawGameHub ================= */
+const fusionShade=(t,o,a,f)=>rgba([Math.trunc(t[0]*f),Math.trunc(t[1]*f),Math.trunc(t[2]*f)],Math.trunc(a*o));
+const fusionLight=(t,o,a,f)=>rgba(t.map(c=>Math.trunc(c+(255-c)*f)),Math.trunc(a*o));
+
+function trigPath(ctx,shape,left,top,right,bottom){ // GameHubLayout.buildTriggerPath
+  const w=right-left,h=bottom-top,r=Math.min(w,h)*.1875,f=.2*w,diag=Math.hypot(h,f),sx=f/diag*r,sy=h/diag*r;
+  const arc=(x0,y0,x1,y1,st,sw)=>ctx.arc((x0+x1)/2,(y0+y1)/2,(x1-x0)/2,st*Math.PI/180,(st+sw)*Math.PI/180,sw<0);
+  ctx.beginPath();
+  if(shape==='LT'){
+    ctx.moveTo(left+sx,bottom-sy);ctx.lineTo(left+f-sx,top+sy);ctx.quadraticCurveTo(left+f,top,left+f+r,top);ctx.lineTo(right-r,top);
+    arc(right-2*r,top,right,top+2*r,-90,90);ctx.lineTo(right,bottom-r);arc(right-2*r,bottom-2*r,right,bottom,0,90);
+    ctx.lineTo(left+r,bottom);ctx.quadraticCurveTo(left,bottom,left+sx,bottom-sy);
+  }else if(shape==='LB'){
+    ctx.moveTo(left+r,top);ctx.lineTo(right-r,top);arc(right-2*r,top,right,top+2*r,-90,90);ctx.lineTo(right,bottom-r);
+    arc(right-2*r,bottom-2*r,right,bottom,0,90);ctx.lineTo(left+f+r,bottom);ctx.quadraticCurveTo(left+f,bottom,left+f-sx,bottom-sy);
+    ctx.lineTo(left+sx,top+sy);ctx.quadraticCurveTo(left,top,left+r,top);
+  }else if(shape==='RT'){
+    ctx.moveTo(right-sx,bottom-sy);ctx.lineTo(right-f+sx,top+sy);ctx.quadraticCurveTo(right-f,top,right-f-r,top);ctx.lineTo(left+r,top);
+    arc(left,top,left+2*r,top+2*r,270,-90);ctx.lineTo(left,bottom-r);arc(left,bottom-2*r,left+2*r,bottom,180,-90);
+    ctx.lineTo(right-r,bottom);ctx.quadraticCurveTo(right,bottom,right-sx,bottom-sy);
+  }else{ // RB
+    ctx.moveTo(right-r,top);ctx.lineTo(left+r,top);arc(left,top,left+2*r,top+2*r,270,-90);ctx.lineTo(left,bottom-r);
+    arc(left,bottom-2*r,left+2*r,bottom,180,-90);ctx.lineTo(right-f-r,bottom);ctx.quadraticCurveTo(right-f,bottom,right-f+sx,bottom-sy);
+    ctx.lineTo(right-sx,top+sy);ctx.quadraticCurveTo(right,top,right-r,top);
+  }
+  ctx.closePath();
+}
+function dpadArrow(ctx,side,cx,cy,radius){ // GameHubLayout.buildDpadArrow (0 up,1 down,2 left,3 right)
+  const outer=radius*.95,sh=radius*.45,inn=radius*.18,ho=radius*.275,c=radius*.05,q=ctx.quadraticCurveTo.bind(ctx);
+  if(side===0){ctx.moveTo(cx-ho+c,cy-outer);ctx.lineTo(cx+ho-c,cy-outer);q(cx+ho,cy-outer,cx+ho,cy-outer+c);ctx.lineTo(cx+ho,cy-sh);ctx.lineTo(cx,cy-inn);ctx.lineTo(cx-ho,cy-sh);ctx.lineTo(cx-ho,cy-outer+c);q(cx-ho,cy-outer,cx-ho+c,cy-outer)}
+  if(side===1){ctx.moveTo(cx+ho-c,cy+outer);ctx.lineTo(cx-ho+c,cy+outer);q(cx-ho,cy+outer,cx-ho,cy+outer-c);ctx.lineTo(cx-ho,cy+sh);ctx.lineTo(cx,cy+inn);ctx.lineTo(cx+ho,cy+sh);ctx.lineTo(cx+ho,cy+outer-c);q(cx+ho,cy+outer,cx+ho-c,cy+outer)}
+  if(side===2){ctx.moveTo(cx-outer,cy+ho-c);ctx.lineTo(cx-outer,cy-ho+c);q(cx-outer,cy-ho,cx-outer+c,cy-ho);ctx.lineTo(cx-sh,cy-ho);ctx.lineTo(cx-inn,cy);ctx.lineTo(cx-sh,cy+ho);ctx.lineTo(cx-outer+c,cy+ho);q(cx-outer,cy+ho,cx-outer,cy+ho-c)}
+  if(side===3){ctx.moveTo(cx+outer,cy-ho+c);ctx.lineTo(cx+outer,cy+ho-c);q(cx+outer,cy+ho,cx+outer-c,cy+ho);ctx.lineTo(cx+sh,cy+ho);ctx.lineTo(cx+inn,cy);ctx.lineTo(cx+sh,cy-ho);ctx.lineTo(cx+outer-c,cy-ho);q(cx+outer,cy-ho,cx+outer,cy-ho+c)}
+  ctx.closePath();
+}
+function glassGrad(ctx,cx,cy,r,edge){const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,rgba([0,0,0],edge));return g}
+function shapePath(ctx,b){ // drawGameHubShape: CIRCLE or ROUND_RECT (pill, r = height/2)
+  ctx.beginPath();
+  if(b.shape==='C')ctx.arc(b.cx,b.cy,Math.min(b.w,b.h)/2,0,Math.PI*2);else ctx.roundRect(b.l,b.t,b.w,b.h,b.h/2);
+}
+
+function winhub(ctx,s,fusion){
+  const dim=O.opacity,acc=O.accent,eff=1;
+  const fillAlpha=Math.trunc(90*dim*eff),strokeAlpha=Math.trunc(150*dim*eff),pFillAlpha=Math.trunc(60*dim*eff),pStrokeAlpha=Math.trunc(220*dim*eff);
+  const textAlpha=Math.trunc(255*dim*eff),glassEdge=fusion?0:Math.trunc(75*dim*eff);
+  let fillC=rgba([0,0,0],fillAlpha),strokeC=rgba(acc,Math.max(strokeAlpha,Math.trunc(110*dim))),
+      pFillC=rgba(acc,pFillAlpha),pStrokeC=rgba(acc,Math.max(pStrokeAlpha,Math.trunc(160*dim))),textC=rgba(acc,textAlpha);
+  const shadowC=rgba(acc,fusion?0:Math.trunc(0x40*dim*eff));
+  if(fusion){ // the block added to drawGameHub
+    fillC=fusionShade(acc,dim,80,.12);pFillC=fusionShade(acc,dim,160,1);strokeC=fusionLight(acc,dim,150,.25);
+    pStrokeC=fusionLight(acc,dim,230,.7);textC=fusionLight(acc,dim,210,.75);
+  }
+  const sw=fusion?Math.max(2,1.5*DP):Math.max(2,SNAP*.18);
+  ctx.lineWidth=sw;ctx.lineJoin='round';ctx.lineCap='round';
+
+  /* BUTTON */
+  for(const el of BTN){
+    const b=bbOf(el),eng=isHeld(s,el.k),trig=el.trig;
+    if(fusion){ // drawFusionKey
+      ctx.fillStyle=eng?pFillC:fillC;ctx.strokeStyle=eng?pStrokeC:strokeC;
+      if(trig){const c=b.h*.5*.55;ctx.beginPath();ctx.roundRect(b.l,b.t,b.w,b.h,c);ctx.fill();ctx.stroke()}
+      else{shapePath(ctx,b);ctx.fill();ctx.stroke()}
+    }else if(trig){
+      trigPath(ctx,trig,b.l,b.t,b.r,b.b);
+      ctx.shadowColor=shadowC;ctx.shadowBlur=SNAP*.08;ctx.shadowOffsetY=SNAP*.04;ctx.fillStyle=fillC;ctx.fill();
+      ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+      if(eng){ctx.fillStyle=pFillC;ctx.fill()}
+      ctx.fillStyle=glassGrad(ctx,b.cx,b.cy,Math.max(b.w,b.h)*.5,glassEdge);ctx.fill();
+      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.stroke();
+    }else{
+      shapePath(ctx,b);ctx.shadowColor=shadowC;ctx.shadowBlur=SNAP*.08;ctx.shadowOffsetY=SNAP*.04;ctx.fillStyle=fillC;ctx.fill();
+      ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+      if(eng){ctx.fillStyle=pFillC;ctx.fill()}
+      ctx.fillStyle=glassGrad(ctx,b.cx,b.cy,Math.max(b.w,b.h)*.5,glassEdge);ctx.fill();
+      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.stroke();
+    }
+    const size=Math.min(fitText(ctx,el.label,b.w-sw*2),SNAP*2);
+    drawLabel(ctx,el.label,b.cx,b.cy,size,fusion&&eng?'#fff':textC);
+  }
+
+  /* STICK */
+  for(const st of STICKS){
+    const ring=st.half,knob=stickKnob(s,st,ring),eng=knob.on;
+    ctx.fillStyle='rgba(255,0,0,'+40/255+')';ctx.beginPath();ctx.arc(st.cx,st.cy,SNAP*1.8*.15,0,Math.PI*2);ctx.fill(); // dead-zone dot (unchanged)
+    if(fusion){ // drawFusionStick
+      const stroke=eng?pStrokeC:strokeC;
+      ctx.fillStyle=eng?pFillC:fusionShade(acc,dim,60,.12);ctx.beginPath();ctx.arc(st.cx,st.cy,ring,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=stroke;ctx.stroke();
+      const kr=ring*.46;ctx.fillStyle=eng?pFillC:fusionShade(acc,dim,120,.35);ctx.beginPath();ctx.arc(knob.x,knob.y,kr,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=stroke;ctx.stroke();
+    }else{
+      ctx.fillStyle=rgba([0,0,0],fillAlpha);ctx.beginPath();ctx.arc(st.cx,st.cy,ring,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=glassGrad(ctx,st.cx,st.cy,ring,glassEdge);ctx.fill();
+      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.beginPath();ctx.arc(st.cx,st.cy,ring-sw*.5,0,Math.PI*2);ctx.stroke();
+      const kr=ring*.48;ctx.fillStyle=rgba(acc,Math.trunc((eng?100:77)*dim*eff));ctx.beginPath();ctx.arc(knob.x,knob.y,kr,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.beginPath();ctx.arc(knob.x,knob.y,kr-sw*.5,0,Math.PI*2);ctx.stroke();
+    }
+  }
+
+  /* D_PAD */
+  {
+    const {cx,cy}=DPAD,radius=DPAD.half,dirs=dpadDirs(s,cx,cy),eng=dirs.some(Boolean);
+    if(fusion){ // drawFusionDpad
+      const pr=radius/3,off=radius*2/3,v=[[0,-1],[1,0],[0,1],[-1,0]];
+      for(let i=0;i<4;i++){
+        const held=dirs[i],px=cx+v[i][0]*off,py=cy+v[i][1]*off;
+        ctx.fillStyle=held?pFillC:fillC;ctx.beginPath();ctx.arc(px,py,pr,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle=held?pStrokeC:strokeC;ctx.stroke();
+        const z=pr*.34,fx=v[i][0],fy=v[i][1];
+        ctx.beginPath();ctx.moveTo(px+fx*z,py+fy*z);ctx.lineTo(px-fx*z*.7-fy*z,py-fy*z*.7+fx*z);ctx.lineTo(px-fx*z*.7+fy*z,py-fy*z*.7-fx*z);ctx.closePath();
+        ctx.fillStyle=held?'#fff':textC;ctx.fill();
+      }
+    }else{
+      const along=radius*.565,ctr=[[cx,cy-along],[cx,cy+along],[cx-along,cy],[cx+along,cy]];
+      for(let side=0;side<4;side++){
+        ctx.beginPath();dpadArrow(ctx,side,cx,cy,radius);ctx.fillStyle=fillC;ctx.fill();
+        if(eng){ctx.fillStyle=pFillC;ctx.fill()}
+        ctx.fillStyle=glassGrad(ctx,ctr[side][0],ctr[side][1],radius*.5,glassEdge);ctx.fill();
+      }
+      ctx.beginPath();for(let side=0;side<4;side++)dpadArrow(ctx,side,cx,cy,radius);
+      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.stroke();
+    }
+  }
+}
+
+/* ================= DroidDeck: ported from OnScreenControls.onDraw ================= */
+const dd=v=>v*DP;
+function droiddeck(ctx,s){
+  const tint=O.accent,alpha=O.opacity;
+  const shade=(a,f)=>rgba(tint.map(c=>Math.trunc(c*f)),Math.trunc(a*alpha));
+  const light=(a,f)=>rgba(tint.map(c=>Math.trunc(c+(255-c)*f)),Math.trunc(a*alpha));
+  const idleFill=shade(80,.12),heldFill=shade(160,1),idleStroke=light(150,.25),heldStroke=light(230,.7),idleText=light(210,.75),stickFill=shade(60,.12),knobFill=shade(120,.35);
+  ctx.lineWidth=dd(1.5);ctx.lineJoin='miter';ctx.lineCap='butt';
+  const circle=(x,y,r,f,st)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=f;ctx.fill();ctx.strokeStyle=st;ctx.stroke()};
+  const txt=(t,x,y,size,col)=>{ctx.font=`bold ${size}px Roboto,Arial,sans-serif`;ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle=col;ctx.fillText(t,x,y+size*.35)};
+  // sticks
+  for(const st of STICKS){
+    const r=dd(48),k=stickKnob(s,st,r),held=k.on;
+    circle(st.cx,st.cy,r,held?heldFill:stickFill,held?heldStroke:idleStroke);
+    const kr=r*.46;circle(k.x,k.y,kr,held?heldFill:knobFill,held?heldStroke:idleStroke);
+    txt(st.tag,k.x,k.y,kr*.8,held?'#fff':idleText);
+  }
+  // d-pad: four 26dp circles at +-52dp, drawArrow(size = radius*.34)
+  const dirs=dpadDirs(s,DPAD.cx,DPAD.cy),v=[[0,-1],[1,0],[0,1],[-1,0]];
+  for(let i=0;i<4;i++){
+    const x=DPAD.cx+dd(52)*v[i][0],y=DPAD.cy+dd(52)*v[i][1],r=dd(26),held=dirs[i];
+    circle(x,y,r,held?heldFill:idleFill,held?heldStroke:idleStroke);
+    const z=r*.34,fx=v[i][0],fy=v[i][1];
+    ctx.beginPath();ctx.moveTo(x+fx*z,y+fy*z);ctx.lineTo(x-fx*z*.7-fy*z,y-fy*z*.7+fx*z);ctx.lineTo(x-fx*z*.7+fy*z,y-fy*z*.7-fx*z);ctx.closePath();
+    ctx.fillStyle=held?'#fff':idleText;ctx.fill();
+  }
+  // face buttons (30dp), shoulders (24dp wide pills 1.45 x .8), centre keys (20dp)
+  const face={a:'A',b:'B',x:'X',y:'Y'};
+  for(const el of BTN){
+    const held=isHeld(s,el.k);
+    if(face[el.k]){
+      const r=dd(30);circle(el.cx,el.cy,r,held?heldFill:idleFill,held?heldStroke:idleStroke);
+      txt(face[el.k],el.cx,el.cy,r*.85,held?'#fff':idleText);
+    }else if(el.trig){
+      const r=dd(24),hw=r*1.45,hh=r*.8,c=hh*.55;
+      ctx.beginPath();ctx.roundRect(el.cx-hw,el.cy-hh,hw*2,hh*2,c);ctx.fillStyle=held?heldFill:idleFill;ctx.fill();ctx.strokeStyle=held?heldStroke:idleStroke;ctx.stroke();
+      txt(el.label,el.cx,el.cy,hh*.8,held?'#fff':idleText);
+    }else{
+      const r=dd(20),g=el.k==='sel'?'⧉':'☰';circle(el.cx,el.cy,r,held?heldFill:idleFill,held?heldStroke:idleStroke);
+      txt(g,el.cx,el.cy,r*.85,held?'#fff':idleText);
+    }
+  }
+}
+
+/* ---------- render + pointer plumbing ---------- */
+const cv=[0,1,2].map(i=>document.getElementById('c'+i));
+function render(){
+  cv.forEach((c,i)=>{const ctx=c.getContext('2d');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='rgba(255,255,255,.03)';for(let x=0;x<W;x+=64)ctx.fillRect(x,0,1,H);for(let y=0;y<H;y+=64)ctx.fillRect(0,y,W,1);
+    if(i===0)droiddeck(ctx,S[0]);else winhub(ctx,S[i],i===1)});
+}
+function hit(x,y,i){
+  const dd_=i===0;
+  for(const st of STICKS)if(Math.hypot(x-st.cx,y-st.cy)<=(dd_?dd(48):st.half))return st.k;
+  if(Math.hypot(x-DPAD.cx,y-DPAD.cy)<=(dd_?dd(78):DPAD.half))return 'dpad';
+  for(const el of BTN){const b=bbOf(el);if(dd_){const wide=!!el.trig,r=wide?dd(24):el.shape==='C'?dd(30):dd(20);
+      if(wide?(Math.abs(x-el.cx)<=r*1.45&&Math.abs(y-el.cy)<=r*.8):Math.hypot(x-el.cx,y-el.cy)<=r)return el.k}
+    else if(x>=b.l&&x<=b.r&&y>=b.t&&y<=b.b)return el.k}
+  return null;
+}
+cv.forEach((c,i)=>{
+  const pt=e=>{const r=c.getBoundingClientRect();return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}};
+  c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);const p=pt(e),key=hit(p.x,p.y,i);if(key){S[i].down.set(e.pointerId,{key,x:p.x,y:p.y});render()}});
+  c.addEventListener('pointermove',e=>{const d=S[i].down.get(e.pointerId);if(d){const p=pt(e);d.x=p.x;d.y=p.y;render()}});
+  const up=e=>{if(S[i].down.delete(e.pointerId))render()};
+  c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);
+});
+const op=document.getElementById('op'),ac=document.getElementById('ac'),hold=document.getElementById('hold');
+op.oninput=()=>{O.opacity=op.value/100;document.getElementById('opv').textContent=op.value+'%';render()};
+ac.oninput=()=>{O.accent=hexRGB(ac.value);render()};
+hold.onchange=()=>{O.hold=hold.checked;render()};
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(render);render();
+</script>
+</body></html>

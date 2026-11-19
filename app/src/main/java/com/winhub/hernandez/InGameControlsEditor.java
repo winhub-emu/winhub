@@ -15,6 +15,9 @@ import androidx.compose.ui.platform.ComposeView;
 import com.winhub.hernandez.core.AppUtils;
 import com.winhub.hernandez.inputcontrols.Binding;
 import com.winhub.hernandez.inputcontrols.ControlElement;
+import com.winhub.hernandez.inputcontrols.ControlsIconStyle;
+import androidx.preference.PreferenceManager;
+import com.winhub.hernandez.ui.XServerDrawerState;
 import com.winhub.hernandez.inputcontrols.ControlsProfile;
 import com.winhub.hernandez.inputcontrols.CustomIconManager;
 import com.winhub.hernandez.widget.InputControlsView;
@@ -87,6 +90,7 @@ final class InGameControlsEditor {
                         action(InGameControlsEditor.this::removeSelectedElement),
                         action(InGameControlsEditor.this::showSelectedSettings),
                         action(InGameControlsEditor.this::toggleGroupsDialog),
+                        action(() -> showDialog(ControlsEditorDialogsKt.DIALOG_ICON_STYLE)),
                         action(onDone),
                         composer,
                         0);
@@ -281,6 +285,7 @@ final class InGameControlsEditor {
                         mode,
                         profile,
                         0f,
+                        inputControlsView.getIconStyle().key(),
                         new ControlsEditorDialogActions() {
                             @Override
                             public void onDismiss() {
@@ -344,6 +349,16 @@ final class InGameControlsEditor {
                             public void onPickIconSystem() {
                                 closeDialog();
                                 onPickCustomIcon.run();
+                            }
+
+                            @Override
+                            public void onIconStyleChange(String key) {
+                                ControlsIconStyle style = ControlsIconStyle.fromKey(key);
+                                inputControlsView.setIconStyle(style);
+                                PreferenceManager.getDefaultSharedPreferences(activity)
+                                        .edit().putString(ControlsIconStyle.PREF_KEY, style.key()).apply();
+                                XServerDrawerState.INSTANCE.setControlsIconStyle(style.key()); // keep the drawer chips in sync
+                                renderDialogHost();
                             }
                         },
                         composer,

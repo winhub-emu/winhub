@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.winhub.hernandez.inputcontrols.ControlElement
+import com.winhub.hernandez.inputcontrols.ControlsIconStyle
 import com.winhub.hernandez.inputcontrols.ControlsProfile
 import com.winhub.hernandez.ui.theme.AppThemeState
 import kotlin.math.roundToInt
@@ -46,6 +47,7 @@ const val DIALOG_ADD_ELEMENT = "add_element"
 const val DIALOG_BACKGROUND_IMAGE = "background_image"
 const val DIALOG_GROUP_VISIBILITY = "group_visibility"
 const val DIALOG_CUSTOM_ICON_SOURCE = "custom_icon_source"
+const val DIALOG_ICON_STYLE = "icon_style"
 
 private val DialogBackground get() = AppThemeState.deckPreset.surface
 private val DialogSurface get() = AppThemeState.deckPreset.surfaceVariant
@@ -65,6 +67,7 @@ interface ControlsEditorDialogActions {
     fun onGroupVisibilityChange(groupName: String, visible: Boolean)
     fun onPickIconFile()
     fun onPickIconSystem()
+    fun onIconStyleChange(key: String)
 }
 
 @Composable
@@ -72,6 +75,7 @@ fun ControlsEditorDialogHost(
     dialogMode: String?,
     profile: ControlsProfile?,
     backgroundOpacity: Float,
+    iconStyle: String,
     actions: ControlsEditorDialogActions,
 ) {
     MaterialTheme(colorScheme = controlsEditorDialogColorScheme()) {
@@ -98,6 +102,11 @@ fun ControlsEditorDialogHost(
                 onDismiss = actions::onDismiss,
                 onPickIconFile = actions::onPickIconFile,
                 onPickIconSystem = actions::onPickIconSystem,
+            )
+            DIALOG_ICON_STYLE -> IconStyleDialog(
+                iconStyle = iconStyle,
+                onDismiss = actions::onDismiss,
+                onIconStyleChange = actions::onIconStyleChange,
             )
         }
     }
@@ -336,6 +345,38 @@ private fun CustomIconSourceDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(text = stringResource(R.string.cancel), color = DialogAccent)
+            }
+        },
+    )
+}
+
+@Composable
+private fun IconStyleDialog(
+    iconStyle: String,
+    onDismiss: () -> Unit,
+    onIconStyleChange: (String) -> Unit,
+) {
+    val styles = listOf(
+        ControlsIconStyle.FUSION to stringResource(R.string.icon_style_fusion),
+        ControlsIconStyle.GLASS to stringResource(R.string.icon_style_glass),
+    )
+    EditorAlertDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.icon_style),
+        text = {
+            DialogActionColumn {
+                styles.forEach { (style, label) ->
+                    // The check mark keeps the selection readable without relying on colour alone.
+                    DialogActionButton(
+                        text = if (style.key() == iconStyle) "\u2713  $label" else label,
+                        onClick = { onIconStyleChange(style.key()) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.ok), color = DialogAccent)
             }
         },
     )

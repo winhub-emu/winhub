@@ -3098,6 +3098,7 @@ private fun ControlsContent(state: XServerDrawerState) {
     val cursorAutoHide by state.cursorAutoHide.collectAsState()
     val isMouseDisabled by state.isMouseDisabled.collectAsState()
     val initOverlayOpacity by state.overlayOpacity.collectAsState()
+    val controlsIconStyle by state.controlsIconStyle.collectAsState()
     val controlsFollowTheme by state.controlsFollowTheme.collectAsState()
     val initControlsAccent by state.controlsAccentColor.collectAsState()
 
@@ -3196,6 +3197,24 @@ private fun ControlsContent(state: XServerDrawerState) {
                     state.onOverlayOpacityChange?.run()
                 },
                 format = { "${(it * 100).toInt()}%" },
+            )
+
+            // On-screen controls icon style — Fusion (tinted pads, default) or Glass (blurred black glass).
+            Spacer(Modifier.height(4.dp))
+            Text("Icon Style", color = accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Spacer(Modifier.height(6.dp))
+            ModeChipGrid(
+                listOf(
+                    Triple("Fusion", controlsIconStyle == "fusion") {
+                        state.setControlsIconStyle("fusion")
+                        state.onControlsIconStyleChange?.run()
+                    },
+                    Triple("Glass", controlsIconStyle == "glass") {
+                        state.setControlsIconStyle("glass")
+                        state.onControlsIconStyleChange?.run()
+                    },
+                ),
+                perRow = 2
             )
 
             // On-screen controls accent — per-profile override. Follow the app theme (default) or pick a

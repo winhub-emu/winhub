@@ -27,6 +27,8 @@ import androidx.lifecycle.ViewModelProvider;
 import com.winhub.hernandez.R;
 import com.winhub.hernandez.inputcontrols.Binding;
 import com.winhub.hernandez.inputcontrols.ControlElement;
+import com.winhub.hernandez.inputcontrols.ControlsIconStyle;
+import androidx.preference.PreferenceManager;
 import com.winhub.hernandez.inputcontrols.ControlsProfile;
 import com.winhub.hernandez.inputcontrols.InputControlsManager;
 import com.winhub.hernandez.inputcontrols.CustomIconManager;
@@ -116,6 +118,13 @@ public class ControlsEditorActivity extends AppCompatActivity {
                             @Override
                             public Unit invoke() {
                                 toggleGroupListDialog();
+                                return Unit.INSTANCE;
+                            }
+                        },
+                        new Function0<Unit>() {
+                            @Override
+                            public Unit invoke() {
+                                showComposeDialog(ControlsEditorDialogsKt.DIALOG_ICON_STYLE);
                                 return Unit.INSTANCE;
                             }
                         },
@@ -319,6 +328,7 @@ public class ControlsEditorActivity extends AppCompatActivity {
         dialogComposeView.setVisibility(activeDialogMode == null ? View.GONE : View.VISIBLE);
         final String dialogMode = activeDialogMode;
         final float backgroundOpacity = inputControlsView != null ? inputControlsView.getBackgroundOpacity() : 0f;
+        final String iconStyle = (inputControlsView != null ? inputControlsView.getIconStyle() : ControlsIconStyle.FUSION).key();
 
         dialogComposeView.setContent(new Function2<Composer, Integer, Unit>() {
             @Override
@@ -327,6 +337,7 @@ public class ControlsEditorActivity extends AppCompatActivity {
                     dialogMode,
                     profile,
                     backgroundOpacity,
+                    iconStyle,
                     new ControlsEditorDialogActions() {
                         @Override
                         public void onDismiss() {
@@ -368,6 +379,14 @@ public class ControlsEditorActivity extends AppCompatActivity {
                         @Override
                         public void onPickIconSystem() {
                             pickCustomIconViaSystem();
+                        }
+                        @Override
+                        public void onIconStyleChange(String key) {
+                            ControlsIconStyle style = ControlsIconStyle.fromKey(key);
+                            inputControlsView.setIconStyle(style);
+                            PreferenceManager.getDefaultSharedPreferences(ControlsEditorActivity.this)
+                                    .edit().putString(ControlsIconStyle.PREF_KEY, style.key()).apply();
+                            renderDialogHost();
                         }
                     },
                     composer,

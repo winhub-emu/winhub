@@ -108,6 +108,7 @@ import com.winhub.hernandez.inputcontrols.ExternalController;
 import com.winhub.hernandez.inputcontrols.InputControlsManager;
 import com.winhub.hernandez.inputcontrols.SteamControllerBackend;
 import com.winhub.hernandez.inputcontrols.StickShaper;
+import com.winhub.hernandez.inputcontrols.ControlsIconStyle;
 import com.winhub.hernandez.inputcontrols.VisualStyle;
 import com.winhub.hernandez.math.Mathf;
 import com.winhub.hernandez.math.XForm;
@@ -2005,6 +2006,11 @@ public class XServerDisplayActivity extends AppCompatActivity {
             float v = XServerDrawerState.INSTANCE.getOverlayOpacityValue();
             if (inputControlsView != null) inputControlsView.setOverlayOpacity(v); // setter invalidates → live redraw
             preferences.edit().putFloat("overlay_opacity", v).apply();
+        };
+        state.onControlsIconStyleChange = () -> {
+            String key = XServerDrawerState.INSTANCE.getControlsIconStyleValue();
+            if (inputControlsView != null) inputControlsView.setIconStyle(ControlsIconStyle.fromKey(key)); // setter invalidates
+            preferences.edit().putString(ControlsIconStyle.PREF_KEY, ControlsIconStyle.fromKey(key).key()).apply();
         };
         // Swipeable OSC (Stage 2): the drawer's Swipe tab toggles → apply live to the overlay + persist.
         state.onSetSwipeButtons        = (v) -> {
@@ -10561,6 +10567,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
         float savedOverlayOpacity = preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY);
         inputControlsView.setOverlayOpacity(savedOverlayOpacity);
         XServerDrawerState.INSTANCE.setOverlayOpacity(savedOverlayOpacity); // seed the Controls-tab slider
+        XServerDrawerState.INSTANCE.setControlsIconStyle(ControlsIconStyle.fromKey(
+                preferences.getString(ControlsIconStyle.PREF_KEY, null)).key()); // seed the icon style chips
 
         // Swipeable OSC (Stage 2): resolve per-category swipe gates (Buttons default ON; D-pad and Sticks
         // default OFF), apply to the live overlay, and seed the drawer's Swipe tab so its chips match.
