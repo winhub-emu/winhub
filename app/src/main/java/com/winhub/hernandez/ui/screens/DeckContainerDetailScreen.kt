@@ -226,17 +226,7 @@ internal fun DeckContainerDetailScreen(
                     maxLines = 1,
                 )
             }
-            Text(
-                text = when {
-                    viewModel.defaultsMode -> "DEFAULTS"
-                    viewModel.isEditMode -> "EDIT"
-                    else -> "NEW"
-                },
-                color = Deck.primary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
-            )
+            DeckViewSwitch()
         }
 
         // ── Navigation chrome: top tabs / side rail / full-page category list ──
@@ -332,7 +322,6 @@ internal fun DeckContainerDetailScreen(
             ) {
                 if (!advancedView) DeckSimpleContainerPage(viewModel) else when (currentTab) {
                     0 -> {
-                        DeckGroup("View") { DeckViewModeRow() }
                         DeckGroup("Container") {
                             DeckTextRow(
                                 label = "Container Name",

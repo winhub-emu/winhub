@@ -745,7 +745,10 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         fastOpenGL               = seed?.isFastOpenGL() ?: true
         glFpsHud                 = seed?.isGlFpsHud() ?: false
         glVsyncOff               = seed?.isGlVsyncOff() ?: false
-        displayBackend           = seed?.getDisplayBackend() ?: Container.DISPLAY_BACKEND_X11
+        // A new container (no saved defaults profile) starts on Wayland whenever its layer can run it.
+        displayBackend           = seed?.getDisplayBackend()
+            ?: if (!defaultsMode && isWineWaylandCapable(selectedWineVersion)) Container.DISPLAY_BACKEND_WAYLAND
+               else Container.DISPLAY_BACKEND_X11
         // A container (or defaults profile) that never chose keeps Auto when edited, but a NEW one -
         // and the New Container Defaults form - starts on the adapter (one driver pick on Wayland).
         waylandGameDriver        = seed?.getExtra("waylandGameDriver", "")?.ifEmpty { null }
@@ -962,7 +965,11 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     private fun applyAutoDefaults(arch: String) {
         if (container != null || defaultsMode || arch != NewContainerDefaults.ARCH_ARM64EC) return
         if (NewContainerDefaults.load(context, arch) != null) return
-        AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
+        // On Wayland the driver is the compositor's: defaultsProfileCompositorDriver() offers this same pick to
+        // the compositor probe, which keeps it only when it can import the game's frames.
+        if (!isWaylandBackend) {
+            AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
+        }
         AutoDefaults.dxvkVersion(contentsManager)?.let { dxWrapperConfig = AutoDefaults.withDxvkVersion(dxWrapperConfig, it) }
     }
 
@@ -1008,7 +1015,9 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             isArm64EC -> NewContainerDefaults.ARCH_ARM64EC
             else -> NewContainerDefaults.ARCH_X86_64
         }
-        val json = NewContainerDefaults.load(context, arch) ?: return null
+        // No saved profile on a new arm64ec container: the chip-matched Turnip is the preferred pick.
+        val json = NewContainerDefaults.load(context, arch)
+            ?: return if (container == null && !defaultsMode && arch == NewContainerDefaults.ARCH_ARM64EC) AutoDefaults.graphicsDriverId(context) else null
         val v = runCatching {
             GraphicsDriverConfigDialog.getVersion(JSONObject(json).optString("graphicsDriverConfig", ""))
         }.getOrNull() ?: return null

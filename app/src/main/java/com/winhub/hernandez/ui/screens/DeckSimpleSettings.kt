@@ -1,6 +1,8 @@
 package com.winhub.hernandez.ui.screens
 
 import android.content.Context
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
@@ -10,6 +12,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopWindows
@@ -17,11 +20,14 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.preference.PreferenceManager
+import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
 import com.winhub.hernandez.contents.AdrenotoolsManager
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.core.AutoDefaults
 import com.winhub.hernandez.core.StringUtils
+import com.winhub.hernandez.core.WaylandAdapterSettings
+import com.winhub.hernandez.display.WaylandHdr
 import com.winhub.hernandez.contentdialog.DXVKConfigDialog
 import com.winhub.hernandez.fexcore.FEXCorePresetManager
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +68,17 @@ internal fun DeckViewModeRow() {
     )
 }
 
+/** Simple | Advanced as two pills for a screen header; the one in use is filled. */
+@Composable
+internal fun DeckViewSwitch() {
+    val context = LocalContext.current
+    val advanced = DeckSettingsMode.advanced(context)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        DeckButton("Simple", primary = !advanced) { DeckSettingsMode.set(context, false) }
+        DeckButton("Advanced", primary = advanced) { DeckSettingsMode.set(context, true) }
+    }
+}
+
 /** Installed adrenotools drivers as (id, label); a name two drivers share gets its id appended. Blocking (disk). */
 private fun installedDriverChoices(context: Context): List<Pair<String, String>> {
     val manager = AdrenotoolsManager(context.applicationContext)
@@ -100,6 +117,24 @@ internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
             }
         }
 
+        DeckChoiceRow(
+            label = "Display Backend",
+            hint = "Wayland routes the game through the embedded compositor",
+            options = listOf(
+                Container.DISPLAY_BACKEND_WAYLAND to "Wayland",
+                Container.DISPLAY_BACKEND_X11 to "X11",
+            ),
+            selected = viewModel.displayBackend,
+            onPick = { viewModel.onDisplayBackendChanged(it) },
+        )
+        if (viewModel.isWaylandStored && !viewModel.isWaylandBackend) {
+            DeckRow(
+                label = "Wayland is not available",
+                hint = (viewModel.waylandLayerProblem() ?: "This Proton layer cannot run Wayland.") + " It will be saved as X11.",
+                control = {},
+            )
+        }
+
         val wrapper = StringUtils.parseIdentifier(viewModel.selectedDXWrapper)
         if (wrapper.contains("dxvk") && !wrapper.contains("vegas")) {
             val choices = remember(viewModel.isArm64EC, viewModel.wineVersionEntries) { viewModel.dxvkVersionChoices() }
@@ -113,13 +148,26 @@ internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
             )
         }
 
-        val drivers by produceState(initialValue = emptyList<Pair<String, String>>(), context) {
-            value = withContext(Dispatchers.IO) { installedDriverChoices(context) }
+        // On Wayland the picker offers only drivers the compositor can use (a wrong pick is a black screen).
+        val wayland = viewModel.isWaylandBackend
+        val drivers by produceState(initialValue = emptyList<Pair<String, String>>(), context, wayland) {
+            value = if (wayland) {
+                val ids = compositorDriverChoices(context)
+                withContext(Dispatchers.IO) {
+                    val manager = AdrenotoolsManager(context.applicationContext)
+                    ids.map { id -> id to manager.getDriverName(id).ifBlank { id } }
+                }
+            } else {
+                withContext(Dispatchers.IO) { installedDriverChoices(context) }
+            }
         }
         val currentDriver = GraphicsDriverConfigDialog.getVersion(viewModel.graphicsDriverConfig) ?: ""
         DeckChoiceRow(
             label = "Graphics Driver",
-            hint = "The Turnip build the game renders on",
+            hint = if (wayland && compositorDriverUnusable(currentDriver, drivers.map { it.first }, drivers.isNotEmpty()))
+                "Wayland needs a Turnip driver here; \"System\" or a missing driver shows a black screen"
+            else if (wayland) "The Turnip build the Wayland compositor and the game run on"
+            else "The Turnip build the game renders on",
             options = withCurrent(currentDriver, drivers),
             selected = currentDriver,
             onPick = { id ->
@@ -127,6 +175,31 @@ internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
                 else viewModel.graphicsDriverConfig = withGraphicsDriverVersion(viewModel.graphicsDriverConfig, id)
             },
         )
+
+        if (wayland) {
+            val profile = WaylandAdapterSettings.normalizeProfile(
+                GraphicsDriverConfigDialog.parseGraphicsDriverConfig(viewModel.graphicsDriverConfig)[WaylandAdapterSettings.KEY_PROFILE],
+            )
+            DeckChoiceRow(
+                label = "Wayland Profile",
+                hint = WaylandAdapterSettings.profileHelp(profile),
+                options = WaylandAdapterSettings.PROFILES.map { it to WaylandAdapterSettings.profileLabel(it) },
+                selected = profile,
+                onPick = {
+                    viewModel.graphicsDriverConfig = withGraphicsDriverKeys(
+                        viewModel.graphicsDriverConfig, mapOf(WaylandAdapterSettings.KEY_PROFILE to it),
+                    )
+                },
+            )
+            val hdrProblem = remember { WaylandHdr.unavailableReason(context) }
+            if (hdrProblem == null) {
+                DeckRow(
+                    label = WaylandHdr.TITLE,
+                    hint = "HDR10 output on a screen that supports it",
+                    control = { DeckToggle(viewModel.waylandHdr) { viewModel.waylandHdr = it } },
+                )
+            }
+        }
 
         if (viewModel.isArm64EC) {
             DeckChoiceRow(
@@ -146,7 +219,6 @@ internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
             )
         }
     }
-    DeckGroup("View") { DeckViewModeRow() }
 }
 
 /**
@@ -169,7 +241,7 @@ internal fun xmbSimpleMenu(xmb: XmbScope, p: XmbPrefs): XmbMenu {
         xmb.refresh()
     }
 
-    fun write(key: String, value: String) {
+    fun write(key: String, value: String?) {
         p.put(key, value)
         xmb.saved()
         xmb.refresh()
@@ -179,6 +251,35 @@ internal fun xmbSimpleMenu(xmb: XmbScope, p: XmbPrefs): XmbMenu {
         val rows = mutableListOf<XmbRow>()
         rows += XmbRow.Header("hEssentials", "Essentials")
         rows += XmbRow.Info("sProton", "Proton", Icons.Filled.Tune, p.c.wineVersion, subtitle = "Set per container")
+
+        // Wayland: where the game runs, and (when it does) how its frames are paced.
+        val waylandCapable = com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(xmb.context, p.c.wineVersion)
+        val dbOverride = p.ex("displayBackend", "")
+        val containerWayland = p.c.isWaylandBackend && waylandCapable
+        val dbValues = listOf("", Container.DISPLAY_BACKEND_X11, Container.DISPLAY_BACKEND_WAYLAND)
+        val dbLabels = listOf("Container default (" + (if (containerWayland) "Wayland" else "X11") + ")", "X11", "Wayland")
+        rows += XmbRow.Choice("sBackend", "Display backend", Icons.Filled.DesktopWindows, dbLabels,
+            dbLabels[dbValues.indexOf(dbOverride).coerceAtLeast(0)],
+            subtitle = if (waylandCapable) "Wayland routes the game through the embedded compositor"
+                else "Wayland needs a layer with winewayland; this container's layer has none",
+            disabledOptions = if (waylandCapable) emptySet() else setOf(dbLabels[2])) { v ->
+            write("displayBackend", dbValues[dbLabels.indexOf(v)].ifEmpty { null })
+        }
+        val waylandGame = if (dbOverride.isEmpty()) containerWayland else dbOverride == Container.DISPLAY_BACKEND_WAYLAND && waylandCapable
+        if (waylandGame) {
+            val own = p.ex("graphicsDriverConfig", "")
+            val stored = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(own)[WaylandAdapterSettings.KEY_PROFILE].orEmpty()
+            val profileValues = listOf("") + WaylandAdapterSettings.PROFILES
+            val profileLabels = listOf("Container default") + WaylandAdapterSettings.PROFILES.map { WaylandAdapterSettings.profileLabel(it) }
+            rows += XmbRow.Choice("sWlProfile", "Wayland profile", Icons.Filled.Tune, profileLabels,
+                profileLabels[profileValues.indexOf(stored).coerceAtLeast(0)],
+                subtitle = "Smooth evens out frame pacing, Fast lowers latency, Compatibility is the safest") { v ->
+                val value = profileValues[profileLabels.indexOf(v)]
+                // The shortcut's own config starts from the container's, with the adapter keys cleared so only this one is set.
+                val base = own.ifEmpty { withGraphicsDriverKeys(p.c.graphicsDriverConfig, WaylandAdapterSettings.KEYS.associateWith { "" }) }
+                write("graphicsDriverConfig", withGraphicsDriverKeys(base, mapOf(WaylandAdapterSettings.KEY_PROFILE to value)))
+            }
+        }
 
         val dxCfg = p.ex("dxwrapperConfig", "").ifEmpty { p.c.getDXWrapperConfig() }
         val dxCurrent = AutoDefaults.dxvkVersionOf(dxCfg)
