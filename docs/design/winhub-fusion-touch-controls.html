@@ -24,7 +24,7 @@ h3{margin:18px 0 6px;font-size:15px}
 .note{color:var(--osv);font-size:12px;margin-top:10px;max-width:900px}
 </style></head><body>
 <h1>Touch control icon styles</h1>
-<p class="sub">Six styles, all drawn by a line-by-line port of the real <code>ControlElement.drawGameHub</code> code (source listed at the bottom, read straight from the file). Fusion is the default, Glass is the old look; Neon, Solid, Minimal and Retro are the new candidates. Press and hold pads (touch or mouse, multi-touch works).</p>
+<p class="sub">Three styles, all drawn by a line-by-line port of the real <code>ControlElement.drawGameHub</code> code (source listed at the bottom, read straight from the file). Fusion is the default, Glass is the old look, Neon is the new one. Press and hold pads (touch or mouse, multi-touch works).</p>
 
 <div class="bar">
   <label>Overlay opacity <input id="op" type="range" min="0" max="100" value="75"><b id="opv">75%</b></label>
@@ -33,10 +33,10 @@ h3{margin:18px 0 6px;font-size:15px}
 </div>
 
 <div class="grid" id="grid"></div>
-<p class="note">Scene: 1280x720, 1 dp = 1.6 px, snapping size = width/100 = 12.8 px. Element sizes come from ControlElement.computeBoundingBox. Positions are a sample layout, not a saved profile. Neon, Solid and Retro draw the D-pad as one cross of arrows (GameHubLayout arrows) lit per direction; Fusion and Minimal use four round pads. Glass lights all four arrows on any press (existing behaviour).</p>
+<p class="note">Scene: 1280x720, 1 dp = 1.6 px, snapping size = width/100 = 12.8 px. Element sizes come from ControlElement.computeBoundingBox. Positions are a sample layout, not a saved profile. Neon draws the D-pad as one cross of arrows (GameHubLayout arrows) lit per direction; Fusion uses four round pads. Glass lights all four arrows on any press (existing behaviour).</p>
 
 <h3>Source the page was built from</h3>
-<details><summary>WinHub ControlElement.java: flat palette and drawing (Fusion, Neon, Solid, Minimal, Retro) <em>lines 1849-2048</em></summary><pre>    /** Colours and flags of one flat icon style (everything except GLASS); built per element by flatPalette. */
+<details><summary>WinHub ControlElement.java: flat palette and drawing (Fusion, Neon) <em>lines 1848-1993</em></summary><pre>    /** Colours and flags of one flat icon style (everything except GLASS); built per element by flatPalette. */
     private static final class FlatPalette {
         int fill, pFill, stroke, pStroke, text, pText;
         int stickBase, stickBaseHeld, knob, knobHeld;
@@ -61,19 +61,8 @@ h3{margin:18px 0 6px;font-size:15px}
         return Color.argb((int) (alpha * opacity), Color.red(color), Color.green(color), Color.blue(color));
     }
 
-    private static int retroColor(GameHubLayout.Role role) {
-        if (role == null) return 0xFFC8C8CE;
-        switch (role) {
-            case BTN_A: return 0xFF4CAF50;
-            case BTN_B: return 0xFFE53935;
-            case BTN_X: return 0xFF4285F4;
-            case BTN_Y: return 0xFFFBC02D;
-            default: return 0xFFC8C8CE;
-        }
-    }
-
     /** FUSION is the DroidDeck pad recipe: the accent darkened/lightened and scaled by the overlay opacity. */
-    private static FlatPalette flatPalette(ControlsIconStyle style, int accent, float o, GameHubLayout.Role role) {
+    private static FlatPalette flatPalette(ControlsIconStyle style, int accent, float o) {
         FlatPalette p = new FlatPalette();
         switch (style) {
             case NEON:
@@ -91,49 +80,6 @@ h3{margin:18px 0 6px;font-size:15px}
                 p.strokeDp = 1.6f;
                 p.cross = true;
                 break;
-            case SOLID:
-                p.fill = Color.argb((int) (235 * o), 32, 34, 40);
-                p.pFill = rgb(accent, o, 255);
-                p.stroke = 0;
-                p.pStroke = 0;
-                p.text = Color.argb((int) (255 * o), 235, 238, 242);
-                p.pText = Color.argb(255, 16, 18, 22);
-                p.stickBase = Color.argb((int) (235 * o), 24, 26, 31);
-                p.stickBaseHeld = Color.argb((int) (235 * o), 24, 26, 31);
-                p.knob = Color.argb((int) (255 * o), 62, 66, 76);
-                p.knobHeld = rgb(accent, o, 255);
-                p.strokeDp = 0f;
-                p.cross = true;
-                break;
-            case MINIMAL:
-                p.fill = 0;
-                p.pFill = Color.argb((int) (70 * o), 255, 255, 255);
-                p.stroke = Color.argb((int) (170 * o), 255, 255, 255);
-                p.pStroke = Color.argb((int) (255 * o), 255, 255, 255);
-                p.text = Color.argb((int) (220 * o), 255, 255, 255);
-                p.pText = Color.WHITE;
-                p.stickBase = 0;
-                p.stickBaseHeld = Color.argb((int) (35 * o), 255, 255, 255);
-                p.knob = Color.argb((int) (45 * o), 255, 255, 255);
-                p.knobHeld = Color.argb((int) (90 * o), 255, 255, 255);
-                p.strokeDp = 1.2f;
-                break;
-            case RETRO: {
-                int c = retroColor(role);
-                p.fill = Color.argb((int) (230 * o), 24, 24, 28);
-                p.pFill = rgb(c, o, 255);
-                p.stroke = rgb(c, o, 255);
-                p.pStroke = rgb(c, o, 255);
-                p.text = rgb(c, o, 255);
-                p.pText = Color.argb(255, 20, 20, 24);
-                p.stickBase = Color.argb((int) (230 * o), 24, 24, 28);
-                p.stickBaseHeld = Color.argb((int) (230 * o), 40, 40, 46);
-                p.knob = Color.argb((int) (255 * o), 120, 120, 128);
-                p.knobHeld = Color.argb((int) (255 * o), 200, 200, 206);
-                p.strokeDp = 2f;
-                p.cross = true;
-                break;
-            }
             default: // FUSION
                 p.fill = shade(accent, o, 80, 0.12f);
                 p.pFill = shade(accent, o, 160, 1f);
@@ -261,7 +207,7 @@ const STICKS=[{k:'ls',cx:430,cy:595,half:SNAP*6,tag:'L'},{k:'rs',cx:860,cy:595,h
 
 /* ---------- interaction state ---------- */
 function mkState(){return {down:new Map(),pos:new Map()}} // pointerId -> element key
-const STYLES=['fusion','glass','neon','solid','minimal','retro'],TITLES={fusion:'Fusion (default)',glass:'Glass (current)',neon:'Neon',solid:'Solid',minimal:'Minimal',retro:'Retro'};
+const STYLES=['fusion','glass','neon'],TITLES={fusion:'Fusion (default)',glass:'Glass (current)',neon:'Neon'};
 const S=STYLES.map(mkState);
 function bbOf(b){const hw=b.shape==='C'?SNAP*3:SNAP*4, hh=b.shape==='C'?SNAP*3:SNAP*2;return {l:b.cx-hw,t:b.cy-hh,r:b.cx+hw,b:b.cy+hh,w:hw*2,h:hh*2,cx:b.cx,cy:b.cy}}
 function isHeld(s,key){if(O.hold)return true;for(const k of s.down.values())if(k.key===key)return true;return false}
@@ -289,7 +235,6 @@ function drawLabel(ctx,txt,cx,cy,size,color){
 const A=(c,o,a)=>rgba(c,Math.trunc(a*o));                                        // rgb(color, opacity, alpha)
 const shade=(t,o,a,f)=>rgba([Math.trunc(t[0]*f),Math.trunc(t[1]*f),Math.trunc(t[2]*f)],Math.trunc(a*o));
 const light=(t,o,a,f)=>rgba(t.map(c=>Math.trunc(c+(255-c)*f)),Math.trunc(a*o));
-const RETRO={a:[0x4C,0xAF,0x50],b:[0xE5,0x39,0x35],x:[0x42,0x85,0xF4],y:[0xFB,0xC0,0x2D]},RETRO_GRAY=[0xC8,0xC8,0xCE];
 
 function trigPath(ctx,shape,left,top,right,bottom){ // GameHubLayout.buildTriggerPath
   const w=right-left,h=bottom-top,r=Math.min(w,h)*.1875,f=.2*w,diag=Math.hypot(h,f),sx=f/diag*r,sy=h/diag*r;
@@ -330,22 +275,11 @@ function shapePath(ctx,b){ // drawGameHubShape: CIRCLE or ROUND_RECT (pill, r = 
 
 
 // ControlElement.flatPalette
-function flatPalette(style,acc,o,role){
+function flatPalette(style,acc,o){
   const p={glow:null,cross:false};
-  const W_=(a,r,g,b)=>`rgba(${r},${g},${b},${Math.trunc(a*o)/255})`;
   if(style==='neon'){
     Object.assign(p,{fill:A(acc,o,30),pFill:A(acc,o,120),stroke:light(acc,o,235,.35),pStroke:light(acc,o,255,.85),text:light(acc,o,255,.6),pText:'#fff',
       stickBase:A(acc,o,22),stickBaseHeld:A(acc,o,50),knob:A(acc,o,80),knobHeld:A(acc,o,150),glow:A(acc,o,230),strokeDp:1.6,cross:true});
-  }else if(style==='solid'){
-    Object.assign(p,{fill:W_(235,32,34,40),pFill:A(acc,o,255),stroke:null,pStroke:null,text:W_(255,235,238,242),pText:'rgb(16,18,22)',
-      stickBase:W_(235,24,26,31),stickBaseHeld:W_(235,24,26,31),knob:W_(255,62,66,76),knobHeld:A(acc,o,255),strokeDp:0,cross:true});
-  }else if(style==='minimal'){
-    Object.assign(p,{fill:null,pFill:W_(70,255,255,255),stroke:W_(170,255,255,255),pStroke:W_(255,255,255,255),text:W_(220,255,255,255),pText:'#fff',
-      stickBase:null,stickBaseHeld:W_(35,255,255,255),knob:W_(45,255,255,255),knobHeld:W_(90,255,255,255),strokeDp:1.2});
-  }else if(style==='retro'){
-    const c=RETRO[role]||RETRO_GRAY;
-    Object.assign(p,{fill:W_(230,24,24,28),pFill:A(c,o,255),stroke:A(c,o,255),pStroke:A(c,o,255),text:A(c,o,255),pText:'rgb(20,20,24)',
-      stickBase:W_(230,24,24,28),stickBaseHeld:W_(230,40,40,46),knob:W_(255,120,120,128),knobHeld:W_(255,200,200,206),strokeDp:2,cross:true});
   }else{ // fusion
     Object.assign(p,{fill:shade(acc,o,80,.12),pFill:shade(acc,o,160,1),stroke:light(acc,o,150,.25),pStroke:light(acc,o,230,.7),text:light(acc,o,210,.75),pText:'#fff',
       stickBase:shade(acc,o,60,.12),knob:shade(acc,o,120,.35),strokeDp:1.5});
@@ -369,14 +303,14 @@ function winhub(ctx,s,style){
   const fillC=rgba([0,0,0],fillAlpha),strokeC=rgba(acc,Math.max(strokeAlpha,Math.trunc(110*dim))),
         pFillC=rgba(acc,pFillAlpha),pStrokeC=rgba(acc,Math.max(pStrokeAlpha,Math.trunc(160*dim))),textC=rgba(acc,textAlpha);
   const shadowC=rgba(acc,Math.trunc(0x40*dim));
-  const base=flat?flatPalette(style,acc,dim,null):null;
+  const base=flat?flatPalette(style,acc,dim):null;
   const sw=flat?Math.max(2,base.strokeDp*DP):Math.max(2,SNAP*.18);
   ctx.lineWidth=sw;ctx.lineJoin='round';ctx.lineCap='round';
 
   /* BUTTON */
   for(const el of BTN){
     const b=bbOf(el),eng=isHeld(s,el.k),trig=el.trig;
-    const pal=flat?flatPalette(style,acc,dim,el.k):null;
+    const pal=flat?base:null;
     if(flat){ // drawFlatKey
       const pill=!!trig,cr=b.h*.5*.55;
       const path=()=>{ctx.beginPath();if(pill)ctx.roundRect(b.l,b.t,b.w,b.h,cr);else shapePath(ctx,b)};

@@ -7,10 +7,7 @@ package com.winhub.hernandez.inputcontrols;
 public enum ControlsIconStyle {
     FUSION("fusion", "Fusion"),
     GLASS("glass", "Glass"),
-    NEON("neon", "Neon"),
-    SOLID("solid", "Solid"),
-    MINIMAL("minimal", "Minimal"),
-    RETRO("retro", "Retro");
+    NEON("neon", "Neon");
 
     public static final String PREF_KEY = "input_controls_icon_style";
 

@@ -1434,8 +1434,8 @@ public class ControlElement {
         int shadowAlpha = flat ? 0 : (int) (0x40 * gameHubDim * effectiveOpacity);
         int shadowColor = Color.argb(shadowAlpha, Color.red(accent), Color.green(accent), Color.blue(accent));
 
-        // Flat styles (everything but GLASS) share one palette; the face buttons of RETRO ask for their own per role.
-        FlatPalette basePal = flat ? flatPalette(iconStyle, accent, gameHubDim, null) : null;
+        // Flat styles (everything but GLASS) share one palette.
+        FlatPalette basePal = flat ? flatPalette(iconStyle, accent, gameHubDim) : null;
         if (flat) {
             fillColor = basePal.fill;
             pressedFillColor = basePal.pFill;
@@ -1471,9 +1471,8 @@ public class ControlElement {
                     break;
                 }
 
-                FlatPalette keyPal = flat ? flatPalette(iconStyle, accent, gameHubDim, GameHubLayout.roleFor(this)) : null;
                 if (flat) {
-                    drawFlatKey(canvas, paint, boundingBox, isTrigger, engaged, keyPal);
+                    drawFlatKey(canvas, paint, boundingBox, isTrigger, engaged, basePal);
                 } else if (isTrigger) {
                     GameHubLayout.buildTriggerPath(
                             path, triggerShape,
@@ -1509,7 +1508,7 @@ public class ControlElement {
                 } else {
                     String label = getDisplayText();
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(flat ? (engaged ? keyPal.pText : keyPal.text) : textColor);
+                    paint.setColor(flat ? (engaged ? basePal.pText : basePal.text) : textColor);
                     paint.setTextSize(
                             Math.min(
                                     getTextSizeForWidth(paint, label, boundingBox.width() - strokeWidth * 2),
@@ -1871,19 +1870,8 @@ public class ControlElement {
         return Color.argb((int) (alpha * opacity), Color.red(color), Color.green(color), Color.blue(color));
     }
 
-    private static int retroColor(GameHubLayout.Role role) {
-        if (role == null) return 0xFFC8C8CE;
-        switch (role) {
-            case BTN_A: return 0xFF4CAF50;
-            case BTN_B: return 0xFFE53935;
-            case BTN_X: return 0xFF4285F4;
-            case BTN_Y: return 0xFFFBC02D;
-            default: return 0xFFC8C8CE;
-        }
-    }
-
     /** FUSION is the DroidDeck pad recipe: the accent darkened/lightened and scaled by the overlay opacity. */
-    private static FlatPalette flatPalette(ControlsIconStyle style, int accent, float o, GameHubLayout.Role role) {
+    private static FlatPalette flatPalette(ControlsIconStyle style, int accent, float o) {
         FlatPalette p = new FlatPalette();
         switch (style) {
             case NEON:
@@ -1901,49 +1889,6 @@ public class ControlElement {
                 p.strokeDp = 1.6f;
                 p.cross = true;
                 break;
-            case SOLID:
-                p.fill = Color.argb((int) (235 * o), 32, 34, 40);
-                p.pFill = rgb(accent, o, 255);
-                p.stroke = 0;
-                p.pStroke = 0;
-                p.text = Color.argb((int) (255 * o), 235, 238, 242);
-                p.pText = Color.argb(255, 16, 18, 22);
-                p.stickBase = Color.argb((int) (235 * o), 24, 26, 31);
-                p.stickBaseHeld = Color.argb((int) (235 * o), 24, 26, 31);
-                p.knob = Color.argb((int) (255 * o), 62, 66, 76);
-                p.knobHeld = rgb(accent, o, 255);
-                p.strokeDp = 0f;
-                p.cross = true;
-                break;
-            case MINIMAL:
-                p.fill = 0;
-                p.pFill = Color.argb((int) (70 * o), 255, 255, 255);
-                p.stroke = Color.argb((int) (170 * o), 255, 255, 255);
-                p.pStroke = Color.argb((int) (255 * o), 255, 255, 255);
-                p.text = Color.argb((int) (220 * o), 255, 255, 255);
-                p.pText = Color.WHITE;
-                p.stickBase = 0;
-                p.stickBaseHeld = Color.argb((int) (35 * o), 255, 255, 255);
-                p.knob = Color.argb((int) (45 * o), 255, 255, 255);
-                p.knobHeld = Color.argb((int) (90 * o), 255, 255, 255);
-                p.strokeDp = 1.2f;
-                break;
-            case RETRO: {
-                int c = retroColor(role);
-                p.fill = Color.argb((int) (230 * o), 24, 24, 28);
-                p.pFill = rgb(c, o, 255);
-                p.stroke = rgb(c, o, 255);
-                p.pStroke = rgb(c, o, 255);
-                p.text = rgb(c, o, 255);
-                p.pText = Color.argb(255, 20, 20, 24);
-                p.stickBase = Color.argb((int) (230 * o), 24, 24, 28);
-                p.stickBaseHeld = Color.argb((int) (230 * o), 40, 40, 46);
-                p.knob = Color.argb((int) (255 * o), 120, 120, 128);
-                p.knobHeld = Color.argb((int) (255 * o), 200, 200, 206);
-                p.strokeDp = 2f;
-                p.cross = true;
-                break;
-            }
             default: // FUSION
                 p.fill = shade(accent, o, 80, 0.12f);
                 p.pFill = shade(accent, o, 160, 1f);
@@ -2338,7 +2283,7 @@ public class ControlElement {
         ControlsIconStyle iconStyle = inputControlsView.getIconStyle();
         boolean flat = iconStyle != ControlsIconStyle.GLASS;
         FlatPalette pal = flat
-                ? flatPalette(iconStyle, inputControlsView.getAccentColor(), inputControlsView.getOverlayOpacity(), null)
+                ? flatPalette(iconStyle, inputControlsView.getAccentColor(), inputControlsView.getOverlayOpacity())
                 : null;
 
         for (int index = 0; index < bindings.length; index++) {
