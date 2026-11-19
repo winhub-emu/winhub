@@ -10,6 +10,7 @@ import com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
 import com.winhub.hernandez.contents.ContentProfile
 import com.winhub.hernandez.contents.ContentsManager
 import com.winhub.hernandez.ui.screens.contents.ContentsInstaller
+import com.winhub.hernandez.ui.screens.warmWaylandAdapterReport
 import com.winhub.hernandez.ui.screens.withGraphicsDriverVersion
 
 /**
@@ -119,6 +120,9 @@ object ComponentUpdates {
             c.graphicsDriverConfig = withGraphicsDriverVersion(c.graphicsDriverConfig, newId)
             c.saveData()
         }
+        // A Wayland container's adapter report is cached per driver; make the new driver's now (in the
+        // background), or Auto runs without it and is slower until the container is next saved.
+        if (previous.keys.any { it.isWaylandBackend }) warmWaylandAdapterReport(app, "version=$newId")
         val undo: (() -> Unit)? = if (previous.isEmpty()) null else ({
             for ((c, old) in previous) {
                 c.graphicsDriverConfig = old
