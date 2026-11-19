@@ -756,6 +756,8 @@ object XServerDialogState {
         fun invoke(launch: Boolean)
     }
     @JvmField var onFirstWaylandLaunchChoice: FirstLaunchCallback? = null
+    /** True when the first launch opens the container and then starts the game itself (a shortcut launch). */
+    @JvmField var firstLaunchRunsGame: Boolean = false
     @JvmField var onInputControlsConfirm: InputConfirmCallback? = null
     @JvmField var onInputControlsSettings: InputSettingsCallback? = null
 

@@ -25,10 +25,17 @@ fun FirstWaylandLaunchDialog(state: XServerDialogState) {
         title = { Text("First launch of this container") },
         text = {
             Text(
-                "Wine sets this container up the first time it runs on Wayland. That can take about 30 " +
-                    "seconds, and you will only see the wallpaper and taskbar until it is done. It happens " +
-                    "once per container.\n\nPlease don't close the app while it works. Closing it early " +
-                    "can make the app hang.",
+                if (state.firstLaunchRunsGame)
+                    "This is the first time this container runs on Wayland, so Wine has to set it up first. " +
+                        "It opens the container, which can take about 30 seconds with only the wallpaper and " +
+                        "taskbar showing. Then your game starts by itself and the file manager closes. This only " +
+                        "happens on the first launch.\n\nPlease be patient and let it work. Don't close the app " +
+                        "meanwhile: closing it early can make the app hang."
+                else
+                    "Wine sets this container up the first time it runs on Wayland. That can take about 30 " +
+                        "seconds, and you will only see the wallpaper and taskbar until it is done. It happens " +
+                        "once per container.\n\nPlease don't close the app while it works. Closing it early " +
+                        "can make the app hang.",
             )
         },
         confirmButton = { TextButton(onClick = { choose(true) }) { Text("Launch") } },

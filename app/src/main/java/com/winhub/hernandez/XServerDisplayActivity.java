@@ -3145,6 +3145,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
             }
             firstWaylandNoticeShown = true;
             XServerDialogState dialogState = XServerDialogState.INSTANCE;
+            final boolean runsGame = warmupEligible();
+            dialogState.firstLaunchRunsGame = runsGame;
             dialogState.onFirstWaylandLaunchChoice = go -> {
                 if (!go) {
                     stopService(new Intent(this, com.winhub.hernandez.core.GameSessionForegroundService.class));
@@ -3157,6 +3159,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     launched.putExtra(FIRST_WAYLAND_LAUNCH_SEEN, "1");
                     launched.saveData();
                 }).start();
+                firstLaunchWarmup = runsGame;
                 launchSession.run();
             };
             dialogState.show(XServerDialogState.ActiveDialog.FIRST_WAYLAND_LAUNCH);
@@ -3167,6 +3170,123 @@ public class XServerDisplayActivity extends AppCompatActivity {
             configChangedCallback = runnable;
         } else
               runnable.run();
+    }
+
+    // ---- First Wayland launch of a shortcut: the container first, then the game ----
+    // A container's first Wayland session spends a while on Wine's own setup before anything is drawn, so a
+    // game started as the session's first program just looks hung. For that one launch the session opens
+    // the container the way "Run container" does (wfm.exe, the Computer window); once wfm.exe is up the game
+    // is started inside it, and once the game is up wfm.exe is closed. After that it is a normal shortcut launch.
+    private static final long WARMUP_WFM_SETTLE_MS = 5000;    // wfm.exe up -> start the game
+    private static final long WARMUP_GAME_SETTLE_MS = 10000;   // game up -> close wfm.exe
+    private static final long WARMUP_GIVE_UP_MS = 180_000;
+    private boolean firstLaunchWarmup = false;
+    private int warmupPhase = 0;   // 0 off, 1 waiting for wfm.exe, 2 waiting for the game
+    private long warmupPhaseStartedAt;
+    private long warmupSeenAt;
+    private final java.util.ArrayList<String> warmupNames = new java.util.ArrayList<>();
+    private final Handler warmupHandler = new Handler(Looper.getMainLooper());
+    private final OnGetProcessInfoListener warmupListener = new OnGetProcessInfoListener() {
+        @Override
+        public void onGetProcessInfo(int index, int count, ProcessInfo info) {
+            if (index == 0) warmupNames.clear();
+            if (info != null && info.name != null) warmupNames.add(info.name.toLowerCase());
+            if (count == 0 || index == count - 1) {
+                final java.util.ArrayList<String> names = new java.util.ArrayList<>(warmupNames);
+                warmupHandler.post(() -> evaluateWarmupTick(names));
+            }
+        }
+    };
+    private final Runnable warmupPollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (warmupPhase == 0 || winHandler == null) return;
+            winHandler.listProcesses();
+            warmupHandler.postDelayed(this, 1000);
+        }
+    };
+
+    /**
+     * Plain exe shortcuts only: the game's process name must be known, and the Xbox, Epic, RealSteam and
+     * streamed launches start their programs their own way. Decided from the shortcut's own settings,
+     * because this runs before the launch worker has prepared any of those.
+     */
+    private boolean warmupEligible() {
+        if (shortcut == null || shortcut.path == null || shortcut.path.toLowerCase().endsWith(".lnk")) return false;
+        String store = shortcut.getExtra("storeSource");
+        String mode = shortcut.getExtra("launchMode");
+        return !"xbox".equals(store) && !"epic".equals(store)
+                && !"RealSteam".equals(mode) && !"Stream".equals(mode);
+    }
+
+    private void startFirstLaunchWarmup() {
+        if (!firstLaunchWarmup || winHandler == null) return;
+        if (realSteamPlan != null) { firstLaunchWarmup = false; return; }
+        warmupPhase = 1;
+        warmupPhaseStartedAt = System.currentTimeMillis();
+        warmupSeenAt = 0;
+        winHandler.addProcessInfoListener(warmupListener);
+        warmupHandler.postDelayed(warmupPollRunnable, 3000);
+    }
+
+    private void stopFirstLaunchWarmup(String why) {
+        if (warmupPhase == 0) return;
+        Log.i("XServerDisplayActivity", "first launch: " + why);
+        warmupPhase = 0;
+        warmupHandler.removeCallbacksAndMessages(null);
+        if (winHandler != null) winHandler.removeProcessInfoListener(warmupListener);
+    }
+
+    /** The game's process name, lowercased: the shortcut's file name without any arguments written after it. */
+    private String warmupGameProcess() {
+        String filename = FileUtils.getName(shortcut.path);
+        int dot = filename.lastIndexOf(".");
+        int space = dot != -1 ? filename.indexOf(" ", dot) : -1;
+        return (space != -1 ? filename.substring(0, space) : filename).toLowerCase();
+    }
+
+    /** Starts the shortcut's program inside the running session, in its own folder. */
+    private boolean startShortcutInSession() {
+        String execArgs = shortcut.getExtra("execArgs");
+        execArgs = !execArgs.isEmpty() ? " " + execArgs : "";
+        String exeDir = FileUtils.getDirname(shortcut.path);
+        String filename = FileUtils.getName(shortcut.path);
+        int dot = filename.lastIndexOf(".");
+        int space = dot != -1 ? filename.indexOf(" ", dot) : -1;
+        if (space != -1) {
+            execArgs = filename.substring(space + 1) + execArgs;
+            filename = filename.substring(0, space);
+        }
+        String full = exeDir.isEmpty() ? filename : exeDir + (exeDir.endsWith("\\") ? "" : "\\") + filename;
+        return winHandler.execInFolder(full, execArgs);
+    }
+
+    private void evaluateWarmupTick(java.util.List<String> names) {
+        if (warmupPhase == 0) return;
+        if (exiting) { stopFirstLaunchWarmup("the session is closing"); return; }
+        long now = System.currentTimeMillis();
+        if (warmupPhase == 1) {
+            if (!names.contains("wfm.exe")) {
+                if (now - warmupPhaseStartedAt > WARMUP_GIVE_UP_MS) stopFirstLaunchWarmup("the container never showed its file manager");
+                return;
+            }
+            if (warmupSeenAt == 0) { warmupSeenAt = now; return; }
+            if (now - warmupSeenAt < WARMUP_WFM_SETTLE_MS) return;
+            if (!startShortcutInSession()) { stopFirstLaunchWarmup("the game could not be started"); return; }
+            Log.i("XServerDisplayActivity", "first launch: container is up, started " + shortcut.path);
+            warmupPhase = 2;
+            warmupPhaseStartedAt = now;
+            warmupSeenAt = 0;
+        } else {
+            if (!names.contains(warmupGameProcess())) {
+                if (now - warmupPhaseStartedAt > WARMUP_GIVE_UP_MS) stopFirstLaunchWarmup("the game never appeared; leaving the file manager open");
+                return;
+            }
+            if (warmupSeenAt == 0) { warmupSeenAt = now; return; }
+            if (now - warmupSeenAt < WARMUP_GAME_SETTLE_MS) return;
+            if (winHandler != null) winHandler.killProcess("wfm.exe");
+            stopFirstLaunchWarmup("the game is up; closed the file manager");
+        }
     }
 
     private static final String FIRST_WAYLAND_LAUNCH_SEEN = "waylandFirstLaunchSeen";
@@ -7013,6 +7133,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         sessionInForeground = false;
+        stopFirstLaunchWarmup("activity closed");
         // A first-launch notice still on screen belongs to this instance: drop it with the activity.
         if (XServerDialogState.INSTANCE.onFirstWaylandLaunchChoice != null) {
             XServerDialogState.INSTANCE.onFirstWaylandLaunchChoice = null;
@@ -10010,6 +10131,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
         // Start the WinHandler (writes events to the file)
         winHandler.start();
+        startFirstLaunchWarmup();
         scheduleStartPrograms();
         // Steam Controller support (no-op unless the setting is on) — after WinHandler so pads that
         // are already paired seat straight into its slots.
@@ -12941,7 +13063,7 @@ return true;
             return "winhandler.exe " + steamArgs;
         }
 
-        if (shortcut != null) {
+        if (shortcut != null && !firstLaunchWarmup) {
             String execArgs = shortcut.getExtra("execArgs");
             execArgs = !execArgs.isEmpty() ? " " + execArgs : "";
 
