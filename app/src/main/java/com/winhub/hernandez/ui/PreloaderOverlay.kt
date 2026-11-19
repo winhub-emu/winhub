@@ -141,7 +141,7 @@ private fun DeckCoverWallBackdrop() {
 
 /**
  * Full-bleed launch overlay. The screen is the Home tab's drifting cover wall behind a dark scrim;
- * the animated CronosDeck mark sits in the centre, "Starting up CronosDeck" and the game name under
+ * the animated WinHub mark sits in the centre, "Starting up" and the game name under
  * it, then a stepped progress readout (determinate bar for the measurable app-side setup, an
  * indeterminate spinner for the guest-boot tail) or a failure card.
  * Shows/hides based on PreloaderState.ui. Place at the top of the host Compose hierarchy.
@@ -162,7 +162,7 @@ fun PreloaderOverlay() {
         DeckCoverWallBackdrop()
         LaunchScrim(topAlpha = 0.30f)
 
-        // Centred: the CronosDeck mark, what is starting, the game, then the steps. The column scrolls
+        // Centred: the WinHub mark, what is starting, the game, then the steps. The column scrolls
         // so the failure card still fits a short landscape screen.
         val failed = ui.phase == Phase.FAILED
         val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
@@ -174,10 +174,10 @@ fun PreloaderOverlay() {
                 .padding(horizontal = 28.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            CronosDeckLogo(Modifier.size(if (portrait) 132.dp else 96.dp), still = failed)
+            WinHubLogoAnimation(Modifier.width(if (portrait) 240.dp else 170.dp), still = failed)
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Starting up CronosDeck",
+                text = "Starting up",
                 style = MaterialTheme.typography.headlineSmall,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
@@ -358,7 +358,7 @@ private fun CenteredStatus(message: String, subMessage: String? = null, elapsed:
                 .padding(horizontal = 28.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            CronosDeckLogo(Modifier.size(if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) 132.dp else 96.dp))
+            WinHubLogoAnimation(Modifier.width(if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) 240.dp else 170.dp))
             Spacer(Modifier.height(8.dp))
             if (message.isNotEmpty()) {
                 Text(
