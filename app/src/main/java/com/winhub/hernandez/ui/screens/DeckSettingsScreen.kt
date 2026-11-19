@@ -1221,6 +1221,9 @@ internal fun DeckSettingsScreen() {
                 }
             }
         }
+
+        // ── Layers and components: Proton, driver, FEXCore ──
+        DeckComponentStatusGroup()
         }
         }
         }

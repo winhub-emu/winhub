@@ -116,7 +116,7 @@ private fun DeckDoctorNoticeDialog(notice: GameDoctor.Notice, onClose: () -> Uni
 private fun presetName(id: String): String = id.replace('_', ' ').lowercase(Locale.ENGLISH).replaceFirstChar { it.uppercase() }
 
 @Composable
-private fun DeckComponentUpdateDialog(offer: ComponentUpdates.Offer, onClose: () -> Unit) {
+internal fun DeckComponentUpdateDialog(offer: ComponentUpdates.Offer, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var phase by remember { mutableStateOf(UpdatePhase.OFFER) }

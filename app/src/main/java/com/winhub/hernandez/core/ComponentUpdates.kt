@@ -57,6 +57,64 @@ object ComponentUpdates {
         return out
     }
 
+    /**
+     * One line of the Updater page. [current] is read from what is installed (so it is right offline),
+     * [latest] from the catalog (null when it can't be reached), and [offer] is set when the catalog's build
+     * is newer or nothing is installed yet.
+     */
+    class Status(val kind: String, val current: String, val latest: String?, val offer: Offer?)
+
+    /**
+     * Proton, GPU driver and FEXCore: what is installed and what is newest. A manual check, so it ignores
+     * the once-per-run and "skip this version" memory the Deck popup keeps. Blocking (network).
+     */
+    fun statusAll(context: Context): List<Status> {
+        val app = context.applicationContext
+        val out = ArrayList<Status>()
+
+        // Proton: the inspection also loads the catalog the FEXCore line reads from.
+        val inspection = guarded("Proton") { ProtonUpdateChecker.inspect(app) }
+        val protonUpdate = inspection?.let { i ->
+            guarded("Proton") { ProtonUpdateChecker.availableFrom(app, i, allowFresh = true)?.let { protonOffer(app, it) } }
+        }
+        out += Status(
+            KIND_PROTON,
+            guarded("Proton") { ProtonUpdateChecker.installedLabel(app) } ?: "Not installed",
+            inspection?.newest?.let { ProtonUpdateChecker.label(it) },
+            protonUpdate,
+        )
+
+        // Driver: only a chip with a Turnip family has one to manage.
+        val driver = guarded("driver") { DriverUpdateChecker.inspect(app) }
+        if (driver == null) {
+            out += Status("Graphics driver", "System driver", null, null)
+        } else {
+            val newest = driver.newest
+            val newer = newest != null && (driver.have == null || DriverUpdateChecker.compareRank(newest.rank, driver.have.rank) > 0)
+            out += Status(
+                "Graphics driver",
+                driver.have?.label ?: "Not installed",
+                newest?.label,
+                if (newest != null && newer) guarded("driver") { driverOfferFor(app, newest, driver.have?.label ?: "none installed") } else null,
+            )
+        }
+
+        // FEXCore: the PPA-unix line first run installs.
+        val have = guarded("FEXCore") { newestInstalledFex(app) }
+        val newestFex = ContentsManager.getCachedRemoteProfiles()
+            ?.filter { it.type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE && fexRank(it.verName) != null && !it.remoteUrl.isNullOrEmpty() }
+            ?.maxWithOrNull(Comparator { a, b -> DriverUpdateChecker.compareRank(fexRank(a.verName)!!, fexRank(b.verName)!!) })
+        val fexNewer = newestFex != null &&
+            (have == null || DriverUpdateChecker.compareRank(fexRank(newestFex.verName)!!, fexRank(have.verName)!!) > 0)
+        out += Status(
+            KIND_FEX,
+            have?.verName ?: "Not installed",
+            newestFex?.verName,
+            if (newestFex != null && fexNewer) guarded("FEXCore") { fexOfferFor(app, newestFex, have?.verName ?: "none installed") } else null,
+        )
+        return out
+    }
+
     private inline fun <T> guarded(what: String, block: () -> T?): T? = try {
         block()
     } catch (e: Exception) {
@@ -86,17 +144,19 @@ object ComponentUpdates {
     private fun driverOffer(app: Context): Offer? {
         val up = DriverUpdateChecker.check(app) ?: return null
         if (skipped(app, KIND_DRIVER) == up.build.label) return null
-        return Offer(
-            kind = KIND_DRIVER,
-            label = up.build.label,
-            installedLabel = up.have.label,
-            sizeBytes = ContainerLayerUpdater.probeRemoteSize(up.build.url),
-            install = { onStatus -> ContentsInstaller.installDriverAwait(app, up.build.url, onStatus) },
-            candidates = { driverCandidates(app, up.build).size },
-            switchAll = { id -> switchDrivers(app, up.build, id) },
-            skip = { setSkipped(app, KIND_DRIVER, up.build.label) },
-        )
+        return driverOfferFor(app, up.build, up.have.label)
     }
+
+    private fun driverOfferFor(app: Context, build: DriverUpdateChecker.Build, haveLabel: String) = Offer(
+        kind = KIND_DRIVER,
+        label = build.label,
+        installedLabel = haveLabel,
+        sizeBytes = ContainerLayerUpdater.probeRemoteSize(build.url),
+        install = { onStatus -> ContentsInstaller.installDriverAwait(app, build.url, onStatus) },
+        candidates = { driverCandidates(app, build).size },
+        switchAll = { id -> switchDrivers(app, build, id) },
+        skip = { setSkipped(app, KIND_DRIVER, build.label) },
+    )
 
     /** Containers on an installed driver of the same family that is older than [build]. */
     private fun driverCandidates(app: Context, build: DriverUpdateChecker.Build): List<Container> {
@@ -158,13 +218,17 @@ object ComponentUpdates {
         val newest = remote.filter { it.type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE && fexRank(it.verName) != null && !it.remoteUrl.isNullOrEmpty() }
             .maxWithOrNull(Comparator { a, b -> DriverUpdateChecker.compareRank(fexRank(a.verName)!!, fexRank(b.verName)!!) })
             ?: return null
-        val newRank = fexRank(newest.verName)!!
-        if (DriverUpdateChecker.compareRank(newRank, fexRank(have.verName)!!) <= 0) return null
+        if (DriverUpdateChecker.compareRank(fexRank(newest.verName)!!, fexRank(have.verName)!!) <= 0) return null
         if (skipped(app, KIND_FEX) == newest.verName) return null
+        return fexOfferFor(app, newest, have.verName)
+    }
+
+    private fun fexOfferFor(app: Context, newest: ContentProfile, haveLabel: String): Offer {
+        val newRank = fexRank(newest.verName)!!
         return Offer(
             kind = KIND_FEX,
             label = newest.verName,
-            installedLabel = have.verName,
+            installedLabel = haveLabel,
             sizeBytes = ContainerLayerUpdater.probeRemoteSize(newest.remoteUrl),
             install = { onStatus ->
                 if (ContentsInstaller.installAwait(app, newest.remoteUrl, onStatus)) {

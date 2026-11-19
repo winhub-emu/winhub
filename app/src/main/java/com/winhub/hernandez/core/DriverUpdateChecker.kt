@@ -100,13 +100,22 @@ object DriverUpdateChecker {
     fun newestInstalled(context: Context, family: Family): Installed? =
         installed(context).filter { it.family == family }.maxWithOrNull(Comparator { a, b -> compareRank(a.rank, b.rank) })
 
+    /** This GPU's family, its newest installed driver and the newest in the feed (null when the feed is unreachable). */
+    class Inspection(val family: Family, val have: Installed?, val newest: Build?)
+
+    /** Null on a non-Adreno GPU. Blocking (network): call off the main thread. */
+    fun inspect(context: Context): Inspection? {
+        val family = deviceFamily(context) ?: return null
+        return Inspection(family, newestInstalled(context, family), fetchBuilds()?.let { newest(it, family) })
+    }
+
     /** Blocking (network). Only for a device that already has a driver of its family installed. */
     fun check(context: Context): Update? {
-        val family = deviceFamily(context) ?: return null
-        val have = newestInstalled(context, family) ?: return null
-        val build = newest(fetchBuilds() ?: return null, family) ?: return null
+        val inspection = inspect(context) ?: return null
+        val have = inspection.have ?: return null
+        val build = inspection.newest ?: return null
         if (compareRank(build.rank, have.rank) <= 0) return null
-        Log.i(TAG, "Newer ${family.name} driver available: ${build.label} (installed ${have.label})")
+        Log.i(TAG, "Newer ${inspection.family.name} driver available: ${build.label} (installed ${have.label})")
         return Update(build, have)
     }
 

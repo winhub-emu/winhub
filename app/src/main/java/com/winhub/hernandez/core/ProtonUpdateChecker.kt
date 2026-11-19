@@ -48,9 +48,15 @@ object ProtonUpdateChecker {
         if (byVersion != 0) byVersion else a.verCode.compareTo(b.verCode)
     }
 
-    /** Blocking (network): call off the main thread. Null when there is nothing to offer or the catalog is unreachable. */
-    fun check(context: Context): Available? {
-        if (checkedThisRun) return null
+    /** The newest installed GE-Proton arm64ec ([have]) and the newest one in the catalog ([newest]); either may be null. */
+    class Inspection(val have: ContentProfile?, val newest: ContentProfile?)
+
+    /**
+     * Reads the Official catalog (cached for the run, else fetched) and compares it with what is installed.
+     * No once-per-run or skip gating: the Updater page uses it directly. Null when the catalog is
+     * unreachable. Blocking (network): call off the main thread.
+     */
+    fun inspect(context: Context): Inspection? {
         val app = context.applicationContext
         val contents = ContentsManager(app)
         val cached = ContentsManager.getCachedRemoteProfiles()
@@ -64,8 +70,6 @@ object ProtonUpdateChecker {
             }
             contents.setRemoteProfiles(json)
         }
-        checkedThisRun = true
-
         val all = contents.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON) ?: return null
         // An installed profile's verName is the catalog row's versionName, so "<versionName>-<verCode>" lines them up.
         val installed = all.filter { it.remoteUrl.isNullOrEmpty() }.map { entryKey(it.verName, it.verCode) }.toSet()
@@ -73,21 +77,50 @@ object ProtonUpdateChecker {
         // An installed layer is just "Proton-<versionName>-<code>", so which ones are GE is remembered from the catalog.
         PreferenceManager.getDefaultSharedPreferences(app).edit()
             .putStringSet(PREF_GE_KEYS, geRows.map { entryKey(it.versionName, it.verCode) }.toSet()).apply()
-        val have = geRows.filter { entryKey(it.versionName, it.verCode) in installed }.maxWithOrNull(ORDER) ?: return null
-        val newest = geRows.maxWithOrNull(ORDER) ?: return null
-        if (ORDER.compare(newest, have) <= 0) return null
+        val have = geRows.filter { entryKey(it.versionName, it.verCode) in installed }.maxWithOrNull(ORDER)
+        return Inspection(have, geRows.maxWithOrNull(ORDER))
+    }
 
+    /** The offer for [inspection]'s newest build: when it is newer than [Inspection.have], or when none is installed. */
+    fun availableFrom(context: Context, inspection: Inspection, allowFresh: Boolean): Available? {
+        val newest = inspection.newest ?: return null
+        val have = inspection.have
+        if (have == null && !allowFresh) return null
+        if (have != null && ORDER.compare(newest, have) <= 0) return null
         val key = entryKey(newest.versionName, newest.verCode)
-        if (PreferenceManager.getDefaultSharedPreferences(app).getString(PREF_SKIP, null) == key) return null
-        Log.i(TAG, "Newer GE-Proton available: $key (installed ${entryKey(have.versionName, have.verCode)})")
         return Available(
             profile = newest,
             key = key,
             entryName = "${ContentProfile.ContentType.CONTENT_TYPE_PROTON}-$key",
             label = label(newest),
-            installedLabel = label(have),
+            installedLabel = have?.let { label(it) } ?: "none installed",
             sizeBytes = ContainerLayerUpdater.probeRemoteSize(newest.remoteUrl),
-        )
+        ).also { Log.i(TAG, "Newer GE-Proton available: $key (installed ${have?.let { h -> entryKey(h.versionName, h.verCode) }})") }
+    }
+
+    /**
+     * What the Deck's popup offers: once per app run, only to someone who already has a GE-Proton arm64ec,
+     * and not for a version they chose to skip. Blocking (network): call off the main thread.
+     */
+    fun check(context: Context): Available? {
+        if (checkedThisRun) return null
+        val app = context.applicationContext
+        val inspection = inspect(app) ?: return null
+        checkedThisRun = true
+        val newest = inspection.newest ?: return null
+        if (inspection.have == null) return null
+        if (PreferenceManager.getDefaultSharedPreferences(app).getString(PREF_SKIP, null) == entryKey(newest.versionName, newest.verCode)) return null
+        return availableFrom(app, inspection, allowFresh = false)
+    }
+
+    /** The newest installed GE-Proton arm64ec as a label ("GE-Proton 11.0-9 arm64ec"), read from disk, or null. */
+    fun installedLabel(context: Context): String? {
+        val app = context.applicationContext
+        val installed = ContentsManager(app).apply { syncContents() }
+            .getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON).orEmpty()
+            .filter { it.remoteUrl.isNullOrEmpty() }.map { ContentsManager.getEntryName(it) }
+        val entry = geEntriesNewestFirst(app, installed).firstOrNull() ?: return null
+        return "$GE_PREFIX ${entry.removePrefix("Proton-").substringBeforeLast('-').removeSuffix(ARM64EC_SUFFIX)} arm64ec"
     }
 
     /** Entry names ("Proton-11.0-9-arm64ec-16") among [entries] that are GE-Proton arm64ec builds, newest first. */
@@ -145,7 +178,7 @@ object ProtonUpdateChecker {
 
     private fun entryKey(versionName: String?, verCode: Int) = "${versionName.orEmpty()}-$verCode"
 
-    private fun label(p: ContentProfile) = "$GE_PREFIX ${p.versionName.orEmpty().removeSuffix(ARM64EC_SUFFIX)} arm64ec"
+    internal fun label(p: ContentProfile) = "$GE_PREFIX ${p.versionName.orEmpty().removeSuffix(ARM64EC_SUFFIX)} arm64ec"
 
     /** Numeric, dot/dash aware: 11.0-7.1 > 11.0-7, 11.0-10 > 11.0-9. */
     private fun compareVersions(a: String, b: String): Int {
