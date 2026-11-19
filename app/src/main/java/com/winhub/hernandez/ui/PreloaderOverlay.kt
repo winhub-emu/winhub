@@ -1,6 +1,6 @@
 package com.winhub.hernandez.ui
 
-import android.graphics.Bitmap
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -8,37 +8,31 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.border
-import com.winhub.hernandez.ui.components.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import com.winhub.hernandez.ui.components.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ButtonDefaults
-import com.winhub.hernandez.ui.components.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,18 +50,23 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.winhub.hernandez.core.Failure
 import com.winhub.hernandez.core.Phase
-import com.winhub.hernandez.core.PreloaderDetails
 import com.winhub.hernandez.core.PreloaderState
+import com.winhub.hernandez.ui.components.Button
+import com.winhub.hernandez.ui.components.OutlinedButton
+import com.winhub.hernandez.ui.components.clickable
 import com.winhub.hernandez.ui.screens.Deck
 import com.winhub.hernandez.ui.screens.DeckCapsuleWall
 import com.winhub.hernandez.ui.screens.DeckCover
@@ -141,10 +140,10 @@ private fun DeckCoverWallBackdrop() {
 }
 
 /**
- * Full-bleed "game hero" launch overlay. The screen is the Home tab's drifting cover wall behind a
- * dark scrim gradient; the game name sits above a stepped progress readout (determinate bar for
- * the measurable app-side setup, an indeterminate spinner for the guest-boot tail) and a failure
- * card.
+ * Full-bleed launch overlay. The screen is the Home tab's drifting cover wall behind a dark scrim;
+ * the animated CronosDeck mark sits in the centre, "Starting up CronosDeck" and the game name under
+ * it, then a stepped progress readout (determinate bar for the measurable app-side setup, an
+ * indeterminate spinner for the guest-boot tail) or a failure card.
  * Shows/hides based on PreloaderState.ui. Place at the top of the host Compose hierarchy.
  */
 @Composable
@@ -161,101 +160,118 @@ fun PreloaderOverlay() {
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Background: the Home tab's cover wall + blue corner light. ---
         DeckCoverWallBackdrop()
+        LaunchScrim(topAlpha = 0.30f)
 
-        // --- Scrim: darken the top a touch and heavily at the bottom for legible text. ---
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.55f),
-                        0.35f to Color.Black.copy(alpha = 0.35f),
-                        0.72f to Color.Black.copy(alpha = 0.78f),
-                        1.0f to Color.Black.copy(alpha = 0.94f),
-                    )
-                ),
-        )
-
-        val insets = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
-
-        // --- Right-side game details panel: cover + name + genres/year/metacritic + description.
-        // Shown only when the launched shortcut has accumulated details (graceful no-op otherwise) and
-        // never over the failure card. Anchored top-right so it clears the bottom-left hero text.
-        val details = ui.details
-        AnimatedVisibility(
-            visible = ui.phase != Phase.FAILED && details != null && details.hasAny,
-            modifier = insets.align(Alignment.TopEnd).padding(horizontal = 24.dp, vertical = 28.dp),
-        ) {
-            if (details != null) GameDetailsPanel(details, ui.title, ui.coverArt ?: ui.icon)
-        }
-
-        // --- Hero content: game name + stepped progress, anchored low. ---
+        // Centred: the CronosDeck mark, what is starting, the game, then the steps. The column scrolls
+        // so the failure card still fits a short landscape screen.
+        val failed = ui.phase == Phase.FAILED
+        val portrait = LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT
         Column(
-            modifier = insets
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 28.dp, vertical = 16.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
+            CronosDeckLogo(Modifier.size(if (portrait) 132.dp else 96.dp), still = failed)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Starting up CronosDeck",
+                style = MaterialTheme.typography.headlineSmall,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = HeroText,
+                textAlign = TextAlign.Center,
+            )
             if (ui.title.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                // Game name, then the "container · resolution" meta line mirrored from the game card.
+                val meta = ui.spec?.meta.orEmpty()
                 Text(
-                    text = ui.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = HeroText,
-                    maxLines = 2,
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = HeroText, fontWeight = FontWeight.SemiBold)) { append(ui.title) }
+                        if (meta.isNotEmpty()) append(" · $meta")
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = HeroTextDim,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // "container · resolution" meta line, mirrored 1:1 from the game card (the spec
-                // chips themselves were removed from every card by request).
-                val spec = ui.spec
-                if (spec != null) {
-                    if (spec.meta.isNotEmpty()) {
-                        Spacer(Modifier.height(5.dp))
-                        Text(
-                            text = spec.meta,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = HeroTextDim,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.widthIn(max = if (failed) 420.dp else 320.dp).fillMaxWidth(),
+            ) {
+                when (ui.phase) {
+                    Phase.SETUP -> SetupProgress(ui.stepIndex, ui.stepTotal, ui.stepLabel)
+                    Phase.GUEST -> GuestProgress(ui.tailLabel)
+                    Phase.FAILED -> FailureCard(ui.failure)
                 }
-                Spacer(Modifier.height(18.dp))
-            }
 
-            when (ui.phase) {
-                Phase.SETUP -> SetupProgress(ui.stepIndex, ui.stepTotal, ui.stepLabel)
-                Phase.GUEST -> GuestProgress(ui.tailLabel)
-                Phase.FAILED -> FailureCard(ui.failure)
-            }
-
-            // Not-frozen reassurance line (SETUP/GUEST only; the failure card is self-contained).
-            if (ui.phase != Phase.FAILED) {
-                AnimatedVisibility(visible = ui.hint != null) {
-                    Column {
+                // Not-frozen reassurance line (SETUP/GUEST only; the failure card is self-contained).
+                if (!failed) {
+                    AnimatedVisibility(visible = ui.hint != null) {
+                        Column {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = ui.hint ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = HeroAccent,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    // Cancel launch — aborts the launch and tears down the game/container so the user is
+                    // never stuck on the launch screen. Only during a real launch (not the shutdown message).
+                    if (ui.cancellable) {
                         Spacer(Modifier.height(14.dp))
-                        Text(
-                            text = ui.hint ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = HeroAccent,
-                        )
+                        OutlinedButton(
+                            onClick = { PreloaderState.onCancel?.run() },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = HeroText),
+                            border = BorderStroke(1.dp, HeroText.copy(alpha = 0.45f)),
+                        ) {
+                            Text("Cancel launch")
+                        }
                     }
-                }
-                // Cancel launch — aborts the launch and tears down the game/container so the user is
-                // never stuck on the launch screen. Only during a real launch (not the shutdown message).
-                if (ui.cancellable) {
-                Spacer(Modifier.height(18.dp))
-                OutlinedButton(
-                    onClick = { PreloaderState.onCancel?.run() },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = HeroText),
-                    border = BorderStroke(1.dp, HeroText.copy(alpha = 0.45f)),
-                ) {
-                    Text("Cancel launch")
-                }
                 }
             }
         }
     }
+}
+
+/**
+ * Darkens the wall behind the centred content: the status gradient (light at the top, heavy at the
+ * bottom) plus a soft pool at the centre so the mark and its text read over any cover art.
+ */
+@Composable
+private fun LaunchScrim(topAlpha: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawBehind {
+                drawRect(
+                    Brush.radialGradient(
+                        0.0f to Color.Black.copy(alpha = 0.66f),
+                        0.55f to Color.Black.copy(alpha = 0.40f),
+                        1.0f to Color.Transparent,
+                        center = Offset(size.width / 2f, size.height * 0.46f),
+                        radius = maxOf(size.width * 0.6f, size.height * 0.45f),
+                    )
+                )
+            }
+            .background(
+                Brush.verticalGradient(
+                    0.0f to Color.Black.copy(alpha = topAlpha),
+                    0.45f to Color.Black.copy(alpha = 0.28f),
+                    0.78f to Color.Black.copy(alpha = 0.62f),
+                    1.0f to Color.Black.copy(alpha = 0.90f),
+                )
+            ),
+    )
 }
 
 @Composable
@@ -333,27 +349,17 @@ private fun CenteredStatus(message: String, subMessage: String? = null, elapsed:
     Box(modifier = Modifier.fillMaxSize()) {
         // The Home tab's cover wall + blue corner light.
         DeckCoverWallBackdrop()
-        // Darken overall a touch and heavily at the bottom so the status text stays legible.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.30f),
-                        0.45f to Color.Black.copy(alpha = 0.28f),
-                        0.78f to Color.Black.copy(alpha = 0.62f),
-                        1.0f to Color.Black.copy(alpha = 0.90f),
-                    )
-                ),
-        )
+        LaunchScrim(topAlpha = 0.30f)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.Center)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 28.dp)
-                .padding(bottom = 46.dp),
+                .padding(horizontal = 28.dp, vertical = 16.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
+            CronosDeckLogo(Modifier.size(if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) 132.dp else 96.dp))
+            Spacer(Modifier.height(8.dp))
             if (message.isNotEmpty()) {
                 Text(
                     text = message,
@@ -413,108 +419,13 @@ private fun CenteredStatus(message: String, subMessage: String? = null, elapsed:
     }
 }
 
-/**
- * Right-side details card for the launch hero: a crisp small cover, the game name, a genres line, a
- * release-year + metacritic row, then the short description. Sits on a translucent dark surface so it
- * reads over any cover art. Width-capped and height-scrollable so long descriptions never overflow.
- */
-@Composable
-private fun GameDetailsPanel(details: PreloaderDetails, title: String, cover: Bitmap?) {
-    Surface(
-        color = Color.Black.copy(alpha = 0.42f),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.14f)),
-    ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .fillMaxWidth(0.42f)
-                .heightIn(max = 360.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-        ) {
-            if (cover != null) {
-                Image(
-                    bitmap = cover.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(width = 92.dp, height = 138.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-            if (title.isNotEmpty()) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = HeroText,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            // Release year · Metacritic pill.
-            if (!details.releaseYear.isNullOrEmpty() || details.metacritic != null) {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (!details.releaseYear.isNullOrEmpty()) {
-                        Text(
-                            text = details.releaseYear,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = HeroTextDim,
-                        )
-                        if (details.metacritic != null) Spacer(Modifier.width(10.dp))
-                    }
-                    details.metacritic?.let { MetacriticPill(it) }
-                }
-            }
-            if (details.genres.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = details.genres.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = HeroAccent,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (!details.description.isNullOrBlank()) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = details.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = HeroTextDim,
-                    maxLines = 8,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-/** Small Metacritic score badge, coloured green/amber/red by the usual 75/50 thresholds. */
-@Composable
-private fun MetacriticPill(score: Int) {
-    val bg = when {
-        score >= 75 -> Color(0xFF6AB04C)
-        score >= 50 -> Color(0xFFE1A100)
-        else -> Color(0xFFEB4D4B)
-    }
-    Surface(color = bg, shape = RoundedCornerShape(4.dp)) {
-        Text(
-            text = score.toString(),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-        )
-    }
-}
-
 @Composable
 private fun GuestProgress(tailLabel: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         CircularProgressIndicator(
             color = HeroAccent,
             strokeWidth = 2.5.dp,
