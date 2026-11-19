@@ -115,6 +115,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import com.winhub.hernandez.R
 import com.winhub.hernandez.inputcontrols.StickShaper
+import com.winhub.hernandez.inputcontrols.ControlsIconStyle
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.core.ControllerIdentity
 import com.winhub.hernandez.core.StickPacing
@@ -3204,17 +3205,13 @@ private fun ControlsContent(state: XServerDrawerState) {
             Text("Icon Style", color = accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             Spacer(Modifier.height(6.dp))
             ModeChipGrid(
-                listOf(
-                    Triple("Fusion", controlsIconStyle == "fusion") {
-                        state.setControlsIconStyle("fusion")
+                ControlsIconStyle.values().map { style ->
+                    Triple<String, Boolean, () -> Unit>(style.displayName(), controlsIconStyle == style.key()) {
+                        state.setControlsIconStyle(style.key())
                         state.onControlsIconStyleChange?.run()
-                    },
-                    Triple("Glass", controlsIconStyle == "glass") {
-                        state.setControlsIconStyle("glass")
-                        state.onControlsIconStyleChange?.run()
-                    },
-                ),
-                perRow = 2
+                    }
+                },
+                perRow = 3
             )
 
             // On-screen controls accent — per-profile override. Follow the app theme (default) or pick a

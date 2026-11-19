@@ -23,8 +23,8 @@ pre{overflow:auto;padding:12px 14px;border-top:1px solid var(--ln);font:12px/1.5
 h3{margin:18px 0 6px;font-size:15px}
 .note{color:var(--osv);font-size:12px;margin-top:10px;max-width:900px}
 </style></head><body>
-<h1>Touch control icon styles: Glass and Fusion</h1>
-<p class="sub">Every shape, size, colour recipe and alpha below is a line-by-line port of the real code (listed at the bottom, pulled straight from the source files). Left: DroidDeck's on-screen pad, the source of Fusion. Middle: WinHub with the new Fusion style (default). Right: WinHub's existing Glass style. Press and hold the pads (touch or mouse, multi-touch works).</p>
+<h1>Touch control icon styles</h1>
+<p class="sub">Six styles, all drawn by a line-by-line port of the real <code>ControlElement.drawGameHub</code> code (source listed at the bottom, read straight from the file). Fusion is the default, Glass is the old look; Neon, Solid, Minimal and Retro are the new candidates. Press and hold pads (touch or mouse, multi-touch works).</p>
 
 <div class="bar">
   <label>Overlay opacity <input id="op" type="range" min="0" max="100" value="75"><b id="opv">75%</b></label>
@@ -32,191 +32,183 @@ h3{margin:18px 0 6px;font-size:15px}
   <label><input id="hold" type="checkbox"> Hold everything (pressed state)</label>
 </div>
 
-<div class="grid">
-  <div class="card"><h2>DroidDeck on-screen pad</h2><small>OnScreenControls.kt onDraw: the reference</small><canvas id="c0" width="1280" height="720"></canvas></div>
-  <div class="card"><h2>WinHub: Fusion (new default)</h2><small>ControlElement.drawGameHub with ControlsIconStyle.FUSION</small><canvas id="c1" width="1280" height="720"></canvas></div>
-  <div class="card"><h2>WinHub: Glass (current)</h2><small>ControlElement.drawGameHub with ControlsIconStyle.GLASS, unchanged</small><canvas id="c2" width="1280" height="720"></canvas></div>
-</div>
-<p class="note">Scene: 1280x720, 1 dp = 1.6 px, WinHub snapping size = width/100 = 12.8 px (InputControlsView.onSizeChanged). WinHub element sizes come from ControlElement.computeBoundingBox: circle button 3x snap, pill 4x2 snap, D-pad 7x snap, stick 6x snap. Positions are a sample layout, not a saved profile. In WinHub the D-pad has one hit area, so in Glass any press lights all four arrows (existing behaviour); Fusion lights the pressed direction only because it reads <code>states[]</code>.</p>
+<div class="grid" id="grid"></div>
+<p class="note">Scene: 1280x720, 1 dp = 1.6 px, snapping size = width/100 = 12.8 px. Element sizes come from ControlElement.computeBoundingBox. Positions are a sample layout, not a saved profile. Neon, Solid and Retro draw the D-pad as one cross of arrows (GameHubLayout arrows) lit per direction; Fusion and Minimal use four round pads. Glass lights all four arrows on any press (existing behaviour).</p>
 
 <h3>Source the page was built from</h3>
-<details><summary>DroidDeck OnScreenControls.kt: colours <em>lines 158-178</em></summary><pre>    private fun applySettings() {
-        for (control in controls) control.target = settings.mapping[control.id] ?: control.id
-        val tint = settings.tint
-        val alpha = settings.opacity / 100f
-        fun shade(a: Int, f: Float) = Color.argb((a * alpha).toInt(), (Color.red(tint) * f).toInt(), (Color.green(tint) * f).toInt(), (Color.blue(tint) * f).toInt())
-        fun light(a: Int, f: Float) = Color.argb(
-            (a * alpha).toInt(),
-            (Color.red(tint) + (255 - Color.red(tint)) * f).toInt(),
-            (Color.green(tint) + (255 - Color.green(tint)) * f).toInt(),
-            (Color.blue(tint) + (255 - Color.blue(tint)) * f).toInt(),
-        )
-        idleFill = shade(80, 0.12f)
-        heldFill = shade(160, 1f)
-        idleStroke = light(150, 0.25f)
-        heldStroke = light(230, 0.7f)
-        idleText = light(210, 0.75f)
-        stickFill = shade(60, 0.12f)
-        knobFill = shade(120, 0.35f)
-        stroke.strokeWidth = dp(1.5f)
-    }</pre></details>
-<details><summary>DroidDeck OnScreenControls.kt: onDraw <em>lines 384-471</em></summary><pre>    override fun onDraw(canvas: Canvas) {
-        if (!quickHidden) for (control in controls) {
-            if (!isVisible(control)) continue
-            if (control.stick &gt;= 0 &amp;&amp; settings.adaptiveSticks &amp;&amp; !editing &amp;&amp; control.pressedBy == -1) continue
-            val held = control.pressedBy != -1
-            val radius = control.radius
-            if (control.stick &gt;= 0) {
-                val bx = if (held) control.ax else control.cx
-                val by = if (held) control.ay else control.cy
-                fill.color = if (held) heldFill else stickFill
-                canvas.drawCircle(bx, by, radius, fill)
-                stroke.color = if (held) heldStroke else idleStroke
-                canvas.drawCircle(bx, by, radius, stroke)
-                val knob = radius * 0.46f
-                fill.color = if (held || control.clicked) heldFill else knobFill
-                canvas.drawCircle(bx + control.kx, by + control.ky, knob, fill)
-                stroke.color = if (held) heldStroke else idleStroke
-                canvas.drawCircle(bx + control.kx, by + control.ky, knob, stroke)
-                text.color = if (held) Color.WHITE else idleText
-                text.textSize = knob * 0.8f
-                canvas.drawText(label(control), bx + control.kx, by + control.ky + text.textSize * 0.35f, text)
-            } else if (control.wide) {
-                box.set(control.cx - control.halfW, control.cy - control.halfH, control.cx + control.halfW, control.cy + control.halfH)
-                val corner = control.halfH * 0.55f
-                fill.color = if (held) heldFill else idleFill
-                canvas.drawRoundRect(box, corner, corner, fill)
-                stroke.color = if (held) heldStroke else idleStroke
-                canvas.drawRoundRect(box, corner, corner, stroke)
-                text.color = if (held) Color.WHITE else idleText
-                text.textSize = control.halfH * 0.8f
-                canvas.drawText(label(control), control.cx, control.cy + text.textSize * 0.35f, text)
-            } else {
-                fill.color = if (held) heldFill else idleFill
-                canvas.drawCircle(control.cx, control.cy, radius, fill)
-                stroke.color = if (held) heldStroke else idleStroke
-                canvas.drawCircle(control.cx, control.cy, radius, stroke)
-                text.color = if (held) Color.WHITE else idleText
-                val direction = directions.indexOf(control.target)
-                if (direction &gt;= 0) {
-                    drawArrow(canvas, control.cx, control.cy, radius * 0.34f, direction)
-                    continue
-                }
-                val name = label(control)
-                text.textSize = if (name.length &gt; 2) dp(11f) else radius * if (name.length == 2) 0.62f else 0.85f
-                canvas.drawText(name, control.cx, control.cy + text.textSize * 0.35f, text)
-            }
-        }
-        if (editing) {
-            stroke.color = heldStroke
-            snapX?.let { canvas.drawLine(it, safe.top.toFloat(), it, (height - safe.bottom).toFloat(), stroke) }
-            snapY?.let { canvas.drawLine(safe.left.toFloat(), it, (width - safe.right).toFloat(), it, stroke) }
-            selected?.let { group -&gt;
-                val (x, y) = centre(group)
-                val single = members(group).singleOrNull()
-                if (single?.wide == true) {
-                    val pad = dp(6f)
-                    box.set(x - single.halfW - pad, y - single.halfH - pad, x + single.halfW + pad, y + single.halfH + pad)
-                    canvas.drawRoundRect(box, single.halfH, single.halfH, stroke)
-                } else canvas.drawCircle(x, y, extent(group) + dp(6f), stroke)
-            }
-        } else if (!buttonsOnly) {
-            val (x, y) = quickCenter()
-            val radius = dp(18f)
-            fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
-            canvas.drawCircle(x, y, radius, fill)
-            stroke.color = idleStroke
-            canvas.drawCircle(x, y, radius, stroke)
-            text.color = idleText
-            text.textSize = dp(22f)
-            canvas.drawText(if (quickHidden) &quot;+&quot; else &quot;−&quot;, x, y + text.textSize * 0.35f, text)
-        }
-        if (!editing &amp;&amp; settings.keyboardButton &amp;&amp; onKeyboard != null) {
-            val (x, y) = keyboardCenter()
-            fill.color = Color.argb(190, Color.red(idleFill), Color.green(idleFill), Color.blue(idleFill))
-            canvas.drawCircle(x, y, dp(18f), fill)
-            stroke.color = if (keyboardPressedBy == -1) idleStroke else heldStroke
-            canvas.drawCircle(x, y, dp(18f), stroke)
-            box.set(x - dp(10f), y - dp(7f), x + dp(10f), y + dp(7f))
-            canvas.drawRoundRect(box, dp(2f), dp(2f), stroke)
-            for (row in 0..1) for (col in 0..2) {
-                val kx = x + dp(-6f + col * 5f)
-                val ky = y + dp(-3f + row * 4f)
-                canvas.drawLine(kx, ky, kx + dp(2f), ky, stroke)
-            }
-            canvas.drawLine(x - dp(5f), y + dp(4f), x + dp(5f), y + dp(4f), stroke)
-        }
-    }</pre></details>
-<details><summary>DroidDeck OnScreenControls.kt: drawArrow <em>lines 494-509</em></summary><pre>    private fun drawArrow(canvas: Canvas, x: Float, y: Float, size: Float, direction: Int) {
-        val (fx, fy) = when (direction) {
-            0 -&gt; 0f to -1f
-            1 -&gt; 1f to 0f
-            2 -&gt; 0f to 1f
-            else -&gt; -1f to 0f
-        }
-        arrow.reset()
-        arrow.moveTo(x + fx * size, y + fy * size)
-        arrow.lineTo(x - fx * size * 0.7f - fy * size, y - fy * size * 0.7f + fx * size)
-        arrow.lineTo(x - fx * size * 0.7f + fy * size, y - fy * size * 0.7f - fx * size)
-        arrow.close()
-        fill.color = text.color
-        canvas.drawPath(arrow, fill)
-    }</pre></details>
-<details><summary>WinHub ControlElement.java: Fusion drawing <em>lines 1848-1930</em></summary><pre>    // FUSION palette: the accent darkened (shade) or lightened (light) toward white, scaled by the
-    // overlay opacity. Same recipe DroidDeck&#x27;s on-screen pad uses for its idle/held pads.
-    private static int fusionShade(int tint, float opacity, int alpha, float factor) {
+<details><summary>WinHub ControlElement.java: flat palette and drawing (Fusion, Neon, Solid, Minimal, Retro) <em>lines 1849-2048</em></summary><pre>    /** Colours and flags of one flat icon style (everything except GLASS); built per element by flatPalette. */
+    private static final class FlatPalette {
+        int fill, pFill, stroke, pStroke, text, pText;
+        int stickBase, stickBaseHeld, knob, knobHeld;
+        int glow;            // 0 = no glow; otherwise the colour of the halo around strokes
+        float strokeDp;
+        boolean cross;       // D-pad drawn as one cross of arrows instead of four round pads
+    }
+
+    private static int shade(int tint, float opacity, int alpha, float factor) {
         return Color.argb((int) (alpha * opacity),
                 (int) (Color.red(tint) * factor), (int) (Color.green(tint) * factor), (int) (Color.blue(tint) * factor));
     }
 
-    private static int fusionLight(int tint, float opacity, int alpha, float factor) {
+    private static int light(int tint, float opacity, int alpha, float factor) {
         return Color.argb((int) (alpha * opacity),
                 (int) (Color.red(tint) + (255 - Color.red(tint)) * factor),
                 (int) (Color.green(tint) + (255 - Color.green(tint)) * factor),
                 (int) (Color.blue(tint) + (255 - Color.blue(tint)) * factor));
     }
 
-    /** FUSION key: a flat tinted pad. Shoulders/triggers are wide pills, everything else keeps its own shape. */
-    private void drawFusionKey(Canvas canvas, Paint paint, Rect bb, boolean pill, int fill, int stroke) {
+    private static int rgb(int color, float opacity, int alpha) {
+        return Color.argb((int) (alpha * opacity), Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private static int retroColor(GameHubLayout.Role role) {
+        if (role == null) return 0xFFC8C8CE;
+        switch (role) {
+            case BTN_A: return 0xFF4CAF50;
+            case BTN_B: return 0xFFE53935;
+            case BTN_X: return 0xFF4285F4;
+            case BTN_Y: return 0xFFFBC02D;
+            default: return 0xFFC8C8CE;
+        }
+    }
+
+    /** FUSION is the DroidDeck pad recipe: the accent darkened/lightened and scaled by the overlay opacity. */
+    private static FlatPalette flatPalette(ControlsIconStyle style, int accent, float o, GameHubLayout.Role role) {
+        FlatPalette p = new FlatPalette();
+        switch (style) {
+            case NEON:
+                p.fill = rgb(accent, o, 30);
+                p.pFill = rgb(accent, o, 120);
+                p.stroke = light(accent, o, 235, 0.35f);
+                p.pStroke = light(accent, o, 255, 0.85f);
+                p.text = light(accent, o, 255, 0.6f);
+                p.pText = Color.WHITE;
+                p.stickBase = rgb(accent, o, 22);
+                p.stickBaseHeld = rgb(accent, o, 50);
+                p.knob = rgb(accent, o, 80);
+                p.knobHeld = rgb(accent, o, 150);
+                p.glow = rgb(accent, o, 230);
+                p.strokeDp = 1.6f;
+                p.cross = true;
+                break;
+            case SOLID:
+                p.fill = Color.argb((int) (235 * o), 32, 34, 40);
+                p.pFill = rgb(accent, o, 255);
+                p.stroke = 0;
+                p.pStroke = 0;
+                p.text = Color.argb((int) (255 * o), 235, 238, 242);
+                p.pText = Color.argb(255, 16, 18, 22);
+                p.stickBase = Color.argb((int) (235 * o), 24, 26, 31);
+                p.stickBaseHeld = Color.argb((int) (235 * o), 24, 26, 31);
+                p.knob = Color.argb((int) (255 * o), 62, 66, 76);
+                p.knobHeld = rgb(accent, o, 255);
+                p.strokeDp = 0f;
+                p.cross = true;
+                break;
+            case MINIMAL:
+                p.fill = 0;
+                p.pFill = Color.argb((int) (70 * o), 255, 255, 255);
+                p.stroke = Color.argb((int) (170 * o), 255, 255, 255);
+                p.pStroke = Color.argb((int) (255 * o), 255, 255, 255);
+                p.text = Color.argb((int) (220 * o), 255, 255, 255);
+                p.pText = Color.WHITE;
+                p.stickBase = 0;
+                p.stickBaseHeld = Color.argb((int) (35 * o), 255, 255, 255);
+                p.knob = Color.argb((int) (45 * o), 255, 255, 255);
+                p.knobHeld = Color.argb((int) (90 * o), 255, 255, 255);
+                p.strokeDp = 1.2f;
+                break;
+            case RETRO: {
+                int c = retroColor(role);
+                p.fill = Color.argb((int) (230 * o), 24, 24, 28);
+                p.pFill = rgb(c, o, 255);
+                p.stroke = rgb(c, o, 255);
+                p.pStroke = rgb(c, o, 255);
+                p.text = rgb(c, o, 255);
+                p.pText = Color.argb(255, 20, 20, 24);
+                p.stickBase = Color.argb((int) (230 * o), 24, 24, 28);
+                p.stickBaseHeld = Color.argb((int) (230 * o), 40, 40, 46);
+                p.knob = Color.argb((int) (255 * o), 120, 120, 128);
+                p.knobHeld = Color.argb((int) (255 * o), 200, 200, 206);
+                p.strokeDp = 2f;
+                p.cross = true;
+                break;
+            }
+            default: // FUSION
+                p.fill = shade(accent, o, 80, 0.12f);
+                p.pFill = shade(accent, o, 160, 1f);
+                p.stroke = light(accent, o, 150, 0.25f);
+                p.pStroke = light(accent, o, 230, 0.7f);
+                p.text = light(accent, o, 210, 0.75f);
+                p.pText = Color.WHITE;
+                p.stickBase = shade(accent, o, 60, 0.12f);
+                p.stickBaseHeld = p.pFill;
+                p.knob = shade(accent, o, 120, 0.35f);
+                p.knobHeld = p.pFill;
+                p.strokeDp = 1.5f;
+                break;
+        }
+        return p;
+    }
+
+    private void strokeWithGlow(Paint paint, FlatPalette pal, Runnable draw) {
+        paint.setStyle(Paint.Style.STROKE);
+        if (pal.glow != 0) paint.setShadowLayer(inputControlsView.getSnappingSize() * 0.6f, 0f, 0f, pal.glow);
+        draw.run();
+        if (pal.glow != 0) paint.setShadowLayer(0f, 0f, 0f, 0);
+    }
+
+    /** Flat key: triggers/bumpers are wide pills, everything else keeps its own shape. */
+    private void drawFlatKey(Canvas canvas, Paint paint, Rect bb, boolean pill, boolean held, FlatPalette pal) {
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(fill);
+        paint.setColor(held ? pal.pFill : pal.fill);
         if (pill) {
             float corner = bb.height() * 0.5f * 0.55f;
             canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(stroke);
-            canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
+            paint.setColor(held ? pal.pStroke : pal.stroke);
+            strokeWithGlow(paint, pal, () -&gt;
+                    canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint));
             return;
         }
-        drawGameHubShape(canvas, paint, bb, fill, true);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(stroke);
-        drawGameHubShape(canvas, paint, bb, 0, false);
+        drawGameHubShape(canvas, paint, bb, held ? pal.pFill : pal.fill, true);
+        paint.setColor(held ? pal.pStroke : pal.stroke);
+        strokeWithGlow(paint, pal, () -&gt; drawGameHubShape(canvas, paint, bb, 0, false));
     }
 
-    /** FUSION stick: dim base disc with a lighter knob that follows the finger. */
-    private void drawFusionStick(Canvas canvas, Paint paint, float cx, float cy, float ringRadius, float knobX,
-                                 float knobY, boolean engaged, int accent, float opacity, int strokeColor,
-                                 int pressedStrokeColor, int pressedFillColor) {
-        int stroke = engaged ? pressedStrokeColor : strokeColor;
+    /** Flat stick: base disc with a knob that follows the finger. */
+    private void drawFlatStick(Canvas canvas, Paint paint, float cx, float cy, float ringRadius, float knobX,
+                               float knobY, boolean held, FlatPalette pal) {
+        int stroke = held ? pal.pStroke : pal.stroke;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 60, 0.12f));
+        paint.setColor(held ? pal.stickBaseHeld : pal.stickBase);
         canvas.drawCircle(cx, cy, ringRadius, paint);
-        paint.setStyle(Paint.Style.STROKE);
         paint.setColor(stroke);
-        canvas.drawCircle(cx, cy, ringRadius, paint);
+        strokeWithGlow(paint, pal, () -&gt; canvas.drawCircle(cx, cy, ringRadius, paint));
         float knobRadius = ringRadius * 0.46f;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 120, 0.35f));
+        paint.setColor(held ? pal.knobHeld : pal.knob);
         canvas.drawCircle(knobX, knobY, knobRadius, paint);
-        paint.setStyle(Paint.Style.STROKE);
         paint.setColor(stroke);
-        canvas.drawCircle(knobX, knobY, knobRadius, paint);
+        strokeWithGlow(paint, pal, () -&gt; canvas.drawCircle(knobX, knobY, knobRadius, paint));
     }
 
-    /** FUSION D-pad: four round pads (up, right, down, left) each with an arrow, lit one by one. */
-    private void drawFusionDpad(Canvas canvas, Paint paint, float cx, float cy, float radius, int fill,
-                                int pressedFill, int stroke, int pressedStroke, int idleText) {
+    /** Flat D-pad: four round pads with arrows, or one cross of arrows (cross palettes), lit one direction at a time. */
+    private void drawFlatDpad(Canvas canvas, Paint paint, float cx, float cy, float radius, FlatPalette pal) {
+        if (pal.cross) {
+            // GameHubLayout sides are up, down, left, right; states[] is up, right, down, left.
+            int[] stateOfSide = {0, 2, 3, 1};
+            for (int side = 0; side &lt; 4; side++) {
+                boolean held = states[stateOfSide[side]];
+                path.reset();
+                GameHubLayout.buildDpadArrow(path, side, cx, cy, radius);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(held ? pal.pFill : pal.fill);
+                canvas.drawPath(path, paint);
+                paint.setColor(held ? pal.pStroke : pal.stroke);
+                strokeWithGlow(paint, pal, () -&gt; canvas.drawPath(path, paint));
+            }
+            return;
+        }
         float padRadius = radius / 3f;
         float offset = radius * 2f / 3f;
         float[][] dirs = {{0f, -1f}, {1f, 0f}, {0f, 1f}, {-1f, 0f}};
@@ -225,11 +217,10 @@ h3{margin:18px 0 6px;font-size:15px}
             float px = cx + dirs[i][0] * offset;
             float py = cy + dirs[i][1] * offset;
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(held ? pressedFill : fill);
+            paint.setColor(held ? pal.pFill : pal.fill);
             canvas.drawCircle(px, py, padRadius, paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(held ? pressedStroke : stroke);
-            canvas.drawCircle(px, py, padRadius, paint);
+            paint.setColor(held ? pal.pStroke : pal.stroke);
+            strokeWithGlow(paint, pal, () -&gt; canvas.drawCircle(px, py, padRadius, paint));
 
             float size = padRadius * 0.34f;
             float fx = dirs[i][0];
@@ -240,17 +231,10 @@ h3{margin:18px 0 6px;font-size:15px}
             path.lineTo(px - fx * size * 0.7f + fy * size, py - fy * size * 0.7f - fx * size);
             path.close();
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(held ? Color.WHITE : idleText);
+            paint.setColor(held ? pal.pText : pal.text);
             canvas.drawPath(path, paint);
         }
     }</pre></details>
-<details><summary>WinHub ControlElement.java: Fusion palette in drawGameHub <em>lines 1436-1442</em></summary><pre>        if (fusion) {
-            fillColor = fusionShade(accent, gameHubDim, 80, 0.12f);
-            pressedFillColor = fusionShade(accent, gameHubDim, 160, 1f);
-            strokeColor = fusionLight(accent, gameHubDim, 150, 0.25f);
-            pressedStrokeColor = fusionLight(accent, gameHubDim, 230, 0.7f);
-            textColor = fusionLight(accent, gameHubDim, 210, 0.75f);
-        }</pre></details>
 
 
 <script>
@@ -277,7 +261,8 @@ const STICKS=[{k:'ls',cx:430,cy:595,half:SNAP*6,tag:'L'},{k:'rs',cx:860,cy:595,h
 
 /* ---------- interaction state ---------- */
 function mkState(){return {down:new Map(),pos:new Map()}} // pointerId -> element key
-const S=[mkState(),mkState(),mkState()];
+const STYLES=['fusion','glass','neon','solid','minimal','retro'],TITLES={fusion:'Fusion (default)',glass:'Glass (current)',neon:'Neon',solid:'Solid',minimal:'Minimal',retro:'Retro'};
+const S=STYLES.map(mkState);
 function bbOf(b){const hw=b.shape==='C'?SNAP*3:SNAP*4, hh=b.shape==='C'?SNAP*3:SNAP*2;return {l:b.cx-hw,t:b.cy-hh,r:b.cx+hw,b:b.cy+hh,w:hw*2,h:hh*2,cx:b.cx,cy:b.cy}}
 function isHeld(s,key){if(O.hold)return true;for(const k of s.down.values())if(k.key===key)return true;return false}
 function dpadDirs(s,cx,cy){ // states[] = up,right,down,left
@@ -300,9 +285,11 @@ function drawLabel(ctx,txt,cx,cy,size,color){
   ctx.fillStyle=color;ctx.fillText(txt,cx,cy+(asc-desc)/2);
 }
 
-/* ================= WinHub: ported from ControlElement.drawGameHub ================= */
-const fusionShade=(t,o,a,f)=>rgba([Math.trunc(t[0]*f),Math.trunc(t[1]*f),Math.trunc(t[2]*f)],Math.trunc(a*o));
-const fusionLight=(t,o,a,f)=>rgba(t.map(c=>Math.trunc(c+(255-c)*f)),Math.trunc(a*o));
+/* ================= WinHub: ported from ControlElement ================= */
+const A=(c,o,a)=>rgba(c,Math.trunc(a*o));                                        // rgb(color, opacity, alpha)
+const shade=(t,o,a,f)=>rgba([Math.trunc(t[0]*f),Math.trunc(t[1]*f),Math.trunc(t[2]*f)],Math.trunc(a*o));
+const light=(t,o,a,f)=>rgba(t.map(c=>Math.trunc(c+(255-c)*f)),Math.trunc(a*o));
+const RETRO={a:[0x4C,0xAF,0x50],b:[0xE5,0x39,0x35],x:[0x42,0x85,0xF4],y:[0xFB,0xC0,0x2D]},RETRO_GRAY=[0xC8,0xC8,0xCE];
 
 function trigPath(ctx,shape,left,top,right,bottom){ // GameHubLayout.buildTriggerPath
   const w=right-left,h=bottom-top,r=Math.min(w,h)*.1875,f=.2*w,diag=Math.hypot(h,f),sx=f/diag*r,sy=h/diag*r;
@@ -341,27 +328,60 @@ function shapePath(ctx,b){ // drawGameHubShape: CIRCLE or ROUND_RECT (pill, r = 
   if(b.shape==='C')ctx.arc(b.cx,b.cy,Math.min(b.w,b.h)/2,0,Math.PI*2);else ctx.roundRect(b.l,b.t,b.w,b.h,b.h/2);
 }
 
-function winhub(ctx,s,fusion){
-  const dim=O.opacity,acc=O.accent,eff=1;
-  const fillAlpha=Math.trunc(90*dim*eff),strokeAlpha=Math.trunc(150*dim*eff),pFillAlpha=Math.trunc(60*dim*eff),pStrokeAlpha=Math.trunc(220*dim*eff);
-  const textAlpha=Math.trunc(255*dim*eff),glassEdge=fusion?0:Math.trunc(75*dim*eff);
-  let fillC=rgba([0,0,0],fillAlpha),strokeC=rgba(acc,Math.max(strokeAlpha,Math.trunc(110*dim))),
-      pFillC=rgba(acc,pFillAlpha),pStrokeC=rgba(acc,Math.max(pStrokeAlpha,Math.trunc(160*dim))),textC=rgba(acc,textAlpha);
-  const shadowC=rgba(acc,fusion?0:Math.trunc(0x40*dim*eff));
-  if(fusion){ // the block added to drawGameHub
-    fillC=fusionShade(acc,dim,80,.12);pFillC=fusionShade(acc,dim,160,1);strokeC=fusionLight(acc,dim,150,.25);
-    pStrokeC=fusionLight(acc,dim,230,.7);textC=fusionLight(acc,dim,210,.75);
+
+// ControlElement.flatPalette
+function flatPalette(style,acc,o,role){
+  const p={glow:null,cross:false};
+  const W_=(a,r,g,b)=>`rgba(${r},${g},${b},${Math.trunc(a*o)/255})`;
+  if(style==='neon'){
+    Object.assign(p,{fill:A(acc,o,30),pFill:A(acc,o,120),stroke:light(acc,o,235,.35),pStroke:light(acc,o,255,.85),text:light(acc,o,255,.6),pText:'#fff',
+      stickBase:A(acc,o,22),stickBaseHeld:A(acc,o,50),knob:A(acc,o,80),knobHeld:A(acc,o,150),glow:A(acc,o,230),strokeDp:1.6,cross:true});
+  }else if(style==='solid'){
+    Object.assign(p,{fill:W_(235,32,34,40),pFill:A(acc,o,255),stroke:null,pStroke:null,text:W_(255,235,238,242),pText:'rgb(16,18,22)',
+      stickBase:W_(235,24,26,31),stickBaseHeld:W_(235,24,26,31),knob:W_(255,62,66,76),knobHeld:A(acc,o,255),strokeDp:0,cross:true});
+  }else if(style==='minimal'){
+    Object.assign(p,{fill:null,pFill:W_(70,255,255,255),stroke:W_(170,255,255,255),pStroke:W_(255,255,255,255),text:W_(220,255,255,255),pText:'#fff',
+      stickBase:null,stickBaseHeld:W_(35,255,255,255),knob:W_(45,255,255,255),knobHeld:W_(90,255,255,255),strokeDp:1.2});
+  }else if(style==='retro'){
+    const c=RETRO[role]||RETRO_GRAY;
+    Object.assign(p,{fill:W_(230,24,24,28),pFill:A(c,o,255),stroke:A(c,o,255),pStroke:A(c,o,255),text:A(c,o,255),pText:'rgb(20,20,24)',
+      stickBase:W_(230,24,24,28),stickBaseHeld:W_(230,40,40,46),knob:W_(255,120,120,128),knobHeld:W_(255,200,200,206),strokeDp:2,cross:true});
+  }else{ // fusion
+    Object.assign(p,{fill:shade(acc,o,80,.12),pFill:shade(acc,o,160,1),stroke:light(acc,o,150,.25),pStroke:light(acc,o,230,.7),text:light(acc,o,210,.75),pText:'#fff',
+      stickBase:shade(acc,o,60,.12),knob:shade(acc,o,120,.35),strokeDp:1.5});
+    p.stickBaseHeld=p.pFill;p.knobHeld=p.pFill;
   }
-  const sw=fusion?Math.max(2,1.5*DP):Math.max(2,SNAP*.18);
+  return p;
+}
+const FILL=(ctx,c,path)=>{if(c){ctx.fillStyle=c;path()}};
+function strokeGlow(ctx,pal,col,draw){ // strokeWithGlow
+  if(!col)return;ctx.strokeStyle=col;
+  if(pal.glow){ctx.shadowColor=pal.glow;ctx.shadowBlur=SNAP*.6}
+  draw();
+  ctx.shadowColor='transparent';ctx.shadowBlur=0;
+}
+function circ(ctx,x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2)}
+
+function winhub(ctx,s,style){
+  const dim=O.opacity,acc=O.accent,flat=style!=='glass';
+  const fillAlpha=Math.trunc(90*dim),strokeAlpha=Math.trunc(150*dim),pFillAlpha=Math.trunc(60*dim),pStrokeAlpha=Math.trunc(220*dim);
+  const textAlpha=Math.trunc(255*dim),glassEdge=flat?0:Math.trunc(75*dim);
+  const fillC=rgba([0,0,0],fillAlpha),strokeC=rgba(acc,Math.max(strokeAlpha,Math.trunc(110*dim))),
+        pFillC=rgba(acc,pFillAlpha),pStrokeC=rgba(acc,Math.max(pStrokeAlpha,Math.trunc(160*dim))),textC=rgba(acc,textAlpha);
+  const shadowC=rgba(acc,Math.trunc(0x40*dim));
+  const base=flat?flatPalette(style,acc,dim,null):null;
+  const sw=flat?Math.max(2,base.strokeDp*DP):Math.max(2,SNAP*.18);
   ctx.lineWidth=sw;ctx.lineJoin='round';ctx.lineCap='round';
 
   /* BUTTON */
   for(const el of BTN){
     const b=bbOf(el),eng=isHeld(s,el.k),trig=el.trig;
-    if(fusion){ // drawFusionKey
-      ctx.fillStyle=eng?pFillC:fillC;ctx.strokeStyle=eng?pStrokeC:strokeC;
-      if(trig){const c=b.h*.5*.55;ctx.beginPath();ctx.roundRect(b.l,b.t,b.w,b.h,c);ctx.fill();ctx.stroke()}
-      else{shapePath(ctx,b);ctx.fill();ctx.stroke()}
+    const pal=flat?flatPalette(style,acc,dim,el.k):null;
+    if(flat){ // drawFlatKey
+      const pill=!!trig,cr=b.h*.5*.55;
+      const path=()=>{ctx.beginPath();if(pill)ctx.roundRect(b.l,b.t,b.w,b.h,cr);else shapePath(ctx,b)};
+      const f=eng?pal.pFill:pal.fill;if(f){ctx.fillStyle=f;path();ctx.fill()}
+      strokeGlow(ctx,pal,eng?pal.pStroke:pal.stroke,()=>{path();ctx.stroke()});
     }else if(trig){
       trigPath(ctx,trig,b.l,b.t,b.r,b.b);
       ctx.shadowColor=shadowC;ctx.shadowBlur=SNAP*.08;ctx.shadowOffsetY=SNAP*.04;ctx.fillStyle=fillC;ctx.fill();
@@ -377,40 +397,52 @@ function winhub(ctx,s,fusion){
       ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.stroke();
     }
     const size=Math.min(fitText(ctx,el.label,b.w-sw*2),SNAP*2);
-    drawLabel(ctx,el.label,b.cx,b.cy,size,fusion&&eng?'#fff':textC);
+    drawLabel(ctx,el.label,b.cx,b.cy,size,flat?(eng?pal.pText:pal.text):textC);
   }
 
   /* STICK */
   for(const st of STICKS){
     const ring=st.half,knob=stickKnob(s,st,ring),eng=knob.on;
-    ctx.fillStyle='rgba(255,0,0,'+40/255+')';ctx.beginPath();ctx.arc(st.cx,st.cy,SNAP*1.8*.15,0,Math.PI*2);ctx.fill(); // dead-zone dot (unchanged)
-    if(fusion){ // drawFusionStick
-      const stroke=eng?pStrokeC:strokeC;
-      ctx.fillStyle=eng?pFillC:fusionShade(acc,dim,60,.12);ctx.beginPath();ctx.arc(st.cx,st.cy,ring,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=stroke;ctx.stroke();
-      const kr=ring*.46;ctx.fillStyle=eng?pFillC:fusionShade(acc,dim,120,.35);ctx.beginPath();ctx.arc(knob.x,knob.y,kr,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=stroke;ctx.stroke();
+    ctx.fillStyle='rgba(255,0,0,'+40/255+')';circ(ctx,st.cx,st.cy,SNAP*1.8*.15);ctx.fill(); // dead-zone dot (unchanged)
+    if(flat){ // drawFlatStick
+      const pal=base,stroke=eng?pal.pStroke:pal.stroke;
+      FILL(ctx,eng?pal.stickBaseHeld:pal.stickBase,()=>{circ(ctx,st.cx,st.cy,ring);ctx.fill()});
+      strokeGlow(ctx,pal,stroke,()=>{circ(ctx,st.cx,st.cy,ring);ctx.stroke()});
+      const kr=ring*.46;
+      FILL(ctx,eng?pal.knobHeld:pal.knob,()=>{circ(ctx,knob.x,knob.y,kr);ctx.fill()});
+      strokeGlow(ctx,pal,stroke,()=>{circ(ctx,knob.x,knob.y,kr);ctx.stroke()});
     }else{
-      ctx.fillStyle=rgba([0,0,0],fillAlpha);ctx.beginPath();ctx.arc(st.cx,st.cy,ring,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=rgba([0,0,0],fillAlpha);circ(ctx,st.cx,st.cy,ring);ctx.fill();
       ctx.fillStyle=glassGrad(ctx,st.cx,st.cy,ring,glassEdge);ctx.fill();
-      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.beginPath();ctx.arc(st.cx,st.cy,ring-sw*.5,0,Math.PI*2);ctx.stroke();
-      const kr=ring*.48;ctx.fillStyle=rgba(acc,Math.trunc((eng?100:77)*dim*eff));ctx.beginPath();ctx.arc(knob.x,knob.y,kr,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=eng?pStrokeC:strokeC;ctx.beginPath();ctx.arc(knob.x,knob.y,kr-sw*.5,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle=eng?pStrokeC:strokeC;circ(ctx,st.cx,st.cy,ring-sw*.5);ctx.stroke();
+      const kr=ring*.48;ctx.fillStyle=rgba(acc,Math.trunc((eng?100:77)*dim));circ(ctx,knob.x,knob.y,kr);ctx.fill();
+      ctx.strokeStyle=eng?pStrokeC:strokeC;circ(ctx,knob.x,knob.y,kr-sw*.5);ctx.stroke();
     }
   }
 
   /* D_PAD */
   {
     const {cx,cy}=DPAD,radius=DPAD.half,dirs=dpadDirs(s,cx,cy),eng=dirs.some(Boolean);
-    if(fusion){ // drawFusionDpad
-      const pr=radius/3,off=radius*2/3,v=[[0,-1],[1,0],[0,1],[-1,0]];
-      for(let i=0;i<4;i++){
-        const held=dirs[i],px=cx+v[i][0]*off,py=cy+v[i][1]*off;
-        ctx.fillStyle=held?pFillC:fillC;ctx.beginPath();ctx.arc(px,py,pr,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle=held?pStrokeC:strokeC;ctx.stroke();
-        const z=pr*.34,fx=v[i][0],fy=v[i][1];
-        ctx.beginPath();ctx.moveTo(px+fx*z,py+fy*z);ctx.lineTo(px-fx*z*.7-fy*z,py-fy*z*.7+fx*z);ctx.lineTo(px-fx*z*.7+fy*z,py-fy*z*.7-fx*z);ctx.closePath();
-        ctx.fillStyle=held?'#fff':textC;ctx.fill();
+    if(flat){ // drawFlatDpad
+      const pal=base;
+      if(pal.cross){
+        const stateOfSide=[0,2,3,1];
+        for(let side=0;side<4;side++){
+          const held=dirs[stateOfSide[side]];
+          const path=()=>{ctx.beginPath();dpadArrow(ctx,side,cx,cy,radius)};
+          FILL(ctx,held?pal.pFill:pal.fill,()=>{path();ctx.fill()});
+          strokeGlow(ctx,pal,held?pal.pStroke:pal.stroke,()=>{path();ctx.stroke()});
+        }
+      }else{
+        const pr=radius/3,off=radius*2/3,v=[[0,-1],[1,0],[0,1],[-1,0]];
+        for(let i=0;i<4;i++){
+          const held=dirs[i],px=cx+v[i][0]*off,py=cy+v[i][1]*off;
+          FILL(ctx,held?pal.pFill:pal.fill,()=>{circ(ctx,px,py,pr);ctx.fill()});
+          strokeGlow(ctx,pal,held?pal.pStroke:pal.stroke,()=>{circ(ctx,px,py,pr);ctx.stroke()});
+          const z=pr*.34,fx=v[i][0],fy=v[i][1];
+          ctx.beginPath();ctx.moveTo(px+fx*z,py+fy*z);ctx.lineTo(px-fx*z*.7-fy*z,py-fy*z*.7+fx*z);ctx.lineTo(px-fx*z*.7+fy*z,py-fy*z*.7-fx*z);ctx.closePath();
+          ctx.fillStyle=held?pal.pText:pal.text;ctx.fill();
+        }
       }
     }else{
       const along=radius*.565,ctr=[[cx,cy-along],[cx,cy+along],[cx-along,cy],[cx+along,cy]];
@@ -425,69 +457,25 @@ function winhub(ctx,s,fusion){
   }
 }
 
-/* ================= DroidDeck: ported from OnScreenControls.onDraw ================= */
-const dd=v=>v*DP;
-function droiddeck(ctx,s){
-  const tint=O.accent,alpha=O.opacity;
-  const shade=(a,f)=>rgba(tint.map(c=>Math.trunc(c*f)),Math.trunc(a*alpha));
-  const light=(a,f)=>rgba(tint.map(c=>Math.trunc(c+(255-c)*f)),Math.trunc(a*alpha));
-  const idleFill=shade(80,.12),heldFill=shade(160,1),idleStroke=light(150,.25),heldStroke=light(230,.7),idleText=light(210,.75),stickFill=shade(60,.12),knobFill=shade(120,.35);
-  ctx.lineWidth=dd(1.5);ctx.lineJoin='miter';ctx.lineCap='butt';
-  const circle=(x,y,r,f,st)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=f;ctx.fill();ctx.strokeStyle=st;ctx.stroke()};
-  const txt=(t,x,y,size,col)=>{ctx.font=`bold ${size}px Roboto,Arial,sans-serif`;ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle=col;ctx.fillText(t,x,y+size*.35)};
-  // sticks
-  for(const st of STICKS){
-    const r=dd(48),k=stickKnob(s,st,r),held=k.on;
-    circle(st.cx,st.cy,r,held?heldFill:stickFill,held?heldStroke:idleStroke);
-    const kr=r*.46;circle(k.x,k.y,kr,held?heldFill:knobFill,held?heldStroke:idleStroke);
-    txt(st.tag,k.x,k.y,kr*.8,held?'#fff':idleText);
-  }
-  // d-pad: four 26dp circles at +-52dp, drawArrow(size = radius*.34)
-  const dirs=dpadDirs(s,DPAD.cx,DPAD.cy),v=[[0,-1],[1,0],[0,1],[-1,0]];
-  for(let i=0;i<4;i++){
-    const x=DPAD.cx+dd(52)*v[i][0],y=DPAD.cy+dd(52)*v[i][1],r=dd(26),held=dirs[i];
-    circle(x,y,r,held?heldFill:idleFill,held?heldStroke:idleStroke);
-    const z=r*.34,fx=v[i][0],fy=v[i][1];
-    ctx.beginPath();ctx.moveTo(x+fx*z,y+fy*z);ctx.lineTo(x-fx*z*.7-fy*z,y-fy*z*.7+fx*z);ctx.lineTo(x-fx*z*.7+fy*z,y-fy*z*.7-fx*z);ctx.closePath();
-    ctx.fillStyle=held?'#fff':idleText;ctx.fill();
-  }
-  // face buttons (30dp), shoulders (24dp wide pills 1.45 x .8), centre keys (20dp)
-  const face={a:'A',b:'B',x:'X',y:'Y'};
-  for(const el of BTN){
-    const held=isHeld(s,el.k);
-    if(face[el.k]){
-      const r=dd(30);circle(el.cx,el.cy,r,held?heldFill:idleFill,held?heldStroke:idleStroke);
-      txt(face[el.k],el.cx,el.cy,r*.85,held?'#fff':idleText);
-    }else if(el.trig){
-      const r=dd(24),hw=r*1.45,hh=r*.8,c=hh*.55;
-      ctx.beginPath();ctx.roundRect(el.cx-hw,el.cy-hh,hw*2,hh*2,c);ctx.fillStyle=held?heldFill:idleFill;ctx.fill();ctx.strokeStyle=held?heldStroke:idleStroke;ctx.stroke();
-      txt(el.label,el.cx,el.cy,hh*.8,held?'#fff':idleText);
-    }else{
-      const r=dd(20),g=el.k==='sel'?'⧉':'☰';circle(el.cx,el.cy,r,held?heldFill:idleFill,held?heldStroke:idleStroke);
-      txt(g,el.cx,el.cy,r*.85,held?'#fff':idleText);
-    }
-  }
-}
-
-/* ---------- render + pointer plumbing ---------- */
-const cv=[0,1,2].map(i=>document.getElementById('c'+i));
+/* ---------- cards, render, pointer plumbing ---------- */
+const grid=document.getElementById('grid');
+const cv=STYLES.map(st=>{const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<h2>${TITLES[st]}</h2><small>ControlsIconStyle.${st.toUpperCase()}</small><canvas width="1280" height="720"></canvas>`;
+  grid.appendChild(d);return d.querySelector('canvas')});
 function render(){
   cv.forEach((c,i)=>{const ctx=c.getContext('2d');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,H);
     ctx.fillStyle='rgba(255,255,255,.03)';for(let x=0;x<W;x+=64)ctx.fillRect(x,0,1,H);for(let y=0;y<H;y+=64)ctx.fillRect(0,y,W,1);
-    if(i===0)droiddeck(ctx,S[0]);else winhub(ctx,S[i],i===1)});
+    winhub(ctx,S[i],STYLES[i])});
 }
-function hit(x,y,i){
-  const dd_=i===0;
-  for(const st of STICKS)if(Math.hypot(x-st.cx,y-st.cy)<=(dd_?dd(48):st.half))return st.k;
-  if(Math.hypot(x-DPAD.cx,y-DPAD.cy)<=(dd_?dd(78):DPAD.half))return 'dpad';
-  for(const el of BTN){const b=bbOf(el);if(dd_){const wide=!!el.trig,r=wide?dd(24):el.shape==='C'?dd(30):dd(20);
-      if(wide?(Math.abs(x-el.cx)<=r*1.45&&Math.abs(y-el.cy)<=r*.8):Math.hypot(x-el.cx,y-el.cy)<=r)return el.k}
-    else if(x>=b.l&&x<=b.r&&y>=b.t&&y<=b.b)return el.k}
+function hit(x,y){
+  for(const st of STICKS)if(Math.hypot(x-st.cx,y-st.cy)<=st.half)return st.k;
+  if(Math.hypot(x-DPAD.cx,y-DPAD.cy)<=DPAD.half)return 'dpad';
+  for(const el of BTN){const b=bbOf(el);if(x>=b.l&&x<=b.r&&y>=b.t&&y<=b.b)return el.k}
   return null;
 }
 cv.forEach((c,i)=>{
   const pt=e=>{const r=c.getBoundingClientRect();return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}};
-  c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);const p=pt(e),key=hit(p.x,p.y,i);if(key){S[i].down.set(e.pointerId,{key,x:p.x,y:p.y});render()}});
+  c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);const p=pt(e),key=hit(p.x,p.y);if(key){S[i].down.set(e.pointerId,{key,x:p.x,y:p.y});render()}});
   c.addEventListener('pointermove',e=>{const d=S[i].down.get(e.pointerId);if(d){const p=pt(e);d.x=p.x;d.y=p.y;render()}});
   const up=e=>{if(S[i].down.delete(e.pointerId))render()};
   c.addEventListener('pointerup',up);c.addEventListener('pointercancel',up);

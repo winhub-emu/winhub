@@ -1394,7 +1394,8 @@ public class ControlElement {
         float overlayOpacity = inputControlsView.getOverlayOpacity();
         boolean engaged = isEngaged();
         Rect boundingBox = getBoundingBox();
-        boolean fusion = inputControlsView.getIconStyle() == ControlsIconStyle.FUSION;
+        ControlsIconStyle iconStyle = inputControlsView.getIconStyle();
+        boolean flat = iconStyle != ControlsIconStyle.GLASS;
 
         int accent = resolveAccentColor();
         // resolveAccentColor() always returns a full-opacity ARGB (getAccentColor forces alpha
@@ -1412,7 +1413,7 @@ public class ControlElement {
         int pressedFillAlpha = (int) (60 * gameHubDim * effectiveOpacity);
         int pressedStrokeAlpha = (int) (220 * gameHubDim * effectiveOpacity);
         int textAlpha = (int) (255 * gameHubDim * effectiveOpacity);
-        int glassEdgeAlpha = fusion ? 0 : (int) (75 * gameHubDim * effectiveOpacity);
+        int glassEdgeAlpha = flat ? 0 : (int) (75 * gameHubDim * effectiveOpacity);
 
         int fillColor = Color.argb(fillAlpha, 0, 0, 0);
         int strokeColor = hasAccent
@@ -1430,15 +1431,17 @@ public class ControlElement {
         // Drop shadow alpha must track opacity too — otherwise the fixed-alpha blue glow
         // (0x40) keeps showing through at low opacity, reading as a solid blue fill on the
         // compact SQUARE keys (MRB/BKSP/SPACE/ENTER) while their fill/stroke/text fade out.
-        int shadowAlpha = fusion ? 0 : (int) (0x40 * gameHubDim * effectiveOpacity);
+        int shadowAlpha = flat ? 0 : (int) (0x40 * gameHubDim * effectiveOpacity);
         int shadowColor = Color.argb(shadowAlpha, Color.red(accent), Color.green(accent), Color.blue(accent));
 
-        if (fusion) {
-            fillColor = fusionShade(accent, gameHubDim, 80, 0.12f);
-            pressedFillColor = fusionShade(accent, gameHubDim, 160, 1f);
-            strokeColor = fusionLight(accent, gameHubDim, 150, 0.25f);
-            pressedStrokeColor = fusionLight(accent, gameHubDim, 230, 0.7f);
-            textColor = fusionLight(accent, gameHubDim, 210, 0.75f);
+        // Flat styles (everything but GLASS) share one palette; the face buttons of RETRO ask for their own per role.
+        FlatPalette basePal = flat ? flatPalette(iconStyle, accent, gameHubDim, null) : null;
+        if (flat) {
+            fillColor = basePal.fill;
+            pressedFillColor = basePal.pFill;
+            strokeColor = basePal.stroke;
+            pressedStrokeColor = basePal.pStroke;
+            textColor = basePal.text;
         }
 
         if (selected && !hasAccent) {
@@ -1446,8 +1449,8 @@ public class ControlElement {
             strokeColor = Color.argb(highlightAlpha, 2, 119, 189);
         }
 
-        float strokeWidth = fusion
-                ? Math.max(2f, 1.5f * inputControlsView.getResources().getDisplayMetrics().density)
+        float strokeWidth = flat
+                ? Math.max(2f, basePal.strokeDp * inputControlsView.getResources().getDisplayMetrics().density)
                 : Math.max(2f, snappingSize * 0.18f);
         paint.setStrokeWidth(strokeWidth);
         paint.setStrokeJoin(Paint.Join.ROUND);
@@ -1468,9 +1471,9 @@ public class ControlElement {
                     break;
                 }
 
-                if (fusion) {
-                    drawFusionKey(canvas, paint, boundingBox, isTrigger,
-                            engaged ? pressedFillColor : fillColor, engaged ? pressedStrokeColor : strokeColor);
+                FlatPalette keyPal = flat ? flatPalette(iconStyle, accent, gameHubDim, GameHubLayout.roleFor(this)) : null;
+                if (flat) {
+                    drawFlatKey(canvas, paint, boundingBox, isTrigger, engaged, keyPal);
                 } else if (isTrigger) {
                     GameHubLayout.buildTriggerPath(
                             path, triggerShape,
@@ -1506,7 +1509,7 @@ public class ControlElement {
                 } else {
                     String label = getDisplayText();
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(fusion && engaged ? Color.WHITE : textColor);
+                    paint.setColor(flat ? (engaged ? keyPal.pText : keyPal.text) : textColor);
                     paint.setTextSize(
                             Math.min(
                                     getTextSizeForWidth(paint, label, boundingBox.width() - strokeWidth * 2),
@@ -1529,11 +1532,10 @@ public class ControlElement {
                 paint.setColor(Color.argb(40, 255, 0, 0));
                 canvas.drawCircle(cx, cy, stickRadiusPx * deadZone, paint);
 
-                if (fusion) {
+                if (flat) {
                     float knobX = engaged ? getCurrentPosition().x : cx;
                     float knobY = engaged ? getCurrentPosition().y : cy;
-                    drawFusionStick(canvas, paint, cx, cy, ringRadius, knobX, knobY, engaged, accent, gameHubDim,
-                            strokeColor, pressedStrokeColor, pressedFillColor);
+                    drawFlatStick(canvas, paint, cx, cy, ringRadius, knobX, knobY, engaged, basePal);
                     break;
                 }
 
@@ -1579,9 +1581,8 @@ public class ControlElement {
                 float cy = boundingBox.centerY();
 
                 float radius = Math.min(boundingBox.width(), boundingBox.height()) * 0.5f;
-                if (fusion) {
-                    drawFusionDpad(canvas, paint, cx, cy, radius, fillColor, pressedFillColor, strokeColor,
-                            pressedStrokeColor, textColor);
+                if (flat) {
+                    drawFlatDpad(canvas, paint, cx, cy, radius, basePal);
                     break;
                 }
                 float[] arrowCenter = new float[2];
@@ -1845,61 +1846,179 @@ public class ControlElement {
         drawGameHubShape(canvas, paint, bb, color, fill, shape);
     }
 
-    // FUSION palette: the accent darkened (shade) or lightened (light) toward white, scaled by the
-    // overlay opacity. Same recipe DroidDeck's on-screen pad uses for its idle/held pads.
-    private static int fusionShade(int tint, float opacity, int alpha, float factor) {
+    /** Colours and flags of one flat icon style (everything except GLASS); built per element by flatPalette. */
+    private static final class FlatPalette {
+        int fill, pFill, stroke, pStroke, text, pText;
+        int stickBase, stickBaseHeld, knob, knobHeld;
+        int glow;            // 0 = no glow; otherwise the colour of the halo around strokes
+        float strokeDp;
+        boolean cross;       // D-pad drawn as one cross of arrows instead of four round pads
+    }
+
+    private static int shade(int tint, float opacity, int alpha, float factor) {
         return Color.argb((int) (alpha * opacity),
                 (int) (Color.red(tint) * factor), (int) (Color.green(tint) * factor), (int) (Color.blue(tint) * factor));
     }
 
-    private static int fusionLight(int tint, float opacity, int alpha, float factor) {
+    private static int light(int tint, float opacity, int alpha, float factor) {
         return Color.argb((int) (alpha * opacity),
                 (int) (Color.red(tint) + (255 - Color.red(tint)) * factor),
                 (int) (Color.green(tint) + (255 - Color.green(tint)) * factor),
                 (int) (Color.blue(tint) + (255 - Color.blue(tint)) * factor));
     }
 
-    /** FUSION key: a flat tinted pad. Shoulders/triggers are wide pills, everything else keeps its own shape. */
-    private void drawFusionKey(Canvas canvas, Paint paint, Rect bb, boolean pill, int fill, int stroke) {
+    private static int rgb(int color, float opacity, int alpha) {
+        return Color.argb((int) (alpha * opacity), Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private static int retroColor(GameHubLayout.Role role) {
+        if (role == null) return 0xFFC8C8CE;
+        switch (role) {
+            case BTN_A: return 0xFF4CAF50;
+            case BTN_B: return 0xFFE53935;
+            case BTN_X: return 0xFF4285F4;
+            case BTN_Y: return 0xFFFBC02D;
+            default: return 0xFFC8C8CE;
+        }
+    }
+
+    /** FUSION is the DroidDeck pad recipe: the accent darkened/lightened and scaled by the overlay opacity. */
+    private static FlatPalette flatPalette(ControlsIconStyle style, int accent, float o, GameHubLayout.Role role) {
+        FlatPalette p = new FlatPalette();
+        switch (style) {
+            case NEON:
+                p.fill = rgb(accent, o, 30);
+                p.pFill = rgb(accent, o, 120);
+                p.stroke = light(accent, o, 235, 0.35f);
+                p.pStroke = light(accent, o, 255, 0.85f);
+                p.text = light(accent, o, 255, 0.6f);
+                p.pText = Color.WHITE;
+                p.stickBase = rgb(accent, o, 22);
+                p.stickBaseHeld = rgb(accent, o, 50);
+                p.knob = rgb(accent, o, 80);
+                p.knobHeld = rgb(accent, o, 150);
+                p.glow = rgb(accent, o, 230);
+                p.strokeDp = 1.6f;
+                p.cross = true;
+                break;
+            case SOLID:
+                p.fill = Color.argb((int) (235 * o), 32, 34, 40);
+                p.pFill = rgb(accent, o, 255);
+                p.stroke = 0;
+                p.pStroke = 0;
+                p.text = Color.argb((int) (255 * o), 235, 238, 242);
+                p.pText = Color.argb(255, 16, 18, 22);
+                p.stickBase = Color.argb((int) (235 * o), 24, 26, 31);
+                p.stickBaseHeld = Color.argb((int) (235 * o), 24, 26, 31);
+                p.knob = Color.argb((int) (255 * o), 62, 66, 76);
+                p.knobHeld = rgb(accent, o, 255);
+                p.strokeDp = 0f;
+                p.cross = true;
+                break;
+            case MINIMAL:
+                p.fill = 0;
+                p.pFill = Color.argb((int) (70 * o), 255, 255, 255);
+                p.stroke = Color.argb((int) (170 * o), 255, 255, 255);
+                p.pStroke = Color.argb((int) (255 * o), 255, 255, 255);
+                p.text = Color.argb((int) (220 * o), 255, 255, 255);
+                p.pText = Color.WHITE;
+                p.stickBase = 0;
+                p.stickBaseHeld = Color.argb((int) (35 * o), 255, 255, 255);
+                p.knob = Color.argb((int) (45 * o), 255, 255, 255);
+                p.knobHeld = Color.argb((int) (90 * o), 255, 255, 255);
+                p.strokeDp = 1.2f;
+                break;
+            case RETRO: {
+                int c = retroColor(role);
+                p.fill = Color.argb((int) (230 * o), 24, 24, 28);
+                p.pFill = rgb(c, o, 255);
+                p.stroke = rgb(c, o, 255);
+                p.pStroke = rgb(c, o, 255);
+                p.text = rgb(c, o, 255);
+                p.pText = Color.argb(255, 20, 20, 24);
+                p.stickBase = Color.argb((int) (230 * o), 24, 24, 28);
+                p.stickBaseHeld = Color.argb((int) (230 * o), 40, 40, 46);
+                p.knob = Color.argb((int) (255 * o), 120, 120, 128);
+                p.knobHeld = Color.argb((int) (255 * o), 200, 200, 206);
+                p.strokeDp = 2f;
+                p.cross = true;
+                break;
+            }
+            default: // FUSION
+                p.fill = shade(accent, o, 80, 0.12f);
+                p.pFill = shade(accent, o, 160, 1f);
+                p.stroke = light(accent, o, 150, 0.25f);
+                p.pStroke = light(accent, o, 230, 0.7f);
+                p.text = light(accent, o, 210, 0.75f);
+                p.pText = Color.WHITE;
+                p.stickBase = shade(accent, o, 60, 0.12f);
+                p.stickBaseHeld = p.pFill;
+                p.knob = shade(accent, o, 120, 0.35f);
+                p.knobHeld = p.pFill;
+                p.strokeDp = 1.5f;
+                break;
+        }
+        return p;
+    }
+
+    private void strokeWithGlow(Paint paint, FlatPalette pal, Runnable draw) {
+        paint.setStyle(Paint.Style.STROKE);
+        if (pal.glow != 0) paint.setShadowLayer(inputControlsView.getSnappingSize() * 0.6f, 0f, 0f, pal.glow);
+        draw.run();
+        if (pal.glow != 0) paint.setShadowLayer(0f, 0f, 0f, 0);
+    }
+
+    /** Flat key: triggers/bumpers are wide pills, everything else keeps its own shape. */
+    private void drawFlatKey(Canvas canvas, Paint paint, Rect bb, boolean pill, boolean held, FlatPalette pal) {
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(fill);
+        paint.setColor(held ? pal.pFill : pal.fill);
         if (pill) {
             float corner = bb.height() * 0.5f * 0.55f;
             canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(stroke);
-            canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint);
+            paint.setColor(held ? pal.pStroke : pal.stroke);
+            strokeWithGlow(paint, pal, () ->
+                    canvas.drawRoundRect(bb.left, bb.top, bb.right, bb.bottom, corner, corner, paint));
             return;
         }
-        drawGameHubShape(canvas, paint, bb, fill, true);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(stroke);
-        drawGameHubShape(canvas, paint, bb, 0, false);
+        drawGameHubShape(canvas, paint, bb, held ? pal.pFill : pal.fill, true);
+        paint.setColor(held ? pal.pStroke : pal.stroke);
+        strokeWithGlow(paint, pal, () -> drawGameHubShape(canvas, paint, bb, 0, false));
     }
 
-    /** FUSION stick: dim base disc with a lighter knob that follows the finger. */
-    private void drawFusionStick(Canvas canvas, Paint paint, float cx, float cy, float ringRadius, float knobX,
-                                 float knobY, boolean engaged, int accent, float opacity, int strokeColor,
-                                 int pressedStrokeColor, int pressedFillColor) {
-        int stroke = engaged ? pressedStrokeColor : strokeColor;
+    /** Flat stick: base disc with a knob that follows the finger. */
+    private void drawFlatStick(Canvas canvas, Paint paint, float cx, float cy, float ringRadius, float knobX,
+                               float knobY, boolean held, FlatPalette pal) {
+        int stroke = held ? pal.pStroke : pal.stroke;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 60, 0.12f));
+        paint.setColor(held ? pal.stickBaseHeld : pal.stickBase);
         canvas.drawCircle(cx, cy, ringRadius, paint);
-        paint.setStyle(Paint.Style.STROKE);
         paint.setColor(stroke);
-        canvas.drawCircle(cx, cy, ringRadius, paint);
+        strokeWithGlow(paint, pal, () -> canvas.drawCircle(cx, cy, ringRadius, paint));
         float knobRadius = ringRadius * 0.46f;
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(engaged ? pressedFillColor : fusionShade(accent, opacity, 120, 0.35f));
+        paint.setColor(held ? pal.knobHeld : pal.knob);
         canvas.drawCircle(knobX, knobY, knobRadius, paint);
-        paint.setStyle(Paint.Style.STROKE);
         paint.setColor(stroke);
-        canvas.drawCircle(knobX, knobY, knobRadius, paint);
+        strokeWithGlow(paint, pal, () -> canvas.drawCircle(knobX, knobY, knobRadius, paint));
     }
 
-    /** FUSION D-pad: four round pads (up, right, down, left) each with an arrow, lit one by one. */
-    private void drawFusionDpad(Canvas canvas, Paint paint, float cx, float cy, float radius, int fill,
-                                int pressedFill, int stroke, int pressedStroke, int idleText) {
+    /** Flat D-pad: four round pads with arrows, or one cross of arrows (cross palettes), lit one direction at a time. */
+    private void drawFlatDpad(Canvas canvas, Paint paint, float cx, float cy, float radius, FlatPalette pal) {
+        if (pal.cross) {
+            // GameHubLayout sides are up, down, left, right; states[] is up, right, down, left.
+            int[] stateOfSide = {0, 2, 3, 1};
+            for (int side = 0; side < 4; side++) {
+                boolean held = states[stateOfSide[side]];
+                path.reset();
+                GameHubLayout.buildDpadArrow(path, side, cx, cy, radius);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(held ? pal.pFill : pal.fill);
+                canvas.drawPath(path, paint);
+                paint.setColor(held ? pal.pStroke : pal.stroke);
+                strokeWithGlow(paint, pal, () -> canvas.drawPath(path, paint));
+            }
+            return;
+        }
         float padRadius = radius / 3f;
         float offset = radius * 2f / 3f;
         float[][] dirs = {{0f, -1f}, {1f, 0f}, {0f, 1f}, {-1f, 0f}};
@@ -1908,11 +2027,10 @@ public class ControlElement {
             float px = cx + dirs[i][0] * offset;
             float py = cy + dirs[i][1] * offset;
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(held ? pressedFill : fill);
+            paint.setColor(held ? pal.pFill : pal.fill);
             canvas.drawCircle(px, py, padRadius, paint);
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setColor(held ? pressedStroke : stroke);
-            canvas.drawCircle(px, py, padRadius, paint);
+            paint.setColor(held ? pal.pStroke : pal.stroke);
+            strokeWithGlow(paint, pal, () -> canvas.drawCircle(px, py, padRadius, paint));
 
             float size = padRadius * 0.34f;
             float fx = dirs[i][0];
@@ -1923,7 +2041,7 @@ public class ControlElement {
             path.lineTo(px - fx * size * 0.7f + fy * size, py - fy * size * 0.7f - fx * size);
             path.close();
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(held ? Color.WHITE : idleText);
+            paint.setColor(held ? pal.pText : pal.text);
             canvas.drawPath(path, paint);
         }
     }
@@ -2217,28 +2335,29 @@ public class ControlElement {
         float strokeWidth = snappingSize * 0.25f;
         Rect childBounds = new Rect();
 
-        boolean fusion = inputControlsView.getIconStyle() == ControlsIconStyle.FUSION;
-        float opacity = inputControlsView.getOverlayOpacity();
-        int baseAccent = inputControlsView.getAccentColor();
+        ControlsIconStyle iconStyle = inputControlsView.getIconStyle();
+        boolean flat = iconStyle != ControlsIconStyle.GLASS;
+        FlatPalette pal = flat
+                ? flatPalette(iconStyle, inputControlsView.getAccentColor(), inputControlsView.getOverlayOpacity(), null)
+                : null;
 
         for (int index = 0; index < bindings.length; index++) {
             getExpandableChildBounds(index, childBounds);
-            if (fusion) {
+            if (flat) {
                 boolean held = states[index];
-                drawExpandableShape(canvas, paint, childBounds,
-                        held ? fusionShade(baseAccent, opacity, 160, 1f) : fusionShade(baseAccent, opacity, 80, 0.12f), true);
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(Math.max(2f, 1.5f * inputControlsView.getResources().getDisplayMetrics().density));
-                drawExpandableShape(canvas, paint, childBounds,
-                        held ? fusionLight(baseAccent, opacity, 230, 0.7f) : fusionLight(baseAccent, opacity, 150, 0.25f), false);
-                String fusionLabel = getGridCellLabel(index, 6);
+                drawExpandableShape(canvas, paint, childBounds, held ? pal.pFill : pal.fill, true);
+                paint.setStrokeWidth(Math.max(2f, pal.strokeDp * inputControlsView.getResources().getDisplayMetrics().density));
+                paint.setColor(held ? pal.pStroke : pal.stroke);
+                strokeWithGlow(paint, pal, () ->
+                        drawExpandableShape(canvas, paint, childBounds, held ? pal.pStroke : pal.stroke, false));
+                String flatLabel = getGridCellLabel(index, 6);
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(held ? Color.WHITE : fusionLight(baseAccent, opacity, 210, 0.75f));
+                paint.setColor(held ? pal.pText : pal.text);
                 paint.setTextAlign(Paint.Align.CENTER);
                 paint.setTextSize(Math.min(
-                        getTextSizeForWidth(paint, fusionLabel, childBounds.width() - strokeWidth * 2),
+                        getTextSizeForWidth(paint, flatLabel, childBounds.width() - strokeWidth * 2),
                         snappingSize * 1.6f * scale));
-                canvas.drawText(fusionLabel, childBounds.centerX(),
+                canvas.drawText(flatLabel, childBounds.centerX(),
                         childBounds.centerY() - ((paint.descent() + paint.ascent()) * 0.5f), paint);
                 continue;
             }

@@ -1141,8 +1141,6 @@
     <string name="create">Create</string>
     <string name="group_visibility">Group Visibility</string>
     <string name="icon_style">Icon Style</string>
-    <string name="icon_style_fusion">Fusion</string>
-    <string name="icon_style_glass">Glass</string>
     <string name="group_element_count">%1$d elements</string>
     <string name="no_groups">No groups</string>
     <string name="new_group">New Group</string>

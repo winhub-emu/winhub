@@ -356,10 +356,7 @@ private fun IconStyleDialog(
     onDismiss: () -> Unit,
     onIconStyleChange: (String) -> Unit,
 ) {
-    val styles = listOf(
-        ControlsIconStyle.FUSION to stringResource(R.string.icon_style_fusion),
-        ControlsIconStyle.GLASS to stringResource(R.string.icon_style_glass),
-    )
+    val styles = ControlsIconStyle.values().map { it to it.displayName() }
     EditorAlertDialog(
         onDismiss = onDismiss,
         title = stringResource(R.string.icon_style),
