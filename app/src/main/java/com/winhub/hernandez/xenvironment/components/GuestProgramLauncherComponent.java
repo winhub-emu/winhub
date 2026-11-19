@@ -771,8 +771,8 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         }
     }
 
-    private static final long PREFIX_UPDATE_TIMEOUT_MS = 45_000;
-    private static final long PREFIX_WIND_DOWN_MS = 10_000;
+    private static final long PREFIX_UPDATE_TIMEOUT_MS = 180_000;
+    private static final long PREFIX_WIND_DOWN_MS = 30_000;
 
     private void updatePrefixBeforeSession(EnvVars guestEnv, String wineLauncher, File rootDir, ImageFs imageFs) {
         final String tag = "GuestProgramLauncherComponent";
@@ -813,16 +813,14 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
                     + " (" + wineInf.getPath() + "); running Wine's prefix update before the "
                     + (waylandMode ? "Wayland" : "X11") + " session, WINEDLLOVERRIDES=" + overrides);
             long t0 = System.currentTimeMillis();
-            // Bounded: the update itself is about 7 s. A fresh Wayland prefix has stalled here (the headless run
-            // has no display), and the session then does the same update itself, as it did before this step
-            // existed, so giving up early only costs the cosmetic first-launch size fix described above.
+            // The step can be cancelled by stop() (Exit) through prefixUpdatePid.
             int status = ProcessHelper.execAndWait(wineLauncher + " wineboot -h", env.toStringArray(), rootDir, PREFIX_UPDATE_TIMEOUT_MS,
                     started -> {
                         prefixUpdatePid = started;
                         if (stopRequested) ProcessHelper.killProcess(started);
                     });
             prefixUpdatePid = -1;
-            if (status == -1) Log.w(tag, "prefix update: no clean finish within " + PREFIX_UPDATE_TIMEOUT_MS + " ms (or stopped); launching anyway");
+            if (status == -1) Log.w(tag, "prefix update: no clean finish within " + PREFIX_UPDATE_TIMEOUT_MS + " ms (or stopped)");
             // Let the wineserver wind down on its own (it flushes the registry on exit).
             long deadline = System.currentTimeMillis() + PREFIX_WIND_DOWN_MS;
             while (!stopRequested && !ProcessHelper.listRunningWineProcesses().isEmpty() && System.currentTimeMillis() < deadline) {
