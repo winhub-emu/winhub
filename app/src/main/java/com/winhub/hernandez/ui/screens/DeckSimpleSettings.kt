@@ -102,7 +102,7 @@ internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
 
         val wrapper = StringUtils.parseIdentifier(viewModel.selectedDXWrapper)
         if (wrapper.contains("dxvk") && !wrapper.contains("vegas")) {
-            val choices = remember(viewModel.isArm64EC) { viewModel.dxvkVersionChoices() }
+            val choices = remember(viewModel.isArm64EC, viewModel.wineVersionEntries) { viewModel.dxvkVersionChoices() }
             val current = viewModel.dxvkVersion()
             DeckChoiceRow(
                 label = "DXVK Version",

@@ -939,7 +939,9 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The DXVK versions the Simple page offers: the bundled ones plus the installed ones that suit this architecture. */
-    fun dxvkVersionChoices(): List<String> = DXVKConfigDialog.loadDxvkVersionList(context, contentsManager, isArm64EC)
+    // The screen composes before init() has run (it starts in a LaunchedEffect), so contentsManager may not exist yet.
+    fun dxvkVersionChoices(): List<String> =
+        if (::contentsManager.isInitialized) DXVKConfigDialog.loadDxvkVersionList(context, contentsManager, isArm64EC) else emptyList()
 
     /** The DXVK version the config names now, "" when it names none. */
     fun dxvkVersion(): String = AutoDefaults.dxvkVersionOf(dxWrapperConfig)
