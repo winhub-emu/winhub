@@ -704,7 +704,8 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
 
         // Screen size: the real container / saved defaults profile wins; otherwise fit this device's
         // panel shape (1280x720 on 16:9 and wider, 1280x800 on 16:10, 1280x960 on 4:3).
-        val ssValue = seed?.screenSize ?: Container.defaultScreenSizeFor(context)
+        // Our default (no saved profile): 1600x720.
+        val ssValue = seed?.screenSize ?: AutoDefaults.SCREEN_SIZE
         val ssFound = screenSizeEntries.indexOfFirst {
             StringUtils.parseIdentifier(it).equals(ssValue, ignoreCase = true)
         }
@@ -747,7 +748,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         glVsyncOff               = seed?.isGlVsyncOff() ?: false
         // A new container (no saved defaults profile) starts on Wayland whenever its layer can run it.
         displayBackend           = seed?.getDisplayBackend()
-            ?: if (!defaultsMode && isWineWaylandCapable(selectedWineVersion)) Container.DISPLAY_BACKEND_WAYLAND
+            ?: if (isWineWaylandCapable(selectedWineVersion)) Container.DISPLAY_BACKEND_WAYLAND
                else Container.DISPLAY_BACKEND_X11
         // A container (or defaults profile) that never chose keeps Auto when edited, but a NEW one -
         // and the New Container Defaults form - starts on the adapter (one driver pick on Wayland).
@@ -955,7 +956,8 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The layer a NEW container starts on: the newest installed GE-Proton arm64ec, else the first one listed. */
     private fun newContainerWine(): String =
-        (if (defaultsMode) null else AutoDefaults.wine(context, wineVersionEntries))
+        // (In the defaults form only the arm64ec profile starts on GE-Proton; the x86-64 one keeps the first layer.)
+        (if (defaultsMode && defaultsArch != NewContainerDefaults.ARCH_ARM64EC) null else AutoDefaults.wine(context, wineVersionEntries))
             ?: wineVersionEntries.firstOrNull() ?: ""
 
     /**
@@ -963,14 +965,21 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
      * DXVK 2.4.1 gplasync, when those are installed. Anything not installed keeps the normal default.
      */
     private fun applyAutoDefaults(arch: String) {
-        if (container != null || defaultsMode || arch != NewContainerDefaults.ARCH_ARM64EC) return
+        if (container != null || arch != NewContainerDefaults.ARCH_ARM64EC) return
         if (NewContainerDefaults.load(context, arch) != null) return
         // On Wayland the driver is the compositor's: defaultsProfileCompositorDriver() offers this same pick to
         // the compositor probe, which keeps it only when it can import the game's frames.
         if (!isWaylandBackend) {
             AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
         }
-        AutoDefaults.dxvkVersion(contentsManager)?.let { dxWrapperConfig = AutoDefaults.withDxvkVersion(dxWrapperConfig, it) }
+        // DXVK 2.4.1-1 gplasync with async shaders and its cache, and VKD3D-Proton 3.0.1. (VKD3D has no async
+        // switch of its own here: the async keys are DXVK's.)
+        val dx = HashMap<String, String>()
+        dx["async"] = "1"
+        dx["asyncCache"] = "1"
+        AutoDefaults.dxvkVersion(contentsManager)?.let { dx["version"] = it }
+        AutoDefaults.vkd3dVersion(contentsManager)?.let { dx["vkd3dVersion"] = it }
+        dxWrapperConfig = AutoDefaults.withDxKeys(dxWrapperConfig, dx)
     }
 
     /** The Display backend dropdown. */
@@ -1017,7 +1026,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         }
         // No saved profile on a new arm64ec container: the chip-matched Turnip is the preferred pick.
         val json = NewContainerDefaults.load(context, arch)
-            ?: return if (container == null && !defaultsMode && arch == NewContainerDefaults.ARCH_ARM64EC) AutoDefaults.graphicsDriverId(context) else null
+            ?: return if (container == null && arch == NewContainerDefaults.ARCH_ARM64EC) AutoDefaults.graphicsDriverId(context) else null
         val v = runCatching {
             GraphicsDriverConfigDialog.getVersion(JSONObject(json).optString("graphicsDriverConfig", ""))
         }.getOrNull() ?: return null
@@ -1098,7 +1107,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         // FEXCore version (list is arch-agnostic, but the profile's saved value is arch-specific).
         loadFEXCoreVersions()
         // No saved profile for a new arm64ec container: the newest PPA-unix FEXCore and the Performance preset.
-        val autoNew = container == null && !defaultsMode && archSeed == null && arch == NewContainerDefaults.ARCH_ARM64EC
+        val autoNew = container == null && archSeed == null && arch == NewContainerDefaults.ARCH_ARM64EC
         selectedFEXCoreVersion = archSeed?.getFEXCoreVersion()
             ?: (if (autoNew) AutoDefaults.fexVersion(fexCoreVersionEntries) else null)
             ?: DefaultVersion.FEXCORE

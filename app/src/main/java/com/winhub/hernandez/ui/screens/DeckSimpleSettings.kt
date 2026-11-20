@@ -92,10 +92,28 @@ private fun withCurrent(current: String, choices: List<Pair<String, String>>): L
     if (choices.any { it.first == current }) choices
     else listOf(current to current.ifEmpty { "Default" }) + choices
 
+/**
+ * In the New Container Defaults editor only: forget the saved profile for this architecture, so new
+ * containers (and this form) start from the app's own defaults again.
+ */
+@Composable
+internal fun DeckResetDefaultsGroup(viewModel: ContainerDetailViewModel) {
+    if (!viewModel.defaultsMode) return
+    DeckGroup("Defaults") {
+        DeckRow(
+            label = "Reset to app defaults",
+            hint = "Forgets your saved defaults for this architecture. New containers start from the app's own: Wayland, 1600x720, latest GE-Proton, DXVK gplasync with async, VKD3D 3.0.1, latest FEXCore, Performance preset.",
+        ) {
+            DeckButton("Reset", primary = false) { viewModel.resetDefaults() }
+        }
+    }
+}
+
 /** The Simple page of the container editor: the four settings, then the switch back to Advanced. */
 @Composable
 internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
     val context = LocalContext.current
+    DeckResetDefaultsGroup(viewModel)
     DeckGroup("Essentials") {
         if (viewModel.wineVersionEnabled) {
             DeckChoiceRow(

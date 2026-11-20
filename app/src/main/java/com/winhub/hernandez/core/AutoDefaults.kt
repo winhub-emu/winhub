@@ -14,6 +14,7 @@ import com.winhub.hernandez.fexcore.FEXCorePreset
  */
 object AutoDefaults {
     const val FEX_PRESET = FEXCorePreset.PERFORMANCE
+    const val SCREEN_SIZE = "1600x720"
 
     /** The newest installed GE-Proton arm64ec among [entries] (layer entry names), or null. */
     fun wine(context: Context, entries: List<String>): String? =
@@ -40,15 +41,29 @@ object AutoDefaults {
         return ContentsManager.getEntryName(profile).substringAfter('-')
     }
 
+    /** The installed VKD3D-Proton 3.0.1 arm64ec build, as the id the VKD3D version setting holds, or null. */
+    fun vkd3dVersion(contents: ContentsManager): String? {
+        val profile = contents.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_VKD3D).orEmpty().firstOrNull {
+            val name = it.verName.orEmpty()
+            name.contains("3.0.1") && name.contains("arm64ec", ignoreCase = true)
+        } ?: return null
+        return com.winhub.hernandez.core.VKD3DVersionItem(profile.verName, profile.verCode).identifier
+    }
+
+    /** [config] (`k=v,k=v`) with each key of [values] replaced in place, or appended when absent; the rest untouched. */
+    fun withDxKeys(config: String, values: Map<String, String>): String {
+        val parts = config.split(",").filter { it.isNotEmpty() }.toMutableList()
+        for ((key, value) in values) {
+            val i = parts.indexOfFirst { it.startsWith("$key=") }
+            if (i >= 0) parts[i] = "$key=$value" else parts.add("$key=$value")
+        }
+        return parts.joinToString(",")
+    }
+
     /** The DXVK `version` a config (`k=v,k=v`) names, "" when it has none. */
     fun dxvkVersionOf(config: String): String =
         config.split(",").firstOrNull { it.startsWith("version=") }?.substringAfter("version=").orEmpty()
 
     /** [config] (`k=v,k=v`) with its DXVK `version` replaced, every other key kept as it was. */
-    fun withDxvkVersion(config: String, version: String): String {
-        val parts = config.split(",").toMutableList()
-        val i = parts.indexOfFirst { it.startsWith("version=") }
-        if (i >= 0) parts[i] = "version=$version" else parts.add("version=$version")
-        return parts.joinToString(",")
-    }
+    fun withDxvkVersion(config: String, version: String): String = withDxKeys(config, mapOf("version" to version))
 }

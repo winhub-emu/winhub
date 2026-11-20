@@ -322,6 +322,7 @@ internal fun DeckContainerDetailScreen(
             ) {
                 if (!advancedView) DeckSimpleContainerPage(viewModel) else when (currentTab) {
                     0 -> {
+                        DeckResetDefaultsGroup(viewModel)
                         DeckGroup("Container") {
                             DeckTextRow(
                                 label = "Container Name",
