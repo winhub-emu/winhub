@@ -2567,6 +2567,16 @@ public class XServerDisplayActivity extends AppCompatActivity {
             waylandMode = Container.DISPLAY_BACKEND_WAYLAND.equals(backend);
         }
 
+        // A Cronos container's first Wayland launch opens the container the way the Storage tab does (no
+        // shortcut: its file manager), and starts the game inside it once that is up (startFirstLaunchWarmup).
+        // Only Cronos containers, which the user has no other way to open; a normal container launches as asked.
+        if (shortcut != null && waylandMode && container.isCronos() && warmupEligible(shortcut)
+                && !"1".equals(container.getExtra(FIRST_WAYLAND_LAUNCH_SEEN, ""))) {
+            warmupShortcut = shortcut;
+            shortcut = null;
+            firstLaunchWarmup = true;
+        }
+
         // In-game Friends tab (drawer): read the friends/chat opt-in once for this launch and start
         // watching for a live source. The RealSteam hint keeps the app-session source from flashing up
         // before maybeStageRealSteam() arms the plan (which confirms or withdraws it); disarmed in onDestroy.
@@ -2882,14 +2892,18 @@ public class XServerDisplayActivity extends AppCompatActivity {
             };
         }
 
-        if (shortcut == null)
-            preloaderDialog.show(container.getName(), null, null);
-        else {
-            preloaderDialog.show(shortcut.name, shortcut.icon, shortcut.getCoverArt(),
-                com.winhub.hernandez.ui.screens.LaunchSpecBuilderKt.buildLaunchSpec(shortcut, this),
-                com.winhub.hernandez.ui.screens.LaunchSpecBuilderKt.buildLaunchDetails(shortcut));
-        }
-        preloaderDialog.step(1, "Preparing container…");
+        // The loading screen comes up only once a container's first-Wayland-launch notice has been answered
+        // (immediately when there is none): the notice is the first thing the user sees.
+        beginLaunchGate(() -> {
+            if (shortcut == null)
+                preloaderDialog.show(container.getName(), null, null);
+            else {
+                preloaderDialog.show(shortcut.name, shortcut.icon, shortcut.getCoverArt(),
+                    com.winhub.hernandez.ui.screens.LaunchSpecBuilderKt.buildLaunchSpec(shortcut, this),
+                    com.winhub.hernandez.ui.screens.LaunchSpecBuilderKt.buildLaunchDetails(shortcut));
+            }
+            preloaderDialog.step(1, "Preparing container…");
+        });
 
         // TV render resolution (v2): when launching with an external display connected, honor the TV
         // render-resolution choice (2 = 1080p, 3 = 1440p) before ScreenInfo is built. "Match TV" (0) /
@@ -3143,32 +3157,14 @@ public class XServerDisplayActivity extends AppCompatActivity {
             });
         };
 
-        // A container's first launch on Wayland: say what the wait is before it starts (see needsFirstWaylandNotice).
+        // Everything above only prepares; the guest itself starts once the first-launch notice (if any) is answered.
         Runnable runnable = () -> {
-            if (!needsFirstWaylandNotice()) {
-                launchSession.run();
+            if (firstLaunchGate == GATE_PENDING) {
+                launchDeferredByGate = launchSession;
                 return;
             }
-            firstWaylandNoticeShown = true;
-            XServerDialogState dialogState = XServerDialogState.INSTANCE;
-            final boolean runsGame = warmupEligible();
-            dialogState.firstLaunchRunsGame = runsGame;
-            dialogState.onFirstWaylandLaunchChoice = go -> {
-                if (!go) {
-                    stopService(new Intent(this, com.winhub.hernandez.core.GameSessionForegroundService.class));
-                    finish();
-                    return;
-                }
-                // Remembered off the main thread; a cancelled launch is not remembered, so it asks again.
-                final Container launched = container;
-                new Thread(() -> {
-                    launched.putExtra(FIRST_WAYLAND_LAUNCH_SEEN, "1");
-                    launched.saveData();
-                }).start();
-                firstLaunchWarmup = runsGame;
-                launchSession.run();
-            };
-            dialogState.show(XServerDialogState.ActiveDialog.FIRST_WAYLAND_LAUNCH);
+            if (firstLaunchGate == GATE_CANCELLED) return;
+            launchSession.run();
         };
 
         if (xServer.screenInfo.height > xServer.screenInfo.width) {
@@ -3187,6 +3183,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private static final long WARMUP_GAME_SETTLE_MS = 10000;   // game up -> close wfm.exe
     private static final long WARMUP_GIVE_UP_MS = 180_000;
     private boolean firstLaunchWarmup = false;
+    private Shortcut warmupShortcut;   // the shortcut the first launch started the container for
     private int warmupPhase = 0;   // 0 off, 1 waiting for wfm.exe, 2 waiting for the game
     private long warmupPhaseStartedAt;
     private long warmupSeenAt;
@@ -3217,10 +3214,10 @@ public class XServerDisplayActivity extends AppCompatActivity {
      * streamed launches start their programs their own way. Decided from the shortcut's own settings,
      * because this runs before the launch worker has prepared any of those.
      */
-    private boolean warmupEligible() {
-        if (shortcut == null || shortcut.path == null || shortcut.path.toLowerCase().endsWith(".lnk")) return false;
-        String store = shortcut.getExtra("storeSource");
-        String mode = shortcut.getExtra("launchMode");
+    private boolean warmupEligible(Shortcut candidate) {
+        if (candidate == null || candidate.path == null || candidate.path.toLowerCase().endsWith(".lnk")) return false;
+        String store = candidate.getExtra("storeSource");
+        String mode = candidate.getExtra("launchMode");
         return !"xbox".equals(store) && !"epic".equals(store)
                 && !"RealSteam".equals(mode) && !"Stream".equals(mode);
     }
@@ -3245,7 +3242,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
     /** The game's process name, lowercased: the shortcut's file name without any arguments written after it. */
     private String warmupGameProcess() {
-        String filename = FileUtils.getName(shortcut.path);
+        String filename = FileUtils.getName(warmupShortcut.path);
         int dot = filename.lastIndexOf(".");
         int space = dot != -1 ? filename.indexOf(" ", dot) : -1;
         return (space != -1 ? filename.substring(0, space) : filename).toLowerCase();
@@ -3253,10 +3250,10 @@ public class XServerDisplayActivity extends AppCompatActivity {
 
     /** Starts the shortcut's program inside the running session, in its own folder. */
     private boolean startShortcutInSession() {
-        String execArgs = shortcut.getExtra("execArgs");
+        String execArgs = warmupShortcut.getExtra("execArgs");
         execArgs = !execArgs.isEmpty() ? " " + execArgs : "";
-        String exeDir = FileUtils.getDirname(shortcut.path);
-        String filename = FileUtils.getName(shortcut.path);
+        String exeDir = FileUtils.getDirname(warmupShortcut.path);
+        String filename = FileUtils.getName(warmupShortcut.path);
         int dot = filename.lastIndexOf(".");
         int space = dot != -1 ? filename.indexOf(" ", dot) : -1;
         if (space != -1) {
@@ -3279,7 +3276,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
             if (warmupSeenAt == 0) { warmupSeenAt = now; return; }
             if (now - warmupSeenAt < WARMUP_WFM_SETTLE_MS) return;
             if (!startShortcutInSession()) { stopFirstLaunchWarmup("the game could not be started"); return; }
-            Log.i("XServerDisplayActivity", "first launch: container is up, started " + shortcut.path);
+            Log.i("XServerDisplayActivity", "first launch: container is up, started " + warmupShortcut.path);
             warmupPhase = 2;
             warmupPhaseStartedAt = now;
             warmupSeenAt = 0;
@@ -3305,7 +3302,52 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private boolean needsFirstWaylandNotice() {
         if (!waylandMode || container == null || firstWaylandNoticeShown) return false;
         if ("1".equals(container.getExtra(FIRST_WAYLAND_LAUNCH_SEEN, ""))) return false;
+        // A Cronos container's first launch always asks: it is also the one that opens the container first.
+        if (firstLaunchWarmup) return true;
         return !com.winhub.hernandez.xenvironment.components.GuestProgramLauncherComponent.isPrefixCurrent(imageFs);
+    }
+
+    private static final int GATE_OPEN = 0;
+    private static final int GATE_PENDING = 1;
+    private static final int GATE_CANCELLED = 2;
+    private int firstLaunchGate = GATE_OPEN;
+    private Runnable launchDeferredByGate;
+
+    /**
+     * Shows the first-launch notice (when this launch needs it) and runs [showOverlay], the loading screen,
+     * only after Launch is pressed; with no notice it runs it at once. The guest start waits on the same
+     * answer through [firstLaunchGate]. Cancel leaves the session before anything has started.
+     */
+    private void beginLaunchGate(Runnable showOverlay) {
+        if (!needsFirstWaylandNotice()) {
+            showOverlay.run();
+            return;
+        }
+        firstWaylandNoticeShown = true;
+        firstLaunchGate = GATE_PENDING;
+        XServerDialogState dialogState = XServerDialogState.INSTANCE;
+        dialogState.firstLaunchRunsGame = firstLaunchWarmup;
+        dialogState.onFirstWaylandLaunchChoice = go -> {
+            if (!go) {
+                firstLaunchGate = GATE_CANCELLED;
+                launchDeferredByGate = null;
+                stopService(new Intent(this, com.winhub.hernandez.core.GameSessionForegroundService.class));
+                finish();
+                return;
+            }
+            // Remembered off the main thread; a cancelled launch is not remembered, so it asks again.
+            final Container launched = container;
+            new Thread(() -> {
+                launched.putExtra(FIRST_WAYLAND_LAUNCH_SEEN, "1");
+                launched.saveData();
+            }).start();
+            firstLaunchGate = GATE_OPEN;
+            showOverlay.run();
+            Runnable deferred = launchDeferredByGate;
+            launchDeferredByGate = null;
+            if (deferred != null) deferred.run();
+        };
+        dialogState.show(XServerDialogState.ActiveDialog.FIRST_WAYLAND_LAUNCH);
     }
 
     // Method to parse container_id from .desktop file
@@ -13071,7 +13113,7 @@ return true;
             return "winhandler.exe " + steamArgs;
         }
 
-        if (shortcut != null && !firstLaunchWarmup) {
+        if (shortcut != null) {
             String execArgs = shortcut.getExtra("execArgs");
             execArgs = !execArgs.isEmpty() ? " " + execArgs : "";
 
