@@ -197,7 +197,8 @@ private suspend fun createDeckCronosContainer(context: Context, name: String): C
                     .map { ContentsManager.getEntryName(it) } +
                     cm.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON)
                         .map { ContentsManager.getEntryName(it) }
-            val wine = wineList.firstOrNull()
+            val wine = com.winhub.hernandez.core.AutoDefaults.wine(context, wineList)
+                ?: wineList.firstOrNull()
                 ?: manager.getContainers().firstOrNull()?.wineVersion
                 ?: Container(0, manager).wineVersion
             ContainerDetailViewModel.buildFreshCreateData(context, name, wine, true)

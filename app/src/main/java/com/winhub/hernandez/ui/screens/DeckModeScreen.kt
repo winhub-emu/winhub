@@ -1821,7 +1821,8 @@ private fun DeckHome(
                                             .map { ContentsManager.getEntryName(it) } +
                                             cm.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON)
                                                 .map { ContentsManager.getEntryName(it) }
-                                    val wine = wineList.firstOrNull()
+                                    val wine = com.winhub.hernandez.core.AutoDefaults.wine(context, wineList)
+                                        ?: wineList.firstOrNull()
                                         ?: mgr.getContainers().firstOrNull()?.wineVersion
                                         ?: Container(0, mgr).wineVersion
                                     ContainerDetailViewModel.buildFreshCreateData(context, name, wine, true)

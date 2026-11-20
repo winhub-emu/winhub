@@ -142,7 +142,9 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
                 ).also {
                     // Only the Cronos add-game flows build containers this way: tag it so Storage
                     // lists it under Cronos and keeps it out of the Containers tab.
-                    it.put("extraData", JSONObject().put(Container.EXTRA_CRONOS, "1"))
+                    // Added to the form's own extras: replacing them dropped the display backend, the sync
+                    // mode, the Wayland game driver and every other per-container setting the form had chosen.
+                    it.put("extraData", (it.optJSONObject("extraData") ?: JSONObject()).put(Container.EXTRA_CRONOS, "1"))
                 }
             }.getOrNull()
         }
@@ -1204,6 +1206,15 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         if (container == null && !defaultsMode && wasArm64 != isArm64EC) {
             val arch = if (isArm64EC) NewContainerDefaults.ARCH_ARM64EC else NewContainerDefaults.ARCH_X86_64
             seedArchDependentDefaults(arch)
+            // The DXVK / VKD3D builds are per architecture too: our arm64ec ones must not follow the form onto
+            // an x86-64 layer (that is a launch that cannot load them), nor be missed when it comes back.
+            if (NewContainerDefaults.load(context, arch) == null) {
+                if (isArm64EC) applyAutoDefaults(arch)
+                else dxWrapperConfig = AutoDefaults.withDxKeys(dxWrapperConfig, mapOf(
+                    "version" to AutoDefaults.dxValue(Container.DEFAULT_DXWRAPPERCONFIG, "version"),
+                    "vkd3dVersion" to AutoDefaults.dxValue(Container.DEFAULT_DXWRAPPERCONFIG, "vkd3dVersion"),
+                ))
+            }
         }
         // A stored Wayland becomes effective on a capable layer (or stops being so): after the arch
         // refresh, so the New Container Defaults preference is read for the NEW arch.

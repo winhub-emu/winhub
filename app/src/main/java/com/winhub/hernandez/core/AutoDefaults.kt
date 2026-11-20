@@ -61,8 +61,11 @@ object AutoDefaults {
     }
 
     /** The DXVK `version` a config (`k=v,k=v`) names, "" when it has none. */
-    fun dxvkVersionOf(config: String): String =
-        config.split(",").firstOrNull { it.startsWith("version=") }?.substringAfter("version=").orEmpty()
+    fun dxvkVersionOf(config: String): String = dxValue(config, "version")
+
+    /** The value of [key] in a `k=v,k=v` config, "" when it has none. */
+    fun dxValue(config: String, key: String): String =
+        config.split(",").firstOrNull { it.startsWith("$key=") }?.substringAfter("$key=").orEmpty()
 
     /** [config] (`k=v,k=v`) with its DXVK `version` replaced, every other key kept as it was. */
     fun withDxvkVersion(config: String, version: String): String = withDxKeys(config, mapOf("version" to version))

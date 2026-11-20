@@ -202,6 +202,7 @@ object SocialConfigs {
                         cm.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON).map { ContentsManager.getEntryName(it) }
                 val wanted = protonReq?.let { norm(it.target) }.orEmpty()
                 val wine = wineList.firstOrNull { wanted.isNotEmpty() && norm(it).contains(wanted) }
+                    ?: com.winhub.hernandez.core.AutoDefaults.wine(ctx, wineList)
                     ?: wineList.firstOrNull()
                     ?: manager.getContainers().firstOrNull()?.wineVersion
                     ?: Container(0, manager).wineVersion
