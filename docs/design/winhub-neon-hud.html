@@ -1,0 +1,651 @@
+<title>WinHub Neon HUD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Roboto+Mono:wght@400;700&display=swap">
+<style>
+  /* Layout: one preview stage on a game-like backdrop, the controls in four grouped panels under it, the app's real values last. */
+  :root {
+    --bg: #0b0e13;
+    --panel: #131820;
+    --panel2: #1a212b;
+    --line: #232b37;
+    --fg: #e9eef5;
+    --dim: #94a1b3;
+    --accent: #1ea1ff;
+    --accent-ink: #03111f;
+    --font-ui: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "Roboto Mono", ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f2f5f9; --panel: #ffffff; --panel2: #e9eef5; --line: #d5dde8; --fg: #0f1722; --dim: #526074;
+      --accent: #0a7fd6; --accent-ink: #ffffff; color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f5f9; --panel: #ffffff; --panel2: #e9eef5; --line: #d5dde8; --fg: #0f1722; --dim: #526074;
+    --accent: #0a7fd6; --accent-ink: #ffffff; color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; line-height: 1.5;
+    padding-block: 18px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 16px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 { margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--dim); }
+  p { margin: 0; }
+  .lead { color: var(--dim); max-width: 68ch; }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .group > label, .field > label { color: var(--dim); font-size: 12px; font-weight: 600; }
+
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); max-width: 100%; }
+  .seg button { font: inherit; font-weight: 600; font-size: 13px; color: var(--dim); background: transparent; border: 0; padding: 0 12px; min-height: 44px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+  .seg button:focus-visible, select:focus-visible, input:focus-visible, .chk:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; height: 360px; background: #050608; isolation: isolate; }
+  .stage .scene { position: absolute; inset: 0; z-index: 0; }
+  .scene.dusk { background:
+      radial-gradient(120% 70% at 72% 8%, #ffcf8a 0%, #ff8a5c 18%, rgba(255,90,120,.55) 34%, transparent 62%),
+      linear-gradient(180deg, #22305f 0%, #5a3b73 38%, #a24d6a 62%, #1b1a2c 63%, #0c0c14 100%); }
+  .scene.night { background:
+      radial-gradient(80% 60% at 30% 70%, rgba(40,120,90,.55), transparent 70%),
+      linear-gradient(180deg, #02040a 0%, #0b1226 55%, #04060c 100%); }
+  .scene.bright { background: linear-gradient(180deg, #cfe8ff 0%, #f6f1dc 55%, #b9c88a 56%, #6d8a4a 100%); }
+  .stage canvas { position: absolute; z-index: 1; left: 12px; top: 12px; max-width: none; }
+  .stage .tag { position: absolute; z-index: 2; right: 10px; bottom: 8px; font: 11px/1 var(--font-mono); color: rgba(255,255,255,.7); text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .field { display: grid; gap: 6px; min-width: 0; }
+  .field .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); min-height: 32px; }
+  input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); cursor: pointer; }
+  select { font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; min-height: 44px; min-width: 0; max-width: 100%; }
+  .val { font-family: var(--font-mono); font-size: 12px; color: var(--dim); min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .chk { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; cursor: pointer; }
+  .chk input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .sw { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); display: inline-block; flex: none; }
+  .hint { font-size: 12px; color: var(--dim); }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--dim); font-weight: 700; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+  code { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
+  @media (max-width: 520px) { .stage { height: 420px; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:6px">
+    <h1>WinHub Neon HUD</h1>
+    <p class="lead">The Fusion HUD with the touch from the DroidDeck overlay: a neon outline, the WinHub mark and accent-tinted text, all following the theme or set by hand. The preview runs the HUD's own layout and drawing code, with sample readings.</p>
+  </header>
+
+  <div class="bar">
+    <div class="group"><label id="l-mode">Version</label>
+      <div class="seg" id="mode" role="radiogroup" aria-labelledby="l-mode"></div></div>
+    <div class="group"><label id="l-level">Detail</label>
+      <div class="seg" id="level" role="radiogroup" aria-labelledby="l-level"></div></div>
+    <div class="group"><label id="l-scene">Backdrop</label>
+      <div class="seg" id="scene" role="radiogroup" aria-labelledby="l-scene"></div></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="scene dusk" id="scenebg"></div>
+    <canvas id="hud" aria-label="HUD preview"></canvas>
+    <div class="tag" id="tag">1600x720 · Wayland</div>
+  </div>
+
+  <div class="cards">
+    <section class="card" aria-labelledby="h-theme">
+      <h2 id="h-theme">Theme</h2>
+      <div class="field"><label for="theme">Theme accent</label>
+        <div class="row"><span class="sw" id="themeSw"></span><select id="theme"></select></div></div>
+      <div class="field" id="customRow" hidden><label for="customAccent">Custom accent</label>
+        <div class="row"><input type="color" id="customAccent" value="#0055ff"><span class="val" id="customVal">#0055FF</span></div></div>
+      <div class="field"><label id="l-ci">Colour strength</label>
+        <div class="seg" id="ci" role="radiogroup" aria-labelledby="l-ci"></div>
+        <span class="hint">Vivid, mid or soft, like the DroidDeck setting. Mutes every colour on the HUD.</span></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-outline">
+      <h2 id="h-outline">Neon outline</h2>
+      <div class="field"><label for="outline">Strength</label>
+        <div class="row"><input type="range" id="outline" min="0" max="100" step="1" value="40"><span class="val" id="outlineVal">40</span></div></div>
+      <div class="field"><label id="l-oc">Colour</label>
+        <div class="seg" id="oc" role="radiogroup" aria-labelledby="l-oc"></div>
+        <div class="row" id="ocManualRow" hidden><input type="color" id="ocManual" value="#ff3df0" aria-label="Outline colour"><span class="val" id="ocVal">#FF3DF0</span></div></div>
+      <label class="chk"><input type="checkbox" id="glow" checked> Glow around the stroke</label>
+    </section>
+
+    <section class="card" aria-labelledby="h-logo">
+      <h2 id="h-logo">Logo</h2>
+      <div class="field"><label id="l-lc">Colour</label>
+        <div class="seg" id="lc" role="radiogroup" aria-labelledby="l-lc"></div>
+        <div class="row" id="lcManualRow" hidden><input type="color" id="lcManual" value="#7cffb2" aria-label="Logo colour"><span class="val" id="lcVal">#7CFFB2</span></div>
+        <span class="hint">The three dots take the colour; the W and H keep the text colour. Detail 1 and 2 show it in a small chip, 3 and 4 in the header.</span></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-text">
+      <h2 id="h-text">Text</h2>
+      <div class="field"><label id="l-tc">Labels and graph</label>
+        <div class="seg" id="tc" role="radiogroup" aria-labelledby="l-tc"></div>
+        <div class="row" id="tcManualRow" hidden><input type="color" id="tcManual" value="#ffb020" aria-label="Text accent"><span class="val" id="tcVal">#FFB020</span></div></div>
+      <div class="field"><label id="l-fc">FPS number</label>
+        <div class="seg" id="fc" role="radiogroup" aria-labelledby="l-fc"></div></div>
+      <label class="chk"><input type="checkbox" id="fpsGlow" checked> Glow on the FPS number</label>
+    </section>
+
+    <section class="card" aria-labelledby="h-panel">
+      <h2 id="h-panel">Panel</h2>
+      <div class="field"><label for="bg">Background</label>
+        <div class="row"><input type="range" id="bg" min="0" max="100" step="1" value="62"><span class="val" id="bgVal">62%</span></div></div>
+      <div class="field"><label for="scale">HUD size</label>
+        <div class="row"><input type="range" id="scale" min="50" max="200" step="5" value="100"><span class="val" id="scaleVal">100%</span></div></div>
+      <div class="field"><label for="zoom">Preview zoom</label>
+        <div class="row"><input type="range" id="zoom" min="100" max="250" step="10" value="130"><span class="val" id="zoomVal">1.3×</span></div></div>
+      <label class="chk"><input type="checkbox" id="graph" checked> Frametime graph (detail 2 and up)</label>
+    </section>
+  </div>
+
+  <section aria-labelledby="h-real">
+    <h2 id="h-real">Where each value comes from</h2>
+    <div class="tablewrap"><table>
+      <tr><th>What</th><th>Value</th><th>From</th></tr>
+      <tr><td>Panel</td><td>rounded <code>8sp</code>, fill <code>rgb(8,10,16)</code> at <code>0.62</code></td><td>Fusion <code>FusionHudView.onDraw</code></td></tr>
+      <tr><td>Outline width</td><td><code>strength × 3.5sp</code>; grey <code>white @ 48</code> today</td><td>Fusion <code>FusionHudView.onDraw</code></td></tr>
+      <tr><td>Neon stroke</td><td>3 passes: two blurred (σ = <code>3.2sp</code>), one sharp, in the accent</td><td>DroidDeck <code>DroidDeckHudView.panelFrame</code></td></tr>
+      <tr><td>Text glow</td><td>shadow <code>6sp</code>, <code>85%</code> of the graph colour, on the FPS number</td><td>DroidDeck <code>DroidDeckHudView.drawContent</code></td></tr>
+      <tr><td>Tinted text</td><td>tag, API, WRAP, WINE labels = accent; FRM, 1%, graph = accent lightened <code>30%</code></td><td>DroidDeck <code>applyPalette</code></td></tr>
+      <tr><td>Colour strength</td><td>vivid <code>1.0</code>, mid <code>0.88</code>, soft <code>0.72</code> of the saturation</td><td>DroidDeck <code>hudColor</code></td></tr>
+      <tr><td>Logo chip</td><td><code>22sp</code> square, surface at <code>235</code>, <code>1sp</code> accent border, mark at <code>60%</code></td><td>DroidDeck <code>drawChip</code></td></tr>
+      <tr><td>Header divider</td><td>accent gradient <code>46 → 0</code>, then accent at <code>90</code></td><td>DroidDeck <code>panelFrame</code></td></tr>
+      <tr><td>Mark</td><td>the app's own W, H and three dots</td><td><code>WinHubLogoAnimation.kt</code></td></tr>
+      <tr><td>Theme accents</td><td>the 24 presets, e.g. Marcescence <code>#1A9FFF</code></td><td><code>ThemePreset.kt</code></td></tr>
+    </table></div>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+/* ───────────── Real constants ───────────── */
+var PRESETS = [
+  ["Marcescence","#1A9FFF"],["Purple","#A855F7"],["Red","#EF4444"],["Green","#22C55E"],["Monochrome","#FFFFFF"],
+  ["Pink","#EC4899"],["Halloween","#FF7518"],["Ocean","#14B8A6"],["Amber","#F59E0B"],["Sunset","#FB7185"],
+  ["Nord","#88C0D0"],["Midnight","#6366F1"],["Christmas","#E11D48"],["Dracula","#BD93F9"],["Gruvbox","#FE8019"],
+  ["Solarized","#2AA198"],["Tokyo Night","#7AA2F7"],["Catppuccin","#CBA6F7"],["Rose Pine","#EBBCBA"],
+  ["Cyberpunk","#FCEE0A"],["Synthwave","#FF2E97"],["Forest","#84CC16"],["Charcoal","#8AB4FF"],["Custom…","#0055FF"]
+];
+// FusionHudView colours.
+var C = { gpu: 0xFF2E9762, cpu: 0xFF2E97CB, vram: 0xFFAD64C1, ram: 0xFFC26693, bat: 0xFFF5C542, fps: 0xFFEB5B5B,
+          graph: 0xFF00E676, value: 0xFFF2F5F9, dim: 0xFF9AA4B2, disp: 0xFF4DD0E1, hdr: 0xFFFFD54F };
+var TEMP = { ok: 0xFF66BB6A, amber: 0xFFFFB74D, red: 0xFFEF5350 };   // HudMetrics.TEMP_COLOR_*
+var PANEL_RGB = [8, 10, 16];
+
+// The WinHub mark (WinHubLogoAnimation.kt), in its own coordinates.
+var MARK = {
+  W: [[107.75,179.55],[144.0,264.75],[181.8,180.0],[218.5,265.3],[256.25,180.55]],
+  WSHADOW: [18, 12, 6], HSHADOW: [3.6, 2.4, 1.2],
+  STEM_L: {x:243.2,y:172,w:26,h:109}, STEM_R: {x:311.5,y:165,w:26,h:114}, BAR: {x:272,y:218,w:34,h:20.5},
+  DOTS: [[256.19,266.28],[324.03,179.44],[324.11,264.11]], DOT_R: 11.7,
+  // Cropped to the ink (W's left edge to the H's right stem), shadows included.
+  CROP: {x: 84, y: 154, w: 262, h: 138}
+};
+
+// Android monospace metrics (Droid Sans Mono): ascent/descent in em. Line heights follow these.
+var ASC = 0.93, DESC = 0.25;
+
+/* ───────────── Colour helpers (ARGB ints, like the Kotlin) ───────────── */
+function A(c) { return (c >>> 24) & 255; } function R(c) { return (c >>> 16) & 255; }
+function G(c) { return (c >>> 8) & 255; } function B(c) { return c & 255; }
+function rgb(r, g, b) { return (0xFF000000 | (r << 16) | (g << 8) | b) >>> 0; }
+function css(c, alpha) { var a = alpha == null ? A(c) / 255 : alpha; return "rgba(" + R(c) + "," + G(c) + "," + B(c) + "," + a + ")"; }
+function hexToArgb(h) { var n = parseInt(h.replace("#", ""), 16); return (0xFF000000 | n) >>> 0; }
+function lighten(c, amount) {
+  return rgb(Math.round(R(c) + (255 - R(c)) * amount), Math.round(G(c) + (255 - G(c)) * amount), Math.round(B(c) + (255 - B(c)) * amount));
+}
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+  if (d > 0) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+  return [h, mx === 0 ? 0 : d / mx, mx];
+}
+function hsv2rgb(h, s, v) {
+  var c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c, r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  return rgb(Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255));
+}
+// FusionHudView.blend: scales the saturation by the colour strength.
+function blend(c, intensity) {
+  if (intensity >= 0.999) return c;
+  var hsv = rgb2hsv(R(c), G(c), B(c));
+  var out = hsv2rgb(hsv[0], hsv[1] * intensity, hsv[2]);
+  return ((A(c) << 24) | (out & 0xFFFFFF)) >>> 0;
+}
+function fpsColor(f) { return f >= 55 ? 0xFF3DDC84 : (f >= 30 ? 0xFFF5C542 : 0xFFFF5D5D); }
+
+/* ───────────── Sample readings (what HudMetrics would give) ───────────── */
+var M = {
+  fps: 60, avg: 59.4, low1: 52.8, low01: 47.9, low001: 41.2, frames: [],
+  gpu: 63, gpuMhz: 905, cpu: 41, cpuMhz: 2300, cpuTemp: 61, vram: "1.8GiB", ram: "5.2GiB",
+  watts: 12.4, battery: 78, cores: [34, 52, 28, 61, 44, 38, 70, 25],
+  net: [212, 18], swap: "0.4GiB", elapsed: 1894,
+  engine: "DXVK", dxLine: "DXVK 2.4.1-1", wrapper: "Turnip 27.0.0-R2", proton: "GE-Proton 11.0-9",
+  gpuModel: "Adreno (TM) 740", display: "Wayland", res: "1600x720 @ 120Hz", pres: "0.8 ms · 0.4% skipped"
+};
+for (var i = 0; i < 60; i++) M.frames.push(16.6 + Math.sin(i / 5) * 1.2);
+function tick() {
+  M.fps = Math.max(24, 60 + (Math.random() - 0.5) * 7);
+  M.frames.shift(); M.frames.push(1000 / M.fps);
+  M.gpu = Math.round(Math.min(99, Math.max(20, M.gpu + (Math.random() - 0.5) * 8)));
+  M.cpu = Math.round(Math.min(95, Math.max(10, M.cpu + (Math.random() - 0.5) * 8)));
+  M.cores = M.cores.map(function (v) { return Math.round(Math.min(98, Math.max(4, v + (Math.random() - 0.5) * 22))); });
+  M.elapsed += 1;
+}
+
+/* ───────────── Settings ───────────── */
+var S = {
+  touch: true, level: 3, scene: "dusk",
+  themeIdx: 0, custom: "#0055ff", ci: 1,
+  outline: 40, oc: "theme", ocManual: "#ff3df0", glow: true,
+  lc: "theme", lcManual: "#7cffb2",
+  tc: "theme", tcManual: "#ffb020", fc: "theme", fpsGlow: true,
+  bg: 62, scale: 100, zoom: 130, graph: true
+};
+function accentArgb() { return hexToArgb(S.themeIdx === PRESETS.length - 1 ? S.custom : PRESETS[S.themeIdx][1]); }
+
+/* The colours the HUD ends up with, for the current settings. In "now" mode they are Fusion's own. */
+function palette() {
+  var accent = accentArgb();
+  var p = { accent: accent, fps: C.fps, graph: C.graph, dots: null, outline: rgb(255, 255, 255), outlineAlpha: 48, neon: false, logo: false, fpsTheme: false, fpsGlow: false };
+  if (!S.touch) return p;
+  var textAccent = S.tc === "theme" ? accent : (S.tc === "manual" ? hexToArgb(S.tcManual) : null);
+  if (textAccent != null) { p.fps = textAccent; p.graph = lighten(textAccent, 0.3); }
+  p.fpsTheme = S.fc === "theme";
+  p.fpsGlow = S.fpsGlow;
+  p.neon = S.glow;
+  p.outline = S.oc === "grey" ? rgb(200, 200, 200) : (S.oc === "manual" ? hexToArgb(S.ocManual) : accent);
+  p.outlineAlpha = S.oc === "grey" ? 48 : 255;
+  p.logo = S.lc !== "off";
+  p.dots = S.lc === "manual" ? hexToArgb(S.lcManual) : accent;
+  return p;
+}
+
+/* ───────────── Layout: a port of FusionHudView.buildLevel (+ the DroidDeck header and chip) ───────────── */
+var cv = document.getElementById("hud"), cx = cv.getContext("2d");
+var FONT = '"Roboto Mono", ui-monospace, Menlo, Consolas, monospace';
+function font(px, bold) { return (bold ? "700 " : "400 ") + px + "px " + FONT; }
+
+function layout() {
+  var k = (S.scale / 100) * (S.zoom / 100);
+  var sp = function (v) { return v * k; };
+  var pal = palette();
+  var intensity = S.touch ? S.ci : 1;
+  var bl = function (c) { return blend(c, intensity); };
+  var glyphs = [], sepYs = [], bars = [], pending = [], graphRect = null;
+  var level = S.level;
+  var measure = function (t, px) { cx.font = font(px, true); return cx.measureText(t).width; };
+  var lineH = function (px) { return (ASC + DESC) * px; };
+  var ascent = function (px) { return -ASC * px; };
+  var Span = function (text, color, px, bold, glow) { return { text: text, color: color, px: px, bold: bold !== false, glow: !!glow }; };
+  var runWidth = function (spans) { var w = 0; spans.forEach(function (s) { w += measure(s.text, s.px); }); return w; };
+  var placeRun = function (x, base, spans) {
+    spans.forEach(function (s) { glyphs.push({ x: x, base: base, text: s.text, color: bl(s.color), px: s.px, bold: s.bold, glow: s.glow }); x += measure(s.text, s.px); });
+    return x;
+  };
+  var one = function (v) { return v.toFixed(1); };
+  var fmt1 = one;
+  var numUnit = function (num, unit, np, up) { return num == null ? [Span("—", C.dim, np), Span(unit, C.dim, up, false)] : [Span(num, C.value, np), Span(unit, C.dim, up, false)]; };
+  var valueUnit = function (text, np, up) {
+    var i = 0; while (i < text.length && /[0-9.\-]/.test(text[i])) i++;
+    return i <= 0 ? [Span(text, C.value, np)] : [Span(text.slice(0, i), C.value, np), Span(text.slice(i), C.dim, up, false)];
+  };
+  var tempSpans = function (c, np, up) {
+    var col = c >= 90 ? TEMP.red : (c >= Math.round(90 * 0.88) ? TEMP.amber : C.value);
+    return [Span(String(c), col, np), Span("°C", C.dim, up, false)];
+  };
+  var gap = function (up) { return Span("  ", C.dim, up, false); };
+  var labelled = function (label, color, rp, value) { return [Span(label + " ", color, rp)].concat(value); };
+
+  var rowPx = sp(12), unitPx = rowPx, bigPx = sp(30), tagPx = sp(11), bandPx = sp(10.5);
+  var pad = sp(10), lineGap = sp(2), lvGap = sp(8), rightGap = sp(12);
+  var y = sp(8), maxRight = pad + sp(130);
+
+  // Level 1: the big FPS number, "FPS", and the engine tag at the right edge.
+  var shown = M.fps;
+  var base1 = y - ascent(bigPx);
+  var fpsCol = pal.fpsTheme ? C.value : fpsColor(shown);
+  var x = placeRun(pad, base1, [Span(one(M.fps), fpsCol, bigPx, true, pal.fpsGlow)]);
+  x = placeRun(x + sp(6), base1, [Span("FPS", C.value, tagPx)]);
+  maxRight = Math.max(maxRight, x);
+  var eng = [Span(M.engine, pal.fps, rowPx)];
+  maxRight = Math.max(maxRight, x + rightGap + runWidth(eng));
+  pending.push({ base: base1, spans: eng });
+  y += lineH(bigPx) + lineGap;
+
+  // Level 2: graph, then FRM and BAT.
+  var graphTop = -1, graphH = sp(34);
+  if (level >= 2) {
+    if (S.graph) { graphTop = y; y += graphH + lineGap; }
+    var b2 = y - ascent(rowPx);
+    var left = labelled("FRM", pal.graph, rowPx, numUnit(fmt1(1000 / Math.max(M.fps, 1)), " ms", rowPx, unitPx));
+    var x2 = placeRun(pad, b2, left);
+    maxRight = Math.max(maxRight, x2);
+    var r = labelled("BAT", C.bat, rowPx, numUnit(fmt1(M.watts), " W", rowPx, unitPx));
+    maxRight = Math.max(maxRight, x2 + rightGap + runWidth(r));
+    pending.push({ base: b2, spans: r });
+    y += lineH(rowPx) + lineGap;
+  }
+
+  function layoutColumn(rows, x0, y0) {
+    if (!rows.length) return [y0, x0];
+    var labelCol = 0, rp = rowPx;
+    rows.forEach(function (rw) { if (!rw.inline) labelCol = Math.max(labelCol, measure(rw.label.text, rp)); });
+    var h = lineH(rp), asc = ascent(rp), yy = y0, right = x0;
+    rows.forEach(function (rw) {
+      var base = yy - asc;
+      placeRun(x0, base, [rw.label]);
+      var valX = x0 + labelCol + lvGap;
+      var end = placeRun(valX, base, rw.vals);
+      right = Math.max(right, end);
+      if (rw.right && rw.right.length) { right = Math.max(right, end + rightGap + runWidth(rw.right)); pending.push({ base: base, spans: rw.right }); }
+      yy += h + lineGap;
+    });
+    return [yy - lineGap, right];
+  }
+
+  // Level 3: the stat rows.
+  if (level >= 3) {
+    var rows = [];
+    rows.push({ label: Span("GPU", C.gpu, rowPx), vals: numUnit(String(M.gpu), " %", rowPx, unitPx), right: numUnit(String(M.gpuMhz), " MHz", rowPx, unitPx) });
+    var cr = tempSpans(M.cpuTemp, rowPx, unitPx).concat([gap(unitPx)], numUnit(String(M.cpuMhz), " MHz", rowPx, unitPx));
+    rows.push({ label: Span("CPU", C.cpu, rowPx), vals: numUnit(String(M.cpu), " %", rowPx, unitPx), right: cr });
+    rows.push({ label: Span("VRAM", C.vram, rowPx), vals: valueUnit(M.vram, rowPx, unitPx), right: labelled("RAM", C.ram, rowPx, valueUnit(M.ram, rowPx, unitPx)) });
+    rows.push({ label: Span("PWR", C.bat, rowPx), vals: numUnit(fmt1(M.watts), " W", rowPx, unitPx), right: numUnit(String(M.battery), " % battery", rowPx, unitPx) });
+    sepYs.push(y); y += lineGap + sp(3);
+    var lc = layoutColumn(rows, pad, y); y = lc[0] + lineGap; maxRight = Math.max(maxRight, lc[1]);
+  }
+
+  // Level 4: per-core grid, then the detail rows.
+  if (level >= 4) {
+    var n = M.cores.length;
+    sepYs.push(y); y += lineGap + sp(3);
+    var cols = n >= 4 ? 4 : n, avail = Math.max(maxRight - pad, sp(190)), cellW = avail / cols;
+    var h = lineH(bandPx), barH = sp(3), cellH = h + barH + sp(3);
+    for (var i = 0; i < n; i++) {
+      var cx0 = pad + (i % cols) * cellW, cy0 = y + Math.floor(i / cols) * (cellH + lineGap);
+      var end = placeRun(cx0, cy0 - ascent(bandPx), [Span("C" + i + " ", C.dim, bandPx, false), Span(String(M.cores[i]), C.value, bandPx)]);
+      maxRight = Math.max(maxRight, end);
+      bars.push({ x: cx0, y: cy0 + h + sp(1), w: cellW - sp(8), h: barH, frac: M.cores[i] / 100 });
+    }
+    y += Math.ceil(n / cols) * (cellH + lineGap);
+    maxRight = Math.max(maxRight, pad + avail);
+
+    var rs = [];
+    var lowR = labelled("0.1%", pal.graph, rowPx, numUnit(fmt1(M.low01), "", rowPx, unitPx))
+      .concat([gap(unitPx)], labelled("0.01%", pal.graph, rowPx, numUnit(fmt1(M.low001), "", rowPx, unitPx)));
+    rs.push({ label: Span("1%", pal.graph, rowPx), vals: numUnit(fmt1(M.low1), "", rowPx, unitPx), right: lowR });
+    rs.push({ label: Span("GPU", C.gpu, rowPx), vals: [Span(M.gpuModel, C.value, rowPx)] });
+    rs.push({ label: Span("DISP", C.disp, rowPx), vals: [Span(M.display, C.value, rowPx)] });
+    rs.push({ label: Span("PRES", C.disp, rowPx), vals: [Span(M.pres, C.value, rowPx)] });
+    rs.push({ label: Span("HDR", C.hdr, rowPx), vals: [Span("on", C.hdr, rowPx)] });
+    rs.push({ label: Span("API", pal.fps, rowPx), vals: [Span(M.dxLine, C.value, rowPx)] });
+    rs.push({ label: Span("WRAP", pal.fps, rowPx), vals: [Span(M.wrapper, C.value, rowPx)] });
+    rs.push({ label: Span("WINE", pal.fps, rowPx), vals: [Span(M.proton, C.value, rowPx)] });
+    rs.push({ label: Span("RES", C.cpu, rowPx), vals: [Span(M.res, C.value, rowPx)] });
+    rs.push({ label: Span("NET", C.ram, rowPx),
+      vals: [Span("↓ ", C.dim, unitPx, false), Span(String(M.net[0]), C.value, rowPx), Span(" ↑ ", C.dim, unitPx, false), Span(String(M.net[1]), C.value, rowPx), Span(" KB/s", C.dim, unitPx, false)],
+      right: [Span("SWP ", C.ram, rowPx)].concat(valueUnit(M.swap, rowPx, unitPx)) });
+    var sec = M.elapsed, mm = Math.floor(sec / 60) % 60, ss = sec % 60, hh = Math.floor(sec / 3600);
+    var elapsed = hh > 0 ? hh + ":" + String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0") : String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+    rs.push({ label: Span("TIME", C.dim, rowPx), vals: [Span(elapsed, C.value, rowPx)], right: [Span("21:48", C.dim, rowPx, false)] });
+    sepYs.push(y); y += lineGap + sp(3);
+    var l4 = layoutColumn(rs, pad, y); y = l4[0] + lineGap; maxRight = Math.max(maxRight, l4[1]);
+  }
+
+  if (graphTop >= 0) graphRect = { x: pad, y: graphTop, w: maxRight - pad, h: graphH };
+  pending.forEach(function (rr) { placeRun(maxRight - runWidth(rr.spans), rr.base, rr.spans); });
+  var contentW = maxRight + pad, contentH = y - lineGap + sp(9);
+
+  // The touch: a header with the mark on detail 3 and 4, a chip with the mark on detail 1 and 2.
+  var head = null, chip = null, dx = 0, dy = 0;
+  if (pal.logo) {
+    if (level >= 3) {
+      var markH = sp(13), gapH = sp(7), top = sp(8);
+      var word = "WinHub", wpx = sp(11);
+      var markW = markH * MARK.CROP.w / MARK.CROP.h;
+      var wordX = pad + markW + sp(6);
+      var clock = "21:48", clockW = measure(clock, sp(9.5));
+      var headW = wordX + measure(word, wpx) + sp(14) + clockW + pad;
+      var dividerTop = top + markH + gapH;
+      head = { markH: markH, markTop: top, markX: pad, word: word, wpx: wpx, wordX: wordX, clock: clock, cpx: sp(9.5), dividerTop: dividerTop, midY: top + markH / 2 };
+      dy = dividerTop + Math.max(1, k) + sp(2);
+      contentW = Math.max(contentW, headW); head.clockRight = null;
+    } else {
+      var cs = sp(22);
+      chip = { size: cs };
+      dx = cs + sp(8);
+      contentW += dx;
+    }
+  }
+  glyphs.forEach(function (g) { g.x += dx; g.base += dy; });
+  sepYs = sepYs.map(function (v) { return v + dy; });
+  bars.forEach(function (b) { b.x += dx; b.y += dy; });
+  if (graphRect) { graphRect.x += dx; graphRect.y += dy; }
+  contentH += dy;
+  if (chip) { chip.x = pad; chip.y = Math.max(0, (contentH - chip.size) / 2); }
+  if (head) head.clockRight = contentW - pad;
+
+  return { k: k, sp: sp, pal: pal, bl: bl, glyphs: glyphs, sepYs: sepYs, bars: bars, graphRect: graphRect, head: head, chip: chip,
+           w: contentW, h: contentH, pad: pad, intensity: intensity };
+}
+
+/* ───────────── Drawing ───────────── */
+function roundPath(c, l, t, r, b, rad) {
+  c.beginPath();
+  c.moveTo(l + rad, t); c.lineTo(r - rad, t); c.arcTo(r, t, r, t + rad, rad);
+  c.lineTo(r, b - rad); c.arcTo(r, b, r - rad, b, rad);
+  c.lineTo(l + rad, b); c.arcTo(l, b, l, b - rad, rad);
+  c.lineTo(l, t + rad); c.arcTo(l, t, l + rad, t, rad); c.closePath();
+}
+function rrect(c, x, y, w, h, r) { roundPath(c, x, y, x + w, y + h, r); }
+
+// The mark, drawn static (the animation's resting frame). `ink` colours the W; `dots` the three circles.
+function drawMark(c, left, top, height, ink, dots) {
+  var cr = MARK.CROP, s = height / cr.h;
+  c.save();
+  c.translate(left, top); c.scale(s, s); c.translate(-cr.x, -cr.y);
+  c.lineCap = "round"; c.lineJoin = "round";
+  function wp() { c.beginPath(); c.moveTo(MARK.W[0][0], MARK.W[0][1]); for (var i = 1; i < MARK.W.length; i++) c.lineTo(MARK.W[i][0], MARK.W[i][1]); }
+  MARK.WSHADOW.forEach(function (g) { c.strokeStyle = "rgba(0,0,0,0.14)"; c.lineWidth = 25.4 + g; wp(); c.stroke(); });
+  [[MARK.STEM_L, 13], [MARK.STEM_R, 13], [MARK.BAR, 10.25]].forEach(function (pr) {
+    var b = pr[0], rad = pr[1];
+    MARK.HSHADOW.forEach(function (g) { c.fillStyle = "rgba(0,0,0,0.18)"; rrect(c, b.x - g, b.y - g, b.w + 2 * g, b.h + 2 * g, rad + g); c.fill(); });
+    var gr = c.createLinearGradient(b.x, 0, b.x + b.w, 0);
+    gr.addColorStop(0, "#d2d2d2"); gr.addColorStop(0.5, "#bfbfbf"); gr.addColorStop(1, "#d2d2d2");
+    c.fillStyle = gr; rrect(c, b.x, b.y, b.w, b.h, rad); c.fill();
+  });
+  c.strokeStyle = css(ink); c.lineWidth = 25.4; wp(); c.stroke();
+  c.fillStyle = css(dots);
+  MARK.DOTS.forEach(function (d) { c.beginPath(); c.arc(d[0], d[1], MARK.DOT_R, 0, Math.PI * 2); c.fill(); });
+  c.restore();
+}
+
+// DroidDeck's neon: two blurred passes and a sharp one. Blur sigma = 3.2sp (BlurMaskFilter radius (3.2sp-0.5)/0.57735).
+// Canvas shadowBlur is 2 sigma and is not scaled by the transform; the shape is drawn off to the side so only its shadow lands.
+function neonStroke(c, path, color, width, sigma, dpr) {
+  var OFF = 4000;
+  for (var pass = 0; pass < 3; pass++) {
+    c.save();
+    c.lineWidth = width; c.strokeStyle = css(color); c.lineJoin = "round";
+    if (pass < 2) {
+      c.shadowColor = css(color); c.shadowBlur = 2 * sigma * dpr; c.shadowOffsetX = OFF * dpr;
+      c.translate(-OFF, 0);
+    }
+    path(); c.stroke();
+    c.restore();
+  }
+}
+
+function draw(L) {
+  var dpr = Math.min(window.devicePixelRatio || 1, 3), M2 = 28;
+  var wCss = Math.ceil(L.w + M2 * 2), hCss = Math.ceil(L.h + M2 * 2);
+  cv.style.width = wCss + "px"; cv.style.height = hCss + "px";
+  if (cv.width !== Math.round(wCss * dpr) || cv.height !== Math.round(hCss * dpr)) { cv.width = Math.round(wCss * dpr); cv.height = Math.round(hCss * dpr); }
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx.clearRect(0, 0, wCss, hCss);
+  cx.translate(M2, M2);
+  var sp = L.sp, pal = L.pal, k = L.k, bl = L.bl;
+  var radius = sp(8), W = L.w, H = L.h;
+
+  // Panel and outline (Fusion: 8sp rounded; width = strength x 3.5sp).
+  cx.fillStyle = "rgba(" + PANEL_RGB[0] + "," + PANEL_RGB[1] + "," + PANEL_RGB[2] + "," + (S.bg / 100) + ")";
+  rrect(cx, 0, 0, W, H, radius); cx.fill();
+  var inten = S.outline / 100, strokeW = inten > 0 ? inten * sp(3.5) : 0;
+  if (strokeW > 0) {
+    var h = strokeW / 2;
+    var pathFn = function () { roundPath(cx, h, h, W - h, H - h, radius); };
+    if (pal.neon) neonStroke(cx, pathFn, pal.outline, strokeW, sp(3.2), dpr);
+    else { cx.lineWidth = strokeW; cx.strokeStyle = css(pal.outline, pal.outlineAlpha / 255); pathFn(); cx.stroke(); }
+  }
+
+  // Header divider: an accent gradient under the header, then a solid line (DroidDeck panelFrame).
+  if (L.head) {
+    var hd = L.head, thick = Math.max(1, k);
+    var gr = cx.createLinearGradient(0, 0, W, 0);
+    gr.addColorStop(0, css(pal.accent, 46 / 255)); gr.addColorStop(1, css(pal.accent, 0));
+    cx.save(); roundPath(cx, 0, 0, W, H, radius); cx.clip();
+    cx.fillStyle = gr; cx.fillRect(0, 0, W, hd.dividerTop + thick);
+    cx.fillStyle = css(pal.accent, 90 / 255); cx.fillRect(0, hd.dividerTop, W, thick);
+    cx.restore();
+  }
+
+  // Dividers, per-core bars.
+  var sepH = Math.max(1, 1 * Math.max(1, k * 0.6));
+  cx.fillStyle = "rgba(255,255,255,0.122)";
+  L.sepYs.forEach(function (sy) { cx.fillRect(L.pad + (L.chip ? sp(22) + sp(8) : 0), sy, W - L.pad * 2 - (L.chip ? sp(22) + sp(8) : 0), sepH); });
+  L.bars.forEach(function (b) {
+    cx.fillStyle = "rgba(255,255,255,0.18)"; rrect(cx, b.x, b.y, b.w, b.h, b.h / 2); cx.fill();
+    cx.fillStyle = css(bl(C.cpu)); rrect(cx, b.x, b.y, Math.max(b.h, b.w * b.frac), b.h, b.h / 2); cx.fill();
+  });
+
+  // Text, with the FPS number's glow (DroidDeck: shadow 6sp, 85% of the graph colour).
+  L.glyphs.forEach(function (g) {
+    cx.font = font(g.px, g.bold); cx.fillStyle = css(g.color); cx.textBaseline = "alphabetic";
+    if (g.glow) {
+      var sigma = 0.57735 * sp(6) + 0.5;
+      cx.save(); cx.shadowColor = css(pal.graph, 217 / 255); cx.shadowBlur = 2 * sigma * dpr; cx.fillText(g.text, g.x, g.base); cx.restore();
+    } else cx.fillText(g.text, g.x, g.base);
+  });
+
+  // Frametime graph (+ a soft underlay when the neon is on, like DroidDeck's panel graph).
+  if (L.graphRect) {
+    var gr2 = L.graphRect, fr = M.frames, peak = 33.3;
+    fr.forEach(function (v) { peak = Math.max(peak, v); });
+    var step = gr2.w / (fr.length - 1);
+    var gp = function () { cx.beginPath(); fr.forEach(function (v, i) { var px = gr2.x + i * step, py = gr2.y + gr2.h - Math.min(1, v / peak) * gr2.h; if (i === 0) cx.moveTo(px, py); else cx.lineTo(px, py); }); };
+    cx.lineCap = "round"; cx.lineJoin = "round";
+    if (pal.neon) { cx.lineWidth = sp(4.5); cx.strokeStyle = css(bl(pal.graph), 56 / 255); gp(); cx.stroke(); }
+    cx.lineWidth = sp(1.6); cx.strokeStyle = css(bl(pal.graph)); gp(); cx.stroke();
+    var lastY = gr2.y + gr2.h - Math.min(1, fr[fr.length - 1] / peak) * gr2.h;
+    cx.fillStyle = css(bl(pal.graph)); cx.beginPath(); cx.arc(gr2.x + gr2.w, lastY, sp(2.5), 0, Math.PI * 2); cx.fill();
+  }
+
+  // The mark: header on detail 3/4, chip on 1/2.
+  var ink = bl(C.value);
+  if (L.head) {
+    var hd2 = L.head;
+    drawMark(cx, hd2.markX, hd2.markTop, hd2.markH, ink, bl(pal.dots));
+    cx.font = font(hd2.wpx, true); cx.fillStyle = css(ink); cx.fillText(hd2.word, hd2.wordX, hd2.midY + hd2.wpx * 0.35);
+    cx.font = font(hd2.cpx, false); cx.fillStyle = css(bl(C.dim));
+    cx.textAlign = "right"; cx.fillText(hd2.clock, hd2.clockRight, hd2.midY + hd2.cpx * 0.35); cx.textAlign = "left";
+  }
+  if (L.chip) {
+    var ch = L.chip, r6 = sp(6);
+    cx.fillStyle = "rgba(" + PANEL_RGB[0] + "," + PANEL_RGB[1] + "," + PANEL_RGB[2] + ",0.92)"; rrect(cx, ch.x, ch.y, ch.size, ch.size, r6); cx.fill();
+    var bw = sp(1); cx.lineWidth = bw; cx.strokeStyle = css(pal.accent); rrect(cx, ch.x + bw / 2, ch.y + bw / 2, ch.size - bw, ch.size - bw, r6); cx.stroke();
+    var mh = ch.size * 0.5, mw = mh * MARK.CROP.w / MARK.CROP.h;
+    drawMark(cx, ch.x + ch.size / 2 - mw / 2, ch.y + ch.size / 2 - mh / 2, mh, ink, bl(pal.dots));
+  }
+}
+
+/* ───────────── Controls ───────────── */
+function $(id) { return document.getElementById(id); }
+function seg(id, options, get, set) {
+  var el = $(id); el.innerHTML = "";
+  options.forEach(function (o) {
+    var b = document.createElement("button");
+    b.type = "button"; b.setAttribute("role", "radio"); b.dataset.v = o[0]; b.textContent = o[1];
+    b.onclick = function () { set(o[0]); paint(); };
+    el.appendChild(b);
+  });
+  el._get = get;
+}
+function syncSegs() {
+  document.querySelectorAll(".seg").forEach(function (el) {
+    var v = String(el._get ? el._get() : "");
+    Array.prototype.forEach.call(el.children, function (b) { b.setAttribute("aria-checked", String(b.dataset.v === v)); });
+  });
+}
+function hexUp(h) { return h.toUpperCase(); }
+
+function paint() {
+  syncSegs();
+  $("scenebg").className = "scene " + S.scene;
+  $("outlineVal").textContent = S.outline;
+  $("bgVal").textContent = S.bg + "%";
+  $("scaleVal").textContent = S.scale + "%";
+  $("zoomVal").textContent = (S.zoom / 100).toFixed(1) + "×";
+  $("customRow").hidden = S.themeIdx !== PRESETS.length - 1;
+  $("ocManualRow").hidden = S.oc !== "manual";
+  $("lcManualRow").hidden = S.lc !== "manual";
+  $("tcManualRow").hidden = S.tc !== "manual";
+  $("customVal").textContent = hexUp(S.custom); $("ocVal").textContent = hexUp(S.ocManual);
+  $("lcVal").textContent = hexUp(S.lcManual); $("tcVal").textContent = hexUp(S.tcManual);
+  $("themeSw").style.background = "#" + (accentArgb() & 0xFFFFFF).toString(16).padStart(6, "0");
+  // The touch controls only apply to the new version.
+  document.querySelectorAll(".card").forEach(function (c, i) { if (i > 0 && i < 4) c.style.opacity = S.touch ? 1 : 0.45; });
+  render();
+}
+function render() { draw(layout()); }
+
+(function init() {
+  seg("mode", [["now", "Now (Fusion)"], ["touch", "With the touch"]], function () { return S.touch ? "touch" : "now"; }, function (v) { S.touch = v === "touch"; });
+  seg("level", [["1", "1 FPS"], ["2", "2 Graph"], ["3", "3 Stats"], ["4", "4 All"]], function () { return S.level; }, function (v) { S.level = +v; });
+  seg("scene", [["dusk", "Dusk"], ["night", "Night"], ["bright", "Bright"]], function () { return S.scene; }, function (v) { S.scene = v; });
+  seg("ci", [["1", "Vivid"], ["0.88", "Mid"], ["0.72", "Soft"]], function () { return S.ci; }, function (v) { S.ci = +v; });
+  seg("oc", [["grey", "Grey"], ["theme", "Theme"], ["manual", "Manual"]], function () { return S.oc; }, function (v) { S.oc = v; });
+  seg("lc", [["theme", "Theme"], ["manual", "Manual"], ["off", "Off"]], function () { return S.lc; }, function (v) { S.lc = v; });
+  seg("tc", [["default", "Fusion"], ["theme", "Theme"], ["manual", "Manual"]], function () { return S.tc; }, function (v) { S.tc = v; });
+  seg("fc", [["thresholds", "By speed"], ["theme", "Theme"]], function () { return S.fc; }, function (v) { S.fc = v; });
+  var sel = $("theme");
+  PRESETS.forEach(function (p, i) { var o = document.createElement("option"); o.value = i; o.textContent = p[0] + (i < PRESETS.length - 1 ? "  " + p[1] : ""); sel.appendChild(o); });
+  sel.onchange = function () { S.themeIdx = +this.value; paint(); };
+  [["customAccent", "custom"], ["ocManual", "ocManual"], ["lcManual", "lcManual"], ["tcManual", "tcManual"]].forEach(function (p) {
+    $(p[0]).oninput = function () { S[p[1]] = this.value; paint(); };
+  });
+  [["outline", "outline"], ["bg", "bg"], ["scale", "scale"], ["zoom", "zoom"]].forEach(function (p) {
+    $(p[0]).oninput = function () { S[p[1]] = +this.value; paint(); };
+  });
+  [["glow", "glow"], ["fpsGlow", "fpsGlow"], ["graph", "graph"]].forEach(function (p) {
+    $(p[0]).onchange = function () { S[p[1]] = this.checked; paint(); };
+  });
+  // Phones get a 1:1 zoom so the HUD matches the size it has on a 411dp-wide screen.
+  if (window.innerWidth < 520) { S.zoom = 100; $("zoom").value = 100; }
+  paint();
+  setInterval(function () { tick(); render(); }, 1000);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+})();
+</script>

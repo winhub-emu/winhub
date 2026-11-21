@@ -6315,10 +6315,11 @@ internal fun FpsCounterConfigDialog(
     var color by remember { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
     // hudOutline is a 0..100 intensity (legacy off/soft/strong strings map via parseHudOutline).
     var outlineValue by remember { mutableStateOf(parseHudOutline(cfg.getOrDefault("hudOutline", "40"))) }
-    var outlineAccent by remember { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "0") == "1") }
+    // The neon outline, logo and text tint travel as one group of keys (see HudLook); this dialog keeps them and edits the outline switch.
+    var look by remember { mutableStateOf(com.winhub.hernandez.widget.fusionhud.HudLook.from { cfg[it] }) }
 
     fun i(v: Boolean) = if (v) "1" else "0"
-    fun buildConfig(): String = listOf(
+    fun buildConfig(): String = (listOf(
         "hudStyle=$hudStyle",
         "hudEnabled=${i(hudEnabled)}",
         "hudSize=$fusionSize",
@@ -6358,10 +6359,9 @@ internal fun FpsCounterConfigDialog(
         "tempRedBat=$tempRedBat",
         "hudColor=$color",
         "hudOutline=$outlineValue",
-        "hudOutlineAccent=${if (outlineAccent) 1 else 0}",
         "hudScale=$hudScale",
         "hudOpacity=$hudOpacity"
-    ).joinToString(",")
+    ) + look.keys()).joinToString(",")
 
     OutlinedAlertDialog(
         onDismissRequest = onDismiss,
@@ -6507,7 +6507,9 @@ internal fun FpsCounterConfigDialog(
                     onValueChange = { outlineValue = it.toInt() },
                     valueRange = 0f..100f, steps = 99
                 )
-                HudThreeStop("Outline color", listOf("Gray", "Accent"), if (outlineAccent) 1 else 0) { outlineAccent = it == 1 }
+                HudThreeStop("Outline color", listOf("Gray", "Accent"), if (look.outline == com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_GREY) 0 else 1) {
+                    look = look.copy(outline = if (it == 1) com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_THEME else com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_GREY)
+                }
 
                 // General HUD action (not gated to a style): dump every sensor path + value to a
                 // shareable text file so a device owner can report which nodes their SoC exposes.

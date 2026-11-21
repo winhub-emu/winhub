@@ -1135,10 +1135,10 @@ internal fun DeckFpsConfigEditor(
     val colors = listOf("soft", "mid", "vivid")
     var color by remember { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
     var outlineValue by remember { mutableStateOf(com.winhub.hernandez.widget.fusionhud.parseHudOutline(cfg.getOrDefault("hudOutline", "40"))) }
-    var outlineAccent by remember { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "0") == "1") }
+    var look by remember { mutableStateOf(com.winhub.hernandez.widget.fusionhud.HudLook.from { cfg[it] }) }
 
     fun i(v: Boolean) = if (v) "1" else "0"
-    fun buildConfig(): String = listOf(
+    fun buildConfig(): String = (listOf(
         "hudStyle=$hudStyle", "hudEnabled=${i(hudEnabled)}", "hudSize=$fusionSize", "hudLocked=${i(hudLocked)}",
         "showVram=${i(showVram)}", "showLow001=${i(showLow001)}", "fpsDecimal=${i(fpsDecimal)}",
         "showPerCore=${i(showPerCore)}", "showSwap=${i(showSwap)}", "showNet=${i(showNet)}",
@@ -1151,9 +1151,9 @@ internal fun DeckFpsConfigEditor(
         "showGpuTemp=${i(showGpuTemp)}", "showBattery=${i(showBattery)}", "showClock=${i(showClock)}",
         "tempUnit=${if (tempUnitF) "f" else "c"}", "tempBands=${i(tempBands)}", "tempAuto=${i(tempAuto)}",
         "tempRedCpu=$tempRedCpu", "tempRedGpu=$tempRedGpu", "tempRedBat=$tempRedBat",
-        "hudColor=$color", "hudOutline=$outlineValue", "hudOutlineAccent=${if (outlineAccent) 1 else 0}",
+        "hudColor=$color", "hudOutline=$outlineValue",
         "hudScale=$hudScale", "hudOpacity=$hudOpacity",
-    ).joinToString(",")
+    ) + look.keys()).joinToString(",")
 
     DeckConfigPanel("HUD") {
         DeckRow(label = "Show HUD", control = { DeckToggle(hudEnabled) { hudEnabled = it } })
@@ -1235,10 +1235,70 @@ internal fun DeckFpsConfigEditor(
             onPick = { color = it },
         )
         DeckSliderRow("HUD outline", null, outlineValue.toFloat(), 0f..100f, { it.toInt().toString() }) { outlineValue = it.toInt() }
-        DeckRow(
+        val hue = com.winhub.hernandez.widget.fusionhud.HudLook.PALETTE
+        DeckChoiceRow(
             label = "Outline color",
-            hint = if (outlineAccent) "Accent" else "Gray",
-            control = { DeckToggle(outlineAccent) { outlineAccent = it } },
+            hint = "Gray, the theme's accent, or a color you pick",
+            options = listOf(
+                com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_GREY to "Gray",
+                com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_THEME to "Theme",
+                com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_MANUAL to "Manual",
+            ),
+            selected = look.outline,
+            onPick = { look = look.copy(outline = it) },
+        )
+        if (look.outline == com.winhub.hernandez.widget.fusionhud.HudLook.OUTLINE_MANUAL) {
+            DeckChoiceRow(label = "Outline hue", options = hue, selected = look.outlineHex, onPick = { look = look.copy(outlineHex = it) })
+        }
+        DeckRow(
+            label = "Neon glow",
+            hint = "The outline glows",
+            control = { DeckToggle(look.neon) { look = look.copy(neon = it) } },
+        )
+    }
+
+    DeckConfigPanel("Logo and text") {
+        val hue = com.winhub.hernandez.widget.fusionhud.HudLook.PALETTE
+        DeckChoiceRow(
+            label = "Logo",
+            hint = "The WinHub mark. Its three dots take the color",
+            options = listOf(
+                com.winhub.hernandez.widget.fusionhud.HudLook.LOGO_THEME to "Theme",
+                com.winhub.hernandez.widget.fusionhud.HudLook.LOGO_MANUAL to "Manual",
+                com.winhub.hernandez.widget.fusionhud.HudLook.LOGO_OFF to "Off",
+            ),
+            selected = look.logo,
+            onPick = { look = look.copy(logo = it) },
+        )
+        if (look.logo == com.winhub.hernandez.widget.fusionhud.HudLook.LOGO_MANUAL) {
+            DeckChoiceRow(label = "Logo color", options = hue, selected = look.logoHex, onPick = { look = look.copy(logoHex = it) })
+        }
+        DeckChoiceRow(
+            label = "Text color",
+            hint = "Labels and the graph: Fusion's own colors, the theme's accent, or a color you pick",
+            options = listOf(
+                com.winhub.hernandez.widget.fusionhud.HudLook.TEXT_DEFAULT to "Fusion",
+                com.winhub.hernandez.widget.fusionhud.HudLook.TEXT_THEME to "Theme",
+                com.winhub.hernandez.widget.fusionhud.HudLook.TEXT_MANUAL to "Manual",
+            ),
+            selected = look.text,
+            onPick = { look = look.copy(text = it) },
+        )
+        if (look.text == com.winhub.hernandez.widget.fusionhud.HudLook.TEXT_MANUAL) {
+            DeckChoiceRow(label = "Text hue", options = hue, selected = look.textHex, onPick = { look = look.copy(textHex = it) })
+        }
+        DeckChoiceRow(
+            label = "FPS number",
+            options = listOf(
+                com.winhub.hernandez.widget.fusionhud.HudLook.FPS_SPEED to "By speed",
+                com.winhub.hernandez.widget.fusionhud.HudLook.FPS_THEME to "Theme",
+            ),
+            selected = look.fps,
+            onPick = { look = look.copy(fps = it) },
+        )
+        DeckRow(
+            label = "FPS glow",
+            control = { DeckToggle(look.fpsGlow) { look = look.copy(fpsGlow = it) } },
         )
     }
 

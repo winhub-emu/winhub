@@ -2667,7 +2667,7 @@ private fun HudContent(state: XServerDrawerState) {
     var color by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudColor", "mid")) }
     // hudOutline is a 0..100 intensity (legacy off/soft/strong strings map via parseHudOutline).
     var outlineValue by remember(cfg) { mutableFloatStateOf(parseHudOutline(cfg.getOrDefault("hudOutline", "40")).toFloat()) }
-    var outlineAccent by remember(cfg) { mutableStateOf(cfg.getOrDefault("hudOutlineAccent", "0") == "1") }
+    var look by remember(cfg) { mutableStateOf(com.winhub.hernandez.widget.fusionhud.HudLook.from { cfg[it] }) }
 
     fun i(v: Boolean) = if (v) "1" else "0"
     // Identical key set to ContainerDetailScreen.FpsCounterConfigDialog.buildConfig(),
@@ -2712,10 +2712,9 @@ private fun HudContent(state: XServerDrawerState) {
         "tempRedBat=${tempRedBat.toInt()}",
         "hudColor=$color",
         "hudOutline=${outlineValue.toInt()}",
-        "hudOutlineAccent=${if (outlineAccent) 1 else 0}",
         "hudScale=${scaleValue.toInt()}",
         "hudOpacity=${opacityValue.toInt()}",
-    ).joinToString(",")
+    ).plus(look.keys()).joinToString(",")
 
     fun apply() { state.onFpsConfigApply?.invoke(buildConfig()) }
 
@@ -2894,7 +2893,32 @@ private fun HudContent(state: XServerDrawerState) {
             LabeledSlider("HUD Opacity", opacityValue, 0f..100f, { opacityValue = it }, { apply() }, format = { "${it.toInt()}%" })
             HudChipRow("HUD color", listOf("Soft", "Mid", "Vivid"), colors.indexOf(color)) { color = colors[it]; apply() }
             LabeledSlider("HUD outline", outlineValue, 0f..100f, { outlineValue = it }, { apply() }, format = { "${it.toInt()}" })
-            HudChipRow("Outline color", listOf("Gray", "Accent"), if (outlineAccent) 1 else 0) { outlineAccent = it == 1; apply() }
+            val hl = com.winhub.hernandez.widget.fusionhud.HudLook
+            val hueNames = hl.PALETTE.map { it.second }
+            fun hueIndex(hex: String) = hl.PALETTE.indexOfFirst { it.first == hex }.coerceAtLeast(0)
+            HudChipRow("Outline color", listOf("Gray", "Theme", "Manual"), listOf(hl.OUTLINE_GREY, hl.OUTLINE_THEME, hl.OUTLINE_MANUAL).indexOf(look.outline)) {
+                look = look.copy(outline = listOf(hl.OUTLINE_GREY, hl.OUTLINE_THEME, hl.OUTLINE_MANUAL)[it]); apply()
+            }
+            if (look.outline == hl.OUTLINE_MANUAL) {
+                HudChipRow("Outline hue", hueNames, hueIndex(look.outlineHex)) { look = look.copy(outlineHex = hl.PALETTE[it].first); apply() }
+            }
+            HudChipRow("Neon glow", listOf("Off", "On"), if (look.neon) 1 else 0) { look = look.copy(neon = it == 1); apply() }
+            HudChipRow("Logo", listOf("Theme", "Manual", "Off"), listOf(hl.LOGO_THEME, hl.LOGO_MANUAL, hl.LOGO_OFF).indexOf(look.logo)) {
+                look = look.copy(logo = listOf(hl.LOGO_THEME, hl.LOGO_MANUAL, hl.LOGO_OFF)[it]); apply()
+            }
+            if (look.logo == hl.LOGO_MANUAL) {
+                HudChipRow("Logo hue", hueNames, hueIndex(look.logoHex)) { look = look.copy(logoHex = hl.PALETTE[it].first); apply() }
+            }
+            HudChipRow("Text color", listOf("Fusion", "Theme", "Manual"), listOf(hl.TEXT_DEFAULT, hl.TEXT_THEME, hl.TEXT_MANUAL).indexOf(look.text)) {
+                look = look.copy(text = listOf(hl.TEXT_DEFAULT, hl.TEXT_THEME, hl.TEXT_MANUAL)[it]); apply()
+            }
+            if (look.text == hl.TEXT_MANUAL) {
+                HudChipRow("Text hue", hueNames, hueIndex(look.textHex)) { look = look.copy(textHex = hl.PALETTE[it].first); apply() }
+            }
+            HudChipRow("FPS number", listOf("By speed", "Theme"), if (look.fps == hl.FPS_THEME) 1 else 0) {
+                look = look.copy(fps = if (it == 1) hl.FPS_THEME else hl.FPS_SPEED); apply()
+            }
+            HudChipRow("FPS glow", listOf("Off", "On"), if (look.fpsGlow) 1 else 0) { look = look.copy(fpsGlow = it == 1); apply() }
         }
 
         // ── Temperature display ── only worth a section when a temperature is actually on screen.

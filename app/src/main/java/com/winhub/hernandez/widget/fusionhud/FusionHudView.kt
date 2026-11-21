@@ -1,11 +1,15 @@
 package com.winhub.hernandez.widget.fusionhud
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.text.format.DateFormat
 import android.view.MotionEvent
@@ -86,7 +90,6 @@ class FusionHudView(
     private var scale = Container.DEFAULT_HUD_SCALE / 100f
     private var bgOpacity = 0.62f
     private var outlineIntensity = 0.4f
-    private var outlineFollowAccent = false
     private var colorIntensity = 1f
     private var tempDisplay = HudMetrics.TempDisplay.from(null)
 
@@ -144,8 +147,8 @@ class FusionHudView(
     private val colVram = 0xFFAD64C1.toInt()
     private val colRam = 0xFFC26693.toInt()
     private val colBat = 0xFFF5C542.toInt()
-    private val colFps = 0xFFEB5B5B.toInt()      // engine / API tag
-    private val colGraph = 0xFF00E676.toInt()
+    private var colFps = DEFAULT_COL_FPS         // engine / API tag; the theme's accent with a tinted look
+    private var colGraph = DEFAULT_COL_GRAPH     // graph, frametime and lows labels; the accent, lightened, with a tinted look
     private val colValue = 0xFFF2F5F9.toInt()
     private val colDim = 0xFF9AA4B2.toInt()
     private val colLo = 0xFFE4E8EE.toInt()
@@ -166,9 +169,11 @@ class FusionHudView(
     }
 
     // ---- Built geometry ---------------------------------------------------
-    private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val bold: Boolean = true)
+    private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val bold: Boolean = true, val glow: Boolean = false) {
+        fun moved(dx: Float, dy: Float) = Glyph(x + dx, baseline + dy, text, color, sizePx, bold, glow)
+    }
     /** A run of text; [bold] is false for the dim units, like the mock-up. */
-    private class Span(val text: String, val color: Int, val sizePx: Float, val bold: Boolean = true)
+    private class Span(val text: String, val color: Int, val sizePx: Float, val bold: Boolean = true, val glow: Boolean = false)
     /** A group placed against the panel's right edge once its width is known. */
     private class RightRun(val baseline: Float, val spans: List<Span>)
     private val pendingRight = ArrayList<RightRun>()
@@ -188,6 +193,24 @@ class FusionHudView(
     private var graphRect: RectF? = null
     private var contentW = 0f
     private var contentH = 0f
+
+    // ---- Look: neon outline, the WinHub mark, tinted text ------------------
+    private var look = HudLook()
+    private var accent = 0xFF1A9FFF.toInt()
+    /** The panel inside the view; the view is bigger by the glow margin when the outline glows. */
+    private val panel = RectF()
+    private var sepLeft = 0f
+    private var sepRight = 0f
+    /** The header (detail 3 and 4): the mark, the name, the clock, and the accent line under them. */
+    private class Head(val markH: Float, val markTop: Float, val markX: Float, val wordX: Float, val wordPx: Float, val clockPx: Float,
+                       val dividerTop: Float, val clockRightPad: Float)
+    private var head: Head? = null
+    /** The chip with the mark (detail 1 and 2). */
+    private var chip: RectF? = null
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val framePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var frameBitmap: Bitmap? = null
+    private var frameKey = ""
 
     // ---- Listeners --------------------------------------------------------
     private var onMovedListener: BiConsumer<Float, Float>? = null
@@ -267,9 +290,9 @@ class FusionHudView(
             "soft" -> 0.72f; "mid" -> 0.88f; else -> 1.0f
         }
         outlineIntensity = (parseHudOutline(cfg.get("hudOutline", "40")) / 100f).coerceIn(0f, 1f)
-        outlineFollowAccent = cfg.get("hudOutlineAccent", "0") == "1"
         scale = (parseIntOr(cfg.get("hudScale", "100"), 100).coerceIn(50, 200)) / 100f
         bgOpacity = (parseIntOr(cfg.get("hudOpacity", "62"), 62).coerceIn(0, 100)) / 100f
+        look = HudLook.from { key -> cfg.get(key, "").ifEmpty { null } }
 
         rebuildAndInvalidate()
     }
@@ -348,7 +371,7 @@ class FusionHudView(
     private fun placeRun(startX: Float, baseline: Float, spans: List<Span>): Float {
         var x = startX
         for (s in spans) {
-            glyphs.add(Glyph(x, baseline, s.text, blend(s.color), s.sizePx, s.bold))
+            glyphs.add(Glyph(x, baseline, s.text, blend(s.color), s.sizePx, s.bold, s.glow))
             x += measure(s.text, s.sizePx)
         }
         return x
@@ -435,7 +458,8 @@ class FusionHudView(
 
     // ---- Layout builders --------------------------------------------------
     private fun rebuild() {
-        glyphs.clear(); sepYs.clear(); bars.clear(); pendingRight.clear(); graphRect = null
+        applyLook()
+        glyphs.clear(); sepYs.clear(); bars.clear(); pendingRight.clear(); graphRect = null; head = null; chip = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         buildLevel(s)
@@ -562,7 +586,8 @@ class FusionHudView(
         if (showFPS) {
             val shown = if (presentedFps > 0f) presentedFps else fpsNow
             val baseline = y - ascent(bigPx)
-            var x = placeRun(pad, baseline, listOf(Span(fpsText(fpsNow), fpsColor(shown), bigPx)))
+            val fpsTint = if (look.fps == HudLook.FPS_THEME) colValue else fpsColor(shown)
+            var x = placeRun(pad, baseline, listOf(Span(fpsText(fpsNow), fpsTint, bigPx, glow = look.fpsGlow)))
             x = placeRun(x + sp(6f), baseline, listOf(Span("FPS", colValue, tagPx)))
             maxRight = max(maxRight, x)
             if (showEngine && engineLabel.isNotBlank()) {
@@ -727,6 +752,143 @@ class FusionHudView(
         for (rr in pendingRight) placeRun(maxRight - runWidth(rr.spans), rr.baseline, rr.spans)
         contentW = maxRight + pad
         contentH = y - lineGap + sp(9f)
+        finishPanel(pad)
+    }
+
+    // ---- Look: theme colours, the header / chip, the neon frame ------------
+    private fun lighten(color: Int, amount: Float): Int = Color.rgb(
+        (Color.red(color) + (255 - Color.red(color)) * amount).roundToInt(),
+        (Color.green(color) + (255 - Color.green(color)) * amount).roundToInt(),
+        (Color.blue(color) + (255 - Color.blue(color)) * amount).roundToInt(),
+    )
+
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+
+    /** Reads the theme's accent and sets the colours the look derives from it. Cheap: runs on every rebuild. */
+    private fun applyLook() {
+        accent = AppThemeState.getCurrentAccentArgb()
+        val tint = when (look.text) {
+            HudLook.TEXT_THEME -> accent
+            HudLook.TEXT_MANUAL -> look.textColor
+            else -> null
+        }
+        colFps = tint ?: DEFAULT_COL_FPS
+        colGraph = if (tint != null) lighten(tint, 0.3f) else DEFAULT_COL_GRAPH
+        graphPaint.color = colGraph
+    }
+
+    private fun outlineWidth(): Float = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
+
+    private fun outlineColor(): Int = when {
+        look.outline == HudLook.OUTLINE_THEME -> accent
+        look.outline == HudLook.OUTLINE_MANUAL -> look.outlineColor
+        else -> Color.argb(48, 255, 255, 255)
+    }
+
+    /** Detail 4 already has a clock on its TIME row, so the header's is for detail 3. */
+    private fun headerClock(): Boolean = showClockTime && size.level == 3
+
+    /** The mark's three dots: the theme's accent, or the colour picked by hand. */
+    private fun dotColor(): Int = if (look.logo == HudLook.LOGO_MANUAL) look.logoColor else accent
+
+    /** The glow is a margin round the panel, so the blur has room inside the view. */
+    private fun glowMargin(): Float = if (look.neon && outlineWidth() > 0f) sp(8f) else 0f
+
+    /**
+     * Adds what surrounds the content: the header with the mark (detail 3 and 4) or the chip with the mark
+     * (detail 1 and 2), then the glow margin. Everything built so far moves with it; [contentW] and [contentH]
+     * end up as the view's size.
+     */
+    private fun finishPanel(pad: Float) {
+        var dx = 0f
+        var dy = 0f
+        var chipSize = 0f
+        if (look.logo != HudLook.LOGO_OFF) {
+            if (size.level >= 3) {
+                val markH = sp(13f); val gapH = sp(7f); val top = sp(8f)
+                val wordPx = sp(11f); val clockPx = sp(9.5f)
+                val wordX = pad + WinHubHudMark.widthFor(markH) + sp(6f)
+                val clockW = if (headerClock()) measure(clockTimeString(), clockPx) + sp(14f) else 0f
+                val headW = wordX + measure(HUD_NAME, wordPx) + clockW + pad
+                val dividerTop = top + markH + gapH
+                head = Head(markH, top, pad, wordX, wordPx, clockPx, dividerTop, pad)
+                dy = dividerTop + max(1f, density) + sp(2f)
+                contentW = max(contentW, headW)
+            } else {
+                chipSize = sp(22f)
+                dx = chipSize + sp(8f)
+                contentW += dx
+            }
+        }
+        contentH += dy
+        if (chipSize > 0f) chip = RectF(pad, max(0f, (contentH - chipSize) / 2f), pad + chipSize, max(0f, (contentH - chipSize) / 2f) + chipSize)
+
+        val inset = glowMargin()
+        val mx = dx + inset
+        val my = dy + inset
+        for (i in glyphs.indices) glyphs[i] = glyphs[i].moved(mx, my)
+        for (i in sepYs.indices) sepYs[i] = sepYs[i] + my
+        for (b in bars) b.rect.offset(mx, my)
+        graphRect?.offset(mx, my)
+        head?.let { h -> head = Head(h.markH, h.markTop + inset, h.markX + inset, h.wordX + inset, h.wordPx, h.clockPx, h.dividerTop + inset, h.clockRightPad) }
+        chip?.offset(inset, inset)
+        sepLeft = pad + dx + inset
+        contentW += 2f * inset
+        contentH += 2f * inset
+        sepRight = contentW - pad - inset
+        panel.set(inset, inset, contentW - inset, contentH - inset)
+    }
+
+    /** The panel behind everything: fill, the header's accent line, then the outline, glowing or plain. */
+    private fun paintFrame(c: Canvas, neon: Boolean) {
+        val radius = sp(8f)
+        val strokeW = outlineWidth()
+        bgPaint.color = Color.argb((bgOpacity.coerceIn(0f, 1f) * 255f).roundToInt(), 8, 10, 16)
+        c.drawRoundRect(panel, radius, radius, bgPaint)
+        head?.let { h ->
+            val thick = max(1f, density)
+            c.save()
+            val clip = Path().apply { addRoundRect(panel, radius, radius, Path.Direction.CW) }
+            c.clipPath(clip)
+            framePaint.shader = LinearGradient(panel.left, 0f, panel.right, 0f, withAlpha(accent, 46), withAlpha(accent, 0), Shader.TileMode.CLAMP)
+            c.drawRect(panel.left, panel.top, panel.right, h.dividerTop + thick, framePaint)
+            framePaint.shader = null
+            framePaint.color = withAlpha(accent, 90)
+            c.drawRect(panel.left, h.dividerTop, panel.right, h.dividerTop + thick, framePaint)
+            c.restore()
+        }
+        if (strokeW <= 0f) return
+        val half = strokeW / 2f
+        val r = radius - half
+        if (neon) {
+            // DroidDeck's neon: two blurred passes under a sharp one (blur sigma = 3.2sp).
+            val blur = BlurMaskFilter((sp(3.2f) - 0.5f).coerceAtLeast(0.5f) / 0.57735f, BlurMaskFilter.Blur.NORMAL)
+            glowPaint.style = Paint.Style.STROKE
+            glowPaint.strokeWidth = strokeW
+            glowPaint.color = outlineColor()
+            for (pass in 0..2) {
+                glowPaint.maskFilter = if (pass < 2) blur else null
+                c.drawRoundRect(panel.left + half, panel.top + half, panel.right - half, panel.bottom - half, r, r, glowPaint)
+            }
+            glowPaint.maskFilter = null
+        } else {
+            strokePaint.strokeWidth = strokeW
+            strokePaint.color = outlineColor()
+            c.drawRoundRect(panel.left + half, panel.top + half, panel.right - half, panel.bottom - half, r, r, strokePaint)
+        }
+    }
+
+    /** The glowing frame, drawn once into a bitmap and reused until something it depends on changes. */
+    private fun neonFrame(): Bitmap? {
+        if (width <= 0 || height <= 0) return null
+        val key = "$width,$height,${outlineWidth()},${outlineColor()},$bgOpacity,$accent,${head?.dividerTop}"
+        frameBitmap?.let { if (key == frameKey) return it }
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        paintFrame(Canvas(bmp), neon = true)
+        frameBitmap = bmp
+        frameKey = key
+        return bmp
     }
 
     // ---- Measure / draw ---------------------------------------------------
@@ -740,26 +902,15 @@ class FusionHudView(
     override fun onDraw(canvas: Canvas) {
         if (contentW <= 0f || contentH <= 0f) { lockController.drawBadge(canvas); return }
 
-        val radius = sp(8f)
-        bgPaint.color = Color.argb((bgOpacity.coerceIn(0f, 1f) * 255f).roundToInt(), 8, 10, 16)
-        canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, bgPaint)
-
-        // Outline: width from the outline slider (0 = none), colour = accent or grey per the
-        // "Outline color" toggle.
-        val strokeW = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
-        if (strokeW > 0f) {
-            strokePaint.strokeWidth = strokeW
-            strokePaint.color = if (outlineFollowAccent) AppThemeState.getCurrentAccentArgb()
-                                else Color.argb(48, 255, 255, 255)
-            val h = strokeW / 2f
-            canvas.drawRoundRect(h, h, width - h, height - h, radius, radius, strokePaint)
-        }
+        // Panel and outline: the neon frame is a cached bitmap; a plain one is drawn straight onto the canvas.
+        if (look.neon && outlineWidth() > 0f) neonFrame()?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+        else paintFrame(canvas, neon = false)
 
         // Dividers between blocks
         if (sepYs.isNotEmpty()) {
             tilePaint.color = Color.argb(31, 255, 255, 255)
             val sepH = max(1f, density)
-            for (sy in sepYs) canvas.drawRect(padPx, sy, width - padPx, sy + sepH, tilePaint)
+            for (sy in sepYs) canvas.drawRect(sepLeft, sy, sepRight, sy + sepH, tilePaint)
         }
 
         // Per-core bars: a faint track and the load on top
@@ -771,18 +922,57 @@ class FusionHudView(
             canvas.drawRoundRect(fill, fill.height() / 2f, fill.height() / 2f, tilePaint)
         }
 
-        // Text
+        // Text; the FPS number glows in the tint (shadow 6sp, 85% of the graph colour)
         for (g in glyphs) {
             drawPaint.textSize = g.sizePx
             drawPaint.typeface = if (g.bold) boldFace else regularFace
             drawPaint.color = g.color
+            if (g.glow) drawPaint.setShadowLayer(sp(6f), 0f, 0f, withAlpha(colGraph, 217))
             canvas.drawText(g.text, g.x, g.baseline, drawPaint)
+            if (g.glow) drawPaint.clearShadowLayer()
         }
 
         // Frametime graph
         graphRect?.let { drawGraph(canvas, it) }
 
+        // The mark: in the header (detail 3 and 4) or in the chip (detail 1 and 2)
+        head?.let { h -> drawHeader(canvas, h) }
+        chip?.let { drawChip(canvas, it) }
+
         lockController.drawBadge(canvas)
+    }
+
+    private fun drawHeader(canvas: Canvas, h: Head) {
+        WinHubHudMark.draw(canvas, h.markX, h.markTop, h.markH, blend(colValue), blend(dotColor()))
+        val midY = h.markTop + h.markH / 2f
+        drawPaint.typeface = boldFace
+        drawPaint.textSize = h.wordPx
+        drawPaint.color = blend(colValue)
+        var fm = drawPaint.fontMetrics
+        canvas.drawText(HUD_NAME, h.wordX, midY - (fm.ascent + fm.descent) / 2f, drawPaint)
+        if (headerClock()) {
+            val clock = clockTimeString()
+            drawPaint.typeface = regularFace
+            drawPaint.textSize = h.clockPx
+            drawPaint.color = blend(colDim)
+            fm = drawPaint.fontMetrics
+            canvas.drawText(clock, panel.right - h.clockRightPad - drawPaint.measureText(clock), midY - (fm.ascent + fm.descent) / 2f, drawPaint)
+        }
+    }
+
+    private fun drawChip(canvas: Canvas, rect: RectF) {
+        val r = sp(6f)
+        framePaint.shader = null
+        framePaint.style = Paint.Style.FILL
+        framePaint.color = Color.argb(235, 8, 10, 16)
+        canvas.drawRoundRect(rect, r, r, framePaint)
+        strokePaint.strokeWidth = sp(1f)
+        strokePaint.color = accent
+        val half = strokePaint.strokeWidth / 2f
+        canvas.drawRoundRect(rect.left + half, rect.top + half, rect.right - half, rect.bottom - half, r, r, strokePaint)
+        val markH = rect.height() * 0.5f
+        val markW = WinHubHudMark.widthFor(markH)
+        WinHubHudMark.draw(canvas, rect.centerX() - markW / 2f, rect.centerY() - markH / 2f, markH, blend(colValue), blend(dotColor()))
     }
 
     private fun drawGraph(canvas: Canvas, rect: RectF) {
@@ -790,8 +980,6 @@ class FusionHudView(
         if (values.size < 2) return
         var peak = 33.3f   // a 30 fps frametime, so a steady game does not fill the whole graph
         for (v in values) peak = max(peak, v)
-        graphPaint.strokeWidth = sp(1.6f)
-        graphPaint.color = blend(colGraph)
         val step = rect.width() / (values.size - 1)
         val path = Path()
         for (i in values.indices) {
@@ -799,6 +987,13 @@ class FusionHudView(
             val py = rect.bottom - (values[i] / peak).coerceIn(0f, 1f) * rect.height()
             if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
         }
+        if (look.neon) {
+            graphPaint.strokeWidth = sp(4.5f)
+            graphPaint.color = withAlpha(blend(colGraph), 56)
+            canvas.drawPath(path, graphPaint)
+        }
+        graphPaint.strokeWidth = sp(1.6f)
+        graphPaint.color = blend(colGraph)
         canvas.drawPath(path, graphPaint)
         val lastY = rect.bottom - (values.last() / peak).coerceIn(0f, 1f) * rect.height()
         tilePaint.color = blend(colGraph)
@@ -809,6 +1004,9 @@ class FusionHudView(
 
     private companion object {
         const val GRAPH_CAP = 60
+        const val HUD_NAME = "WinHub"
+        const val DEFAULT_COL_FPS = 0xFFEB5B5B.toInt()
+        const val DEFAULT_COL_GRAPH = 0xFF00E676.toInt()
 
         fun parseIntOr(s: String?, d: Int): Int = try { s?.trim()?.toInt() ?: d } catch (e: Exception) { d }
 
