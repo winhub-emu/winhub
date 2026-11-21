@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -23,6 +24,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,10 +39,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -82,10 +86,14 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.winhub.hernandez.R
 import com.winhub.hernandez.ui.Screen
+import com.winhub.hernandez.ui.deck.DeckStore
+import com.winhub.hernandez.ui.deck.rememberXmbLogo
+import com.winhub.hernandez.ui.simple.storeLogo
 import com.winhub.hernandez.store.SteamSessionManager
 import com.winhub.hernandez.store.download.DownloadRegistry
 import kotlinx.coroutines.Dispatchers
@@ -536,9 +544,10 @@ internal fun DeckBootScreen(onDone: () -> Unit) {
         animationSpec = infiniteRepeatable(tween(1_400), RepeatMode.Reverse),
         label = "bootPulse",
     )
+    val done = names.count { (status[it]?.first ?: 0) >= 2 }
+    val progress by animateFloatAsState(done / names.size.toFloat(), tween(250), label = "bootProgress")
     val accent = Deck.primary
     Box(
-        contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxSize()
             .background(Deck.background)
@@ -548,47 +557,127 @@ internal fun DeckBootScreen(onDone: () -> Unit) {
             }
             .pointerInput(Unit) { detectTapGestures { DeckConsole.boot = false } },
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Image(
-                painter = painterResource(R.drawable.deck_boot_logo),
-                contentDescription = "WinHub",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.size(120.dp).graphicsLayer { scaleX = pulse; scaleY = pulse },
-            )
-            Text("WinHub", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-            Text("Starting services", color = Deck.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp))
-            names.forEach { name ->
-                val (state, detail) = status[name] ?: (0 to "Waiting")
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.width(230.dp).height(26.dp),
-                ) {
-                    Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
-                        if (state == 1) {
-                            CircularProgressIndicator(color = accent, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
-                        } else {
-                            Box(
-                                Modifier.size(8.dp).clip(CircleShape).background(
-                                    when (state) {
-                                        2 -> Color(0xFF3DDC84)
-                                        3 -> Deck.attention
-                                        else -> Deck.line
-                                    },
-                                ),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(72.dp))
-                    Text(detail, color = Deck.onSurfaceVariant, fontSize = 12.sp, maxLines = 1)
+        // Landscape puts the mark beside the card; portrait stacks them, so five rows never overflow a short screen.
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 32.dp), contentAlignment = Alignment.Center) {
+            if (maxWidth > maxHeight) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+                    BootMark(pulse)
+                    BootServicesCard(names, status, progress, done)
+                }
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                    BootMark(pulse)
+                    BootServicesCard(names, status, progress, done)
                 }
             }
         }
-        Text(
-            "A / tap to skip",
-            color = Deck.onSurfaceVariant.copy(alpha = 0.6f),
-            fontSize = 12.sp,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+        ) {
+            Box(
+                Modifier.size(24.dp).clip(CircleShape).background(BootReady),
+                contentAlignment = Alignment.Center,
+            ) { Text("A", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+            Text("Skip  \u00B7  or tap", color = Deck.onSurfaceVariant, fontSize = 13.sp)
+        }
+    }
+}
+
+private val BootReady = Color(0xFF3DDC84)
+
+/** The mark, the name and what the screen is doing. */
+@Composable
+private fun BootMark(pulse: Float) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Image(
+            painter = painterResource(R.drawable.deck_boot_logo),
+            contentDescription = "WinHub",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(120.dp).graphicsLayer { scaleX = pulse; scaleY = pulse },
         )
+        Text("WinHub", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+        Text("Starting services", color = Deck.onSurfaceVariant, fontSize = 14.sp)
+    }
+}
+
+/** One glass card: a row per store with its logo, the answer in words and an icon, and the overall progress under them. */
+@Composable
+private fun BootServicesCard(names: List<String>, status: Map<String, Pair<Int, String>>, progress: Float, done: Int) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier
+            .width(320.dp)
+            .clip(shape)
+            .background(Deck.surface.copy(alpha = 0.72f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        names.forEach { name ->
+            val (state, detail) = status[name] ?: (0 to "Waiting")
+            BootServiceRow(bootStore(name), state, detail)
+        }
+        Spacer(Modifier.height(10.dp))
+        LinearProgressIndicator(
+            progress = progress,
+            color = Deck.primary,
+            trackColor = Deck.line,
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+        )
+        Text(
+            "$done of ${names.size} ready",
+            color = Deck.onSurfaceVariant,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
+private fun bootStore(name: String): DeckStore = when (name) {
+    "Steam" -> DeckStore.STEAM
+    "Epic" -> DeckStore.EPIC
+    "GOG" -> DeckStore.GOG
+    "Xbox" -> DeckStore.XBOX
+    else -> DeckStore.AMAZON
+}
+
+/** [state]: 0 waiting, 1 working, 2 ready, 3 needs attention. The icon differs by state, so colour is never the only signal. */
+@Composable
+private fun BootServiceRow(store: DeckStore, state: Int, detail: String) {
+    val (logoRes, colors, whiteLogo) = storeLogo(store)
+    val tone = when (state) {
+        2 -> BootReady
+        3 -> Deck.attention
+        else -> Deck.onSurfaceVariant
+    }
+    val tile = RoundedCornerShape(10.dp)
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(46.dp)) {
+        Box(
+            Modifier.size(36.dp).clip(tile).background(Brush.verticalGradient(colors)).border(1.dp, Color.White.copy(alpha = 0.10f), tile),
+            contentAlignment = Alignment.Center,
+        ) {
+            rememberXmbLogo(logoRes)?.let { bmp ->
+                Image(
+                    bmp, contentDescription = null, contentScale = ContentScale.Fit,
+                    colorFilter = if (whiteLogo) ColorFilter.tint(Color.White) else null,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(store.label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, color = tone, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+            when (state) {
+                1 -> CircularProgressIndicator(color = Deck.primary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                2 -> Icon(Icons.Filled.Check, contentDescription = "Ready", tint = BootReady, modifier = Modifier.size(20.dp))
+                3 -> Icon(Icons.Filled.Warning, contentDescription = "Needs attention", tint = Deck.attention, modifier = Modifier.size(20.dp))
+                else -> Box(Modifier.size(8.dp).clip(CircleShape).background(Deck.line))
+            }
+        }
     }
 }
