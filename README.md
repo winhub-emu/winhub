@@ -3,6 +3,9 @@
   <img alt="WinHub Dark" src="docs/media/winhub_banner2_dark.png#gh-dark-mode-only">
 </p>
 
+<h1 align="center">WinHub</h1>
+<p align="center"><b>Windows apps and games on Android, with a console-style interface, full Stores support, frame-gen, Social Hub and much more.</b></p>
+
 WinHub runs Windows games and apps on Android with a console-style home: a controller-first library, built-in Steam, Epic, GOG, Amazon and Xbox stores, and a retro library next to it. Underneath are Wine/Proton, Box64 and FEXCore, DXVK and VKD3D-Proton, and Vulkan drivers such as Turnip.
 
 <p align="center">
@@ -18,7 +21,7 @@ WinHub runs Windows games and apps on Android with a console-style home: a contr
   <img src="https://img.shields.io/badge/License-GPL--3.0-2dd4bf" alt="GPL-3.0 license">
 </p>
 
-<p align="center"><img src="docs/media/readme/megabonk-wh.gif" width="80%" alt="Megabonk running in WinHub: launching the game from the console-style Home"></p>
+<p align="center"><img src="docs/media/readme/megabonk-wh.gif" width="100%" alt="Megabonk running in WinHub: launching the game from the console-style Home"></p>
 
 > Note: WinHub is an unofficial community project with no stand-alone website. Only download it from the [Releases](https://github.com/winhub-emu/winhub/releases) page.
 
@@ -34,16 +37,11 @@ To update, open **Settings → Updater**, pick the **Stable** or **Preview** cha
 
 ## Preview
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/media/readme/wh-bpm.jpg" alt="WinHub Home with the game carousel, store shelves and controller hints"></td>
-    <td width="50%"><img src="docs/media/readme/wh-retro.jpg" alt="WinHub retro library showing a Nintendo Switch game"></td>
-  </tr>
-  <tr>
-    <td align="center"><b>PC library</b><br>Carousel, shelves for All, Recent, Favourites and each store</td>
-    <td align="center"><b>Retro library</b><br>Your ROM folders, covers and external emulators</td>
-  </tr>
-</table>
+<p align="center"><img src="docs/media/readme/wh-bpm.jpg" width="100%" alt="WinHub Home with the game carousel, store shelves and controller hints"></p>
+<p align="center"><b>PC library.</b> Carousel, with shelves for All, Recent, Favourites and each store.</p>
+
+<p align="center"><img src="docs/media/readme/wh-retro.jpg" width="100%" alt="WinHub retro library showing a Nintendo Switch game"></p>
+<p align="center"><b>Retro library.</b> Your ROM folders, covers and external emulators.</p>
 
 ## Features
 
