@@ -127,6 +127,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
             vm.containerName = name
             if (wineVersion.isNotBlank()) vm.onWineVersionChanged(wineVersion)
             if (vm.selectedWineVersion.isBlank()) return null
+            vm.settleDriver()
             vm.runAsAdmin = runAsAdmin
             return runCatching {
                 vm.buildCreateData(
@@ -942,6 +943,17 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         // A form loaded on Wayland with an empty/"System" compositor driver gets the default now.
         resetCompositorFill()
         syncCompositorDriverWithBackend()
+    }
+
+    /**
+     * A form that is never shown (the Cronos create path) gets no time for the compositor's background driver
+     * pick, and an empty driver is saved as the bundled sdk36. Settle it now: the newest Turnip for this chip.
+     */
+    fun settleDriver() {
+        val version = compositorVersion()
+        if (version.isNotEmpty() && version != "System") return
+        compositorFillJob?.cancel()
+        AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
     }
 
     /** The DXVK versions the Simple page offers: the bundled ones plus the installed ones that suit this architecture. */

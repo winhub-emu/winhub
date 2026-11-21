@@ -21,18 +21,22 @@ object DriverUpdateChecker {
     /** Used when the feed is unreachable on first run, so a fresh install still gets the matching driver. */
     private const val PINNED_GEN8 = "$RELEASES/v39_Turnip_Gen8_V39.zip"
     private const val PINNED_A7XX = "$RELEASES/v39_Turnip_v27.0.0-R2.zip"
+    private const val PINNED_A7XX_ONEUI = "$RELEASES/v39_Turnip_v27.0.0-R2-Oneui.zip"
+    private const val PREF_ONEUI = "driver_oneui"
 
     enum class Family { GEN8, A7XX }
 
-    class Build(val family: Family, val rank: List<Int>, val label: String, val url: String)
+    /** [oneUi]: the build made for HyperOS 3 and One UI, the same version as the plain one with "-Oneui" on its file name. Only the A7xx line has them. */
+    class Build(val family: Family, val rank: List<Int>, val label: String, val url: String, val oneUi: Boolean = false)
 
     /** An installed driver; [id] is what a container's graphicsDriverConfig `version` holds. */
-    class Installed(val id: String, val family: Family, val rank: List<Int>, val label: String)
+    class Installed(val id: String, val family: Family, val rank: List<Int>, val label: String, val oneUi: Boolean = false)
 
     class Update(val build: Build, val have: Installed)
 
     private val GEN8_FILE = Regex("^Turnip_Gen8_V(\\d+)\\.zip$")
     private val A7XX_FILE = Regex("^Turnip_v(\\d+)\\.(\\d+)\\.(\\d+)-R(\\d+)\\.zip$")
+    private val A7XX_ONEUI_FILE = Regex("^Turnip_v(\\d+)\\.(\\d+)\\.(\\d+)-R(\\d+)[-_]OneUI\\.zip$", RegexOption.IGNORE_CASE)
     private val GEN8_NAME = Regex("^Turnip Gen8 V(\\d+)")
     private val A7XX_NAME = Regex("^Turnip (\\d+)\\.(\\d+)\\.(\\d+)-R(\\d+)")
     private val ADRENO = Regex("adreno[^0-9]*(\\d{3})", RegexOption.IGNORE_CASE)
@@ -68,6 +72,10 @@ object DriverUpdateChecker {
                     val r = m.groupValues.drop(1).map { it.toInt() }
                     out += Build(Family.A7XX, r, "Turnip ${r[0]}.${r[1]}.${r[2]}-R${r[3]}", url)
                 }
+                A7XX_ONEUI_FILE.find(file)?.let { m ->
+                    val r = m.groupValues.drop(1).map { it.toInt() }
+                    out += Build(Family.A7XX, r, "Turnip ${r[0]}.${r[1]}.${r[2]}-R${r[3]} OneUI", url, oneUi = true)
+                }
             }
         } catch (e: JSONException) {
             Log.w(TAG, "Driver feed unreadable", e)
@@ -76,8 +84,21 @@ object DriverUpdateChecker {
         return out
     }
 
-    fun newest(builds: List<Build>, family: Family): Build? =
-        builds.filter { it.family == family }.maxWithOrNull(Comparator { a, b -> compareRank(a.rank, b.rank) })
+    /** The user's HyperOS 3 / One UI answer from the first-run setup: take the OneUI build of the driver where there is one. */
+    fun oneUiPreferred(context: Context): Boolean =
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(context.applicationContext).getBoolean(PREF_ONEUI, false)
+
+    fun setOneUiPreferred(context: Context, value: Boolean) {
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(context.applicationContext).edit().putBoolean(PREF_ONEUI, value).apply()
+    }
+
+    /** The newest build of [family] and variant: [oneUi] asks for the OneUI one and falls back to the plain one when the family has none (A8xx). */
+    fun newest(builds: List<Build>, family: Family, oneUi: Boolean = false): Build? {
+        val byRank = Comparator<Build> { a, b -> compareRank(a.rank, b.rank) }
+        val inFamily = builds.filter { it.family == family }
+        return (if (oneUi) inFamily.filter { it.oneUi }.maxWithOrNull(byRank) else null)
+            ?: inFamily.filter { !it.oneUi }.maxWithOrNull(byRank)
+    }
 
     /** The installed StevenMXZ Turnip drivers (by their meta.json name). Blocking (disk). */
     fun installed(context: Context): List<Installed> {
@@ -85,20 +106,27 @@ object DriverUpdateChecker {
         val out = ArrayList<Installed>()
         for (id in manager.enumarateInstalledDrivers()) {
             val name = manager.getDriverName(id)
+            // The OneUI builds carry the same version as the plain ones; they are told apart, never ranked against them.
+            val oneUi = name.contains("oneui", ignoreCase = true)
             GEN8_NAME.find(name)?.let { m ->
                 val n = m.groupValues[1].toInt()
-                out += Installed(id, Family.GEN8, listOf(n), "Turnip Gen8 V$n")
+                out += Installed(id, Family.GEN8, listOf(n), "Turnip Gen8 V$n", oneUi)
             }
             A7XX_NAME.find(name)?.let { m ->
                 val r = m.groupValues.drop(1).map { it.toInt() }
-                out += Installed(id, Family.A7XX, r, "Turnip ${r[0]}.${r[1]}.${r[2]}-R${r[3]}")
+                out += Installed(id, Family.A7XX, r, "Turnip ${r[0]}.${r[1]}.${r[2]}-R${r[3]}" + if (oneUi) " OneUI" else "", oneUi)
             }
         }
         return out
     }
 
-    fun newestInstalled(context: Context, family: Family): Installed? =
-        installed(context).filter { it.family == family }.maxWithOrNull(Comparator { a, b -> compareRank(a.rank, b.rank) })
+    /** The newest installed driver of [family], of the variant the user chose (plain unless they said they need OneUI), else any. */
+    fun newestInstalled(context: Context, family: Family): Installed? {
+        val inFamily = installed(context).filter { it.family == family }
+        val byRank = Comparator<Installed> { a, b -> compareRank(a.rank, b.rank) }
+        val wantOneUi = oneUiPreferred(context)
+        return inFamily.filter { it.oneUi == wantOneUi }.maxWithOrNull(byRank) ?: inFamily.maxWithOrNull(byRank)
+    }
 
     /** This GPU's family, its newest installed driver and the newest in the feed (null when the feed is unreachable). */
     class Inspection(val family: Family, val have: Installed?, val newest: Build?)
@@ -106,7 +134,7 @@ object DriverUpdateChecker {
     /** Null on a non-Adreno GPU. Blocking (network): call off the main thread. */
     fun inspect(context: Context): Inspection? {
         val family = deviceFamily(context) ?: return null
-        return Inspection(family, newestInstalled(context, family), fetchBuilds()?.let { newest(it, family) })
+        return Inspection(family, newestInstalled(context, family), fetchBuilds()?.let { newest(it, family, oneUiPreferred(context)) })
     }
 
     /** Blocking (network). Only for a device that already has a driver of its family installed. */
@@ -122,8 +150,13 @@ object DriverUpdateChecker {
     /** What first run installs: the newest build for this GPU, or the pinned one offline. Null on non-Adreno. Blocking. */
     fun firstRunUrl(context: Context): String? {
         val family = deviceFamily(context) ?: return null
-        val live = fetchBuilds()?.let { newest(it, family) }?.url
-        return live ?: if (family == Family.GEN8) PINNED_GEN8 else PINNED_A7XX
+        val oneUi = oneUiPreferred(context) && family == Family.A7XX
+        val live = fetchBuilds()?.let { newest(it, family, oneUi) }?.url
+        return live ?: when {
+            family == Family.GEN8 -> PINNED_GEN8
+            oneUi -> PINNED_A7XX_ONEUI
+            else -> PINNED_A7XX
+        }
     }
 
     fun compareRank(a: List<Int>, b: List<Int>): Int {

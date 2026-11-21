@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
@@ -21,6 +23,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -52,11 +57,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -97,16 +107,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
-private val WIZARD_STEPS = listOf("Layout", "Theme", "Home", "Sounds", "Stores", "Retro", "Contents", "Social Hub", "Install")
-private const val LAST_STEP = 7
+private val WIZARD_STEPS = listOf("Layout", "Theme", "Home", "Sounds", "Stores", "Retro", "Driver", "Contents", "Social Hub", "Install")
+private const val LAST_STEP = 8
 private const val LAYOUT = 0
 private const val THEME = 1
 internal const val HOME = 2
 internal const val SOUNDS = 3
 internal const val STORES = 4
 internal const val RETRO = 5
-private const val CONTENTS = 6
-private const val SOCIAL = 7
+private const val DRIVER = 6
+private const val CONTENTS = 7
+private const val SOCIAL = 8
+
+/** True when the Driver step is left out (only an A7xx Turnip has a OneUI build), so the step numbers close up. */
+private val LocalDriverStepHidden = androidx.compose.runtime.compositionLocalOf { false }
 
 /** One ticked extra, with where it came from so the install plan can say so. */
 internal data class ExtraPick(val content: FirstRunContent, val type: String, val source: String)
@@ -120,6 +134,8 @@ internal class FirstRunViewModel : ViewModel() {
     val extras = MutableStateFlow<Map<String, ExtraPick>>(emptyMap())
     val repo = MutableStateFlow<String?>(null)
     val socialSkipped = MutableStateFlow(false)
+    /** The Driver step's answer: HyperOS 3 / One UI with glitches on the plain Turnip. Saved at once, so the install reads it. */
+    val oneUi = MutableStateFlow(false)
 
     // The console choices (Home, Sounds): the defaults the setup recommends. They are saved to the preferences Settings uses, at once,
     // so the screens that follow (and the first launch) already have them.
@@ -146,6 +162,7 @@ internal class FirstRunViewModel : ViewModel() {
         gameSettings.value = saved(GameSettingsStyle.KEY, GameSettingsStyle.CLASSIC).let { if (it == GameSettingsStyle.XMB) GameSettingsStyle.XMB else GameSettingsStyle.CLASSIC }
         store.value = saved(StoreStyle.KEY, StoreStyle.XMB).let { if (it == StoreStyle.DECK) StoreStyle.DECK else StoreStyle.XMB }
         sounds.value = saved(DeckSound.KEY, DeckSound.STEAMOS)
+        oneUi.value = com.winhub.hernandez.core.DriverUpdateChecker.oneUiPreferred(context)
         moveThemeForGlass()
     }
 
@@ -158,6 +175,10 @@ internal class FirstRunViewModel : ViewModel() {
         PreferenceManager.getDefaultSharedPreferences(context).edit().putString(key, value).apply()
     }
 
+    fun setOneUi(context: Context, value: Boolean) {
+        oneUi.value = value
+        com.winhub.hernandez.core.DriverUpdateChecker.setOneUiPreferred(context, value)
+    }
     fun setLook(context: Context, value: String) { look.value = value; put(context, GlassLook.KEY, value); moveThemeForGlass() }
     fun setHome(context: Context, value: String) { home.value = value; put(context, DeckHomeStyle.KEY, value) }
     fun setGameSettings(context: Context, value: String) { gameSettings.value = value; put(context, GameSettingsStyle.KEY, value) }
@@ -206,8 +227,12 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
             else -> hub.selectCategory(null)
         }
     }
+    // Only an A7xx Turnip has a OneUI build; on any other chip the Driver step has nothing to ask and is skipped.
+    val driverStepShown = remember { com.winhub.hernandez.core.DriverUpdateChecker.deviceFamily(ctx) == com.winhub.hernandez.core.DriverUpdateChecker.Family.A7XX }
     fun goTo(target: Int) {
-        if (target in 0..LAST_STEP) vm.step.value = target
+        var t = target
+        if (t == DRIVER && !driverStepShown) t = if (t > step) t + 1 else t - 1
+        if (t in 0..LAST_STEP) vm.step.value = t
     }
     fun next() {
         if (step < LAST_STEP) {
@@ -226,6 +251,35 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
     }
 
     BackHandler(enabled = true) { back() }
+
+    // Fullscreen like the Deck shell: in landscape the system bars are hidden (a swipe brings them back) and the
+    // content draws under the camera cut-out, padded clear of it below. Portrait keeps its bars, as the Deck does.
+    val view = LocalView.current
+    val landscape = config.screenWidthDp > config.screenHeightDp
+    DisposableEffect(landscape) {
+        val window = ctx.findActivity()?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        val previousCutout = if (Build.VERSION.SDK_INT >= 28) window?.attributes?.layoutInDisplayCutoutMode else null
+        if (landscape && window != null) {
+            if (Build.VERSION.SDK_INT >= 28) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {
+            if (landscape && window != null) {
+                controller?.show(WindowInsetsCompat.Type.systemBars())
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                if (Build.VERSION.SDK_INT >= 28 && previousCutout != null) {
+                    window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = previousCutout }
+                }
+            }
+        }
+    }
     // The layout step starts on the orientation the device is held in. Save that now, so a user who
     // just taps Next gets the Deck layout the preview showed instead of the unset default.
     LaunchedEffect(Unit) {
@@ -239,7 +293,7 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
         runCatching { stepFocus.requestFocus() }
     }
 
-    CompositionLocalProvider(LocalDeckEditTracker provides editTracker) {
+    CompositionLocalProvider(LocalDeckEditTracker provides editTracker, LocalDriverStepHidden provides !driverStepShown) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -267,10 +321,12 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.displayCutout)
                         .padding(horizontal = if (wide) 40.dp else 20.dp, vertical = if (wide) 22.dp else 18.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    WizardHeader(step, wide)
+                    val visible = WIZARD_STEPS.indices.filter { it != DRIVER || driverStepShown }
+                    WizardHeader(visible.indexOf(step).coerceAtLeast(0), wide, visible.map { WIZARD_STEPS[it] })
                     Box(Modifier.weight(1f).fillMaxWidth().focusRequester(stepFocus).focusGroup()) {
                         StepBody(vm, hub, step, wide)
                     }
@@ -284,7 +340,45 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
 // ── Chrome ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WizardHeader(step: Int, wide: Boolean) {
+private fun WizardHeader(step: Int, wide: Boolean, labels: List<String>) {
+    if (!wide) {
+        // Nine round markers do not fit a portrait width beside the name, and squeezed the name to a
+        // letter per line. Here the name and the count share a row, with a slim progress bar below.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "WINHUB",
+                    color = DeckPalette.onBackground,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 3.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "${labels[step.coerceIn(0, labels.lastIndex)]}  ${step + 1}/${labels.size}",
+                    color = DeckPalette.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                labels.indices.forEach { i ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(if (i <= step) DeckPalette.primary else DeckPalette.line2),
+                    )
+                }
+            }
+        }
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "WINHUB",
@@ -292,9 +386,11 @@ private fun WizardHeader(step: Int, wide: Boolean) {
             fontSize = 15.sp,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 3.sp,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier.weight(1f),
         )
-        WIZARD_STEPS.forEachIndexed { i, label ->
+        labels.forEachIndexed { i, label ->
             val done = i < step
             val on = i == step
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -390,6 +486,7 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
             SOUNDS -> SoundsStep(vm, mod)
             STORES -> StoresStep(mod)
             RETRO -> RetroStep(mod)
+            DRIVER -> DriverStep(vm, mod)
             CONTENTS -> ContentsStep(vm, hub, mod)
             else -> SocialStep(vm, mod)
         }
@@ -401,6 +498,7 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
             SOUNDS -> SoundTry(mod)
             STORES -> StorePerks(mod)
             RETRO -> RetroFolderCard(mod)
+            DRIVER -> Unit
             CONTENTS -> InstallPlan(extras.values.toList(), mod)
             else -> SocialPerks(mod)
         }
@@ -421,11 +519,14 @@ private fun StepBody(vm: FirstRunViewModel, hub: ContentsHubViewModel, step: Int
 }
 
 @Composable
-internal fun StepHeading(step: Int, title: String, lede: String, recommended: Boolean = false) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+internal fun StepHeading(step: Int, title: String, lede: String, recommended: Boolean = false, compact: Boolean = false) {
+    val hidden = LocalDriverStepHidden.current
+    val shownStep = if (hidden && step > DRIVER) step else step + 1
+    val shownTotal = if (hidden) LAST_STEP else LAST_STEP + 1
+    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
-                "STEP ${step + 1} OF ${LAST_STEP + 1}",
+                "STEP $shownStep OF $shownTotal",
                 color = DeckPalette.primary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -433,8 +534,8 @@ internal fun StepHeading(step: Int, title: String, lede: String, recommended: Bo
             )
             if (recommended) DeckBadge("Recommended", DeckPalette.primary)
         }
-        Text(title, color = DeckPalette.onBackground, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-        Text(lede, color = DeckPalette.onSurfaceVariant, fontSize = 15.sp)
+        Text(title, color = DeckPalette.onBackground, fontSize = if (compact) 22.sp else 30.sp, fontWeight = FontWeight.ExtraBold)
+        if (!compact) Text(lede, color = DeckPalette.onSurfaceVariant, fontSize = 15.sp)
     }
 }
 
@@ -459,6 +560,46 @@ private fun LayoutStep(selected: String, modifier: Modifier, onPick: (String) ->
         ) { OrientationGlyph(portrait = true) }
         Text("Change it any time in Settings, App Orientation.", color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
     }
+}
+
+// ── Step: driver (HyperOS 3 / One UI) ─────────────────────────────────────────
+
+@Composable
+private fun DriverStep(vm: FirstRunViewModel, modifier: Modifier) {
+    val ctx = LocalContext.current
+    val oneUi by vm.oneUi.collectAsState()
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = modifier.verticalScroll(rememberScrollState())) {
+        StepHeading(
+            DRIVER, "Your graphics driver",
+            "Do you have HyperOS 3.0+ and often run into glitches when not using a One UI Turnip build?",
+        )
+        WizChoice(
+            title = "No, the standard driver",
+            body = "The newest Turnip for your chip. This is right for almost everyone.",
+            selected = !oneUi,
+            onClick = { vm.setOneUi(ctx, false) },
+            badge = "Recommended",
+        ) { DriverGlyph(Icons.Filled.Close) }
+        WizChoice(
+            title = "Yes, use the One UI build",
+            body = "Installs the One UI version of the newest Turnip instead, and keeps to it when the driver is updated.",
+            selected = oneUi,
+            onClick = { vm.setOneUi(ctx, true) },
+        ) { DriverGlyph(Icons.Filled.Check) }
+        Text("Change it any time by installing the other build from Contents.", color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun DriverGlyph(icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(DeckPalette.surfaceVariant)
+            .border(1.dp, DeckPalette.line2, RoundedCornerShape(12.dp)),
+    ) { Icon(icon, null, tint = DeckPalette.primary, modifier = Modifier.size(24.dp)) }
 }
 
 @Composable
@@ -702,10 +843,14 @@ private fun MiniDeckPreview(portrait: Boolean, compact: Boolean, modifier: Modif
 
 @Composable
 private fun ContentsStep(vm: FirstRunViewModel, hub: ContentsHubViewModel, modifier: Modifier) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier) {
+    // The browser needs the room: on a short screen (landscape on a phone) the heading shrinks to its title
+    // and the "always installed" note, which the Install plan beside it already shows, goes.
+    val short = LocalConfiguration.current.screenHeightDp < 520
+    Column(verticalArrangement = Arrangement.spacedBy(if (short) 8.dp else 12.dp), modifier = modifier) {
         StepHeading(
             CONTENTS, "Extra contents",
             "The same browser as the Contents tab. GE-Proton 11, DXVK, FEXCore, VKD3D and the GPU driver for your chip are always installed. Tick anything else you want now.",
+            compact = short,
         )
         ContentsBrowser(vm, hub, Modifier.weight(1f).fillMaxWidth())
     }

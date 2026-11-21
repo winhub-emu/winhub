@@ -161,7 +161,7 @@ object ComponentUpdates {
     /** Containers on an installed driver of the same family that is older than [build]. */
     private fun driverCandidates(app: Context, build: DriverUpdateChecker.Build): List<Container> {
         val older = DriverUpdateChecker.installed(app)
-            .filter { it.family == build.family && DriverUpdateChecker.compareRank(it.rank, build.rank) < 0 }
+            .filter { it.family == build.family && it.oneUi == build.oneUi && DriverUpdateChecker.compareRank(it.rank, build.rank) < 0 }
             .map { it.id }.toSet()
         if (older.isEmpty()) return emptyList()
         return ContainerManager(app).containers.filter { GraphicsDriverConfigDialog.getVersion(it.graphicsDriverConfig) in older }
