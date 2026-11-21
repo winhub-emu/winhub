@@ -244,9 +244,13 @@ fun GamesWallScreen(navController: NavController) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // The wall starts a game without ShortcutsScreen's flow, so it asks the Ubisoft Connect setup question itself
+    // before launching (its dialog is drawn below the launch lambda).
+    val ubisoftGate = rememberUbisoftLaunchGate()
     LaunchedEffect(Unit) { grabFocus() }
-    LaunchedEffect(activeSheet, editShortcut, showCommunity, showAccount, applyResult) {
-        if (activeSheet == null && !editShortcut && !showCommunity && !showAccount && applyResult == null) grabFocus()
+    LaunchedEffect(activeSheet, editShortcut, showCommunity, showAccount, applyResult, ubisoftGate.setupFor) {
+        if (activeSheet == null && !editShortcut && !showCommunity && !showAccount && applyResult == null &&
+            ubisoftGate.setupFor == null) grabFocus()
     }
     LaunchedEffect(selectedIndex, visible) { selected?.let { ensureCover(it) } }
 
@@ -260,7 +264,8 @@ fun GamesWallScreen(navController: NavController) {
         }
     }
 
-    val onLaunch: () -> Unit = { selected?.let { launchShortcut(activity, it) } }
+    val onLaunch: () -> Unit = { selected?.let { sc -> ubisoftGate.launchWithUbisoftGate(sc) { launchShortcut(activity, sc) } } }
+    UbisoftSetupDialog(ubisoftGate)
 
     val applyPick: (CommunityPick) -> Unit = { pick ->
         val target = selected

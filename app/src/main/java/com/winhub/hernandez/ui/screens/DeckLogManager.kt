@@ -73,6 +73,8 @@ import com.winhub.hernandez.core.FileUtils
 import com.winhub.hernandez.core.LogInventory
 import com.winhub.hernandez.core.LogLocation
 import com.winhub.hernandez.core.LogcatCapture
+import com.winhub.hernandez.R
+import com.winhub.hernandez.store.UbisoftDiag
 import com.winhub.hernandez.store.StoreDownloadTier
 import com.winhub.hernandez.store.blsteam.BlSteamEngineFlag
 import com.winhub.hernandez.store.blsteam.BlStoreEngineFlag
@@ -228,6 +230,14 @@ internal fun DeckLogManagerDialog(onClose: () -> Unit) {
                         PrefSwitchRow(prefs, "enable_steamlite_logs", false, "SteamLite (Steam client)",
                             "Only when a game launches through SteamLite.",
                             onInfo = { info = "SteamLite (Steam client)" to LogCopy.STEAMLITE })
+                        PrefSwitchRow(prefs, UbisoftDiag.PREF_REPORT, false, context.getString(R.string.ubisoft_diag_report_title),
+                            context.getString(R.string.ubisoft_diag_report_hint),
+                            onInfo = { info = context.getString(R.string.ubisoft_diag_report_title) to
+                                context.getString(R.string.ubisoft_diag_report_info) })
+                        PrefSwitchRow(prefs, UbisoftDiag.PREF_DEEP_TRACE, false, context.getString(R.string.ubisoft_deep_trace_title),
+                            context.getString(R.string.ubisoft_deep_trace_hint),
+                            onInfo = { info = context.getString(R.string.ubisoft_deep_trace_title) to
+                                context.getString(R.string.ubisoft_deep_trace_info) })
                     }
                     DeckGroup("App") {
                         LogSwitchRow(

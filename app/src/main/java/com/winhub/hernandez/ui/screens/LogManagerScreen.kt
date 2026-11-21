@@ -71,6 +71,8 @@ import com.winhub.hernandez.core.ExitReasonReporter
 import com.winhub.hernandez.core.LogInventory
 import com.winhub.hernandez.core.LogLocation
 import com.winhub.hernandez.core.LogcatCapture
+import com.winhub.hernandez.R
+import com.winhub.hernandez.store.UbisoftDiag
 import com.winhub.hernandez.ui.theme.DangerRed
 import kotlinx.coroutines.launch
 import java.io.File
@@ -101,6 +103,8 @@ fun LogManagerScreen(onClose: () -> Unit) {
         mutableStateOf(prefs.getBoolean(com.winhub.hernandez.core.ControllerLog.PREF_KEY, false))
     }
     var steamLite by remember { mutableStateOf(prefs.getBoolean("enable_steamlite_logs", false)) }
+    var ubisoftReport by remember { mutableStateOf(prefs.getBoolean(UbisoftDiag.PREF_REPORT, false)) }
+    var ubisoftDeep by remember { mutableStateOf(prefs.getBoolean(UbisoftDiag.PREF_DEEP_TRACE, false)) }
     var logcat by remember { mutableStateOf(prefs.getBoolean("enable_logcat", true)) }
     var crashReports by remember { mutableStateOf(prefs.getBoolean("enable_crash_reports", true)) }
     var exitAutosave by remember { mutableStateOf(prefs.getBoolean(ExitReasonReporter.PREF_AUTOSAVE, false)) }
@@ -279,6 +283,18 @@ fun LogManagerScreen(onClose: () -> Unit) {
                     hint = "Only when a game launches through SteamLite",
                     onInfo = { info = "SteamLite (Steam client)" to LogCopy.STEAMLITE }) {
                     steamLite = it; putBool("enable_steamlite_logs", it)
+                }
+                LogToggle(context.getString(R.string.ubisoft_diag_report_title), ubisoftReport,
+                    hint = context.getString(R.string.ubisoft_diag_report_hint),
+                    onInfo = { info = context.getString(R.string.ubisoft_diag_report_title) to
+                        context.getString(R.string.ubisoft_diag_report_info) }) {
+                    ubisoftReport = it; putBool(UbisoftDiag.PREF_REPORT, it)
+                }
+                LogToggle(context.getString(R.string.ubisoft_deep_trace_title), ubisoftDeep,
+                    hint = context.getString(R.string.ubisoft_deep_trace_hint),
+                    onInfo = { info = context.getString(R.string.ubisoft_deep_trace_title) to
+                        context.getString(R.string.ubisoft_deep_trace_info) }) {
+                    ubisoftDeep = it; putBool(UbisoftDiag.PREF_DEEP_TRACE, it)
                 }
                 LogToggle("Android logcat", logcat,
                     hint = "WinHub's own output only",

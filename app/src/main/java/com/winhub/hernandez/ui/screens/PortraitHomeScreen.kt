@@ -196,7 +196,7 @@ internal fun PortraitHome(
     }
 }
 
-/** "Continue playing" banner (bannercode's hero, compact): art fading down into the title, tap = game page, Play = go. */
+/** "Continue playing" banner (the Deck hero, compact): art fading down into the title, tap = game page, Play = go. */
 @Composable
 private fun PortraitContinueBanner(entry: HubEntry, onOpen: () -> Unit, onPlay: () -> Unit) {
     val context = LocalContext.current

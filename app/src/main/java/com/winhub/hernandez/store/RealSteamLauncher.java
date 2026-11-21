@@ -349,7 +349,16 @@ public final class RealSteamLauncher {
             env.put("WN_STEAM_VAC", vacSecure ? "1" : "0");
             // EA launcher chain (agent p5): without this the agent treats the stub exe's exit during the
             // Link2EA → EADesktop → EASteamProxy hand-off as "game exited" and tears the session down.
-            if (eaChain) env.put(EaSupport.CHAIN_ENV, EaSupport.CHAIN_VALUE);
+            if (eaChain) {
+                env.put(EaSupport.CHAIN_ENV, EaSupport.CHAIN_VALUE);
+            } else if (UbisoftSupport.hasLauncherFiles(new File(hostInstallDir))) {
+                // Ubisoft launcher chain (same agent feature): <game>.exe -uplay_steam_mode -> UbisoftGameLauncher.exe
+                // -> upc.exe -> the real game. The stub exits during the hand-off, so the agent must keep waiting.
+                // Armed on the depot's launcher files (a loader in its root or a bundled installer), not on an
+                // install script that merely mentions Ubisoft.
+                env.put(EaSupport.CHAIN_ENV, UbisoftSupport.CHAIN_VALUE);
+                Log.i(TAG, "prepare: Ubisoft launcher chain armed for appId=" + appId);
+            }
             // Agent appmanifest contract: InstalledDepots (depot:manifest:size,…) so the genuine client
             // sees a complete install (the agent writes appmanifest_<id>.acf from these).
             try {

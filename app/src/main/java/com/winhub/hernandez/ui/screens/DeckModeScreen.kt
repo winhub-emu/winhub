@@ -196,6 +196,7 @@ import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.core.GameIdentifier
 import com.winhub.hernandez.store.SaveManagerScreen
 import com.winhub.hernandez.store.SteamPrefs
+import com.winhub.hernandez.store.UbisoftPendingLaunch
 import com.winhub.hernandez.store.deckTileFocus
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -799,6 +800,8 @@ private fun DeckHome(
     var pending by remember { mutableStateOf<Pair<File, GameIdentifier.GameIdentity>?>(null) }
     var launchRequest by remember { mutableStateOf<Shortcut?>(null) }
     var launchSteam by remember { mutableStateOf<Boolean?>(null) }
+    // The Ubisoft Connect setup question (see UbisoftSupport), asked by DeckLaunchStack before a Ubisoft title starts.
+    val ubisoftGate = rememberUbisoftLaunchGate()
     var launchMethodFor by remember { mutableStateOf<Shortcut?>(null) }
     var launchMethodSteam by remember { mutableStateOf<Boolean?>(null) }
     var addModeMenu by remember { mutableStateOf(false) }
@@ -921,6 +924,25 @@ private fun DeckHome(
                     launchRequest = shortcut
                 }
             }
+        }
+    }
+
+    // A Ubisoft Connect setup this app started is over (the session ended and the app came back): start the game it was for.
+    // Only the one game the marker names is loaded, and only when there is a marker.
+    LaunchedEffect(entries) {
+        val list = entries ?: return@LaunchedEffect
+        val pendingUbisoft = UbisoftPendingLaunch.peek(context) ?: return@LaunchedEffect
+        val game = list.firstOrNull { it.game?.shortcutPath == pendingUbisoft.shortcutPath }?.game ?: return@LaunchedEffect
+        val shortcut = withContext(Dispatchers.IO) {
+            runCatching {
+                val container = ContainerManager(context).getContainerById(game.containerId) ?: return@runCatching null
+                val desktop = File(game.shortcutPath)
+                if (desktop.isFile) Shortcut(container, desktop) else null
+            }.getOrNull()
+        } ?: return@LaunchedEffect
+        ubisoftGate.resumePendingLaunch(listOf(shortcut)) {
+            launchSteam = game.store == "Steam"
+            launchRequest = it
         }
     }
 
@@ -1787,6 +1809,7 @@ private fun DeckHome(
                 onMenuClosed = { launchRequest = null; launchSteam = null },
                 steamOverride = launchSteam,
                 onLaunching = { launching = true },
+                ubisoftGate = ubisoftGate,
             )
 
             pending?.let { (file, identity) ->

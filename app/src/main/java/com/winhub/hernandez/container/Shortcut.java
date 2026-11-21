@@ -305,7 +305,8 @@ import java.nio.file.Files;
                 }
 
                 // Write the updated content to the new .desktop file
-                FileUtils.writeString(newShortcutFile, updatedContent.toString());
+                // (a stale "not Ubisoft" stamp is dropped so the new container works it out again)
+                FileUtils.writeString(newShortcutFile, com.winhub.hernandez.store.UbisoftSupport.dropStaleStamp(updatedContent.toString()));
 
                 // Optionally copy the icon if it exists
                 if (this.iconFile != null && this.iconFile.isFile()) {

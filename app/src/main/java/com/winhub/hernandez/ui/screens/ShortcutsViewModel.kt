@@ -39,6 +39,7 @@ import com.winhub.hernandez.core.GPUInformation
 import com.winhub.hernandez.core.GameFolderScanner
 import com.winhub.hernandez.core.GameIdentifier
 import com.winhub.hernandez.core.WinePath
+import com.winhub.hernandez.store.UbisoftSupport
 import com.winhub.hernandez.ui.screens.adrenodownload.DriverSources
 import com.winhub.hernandez.ui.screens.adrenodownload.RemoteDriverRepository
 import kotlinx.coroutines.CompletableDeferred
@@ -1109,7 +1110,8 @@ class ShortcutsViewModel(app: Application) : AndroidViewModel(app) {
                 val lines = dest.readLines().map { line ->
                     if (line.startsWith("container_id:")) "container_id:${container.id}" else line
                 }
-                dest.writeText(lines.joinToString("\n") + "\n")
+                // A stale "not Ubisoft" stamp is dropped so this container works it out again.
+                dest.writeText(UbisoftSupport.dropStaleStamp(lines.joinToString("\n") + "\n"))
             }
             refresh()
             ImportResult.Success(dest.nameWithoutExtension)

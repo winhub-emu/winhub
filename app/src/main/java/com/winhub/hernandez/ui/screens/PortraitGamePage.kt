@@ -61,7 +61,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Portrait game page (ported from bannercode's DeckGamePage banner layout): the art as a banner
+ * Portrait game page (the Deck game page's banner layout): the art as a banner
  * fading into the page with a back button on it, then origin, title, container chip, stats,
  * Play / Game settings / Options, and the store blurb. Wired to [HubEntry] instead of Shortcut.
  */

@@ -375,6 +375,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
     // Hold the launch screen this long past the first rendered game frame, so the boot steps are
     // actually seen instead of flashed away on a fast-booting game. The game renders behind it.
     private static final long LAUNCH_OVERLAY_GRACE_MS = 5000L;
+    // The Ubisoft launch report waits this long at exit for its sections to finish (the ones that do are kept).
+    private static final long UBISOFT_REPORT_EXIT_WAIT_MS = 50_000L;
     // "Not-frozen" reassurance timers over the unmeasurable guest-boot tail. Neither kills the launch.
     private static final long LAUNCH_SLOW_HINT_MS = 15_000L;
     private static final long LAUNCH_STILL_WORKING_MS = 90_000L;
@@ -1647,6 +1649,166 @@ public class XServerDisplayActivity extends AppCompatActivity {
         if (waylandCursorView.getVisibility() != View.VISIBLE)
             waylandCursorView.setVisibility(View.VISIBLE);
         if (cursorAutoHide) waylandCursorIdle.postDelayed(waylandCursorHideRunnable, cursorIdleMs);
+    }
+
+    /** "epic" or "steam" for a Ubisoft launch (decided once in setupXEnvironment, see {@link #ubisoftLaunchRoute()}), null for every other launch. */
+    private volatile String ubisoftDiagRoute = null;
+
+    /**
+     * True when this launch runs the full Ubisoft diagnostics report: a Ubisoft launch ({@link #ubisoftDiagRoute}) with the
+     * Log Manager's "Ubisoft diagnostics report" switch (or the ubisoftDiagReport=1 container extra) on. Off by default; while it is
+     * false the report is never started and nothing waits for it at exit.
+     */
+    private volatile boolean ubisoftDiagReportOn = false;
+
+    /** The report switch, read once per Ubisoft launch. Never throws: a failure means off. */
+    private boolean ubisoftReportRequested() {
+        try {
+            return com.winhub.hernandez.store.UbisoftDiag.reportRequested(preferences, shortcut, container);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** What the Ubisoft deep trace switch did for this launch (written to the report). */
+    private String ubisoftDeepTraceNote = "off";
+
+    /**
+     * The Ubisoft launch report's trigger: "epic" for an Epic game (a store-written shortcut, or an imported one whose exe
+     * is under epic_games) stamped Ubisoft, or whose install record found something to record this launch, so a wrong stamp
+     * cannot hide the report (applyUbisoftInstallRecord has already worked the stamp out and recorded the outcome, this
+     * only reads them); "steam" for a SteamLite launch whose plan armed the Ubisoft launcher chain (RealSteamLauncher's
+     * own decision, read back from the plan env), else null. No disk access.
+     */
+    private String ubisoftLaunchRoute() {
+        try {
+            if (shortcut != null && com.winhub.hernandez.store.UbisoftSupport.epicReportRoute(shortcut)) return "epic";
+            if (realSteamPlan != null && com.winhub.hernandez.store.UbisoftSupport.steamChainArmed(realSteamPlan.env)) return "steam";
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /**
+     * Ubisoft launches only (Epic game stamped Ubisoft, Ubisoft chain, report route, Ubisoft file name in the exe path):
+     * overwrites {@code launch_decisions.txt} in the game's log folder with what this launch decided about Ubisoft (the
+     * shortcut's extras, the Epic checks, the install folder, the install record, the report route). Every other launch
+     * pays a few string tests, touches no folder and writes nothing. Runs on the
+     * launch worker just before {@link #writeUbisoftDiagnostics()}, after the install record. Never throws.
+     */
+    private void writeLaunchDecisions() {
+        try {
+            final Context appCtx = getApplicationContext();
+            boolean steamChain = realSteamPlan != null && com.winhub.hernandez.store.UbisoftSupport.steamChainArmed(realSteamPlan.env);
+            String text = com.winhub.hernandez.store.UbisoftSupport.launchDecisionsFor(appCtx, shortcut, steamChain, ubisoftDiagRoute);
+            if (text == null) return;
+            // Say whether the full report runs, so a note without ubisoft_diag.txt beside it explains itself.
+            text += com.winhub.hernandez.store.UbisoftDiag.reportNote(ubisoftDiagReportOn);
+            java.io.File logDir = com.winhub.hernandez.core.LogLocation.resolveGameLogDir(appCtx, currentLogGameName());
+            com.winhub.hernandez.store.UbisoftSupport.writeLaunchDecisions(logDir, text);
+        } catch (Throwable t) {
+            Log.w("UbisoftSupport", "writeLaunchDecisions failed", t);
+        }
+    }
+
+    /**
+     * Ubisoft launches only: with the Log Manager's "Ubisoft deep trace" switch (or the ubisoftDeepTrace=1 extra on the
+     * shortcut or container) on, adds the +reg and +file Wine debug channels to WINEDEBUG so wine_debug.log shows every
+     * registry and file access. Only while Wine debug is on with a "+channel" list (otherwise the output goes nowhere).
+     * Records what it did in {@link #ubisoftDeepTraceNote}. Never throws.
+     */
+    private void applyUbisoftDeepTrace() {
+        ubisoftDeepTraceNote = "off";
+        try {
+            if (!com.winhub.hernandez.store.UbisoftDiag.deepTraceRequested(preferences, shortcut, container)) return;
+            if (!preferences.getBoolean("enable_wine_debug", false)) {
+                ubisoftDeepTraceNote = "requested but NOT applied: Wine debug is off in the Log Manager, so the trace would be thrown away";
+                return;
+            }
+            String wd = envVars.has("WINEDEBUG") ? envVars.get("WINEDEBUG") : "";
+            String traced = com.winhub.hernandez.store.UbisoftDiag.withDeepTrace(wd);
+            if (traced == null) {
+                ubisoftDeepTraceNote = "requested but NOT applied: WINEDEBUG is '" + wd + "' (it needs a +channel list)";
+                return;
+            }
+            envVars.put("WINEDEBUG", traced);
+            ubisoftDeepTraceNote = "ON: WINEDEBUG=" + traced;
+        } catch (Throwable t) {
+            ubisoftDeepTraceNote = "failed: " + t;
+        }
+    }
+
+    /**
+     * Ubisoft launches with the report switched on only ({@link #ubisoftDiagReportOn}): starts the Ubisoft launch report in
+     * the game's log folder ({@code ubisoft_diag.txt} plus {@code ubisoft_diag_files/}). Runs on the launch
+     * worker just before the guest starts; the report does its heavy work on its own threads and finishes in
+     * {@link #exit()}. Never throws.
+     */
+    private void writeUbisoftDiagnostics() {
+        if (ubisoftDiagRoute == null || !ubisoftDiagReportOn) return;
+        try {
+            final Context appCtx = getApplicationContext();
+            final boolean steam = "steam".equals(ubisoftDiagRoute) && realSteamPlan != null;
+            int steamAppId = 0;
+            String steamInstall = null;
+            if (steam) {
+                steamAppId = realSteamPlan.appId;
+                SteamAppRef ref = resolveSteamAppRef();
+                if (ref != null) steamInstall = ref.installDir;
+            }
+            java.util.List<String> env = new ArrayList<>();
+            for (String k : envVars) env.add(k + "=" + envVars.get(k));
+
+            String fexPreset = shortcut != null
+                    ? shortcut.getExtra("fexcorePreset", container.getFEXCorePreset()) : container.getFEXCorePreset();
+            String box64Preset = shortcut != null
+                    ? shortcut.getExtra("box64Preset", container.getBox64Preset()) : container.getBox64Preset();
+            java.util.List<String> settings = new ArrayList<>();
+            settings.add("wine: " + container.getWineVersion() + " / "
+                    + (wineInfo != null ? wineInfo.fullVersion() + " " + wineInfo.getArch() + " arm64ec=" + wineInfo.isArm64EC() : "no wineInfo"));
+            settings.add("emulator: " + emulator + " (container: " + container.getEmulator() + ")");
+            settings.add("box64: version=" + container.getBox64Version() + " preset=" + box64Preset);
+            settings.add("fexcore: version=" + container.getFEXCoreVersion() + " preset=" + fexPreset);
+            settings.add("dxwrapper: " + dxwrapper + " config=" + container.getDXWrapperConfig()
+                    + (dxwrapperConfig != null ? " dxvk=" + dxwrapperConfig.get("version") + " vkd3d=" + dxwrapperConfig.get("vkd3dVersion")
+                    + " ddraw=" + dxwrapperConfig.get("ddrawrapper") : ""));
+            settings.add("graphics driver: " + container.getGraphicsDriver() + " config=" + container.getGraphicsDriverConfig());
+            settings.add("startup selection: " + container.getStartupSelection());
+            settings.add("screen size: " + container.getScreenSize() + " display=" + (waylandMode ? "Wayland" : "X11") + " renderer=" + resolvedRenderer());
+            settings.add("WINEDEBUG: " + (envVars.has("WINEDEBUG") ? envVars.get("WINEDEBUG") : "<unset>")
+                    + " (Wine debug log on: " + preferences.getBoolean("enable_wine_debug", false)
+                    + ", Box64/FEX logs on: " + preferences.getBoolean("enable_box64_logs", false) + ")");
+            settings.add("container env: " + container.getEnvVars());
+            settings.add("shortcut env: " + (shortcut != null ? shortcut.getExtra("envVars", "") : ""));
+
+            java.io.File logDir = com.winhub.hernandez.core.LogLocation.resolveGameLogDir(appCtx, currentLogGameName());
+            com.winhub.hernandez.store.UbisoftDiag.begin(new com.winhub.hernandez.store.UbisoftDiag.Launch(
+                    appCtx, container, shortcut, ubisoftDiagRoute,
+                    steam && com.winhub.hernandez.store.UbisoftSupport.steamChainArmed(realSteamPlan.env),
+                    steamAppId, steamInstall, logDir, getIntent(), env,
+                    guestProgramLauncherComponent != null ? guestProgramLauncherComponent.getGuestExecutable() : "<none>",
+                    settings, ubisoftDeepTraceNote));
+        } catch (Throwable t) {
+            Log.w("UbisoftDiag", "writeUbisoftDiagnostics failed", t);
+        }
+    }
+
+    // A prefix without tahoma.ttf has no "Tahoma" font family, which is Wine's last-resort family for Latin text, so a
+    // Chromium / CEF UI (Ubisoft Connect: device log, 920-level recursion, black screen) asking DirectWrite for a font
+    // it cannot find recurses until its stack is gone. Adds "Tahoma"="Arial" under Software\Wine\Fonts\Replacements
+    // unless the user already has a Tahoma replacement. Every launch, any store, in the slot of the registry tweaks above:
+    // the prefix is prepared and no Wine process runs yet. One streamed read of user.reg when the value is already there.
+    private void applyTahomaFontFallback() {
+        com.winhub.hernandez.core.WineFontFallback.ensureTahomaReplacement(
+                new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/user.reg"));
+    }
+
+    // An Epic build of a Ubisoft game: Ubisoft Connect has no record that it is installed and offers to download it
+    // again (what "Locate installed game" fixes by hand). Writes the keys Locate writes into system.reg, from the game's
+    // uplay_install.state. Every launch, same slot as the registry tweaks above: the prefix is prepared and no Wine
+    // process runs yet, so wineserver cannot overwrite the file. A stamp read for every other game.
+    private void applyUbisoftInstallRecord() {
+        if (shortcut == null || container == null) return;
+        com.winhub.hernandez.store.UbisoftSupport.registerEpicInstall(this, container, shortcut);
     }
 
     // After both user env merges (container + shortcut).
@@ -3133,11 +3295,14 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     // Steam install-recipe robustness pass: a steamAppId-tagged game's installScript.vdf
                     // Registry + Copy Files land in this prefix before the game boots (covers shortcuts made
                     // before the feature or re-bound to a new container). Local stages only — the Run
-                    // Process step (EA Desktop installer) is driven from the Games tab's EA setup flow.
+                    // Process step (EA Desktop / Ubisoft Connect installer) is driven from the Games tab's
+                    // EA and Ubisoft setup flows.
                     runSteamInstallScriptPreLaunch();
                     extractGraphicsDriverFiles();
                     changeWineAudioDriver();
                     applyGameRefreshRateUnlock();
+                    applyTahomaFontFallback();
+                    applyUbisoftInstallRecord();
                     provisionEpicOverlay();
                     stage[0] = "Preparing the Xbox game";
                     prepareXboxLaunch();
@@ -5573,6 +5738,8 @@ public class XServerDisplayActivity extends AppCompatActivity {
         gameExitWatchHandler.removeCallbacks(gameExitWatchRunnable);
         affinityReapplyHandler.removeCallbacks(affinityReapplyRunnable);
         stopDxApiDetection();
+        // Ubisoft launch report: the process sampler stops with the session (only runs with the report switched on).
+        if (ubisoftDiagReportOn) com.winhub.hernandez.store.UbisoftDiag.stopSampler();
         // Stop the session foreground service (also removes its ongoing notification).
         stopService(new Intent(this, com.winhub.hernandez.core.GameSessionForegroundService.class));
         preloaderDialog.showOnUiThread(R.string.shutdown);
@@ -5707,6 +5874,17 @@ public class XServerDisplayActivity extends AppCompatActivity {
                             }
                         } catch (Throwable t) {
                             Log.w("SteamLiteLogs", "collect on exit errored", t);
+                        }
+                        // Ubisoft launch report, second half: the Wine tree has been stopped and flushed above, so the
+                        // hives on disk are final. Bounded (the sections that finish are kept); the first half is on disk
+                        // already if this never runs. Nothing happens (no wait, no overlay hint) unless the report is on.
+                        if (ubisoftDiagReportOn) {
+                            try {
+                                preloaderDialog.hint(getString(R.string.ubisoft_diag_saving));
+                                com.winhub.hernandez.store.UbisoftDiag.finishBounded(UBISOFT_REPORT_EXIT_WAIT_MS);
+                            } catch (Throwable t) {
+                                Log.w("UbisoftDiag", "finish on exit errored", t);
+                            }
                         }
                     } catch (Throwable t) {
                         Log.w("XServerDisplayActivity", "exit save-backup phase errored", t);
@@ -6009,6 +6187,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
             if (exe == null) return;
             com.winhub.hernandez.store.steamscript.InstallScriptExecutor.applyLocalStagesForLaunch(
                     this, container, appId, exe.getAbsolutePath());
+            // Ubisoft Connect's overlay hooks dxgi.dll and kills the game (or blacks it out) on an Arm64EC DXVK.
+            // A no-op unless the launcher is installed in this prefix.
+            com.winhub.hernandez.store.UbisoftSupport.disableOverlay(container);
         } catch (Throwable t) {
             Log.w("XServerDisplayActivity", "installScript pre-launch pass failed", t);
         }
@@ -6073,7 +6254,11 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 // A non-ASCII depot name (e.g. the ™ in "Need for Speed™ Payback") makes Frostbite quit
                 // before it ever creates a D3D device. Re-apply the stage now that the link exists; it is
                 // idempotent by design (it re-applies Registry + Copy on every launch anyway).
-                if (realSteamEaChain) runSteamInstallScriptPreLaunch();
+                // Ubisoft titles read the game's InstallDir out of the same install-script registry stage (the plan
+                // armed the Ubisoft chain for them, so this reads the plan and not the game's folders).
+                if (realSteamEaChain || com.winhub.hernandez.store.UbisoftSupport.steamChainArmed(realSteamPlan.env)) {
+                    runSteamInstallScriptPreLaunch();
+                }
                 // EA titles: watch EA Desktop's own log for a refused licence so the user gets a card
                 // with EA's reason instead of a black screen (see eaRefusalWatchRunnable).
                 if (realSteamEaChain) {
@@ -7192,6 +7377,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // user something sooner; this one is the guarantee that nothing is left on the handheld
         // describing a session that no longer exists. No-op when it is already gone.
         com.winhub.hernandez.display.TvCompanionActivity.dismiss("the session is gone");
+        // Ubisoft launch report: when the normal exit routine never ran (the session was torn down some other way) the
+        // second half runs here in the background without waiting. No-op unless the report is on, and when it already ran.
+        if (ubisoftDiagReportOn) com.winhub.hernandez.store.UbisoftDiag.onActivityDestroyed();
         if (inGameControlsEditor != null) {
             inGameControlsEditor.dispose();
             inGameControlsEditor = null;
@@ -9892,6 +10080,9 @@ public class XServerDisplayActivity extends AppCompatActivity {
             if (shortcut != null) {
                 com.winhub.hernandez.store.EpicGameFixes.applyEnv(this, shortcut, envVars);
                 com.winhub.hernandez.store.EpicGameFixes.applyPreLaunch(this, shortcut);
+                // Epic game that needs Ubisoft Connect: its overlay hooks dxgi.dll, so turn it off (a stamp read
+                // for every other Epic game, a no-op until Connect is installed in this container).
+                com.winhub.hernandez.store.UbisoftSupport.applyEpicPreLaunch(this, container, shortcut);
             }
 
             // Xbox store game: the bridge port/key, service socket, save-sync mode and PlayFab token for the
@@ -9932,6 +10123,15 @@ public class XServerDisplayActivity extends AppCompatActivity {
                     }
                 } catch (Throwable ignored) {}
             }
+
+            // Ubisoft launch (an Epic game stamped Ubisoft, or a Steam game that armed the Ubisoft launcher chain): the
+            // trigger of the Ubisoft launch report, decided once from what is already known (the stamp, the plan env), no
+            // disk walk. The Log Manager's "Ubisoft deep trace" switch adds +reg,+file to WINEDEBUG for these launches only.
+            // Every other launch pays one null-safe field read here and nothing else.
+            ubisoftDiagRoute = ubisoftLaunchRoute();
+            if (ubisoftDiagRoute != null) applyUbisoftDeepTrace();
+            // The full report (sampler, probes, listings, copies, the wait at exit) is opt-in; only a Ubisoft launch ever reads the switch.
+            ubisoftDiagReportOn = ubisoftDiagRoute != null && ubisoftReportRequested();
 
             // Sync (esync / ntsync / wineserver) is no longer defaulted here: applySyncModeEnv() below
             // writes it after every env source (overrideEnvVars included) is merged.
@@ -10155,6 +10355,16 @@ public class XServerDisplayActivity extends AppCompatActivity {
         // friends see it and playtime counts (Steam parity). No-op for RealSteam (the genuine client
         // reports itself), non-Steam shortcuts, or with the setting off. Cleared on exit / destroy.
         announceOfflineSteamPresence();
+
+        // Ubisoft launches (an Epic game stamped Ubisoft, an armed Ubisoft chain, a report route, a Ubisoft file name in the
+        // exe path): launch_decisions.txt (what this launch decided about Ubisoft), a few lines. Any other launch, a plain
+        // Epic game included, reads no folder and writes nothing.
+        writeLaunchDecisions();
+
+        // Ubisoft launches with the report switched on (Log Manager, default off): the Ubisoft launch report
+        // (ubisoft_diag.txt + ubisoft_diag_files/ in the game's log folder), first half. Only the small readable sections
+        // run here; listings, probes and the sampler run on their own threads. Nothing happens with the switch off.
+        writeUbisoftDiagnostics();
 
         // Start all environment components (XServer, Audio, Wine, etc.)
         preloaderDialog.step(4, "Launching Windows…");

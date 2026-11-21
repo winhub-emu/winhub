@@ -450,19 +450,24 @@ fun BigPictureScreen(navController: NavController) {
     // Epic/GOG/Custom → Raw-only), unless a remembered choice already exists. Mirrors the phone UI's
     // requestLaunch (ShortcutsScreen): a remembered pick launches DIRECTLY (the launchMode extra is honored
     // by the launch pipeline; "Raw" is a plain launch).
+    // A Ubisoft title needs Ubisoft Connect in its prefix first (see UbisoftSupport): the gate asks once, then this runs.
+    val ubisoftGate = rememberUbisoftLaunchGate()
     val onLaunch: () -> Unit = {
         selected?.let { sc ->
-            val remembered = sc.getExtra("launchMode", "").isNotEmpty() &&
-                sc.getExtra("launchModeRemembered", "") == "1"
-            when {
-                // A remembered RealSteam pick still runs the SteamLite pre-flight (session check).
-                remembered && sc.getExtra("launchMode", "") == "RealSteam" && isSteamOriginShortcut(sc) ->
-                    launchWithSteamLite(sc)
-                remembered -> launchShortcut(activity, sc)
-                else -> launchChoiceFor = sc
+            ubisoftGate.launchWithUbisoftGate(sc) {
+                val remembered = sc.getExtra("launchMode", "").isNotEmpty() &&
+                    sc.getExtra("launchModeRemembered", "") == "1"
+                when {
+                    // A remembered RealSteam pick still runs the SteamLite pre-flight (session check).
+                    remembered && sc.getExtra("launchMode", "") == "RealSteam" && isSteamOriginShortcut(sc) ->
+                        launchWithSteamLite(sc)
+                    remembered -> launchShortcut(activity, sc)
+                    else -> launchChoiceFor = sc
+                }
             }
         }
     }
+    UbisoftSetupDialog(ubisoftGate)
 
     Box(
         modifier = Modifier

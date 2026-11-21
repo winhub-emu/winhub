@@ -48,7 +48,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.withFrameNanos
 
-/** One line saying what each game-menu row does (bannercode shows these under every row). */
+/** One line saying what each game-menu row does (shown under every row). */
 private fun menuHint(label: String): String? = when (label) {
     "Play" -> "Starts the game with its saved launch choice."
     "Emulator" -> "Choose the app this console's games start in."
@@ -75,7 +75,7 @@ private fun menuHint(label: String): String? = when (label) {
 }
 
 /**
- * Bannercode's DeckGameMenuSheet (bottom-anchored on a phone): cover, title and a line of facts on
+ * The Deck game menu sheet (bottom-anchored on a phone): cover, title and a line of facts on
  * top, then the game menu as grouped cards of rows. Groups: Play / everything else / destructive.
  */
 @Composable

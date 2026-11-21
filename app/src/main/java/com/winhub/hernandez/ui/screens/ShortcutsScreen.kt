@@ -368,6 +368,8 @@ fun ShortcutsScreen(
     // chooser is open (null = closed). A Steam game routes through this before launching UNLESS it
     // already has a remembered choice (launchMode set + launchModeRemembered=="1").
     var launchChoiceFor by remember { mutableStateOf<Shortcut?>(null) }
+    // Ubisoft support (see UbisoftSupport): the one-time Ubisoft Connect setup question, asked before the launch-method step.
+    val ubisoftGate = rememberUbisoftLaunchGate()
     // EA support (see EaSupport): an EA title either needs its one-time EA Desktop setup, is unsupported
     // (Javelin anti-cheat), or launches straight through SteamLite with the EA chain armed.
     var eaSetupFor by remember { mutableStateOf<Shortcut?>(null) }
@@ -516,6 +518,16 @@ fun ShortcutsScreen(
     // launchShortcutNow (the launchMode extra is honored by the launch pipeline; "Raw" is a plain launch).
     // A remembered RealSteam pick still goes through the SteamLite pre-flight (it is the launch's
     // session check, not part of the method choice).
+    fun launchPastSetupChecks(shortcut: Shortcut) {
+        val remembered = shortcut.getExtra("launchMode", "").isNotEmpty() &&
+            shortcut.getExtra("launchModeRemembered", "") == "1"
+        when {
+            remembered && shortcut.getExtra("launchMode", "") == "RealSteam" && isSteamOriginShortcut(shortcut) ->
+                launchWithSteamLite(shortcut)
+            remembered -> launchShortcutNow(activity, shortcut)
+            else -> launchChoiceFor = shortcut
+        }
+    }
     fun requestLaunch(shortcut: Shortcut) {
         // EA-published Steam titles have exactly one working path: the genuine client (SteamLite) via
         // EA Desktop's launcher chain. Skip the method popup, make sure the prefix is set up (wine-mono +
@@ -540,20 +552,17 @@ fun ShortcutsScreen(
                 return
             }
         }
-        val remembered = shortcut.getExtra("launchMode", "").isNotEmpty() &&
-            shortcut.getExtra("launchModeRemembered", "") == "1"
-        when {
-            remembered && shortcut.getExtra("launchMode", "") == "RealSteam" && isSteamOriginShortcut(shortcut) ->
-                launchWithSteamLite(shortcut)
-            remembered -> launchShortcutNow(activity, shortcut)
-            else -> launchChoiceFor = shortcut
-        }
+        // Ubisoft titles (Ubisoft-published Steam games, Epic builds of Ubisoft games) start Ubisoft Connect themselves, so it
+        // has to be in the prefix first: the gate offers the one-time setup, otherwise the normal flow carries on.
+        ubisoftGate.launchWithUbisoftGate(shortcut) { launchPastSetupChecks(shortcut) }
     }
     // A SteamLite launch that failed inside the container (the launch overlay's "Retry" / "Launch
     // with Goldberg" buttons) records a pending relaunch before the session's normal exit restarts
     // the app; pick it up here, once the library is loaded, and re-enter the matching launch flow.
     LaunchedEffect(shortcuts) {
         if (shortcuts.isEmpty()) return@LaunchedEffect
+        // A Ubisoft Connect setup this app started is over: start the game it was for (its flow skips the setup check).
+        if (ubisoftGate.resumePendingLaunch(shortcuts) { launchPastSetupChecks(it) }) return@LaunchedEffect
         val pending = SteamSessionManager.takePendingRelaunch(context) ?: return@LaunchedEffect
         val s = shortcuts.firstOrNull { it.file.path == pending.shortcutPath } ?: return@LaunchedEffect
         when (pending.mode) {
@@ -2967,6 +2976,7 @@ fun ShortcutsScreen(
     }
 
     // ── Steam launch-method popup (M3): SteamLite (real Steam / VAC) vs Goldberg (offline) ──────────
+    UbisoftSetupDialog(ubisoftGate)
     eaUnsupportedFor?.let { s ->
         AlertDialog(
             onDismissRequest = { eaUnsupportedFor = null },

@@ -179,7 +179,7 @@ internal fun DeckPortraitChips(labels: List<String>, selected: Int, onSelect: (I
 }
 
 /**
- * Portrait tab strip in bannercode's Deck style: one rounded glass card, scrolls sideways, the
+ * Portrait tab strip in the Deck style: one rounded glass card, scrolls sideways, the
  * selected tab is a filled primary pill with its icon + label. Scrolls the selection into view.
  */
 @Composable

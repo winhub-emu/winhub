@@ -1326,6 +1326,8 @@ internal fun DeckLaunchStack(
     steamOverride: Boolean? = null,
     /** Called as a launch begins; the game's window then waits [DECK_LAUNCH_ZOOM_MS] so the host can play its transition. */
     onLaunching: ((Shortcut) -> Unit)? = null,
+    /** The Ubisoft Connect setup question; the caller owns it so it can also resume a finished setup (see DeckModeScreen). */
+    ubisoftGate: UbisoftLaunchGate,
 ) {
     val context = LocalContext.current
     var preflightFor by remember { mutableStateOf<Shortcut?>(null) }
@@ -1333,7 +1335,7 @@ internal fun DeckLaunchStack(
     var componentDownloadLabel by remember { mutableStateOf("") }
     var componentDownloadProgress by remember { mutableStateOf(0f) }
 
-    fun go(s: Shortcut, preflightDone: Boolean = false) {
+    fun goPastUbisoftGate(s: Shortcut, preflightDone: Boolean) {
         val splash = onLaunching
         if (splash == null) {
             launchShortcut(activity, s, preflightDone)
@@ -1353,6 +1355,11 @@ internal fun DeckLaunchStack(
             },
             DECK_LAUNCH_ZOOM_MS.toLong(),
         )
+    }
+
+    fun go(s: Shortcut, preflightDone: Boolean = false) {
+        // A Ubisoft title needs Ubisoft Connect in its prefix first: one check, a one-time setup question, then the launch.
+        ubisoftGate.launchWithUbisoftGate(s) { goPastUbisoftGate(s, preflightDone) }
     }
 
     fun launchWithGoldberg(s: Shortcut, gm: GoldbergMode) {
@@ -1452,6 +1459,8 @@ internal fun DeckLaunchStack(
             )
         }
     }
+
+    UbisoftSetupDialog(ubisoftGate)
 
     componentDownloadFor?.let {
         Dialog(onDismissRequest = { }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
