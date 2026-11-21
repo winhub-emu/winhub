@@ -58,8 +58,6 @@ import com.winhub.hernandez.store.SteamRegion
 import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.theme.AppIcon
 import com.winhub.hernandez.ui.theme.AppThemeState
-import com.winhub.hernandez.ui.theme.CHARCOAL_PRESET_INDEX
-import com.winhub.hernandez.ui.theme.DEFAULT_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.ThemePreset
 import com.winhub.hernandez.ui.theme.selectableThemePresets
 import android.app.Activity
@@ -857,10 +855,6 @@ internal fun DeckSettingsScreen() {
                 onPick = {
                     uiLook = it
                     prefs.edit().putString(GlassLook.KEY, it).apply()
-                    // Glass is tuned on Charcoal (neutral surfaces): the default theme moves to it, a chosen one stays.
-                    if (it == GlassLook.GLASS && AppThemeState.presetIndex.value == DEFAULT_PRESET_INDEX) {
-                        AppThemeState.setPreset(CHARCOAL_PRESET_INDEX)
-                    }
                 },
             )
             DeckChoiceRow(

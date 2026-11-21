@@ -480,8 +480,5 @@ val CUSTOM_PRESET_INDEX = themePresets.size - 1
 // silently point the app at a different colour scheme.
 val DEFAULT_PRESET_INDEX = themePresets.indexOfFirst { it.name == "Marcescence" }.coerceAtLeast(0)
 
-/** The theme the Glass look is tuned on (see its entry above). Resolved by name, like the default. */
-val CHARCOAL_PRESET_INDEX = themePresets.indexOfFirst { it.name == "Charcoal" }.coerceAtLeast(0)
-
 /** The user-selectable themes (the hidden Custom slot is excluded). */
 val selectableThemePresets: List<ThemePreset> = themePresets.filter { it.name != "Custom" }

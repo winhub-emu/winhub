@@ -99,9 +99,7 @@ import com.winhub.hernandez.ui.screens.contents.HubSource
 import com.winhub.hernandez.ui.screens.contents.RemoteSourceRepository
 import com.winhub.hernandez.ui.deck.StoreStyle
 import com.winhub.hernandez.ui.theme.AppThemeState
-import com.winhub.hernandez.ui.theme.CHARCOAL_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.CUSTOM_PRESET_INDEX
-import com.winhub.hernandez.ui.theme.DEFAULT_PRESET_INDEX
 import com.winhub.hernandez.ui.theme.themePresets
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -163,12 +161,6 @@ internal class FirstRunViewModel : ViewModel() {
         store.value = saved(StoreStyle.KEY, StoreStyle.XMB).let { if (it == StoreStyle.DECK) StoreStyle.DECK else StoreStyle.XMB }
         sounds.value = saved(DeckSound.KEY, DeckSound.STEAMOS)
         oneUi.value = com.winhub.hernandez.core.DriverUpdateChecker.oneUiPreferred(context)
-        moveThemeForGlass()
-    }
-
-    // Glass is tuned on Charcoal (neutral surfaces): the default theme moves to it, a chosen one stays.
-    private fun moveThemeForGlass() {
-        if (look.value == GlassLook.GLASS && AppThemeState.presetIndex.value == DEFAULT_PRESET_INDEX) AppThemeState.setPreset(CHARCOAL_PRESET_INDEX)
     }
 
     private fun put(context: Context, key: String, value: String) {
@@ -179,7 +171,7 @@ internal class FirstRunViewModel : ViewModel() {
         oneUi.value = value
         com.winhub.hernandez.core.DriverUpdateChecker.setOneUiPreferred(context, value)
     }
-    fun setLook(context: Context, value: String) { look.value = value; put(context, GlassLook.KEY, value); moveThemeForGlass() }
+    fun setLook(context: Context, value: String) { look.value = value; put(context, GlassLook.KEY, value) }
     fun setHome(context: Context, value: String) { home.value = value; put(context, DeckHomeStyle.KEY, value) }
     fun setGameSettings(context: Context, value: String) { gameSettings.value = value; put(context, GameSettingsStyle.KEY, value) }
     fun setStore(context: Context, value: String) { store.value = value; put(context, StoreStyle.KEY, value) }
