@@ -341,14 +341,18 @@ object GameDoctor {
         val directXInput = HermesXInput.effective(container, shortcut)
         t["input_xinput_off"] = if (directXInput) Tweak(
             "input_xinput_off", "Turn Direct XInput off",
-            "XInput games stop reading the pad directly and DirectInput games see it instead. Some older games only behave with DirectInput.",
+            "Turns Direct XInput off and Disable XInput on, and DirectInput games see the pad instead. Some older games only behave with DirectInput.",
         ) {
             it.putExtra(HermesXInput.EXTRA_KEY, "0")
+            it.putExtra("disableXinput", "1")
             it.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1")
             it.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, DInputVisibility.inputTypeFor(true).toString())
         } else Tweak(
             "input_xinput_off", "Turn Direct XInput on", "XInput games read the controller directly again.",
-        ) { it.putExtra(HermesXInput.EXTRA_KEY, "1") }
+        ) {
+            it.putExtra(HermesXInput.EXTRA_KEY, "1")
+            it.putExtra("disableXinput", null)
+        }
         return t
     }
 
