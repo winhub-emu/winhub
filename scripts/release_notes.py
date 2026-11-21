@@ -29,12 +29,15 @@ import sys
 REPO_URL = "%s/%s" % (os.environ.get("GITHUB_SERVER_URL", "https://github.com"),
                       os.environ.get("GITHUB_REPOSITORY", "winhub-emu/winhub"))
 # Every release page opens with this banner, centered (light and dark variants). A notes file may carry
-# an older logo header: it is swapped for this one, so a page never shows two.
+# an older logo header: it is swapped for this one, so a page never shows two. A single <picture> picks
+# the light or dark file, so viewers that ignore the #gh-*-mode-only fragments still show one banner.
 BANNER_BASE = "https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/docs/media/"
 LOGO_URL = BANNER_BASE + "winhub_banner2_light.png"
 LOGO_BLOCK = ('<p align="center">\n'
-              '  <img alt="WinHub Light" src="%swinhub_banner2_light.png#gh-light-mode-only">\n'
-              '  <img alt="WinHub Dark" src="%swinhub_banner2_dark.png#gh-dark-mode-only">\n'
+              '  <picture>\n'
+              '    <source media="(prefers-color-scheme: dark)" srcset="%swinhub_banner2_dark.png">\n'
+              '    <img alt="WinHub" src="%swinhub_banner2_light.png">\n'
+              '  </picture>\n'
               '</p>\n\n' % (BANNER_BASE, BANNER_BASE))
 OLD_LOGO = re.compile(r'<p align="center">\s*<img src="[^"]*logo\.(?:jpg|png)[^"]*"[^>]*>\s*</p>\s*',
                       re.I)
@@ -205,7 +208,6 @@ def main():
             prev = previous_stable(ver)
             required = [
                 ("the %s version badge" % ver, "img.shields.io/badge/release-%s-" % ver),
-                ("the title", "# Bannerlator %s" % ver),
                 ("What's New since the previous stable (%s)" % prev,
                  "# What's New — everything since %s" % prev),
                 ("the Carried over section", "## ⚠️ Carried over — still open"),
@@ -213,6 +215,8 @@ def main():
                 ("the collapsed Credits section", CREDITS_SUMMARY.split("</b>")[0] + "</b>"),
             ]
             missing = [name for name, needle in required if needle not in body]
+            if not re.search(r"^# (?:Bannerlator|WinHub) %s\b" % re.escape(ver), body, re.M):
+                missing.insert(1, "the title (# WinHub %s)" % ver)
             if missing:
                 fail("%s does not follow the release layout; missing: %s"
                      % (notes_path, "; ".join(missing)))
