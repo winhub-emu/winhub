@@ -954,6 +954,12 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         if (version.isNotEmpty() && version != "System") return
         compositorFillJob?.cancel()
         AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
+        applyOneUiFix()
+    }
+
+    /** Turns the wrapper's OneUI / HyperOS fix on for a new container when the first-run setup asked for it. */
+    private fun applyOneUiFix() {
+        if (AutoDefaults.oneUiFix(context)) graphicsDriverConfig = withGraphicsDriverKeys(graphicsDriverConfig, mapOf("fdDevFeatures" to "1"))
     }
 
     /** The DXVK versions the Simple page offers: the bundled ones plus the installed ones that suit this architecture. */
@@ -986,6 +992,7 @@ class ContainerDetailViewModel(app: Application) : AndroidViewModel(app) {
         if (!isWaylandBackend) {
             AutoDefaults.graphicsDriverId(context)?.let { graphicsDriverConfig = withGraphicsDriverVersion(graphicsDriverConfig, it) }
         }
+        applyOneUiFix()
         // DXVK 2.4.1-1 gplasync with async shaders and its cache, and VKD3D-Proton 3.0.1. (VKD3D has no async
         // switch of its own here: the async keys are DXVK's.)
         val dx = HashMap<String, String>()

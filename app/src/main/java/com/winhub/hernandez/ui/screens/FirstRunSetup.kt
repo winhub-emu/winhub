@@ -119,7 +119,7 @@ private const val DRIVER = 6
 private const val CONTENTS = 7
 private const val SOCIAL = 8
 
-/** True when the Driver step is left out (only an A7xx Turnip has a OneUI build), so the step numbers close up. */
+/** True when the Driver step is left out (it asks about the Adreno OneUI / HyperOS fix), so the step numbers close up. */
 private val LocalDriverStepHidden = androidx.compose.runtime.compositionLocalOf { false }
 
 /** One ticked extra, with where it came from so the install plan can say so. */
@@ -134,7 +134,7 @@ internal class FirstRunViewModel : ViewModel() {
     val extras = MutableStateFlow<Map<String, ExtraPick>>(emptyMap())
     val repo = MutableStateFlow<String?>(null)
     val socialSkipped = MutableStateFlow(false)
-    /** The Driver step's answer: HyperOS 3 / One UI with glitches on the plain Turnip. Saved at once, so the install reads it. */
+    /** The Driver step's answer: HyperOS 3 / One UI with glitches. Saved at once, so new containers read it. */
     val oneUi = MutableStateFlow(false)
 
     // The console choices (Home, Sounds): the defaults the setup recommends. They are saved to the preferences Settings uses, at once,
@@ -227,8 +227,8 @@ internal fun FirstRunSetup(onInstall: (List<FirstRunContent>) -> Unit) {
             else -> hub.selectCategory(null)
         }
     }
-    // Only an A7xx Turnip has a OneUI build; on any other chip the Driver step has nothing to ask and is skipped.
-    val driverStepShown = remember { com.winhub.hernandez.core.DriverUpdateChecker.deviceFamily(ctx) == com.winhub.hernandez.core.DriverUpdateChecker.Family.A7XX }
+    // The OneUI / HyperOS fix is a Turnip setting, so on a non-Adreno chip the Driver step has nothing to ask and is skipped.
+    val driverStepShown = remember { com.winhub.hernandez.core.DriverUpdateChecker.deviceFamily(ctx) != null }
     fun goTo(target: Int) {
         var t = target
         if (t == DRIVER && !driverStepShown) t = if (t > step) t + 1 else t - 1
@@ -571,22 +571,22 @@ private fun DriverStep(vm: FirstRunViewModel, modifier: Modifier) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = modifier.verticalScroll(rememberScrollState())) {
         StepHeading(
             DRIVER, "Your graphics driver",
-            "Do you have HyperOS 3.0+ and often run into glitches when not using a One UI Turnip build?",
+            "Do you have HyperOS 3.0+ or One UI and often run into glitches such as corrupt textures?",
         )
         WizChoice(
             title = "No, the standard driver",
-            body = "The newest Turnip for your chip. This is right for almost everyone.",
+            body = "The newest Turnip for your chip, with the fix left off. This is right for almost everyone.",
             selected = !oneUi,
             onClick = { vm.setOneUi(ctx, false) },
             badge = "Recommended",
         ) { DriverGlyph(Icons.Filled.Close) }
         WizChoice(
-            title = "Yes, use the One UI build",
-            body = "Installs the One UI version of the newest Turnip instead, and keeps to it when the driver is updated.",
+            title = "Yes, turn on the One UI / HyperOS fix",
+            body = "Installs the same newest Turnip and switches on the OneUI / HyperOS Fix in the wrapper settings of every new container.",
             selected = oneUi,
             onClick = { vm.setOneUi(ctx, true) },
         ) { DriverGlyph(Icons.Filled.Check) }
-        Text("Change it any time by installing the other build from Contents.", color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
+        Text("Change it any time with OneUI / HyperOS Fix in a container's driver settings.", color = DeckPalette.onSurfaceVariant, fontSize = 13.sp)
     }
 }
 

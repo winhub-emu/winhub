@@ -31,6 +31,9 @@ object AutoDefaults {
         return DriverUpdateChecker.newestInstalled(context, family)?.id
     }
 
+    /** True when a new container starts with the OneUI / HyperOS fix on: the user said so in the first-run setup. */
+    fun oneUiFix(context: Context): Boolean = DriverUpdateChecker.oneUiPreferred(context)
+
     /** The installed regular DXVK 2.4.1 gplasync build (not the arm64ec or pre-reg ones), as the id the DXVK version setting holds, or null. */
     fun dxvkVersion(contents: ContentsManager): String? {
         val profile = contents.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_DXVK).orEmpty().firstOrNull {
