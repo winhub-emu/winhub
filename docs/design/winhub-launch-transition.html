@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinHub launch transition</title>
+<style>
+  :root {
+    --bg: #0a0b0d;
+    --surface: #121417;
+    --line: #1f2329;
+    --text: #f2f4f7;
+    --dim: #9aa3af;
+    --blue: #1ea1ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: 16px; max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 2px; }
+  p.lead { color: var(--dim); margin: 0 0 14px; }
+  .stagewrap { display: flex; justify-content: center; }
+  /* The device: --u is one dp in CSS px, set by the script from the stage width. */
+  .stage { position: relative; overflow: hidden; background: #000; border: 1px solid var(--line); border-radius: 14px; width: 100%; }
+  .stage.land { aspect-ratio: 914 / 411; }
+  .stage.port { aspect-ratio: 411 / 914; max-width: 340px; }
+  .layer { position: absolute; inset: 0; }
+
+  /* Home stand-in: a row of covers, the chosen one larger and centred. */
+  .home { background: var(--bg); }
+  .card { position: absolute; border-radius: calc(var(--u) * 4); background: linear-gradient(160deg, var(--c1), var(--c2)); box-shadow: 0 calc(var(--u) * 6) calc(var(--u) * 16) rgba(0,0,0,.5); }
+  .card span { position: absolute; left: calc(var(--u) * 8); bottom: calc(var(--u) * 8); right: calc(var(--u) * 8); font-size: calc(var(--u) * 11); font-weight: 700; color: rgba(255,255,255,.92); text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  .hint { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 14); text-align: center; color: var(--dim); font-size: calc(var(--u) * 12); }
+
+  /* The sheet of the launch zoom (DeckModeScreen). Only its transform and alpha change. */
+  #sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, opacity; opacity: 0; }
+
+  /* The loading screen (PreloaderOverlay): wall, blue corner light, scrim, the mark, the status. */
+  .loading { background: var(--bg); opacity: 0; }
+  .wall { position: absolute; inset: -10%; opacity: .5; filter: saturate(.8); }
+  .wall i { position: absolute; border-radius: 999px; background: linear-gradient(160deg, var(--c1), var(--c2)); }
+  .corner { position: absolute; inset: 0; }
+  .scrim { position: absolute; inset: 0; background:
+      radial-gradient(ellipse at 50% 46%, rgba(0,0,0,.66) 0%, rgba(0,0,0,.40) 55%, rgba(0,0,0,.30) 100%); }
+  .col { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 calc(var(--u) * 28); }
+  .col canvas { display: block; }
+  .t1 { margin-top: calc(var(--u) * 8); font-size: calc(var(--u) * 22); font-weight: 700; color: #f3f5f8; }
+  .t2 { margin-top: calc(var(--u) * 6); font-size: calc(var(--u) * 14); color: #b6bcc6; white-space: nowrap; }
+  .t2 b { color: #f3f5f8; font-weight: 600; }
+  .bar { margin-top: calc(var(--u) * 16); width: calc(var(--u) * 320); max-width: 86vw; }
+  .bar .lab { display: flex; justify-content: space-between; font-size: calc(var(--u) * 12); color: #b6bcc6; margin-bottom: calc(var(--u) * 6); }
+  .bar .trk { height: calc(var(--u) * 4); border-radius: 99px; background: rgba(255,255,255,.14); overflow: hidden; }
+  .bar .fil { height: 100%; width: 0; background: var(--blue); border-radius: 99px; }
+  #fx { position: absolute; inset: 0; pointer-events: none; }
+
+  .panel { margin-top: 14px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .box h2 { margin: 0 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+  .row label { min-width: 84px; color: var(--dim); }
+  button, select { font: inherit; color: var(--text); background: #1a1d22; border: 1px solid #2a2f37; border-radius: 10px; padding: 9px 14px; min-height: 44px; }
+  button.on { background: var(--blue); color: #03111f; border-color: var(--blue); font-weight: 700; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  input[type=range] { flex: 1; min-width: 120px; accent-color: var(--blue); min-height: 32px; }
+  .val { min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+  .scrub { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+  .scrub input { flex: 1; }
+  .scrub .time { min-width: 76px; text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); }
+  details { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+  pre { overflow: auto; background: #0d0f12; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #d6dbe3; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; color: #8fd0ff; }
+  @media (prefers-reduced-motion: reduce) { .note-rm { display: block; } }
+  .note-rm { display: none; color: #f5b14a; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<h1>WinHub launch transition</h1>
+<p class="lead">Pressing Play: the cover turns <b>blue</b>, fills the screen fast, then <b>becomes the three circles</b> of the WinHub mark. Timings, easings and the mark are the app's own values (listed below the controls); the Home row is only a stand-in.</p>
+<div class="note-rm">Your system asks for reduced motion; this page still plays so you can review it.</div>
+
+<div class="stagewrap">
+  <div class="stage land" id="stage">
+    <div class="layer home" id="home"></div>
+    <div class="layer loading" id="loading">
+      <div class="wall" id="wall"></div>
+      <div class="corner" id="corner"></div>
+      <div class="scrim"></div>
+      <div class="col" id="col">
+        <canvas id="mark" aria-label="WinHub"></canvas>
+        <div class="t1" id="t1">Starting up</div>
+        <div class="t2" id="t2"><b>Cyber Rally 2077</b> · Cronos · 1600x720</div>
+        <div class="bar" id="bar"><div class="lab"><span>Preparing container…</span><span id="pct">0%</span></div><div class="trk"><div class="fil" id="fil"></div></div></div>
+      </div>
+    </div>
+    <div id="sheet"></div>
+    <canvas id="fx"></canvas>
+  </div>
+</div>
+
+<div class="scrub">
+  <button id="play" class="on" aria-label="Replay">Replay</button>
+  <input type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Timeline">
+  <span class="time" id="time">0 ms</span>
+</div>
+
+<div class="panel">
+  <div class="box">
+    <h2>Version</h2>
+    <div class="row">
+      <button id="mNew" class="on">New: blue → circles</button>
+      <button id="mOld">Before: theme colour → shrink</button>
+    </div>
+    <div class="row" id="oldRow" style="display:none">
+      <label for="accent">Theme accent</label>
+      <select id="accent"></select>
+    </div>
+    <div class="row">
+      <button id="oLand" class="on">Landscape</button>
+      <button id="oPort">Portrait</button>
+    </div>
+    <div class="row">
+      <label for="speed">Speed</label>
+      <select id="speed"><option value="1">1×</option><option value="0.5" selected>0.5×</option><option value="0.25">0.25×</option></select>
+      <label style="min-width:0"><input type="checkbox" id="loop" checked> Loop</label>
+    </div>
+  </div>
+  <div class="box">
+    <h2>Timing</h2>
+    <div class="row"><label for="sExpand">Expand</label><input type="range" id="sExpand" min="120" max="500" step="10" value="240"><span class="val" id="vExpand"></span></div>
+    <div class="row"><label for="sHold">Hold</label><input type="range" id="sHold" min="0" max="300" step="10" value="60"><span class="val" id="vHold"></span></div>
+    <div class="row"><label for="sMorph">To circles</label><input type="range" id="sMorph" min="200" max="900" step="10" value="520"><span class="val" id="vMorph"></span></div>
+  </div>
+</div>
+
+<details open>
+  <summary>Real values used here</summary>
+  <table>
+    <tr><th>What</th><th>Value</th><th>From</th></tr>
+    <tr><td>Cover → full screen</td><td><code>240 ms</code>, easing <code>cubic-bezier(.2,.8,.2,1)</code>, alpha <code>min(1, t·6)</code>, corner <code>4dp → 0</code></td><td><code>DeckHub.kt</code> DECK_LAUNCH_ZOOM_MS · <code>DeckModeScreen.kt</code> launch sheet</td></tr>
+    <tr><td>Colour (before)</td><td>the selected theme's accent, <code>Deck.primary</code></td><td><code>DeckHub.kt</code> <code>zoomColor</code></td></tr>
+    <tr><td>Colour (new)</td><td><code>#1EA1FF</code>, the mark's own blue, always</td><td><code>WinHubLogoAnimation.kt</code> <code>Blue</code></td></tr>
+    <tr><td>Reveal (before)</td><td>sheet shrinks to nothing from the centre, delay <code>60 ms</code>, <code>340 ms</code></td><td><code>PreloaderOverlayHelper.kt</code></td></tr>
+    <tr><td>Mark</td><td>3 s loop, dots <code>r = 11.7</code>, box <code>340 × 200</code>, <code>170dp</code> wide (landscape) / <code>240dp</code> (portrait)</td><td><code>WinHubLogoAnimation.kt</code>, <code>PreloaderOverlay.kt</code></td></tr>
+    <tr><td>Loading text</td><td>"Starting up" 22sp bold, game line 14sp, steps 12sp</td><td><code>PreloaderOverlay.kt</code></td></tr>
+  </table>
+  <p class="lead" style="margin-top:8px">New part (not in the app yet): after the fill, three circles centred on the mark's three dots shrink from covering the whole screen down to the dot size, easing <code>cubic-bezier(.2,.5,.3,.9)</code> so the blue spends most of its time turning into the dots; the rest of the mark and the text fade in as they settle. In the app this is three <code>drawCircle</code> calls and one radius value.</p>
+</details>
+
+<details>
+  <summary>How it ports to the app</summary>
+<pre>// PreloaderOverlayHelper.playReveal: replaces "scale the sheet to 0"
+// phase = 0..1 over MORPH_MS (520), driven by Animatable + tween(MORPH_MS, CubicBezierEasing(.2f, .5f, .3f, .9f))
+val r0 = hypot(size.width, size.height)        // one circle alone covers the screen
+val dotR = DOT_R * markScale                   // the mark's own dot radius in px
+val r = r0 * (dotR / r0).pow(phase)            // geometric: even to the eye
+for (c in dotCentres) drawCircle(Blue, r, c)   // the union is the blue that is left
+// phase == 1: the circles are exactly the mark's dots, so drawing stops
+// and WinHubLogoAnimation takes over (its loop starts at t = 0).</pre>
+</details>
+
+<script>
+"use strict";
+
+/* ───────────── Constants copied from the app ───────────── */
+var LOGO = {
+  VIEW_X: 45.5, VIEW_Y: 122.5, VIEW_W: 340, VIEW_H: 200,
+  LOOP_MS: 3000, STILL_T: 0.95, DOT_R: 11.7,
+  BLUE: "#1ea1ff", INK: "#ffffff"
+};
+var DECK_EASE = [0.2, 0.8, 0.2, 1];          // DeckEase and the reveal's PathInterpolator
+var EASE_IN_OUT = [0.42, 0, 0.58, 1];
+var MORPH_EASE = [0.2, 0.5, 0.3, 0.9];      // new: most of the time is spent turning the blob into the three dots
+var OUTLINE_EASE = [0.6, 0, 0.3, 1];
+var RIPPLE_EASE = [0.2, 0.6, 0.3, 1];
+var DOT_A = [0,1, .08,1, .11,1.25, .15,1, .48,1, .51,1.3, .56,1, 1,1];
+var DOT_B = [0,1, .10,1, .13,1.25, .17,1, .48,1, .51,1.3, .56,1, 1,1];
+var DOT_C = [0,1, .12,1, .15,1.25, .19,1, .48,1, .51,1.3, .56,1, 1,1];
+var OUTLINE_LEFT  = [.12,1.02, .24,0, .78,0, .88,1.02];
+var OUTLINE_BAR   = [.24,1.02, .34,0, .70,0, .78,1.02];
+var OUTLINE_RIGHT = [.34,1.02, .48,0, .60,0, .70,1.02];
+var DOT_LEFT = [256.19, 266.28], DOT_TOP = [324.03, 179.44], DOT_RIGHT = [324.11, 264.11];
+var DOTS = [DOT_LEFT, DOT_TOP, DOT_RIGHT];
+var W_PATH = [[107.75,179.55],[144.0,264.75],[181.8,180.0],[218.5,265.3],[256.25,180.55]];
+var W_SHADOW_GROW = [18, 12, 6];
+var H_SHADOW_GROW = [3.6, 2.4, 1.2];
+var H_STEM_LEFT = { x: 243.2, y: 172, w: 26, h: 109 };
+var H_STEM_RIGHT = { x: 311.5, y: 165, w: 26, h: 114 };
+var H_BAR = { x: 272, y: 218, w: 34, h: 20.5 };
+
+// The app's theme accents (ThemePreset.kt), for the "before" version.
+var PRESETS = [
+  ["Marcescence","#1A9FFF"],["Purple","#A855F7"],["Red","#EF4444"],["Green","#22C55E"],["Monochrome","#FFFFFF"],
+  ["Pink","#EC4899"],["Halloween","#FF7518"],["Ocean","#14B8A6"],["Amber","#F59E0B"],["Sunset","#FB7185"],
+  ["Nord","#88C0D0"],["Midnight","#6366F1"],["Christmas","#E11D48"],["Dracula","#BD93F9"],["Gruvbox","#FE8019"],
+  ["Solarized","#2AA198"],["Tokyo Night","#7AA2F7"],["Catppuccin","#CBA6F7"],["Rose Pine","#EBBCBA"],
+  ["Cyberpunk","#FCEE0A"],["Synthwave","#FF2E97"],["Forest","#84CC16"],["Charcoal","#8AB4FF"],["Custom","#0055FF"]
+];
+
+/* ───────────── Math ───────────── */
+function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smooth(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+
+// CubicBezierEasing, as Compose / Android's PathInterpolator solve it.
+function bezier(p) {
+  var x1 = p[0], y1 = p[1], x2 = p[2], y2 = p[3];
+  function cx(t) { return 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t; }
+  function cy(t) { return 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t; }
+  return function (x) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    var lo = 0, hi = 1, t = x;
+    for (var i = 0; i < 40; i++) {
+      var v = cx(t);
+      if (Math.abs(v - x) < 1e-6) break;
+      if (v < x) lo = t; else hi = t;
+      t = (lo + hi) / 2;
+    }
+    return cy(t);
+  };
+}
+var morphEase = bezier(MORPH_EASE), deckEase = bezier(DECK_EASE), easeInOut = bezier(EASE_IN_OUT), outlineEase = bezier(OUTLINE_EASE), rippleEase = bezier(RIPPLE_EASE);
+
+// keyed(): the value of a flat (time, value) list at t, the same easing on every segment.
+function keyed(t, ease, k) {
+  if (t <= k[0]) return k[1];
+  for (var i = 2; i < k.length; i += 2) {
+    if (t < k[i]) {
+      var f = (t - k[i - 2]) / (k[i] - k[i - 2]);
+      return lerp(k[i - 1], k[i + 1], ease(f));
+    }
+  }
+  return k[k.length - 1];
+}
+
+/* ───────────── The mark: a line-for-line port of WinHubLogoAnimation.drawMark ───────────── */
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+function wPath(c) {
+  c.beginPath();
+  c.moveTo(W_PATH[0][0], W_PATH[0][1]);
+  for (var i = 1; i < W_PATH.length; i++) c.lineTo(W_PATH[i][0], W_PATH[i][1]);
+}
+function hBar(c, bar, radius) {
+  for (var i = 0; i < H_SHADOW_GROW.length; i++) {
+    var g = H_SHADOW_GROW[i];
+    c.fillStyle = "rgba(0,0,0,0.18)";
+    roundRect(c, bar.x - g, bar.y - g, bar.w + 2 * g, bar.h + 2 * g, radius + g);
+    c.fill();
+  }
+  var grad = c.createLinearGradient(bar.x, 0, bar.x + bar.w, 0);
+  grad.addColorStop(0, "#d2d2d2"); grad.addColorStop(0.5, "#bfbfbf"); grad.addColorStop(1, "#d2d2d2");
+  c.fillStyle = grad;
+  roundRect(c, bar.x, bar.y, bar.w, bar.h, radius);
+  c.fill();
+}
+function outline(c, t, start, end, offsets, from, to, width) {
+  if (t < start || t >= end) return;
+  var shown = clamp(1.02 - keyed(t, outlineEase, offsets), 0, 1);
+  if (shown <= 0.001) return;
+  c.strokeStyle = LOGO.INK; c.lineWidth = width; c.lineCap = "round";
+  c.beginPath(); c.moveTo(from[0], from[1]);
+  c.lineTo(lerp(from[0], to[0], shown), lerp(from[1], to[1], shown));
+  c.stroke();
+}
+// partsAlpha fades everything but the dots (used while the circles settle onto them).
+function drawMark(c, t, partsAlpha) {
+  c.save();
+  c.globalAlpha = partsAlpha;
+  c.lineCap = "round"; c.lineJoin = "round";
+  for (var i = 0; i < W_SHADOW_GROW.length; i++) {
+    c.strokeStyle = "rgba(0,0,0,0.14)"; c.lineWidth = 25.4 + W_SHADOW_GROW[i];
+    wPath(c); c.stroke();
+  }
+  hBar(c, H_STEM_LEFT, 13);
+  hBar(c, H_STEM_RIGHT, 13);
+  hBar(c, H_BAR, 10.25);
+  outline(c, t, .12, .881, OUTLINE_LEFT, [256.2, 268], [256.2, 185], 26);
+  outline(c, t, .24, .781, OUTLINE_BAR, [282.25, 228.25], [295.75, 228.25], 20.5);
+  outline(c, t, .34, .701, OUTLINE_RIGHT, [324.5, 266], [324.5, 178], 26);
+  c.strokeStyle = LOGO.INK; c.lineWidth = 25.4; c.lineCap = "round"; c.lineJoin = "round";
+  wPath(c); c.stroke();
+  c.restore();
+
+  if (t >= 0.48 && t <= 0.72) {
+    var e = rippleEase((t - 0.48) / 0.24);
+    var grow = lerp(1, 3, e);
+    c.strokeStyle = "rgba(30,161,255," + (0.8 * (1 - e)) + ")"; c.lineWidth = 1.5 * grow;
+    for (var d = 0; d < DOTS.length; d++) {
+      c.beginPath(); c.arc(DOTS[d][0], DOTS[d][1], LOGO.DOT_R * grow, 0, Math.PI * 2); c.stroke();
+    }
+  }
+  c.fillStyle = LOGO.BLUE;
+  var ks = [DOT_A, DOT_B, DOT_C];
+  for (var j = 0; j < 3; j++) {
+    c.beginPath(); c.arc(DOTS[j][0], DOTS[j][1], LOGO.DOT_R * keyed(t, easeInOut, ks[j]), 0, Math.PI * 2); c.fill();
+  }
+}
+
+/* ───────────── Page ───────────── */
+var $ = function (id) { return document.getElementById(id); };
+var stage = $("stage"), sheet = $("sheet"), loading = $("loading"), fx = $("fx"), mark = $("mark");
+var st = {
+  mode: "new", land: true, accent: "#1A9FFF",
+  expand: 240, hold: 60, morph: 520, speed: 0.5, loop: true,
+  playing: true, t0: 0, elapsed: 0, u: 1, W: 914, H: 411, dpr: 1
+};
+var REVEAL_DELAY = 60, REVEAL_MS = 340, TAIL_MS = 3400;
+var GAME = [["#3b82f6","#1e3a8a"],["#f97316","#7c2d12"],["#a855f7","#4c1d95"],["#10b981","#064e3b"],["#ef4444","#7f1d1d"],["#eab308","#713f12"],["#06b6d4","#164e63"]];
+
+function total() {
+  return st.expand + st.hold + (st.mode === "new" ? st.morph : REVEAL_MS) + TAIL_MS;
+}
+
+function buildHome() {
+  var home = $("home");
+  home.innerHTML = "";
+  var names = ["Hades II", "Forza", "Cyber Rally 2077", "Hollow Knight", "Doom", "Celeste", "Stardew"];
+  var cw = 124, ch = 176, gap = 14;
+  var selW = cw * 1.35, selH = ch * 1.35;
+  var cx = st.W / 2, cy = st.H * 0.46;
+  var cards = [];
+  for (var i = 0; i < 7; i++) {
+    var off = i - 2;                      // card 2 is the chosen one
+    var sel = off === 0;
+    var w = sel ? selW : cw, h = sel ? selH : ch;
+    var x = sel ? cx - w / 2 : (off < 0 ? cx - selW / 2 - gap + (off + 1) * (cw + gap) - cw : cx + selW / 2 + gap + (off - 1) * (cw + gap));
+    var el = document.createElement("div");
+    el.className = "card";
+    el.style.cssText = "--c1:" + GAME[i][0] + ";--c2:" + GAME[i][1] + ";left:calc(var(--u)*" + x + ");top:calc(var(--u)*" + (cy - h / 2) + ");width:calc(var(--u)*" + w + ");height:calc(var(--u)*" + h + ")";
+    el.innerHTML = "<span>" + names[i] + "</span>";
+    home.appendChild(el);
+    if (sel) cards.sel = { x: x, y: cy - h / 2, w: w, h: h };
+  }
+  var hint = document.createElement("div");
+  hint.className = "hint"; hint.textContent = "Press A to play";
+  home.appendChild(hint);
+  return cards.sel;
+}
+
+function buildLoading() {
+  var wall = $("wall");
+  wall.innerHTML = "";
+  for (var i = 0; i < 14; i++) {
+    var g = GAME[i % GAME.length];
+    var el = document.createElement("i");
+    var w = 70 + (i * 37) % 60, h = 150 + (i * 53) % 80;
+    el.style.cssText = "--c1:" + g[0] + ";--c2:" + g[1] + ";left:calc(var(--u)*" + ((i * 71) % 900) + ");top:calc(var(--u)*" + (((i * 113) % 330) - 40) + ");width:calc(var(--u)*" + w + ");height:calc(var(--u)*" + h + ");opacity:.55";
+    wall.appendChild(el);
+  }
+  var r = 460;
+  $("corner").style.background = "radial-gradient(circle calc(var(--u)*" + r + ") at calc(100% - var(--u)*" + (r * 0.35) + ") calc(var(--u)*" + (r * 0.35) + "), rgba(26,159,255,.24), rgba(26,159,255,.10) 40%, rgba(26,159,255,.04) 70%, transparent 100%)";
+  // The mark: 170dp wide in landscape, 240dp in portrait.
+  var wDp = st.land ? 170 : 240;
+  mark.dataset.wdp = wDp;
+}
+
+function layout() {
+  st.W = st.land ? 914 : 411;
+  st.H = st.land ? 411 : 914;
+  stage.className = "stage " + (st.land ? "land" : "port");
+  var px = stage.clientWidth;
+  st.u = px / st.W;
+  stage.style.setProperty("--u", st.u + "px");
+  st.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  fx.width = Math.round(stage.clientWidth * st.dpr);
+  fx.height = Math.round(stage.clientHeight * st.dpr);
+  fx.style.width = stage.clientWidth + "px"; fx.style.height = stage.clientHeight + "px";
+  buildLoading();
+  var wDp = +mark.dataset.wdp;
+  var hDp = wDp * LOGO.VIEW_H / LOGO.VIEW_W;
+  mark.style.width = (wDp * st.u) + "px";
+  mark.style.height = (hDp * st.u) + "px";
+  mark.width = Math.round(wDp * st.u * st.dpr);
+  mark.height = Math.round(hDp * st.u * st.dpr);
+  st.sel = buildHome();
+  sheet.style.width = (st.W * st.u) + "px";
+  sheet.style.height = (st.H * st.u) + "px";
+}
+
+function markDotCentres() {
+  // Dot centres in stage CSS px, read from where the mark canvas really sits.
+  var sr = stage.getBoundingClientRect(), mr = mark.getBoundingClientRect();
+  var s = mr.width / LOGO.VIEW_W;
+  return DOTS.map(function (d) {
+    return [mr.left - sr.left + (d[0] - LOGO.VIEW_X) * s, mr.top - sr.top + (d[1] - LOGO.VIEW_Y) * s];
+  });
+}
+
+function drawMarkCanvas(t, partsAlpha) {
+  var c = mark.getContext("2d");
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, mark.width, mark.height);
+  var s = mark.width / LOGO.VIEW_W;
+  c.setTransform(s, 0, 0, s, -LOGO.VIEW_X * s, -LOGO.VIEW_Y * s);
+  drawMark(c, t, partsAlpha);
+}
+
+/* One frame at `e` ms since Play. Everything is a pure function of e, so the scrubber and the loop agree. */
+function render(e) {
+  var a = st.expand, h = st.hold, isNew = st.mode === "new";
+  var color = isNew ? LOGO.BLUE : st.accent;
+  var sel = st.sel, u = st.u;
+
+  // 1. The cover turns the colour and fills the screen (the app's own zoom).
+  var t = clamp(e / a, 0, 1);
+  var k = deckEase(t);
+  var sx = lerp(sel.w / st.W, 1, k), sy = lerp(sel.h / st.H, 1, k);
+  var tx = lerp(sel.x, 0, k) * u, ty = lerp(sel.y, 0, k) * u;
+  var radius = Math.max(0, 4 * u * (1 - k) / ((sx + sy) / 2));
+  var sheetAlpha = clamp(k * 6, 0, 1);
+  sheet.style.background = color;
+  sheet.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + sx + "," + sy + ")";
+  sheet.style.borderRadius = radius + "px";
+  sheet.style.opacity = e < 0 ? 0 : sheetAlpha;
+
+  // Home fades as the zoom runs (alpha = 1 - t).
+  $("home").style.opacity = 1 - k;
+
+  var ctx = fx.getContext("2d");
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, fx.width, fx.height);
+
+  var after = e - a - h;                     // ms into the reveal
+  var loadingOn = after >= 0;
+  loading.style.opacity = loadingOn ? 1 : 0;
+
+  var partsAlpha = 1, textAlpha = 1, markT = LOGO.STILL_T;
+  if (isNew) {
+    var m = clamp(after / st.morph, 0, 1);
+    var em = morphEase(m);
+    if (after >= 0) {
+      // 2. The sheet hands over to three circles on the mark's dots; they shrink onto the dots.
+      sheet.style.opacity = 0;
+      var dots = markDotCentres();
+      var dotPx = LOGO.DOT_R * (mark.getBoundingClientRect().width / LOGO.VIEW_W);
+      var r0 = Math.hypot(stage.clientWidth, stage.clientHeight);
+      var r = r0 * Math.pow(dotPx / r0, em);          // geometric: even to the eye
+      if (m < 1) {
+        ctx.setTransform(st.dpr, 0, 0, st.dpr, 0, 0);
+        ctx.fillStyle = LOGO.BLUE;
+        for (var i = 0; i < dots.length; i++) {
+          ctx.beginPath(); ctx.arc(dots[i][0], dots[i][1], r, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      partsAlpha = smooth((m - 0.5) / 0.5);
+      textAlpha = smooth((m - 0.65) / 0.35);
+      markT = m >= 1 ? ((after - st.morph) / LOGO.LOOP_MS) % 1 : LOGO.STILL_T;
+    } else {
+      partsAlpha = 0; textAlpha = 0;
+    }
+  } else {
+    // Before: the sheet shrinks to nothing from the centre (60 ms delay, 340 ms), the mark already plays.
+    var ra = after - REVEAL_DELAY;
+    if (after >= 0) {
+      var rk = deckEase(clamp(ra / REVEAL_MS, 0, 1));
+      var sc = ra <= 0 ? 1 : 1 - rk;
+      sheet.style.transformOrigin = "50% 50%";
+      sheet.style.transform = "scale(" + sc + ")";
+      sheet.style.borderRadius = "0";
+      sheet.style.opacity = sc > 0.001 ? 1 : 0;
+      markT = (after / LOGO.LOOP_MS) % 1;
+    }
+  }
+  if (isNew || after < 0) sheet.style.transformOrigin = "0 0";
+
+  drawMarkCanvas(markT, partsAlpha);
+  $("t1").style.opacity = textAlpha; $("t2").style.opacity = textAlpha; $("bar").style.opacity = textAlpha;
+  var pct = clamp((after + st.morph * 0.4) / 2600, 0, 1);
+  $("fil").style.width = (loadingOn ? pct * 100 : 0) + "%";
+  $("pct").textContent = Math.round(loadingOn ? pct * 100 : 0) + "%";
+}
+
+/* ───────────── Controls ───────────── */
+var raf = 0;
+function frame(now) {
+  if (!st.playing) { raf = 0; return; }
+  if (!st.t0) st.t0 = now - st.elapsed / st.speed;
+  st.elapsed = (now - st.t0) * st.speed;
+  var T = total();
+  if (st.elapsed >= T) {
+    if (st.loop) { st.elapsed = 0; st.t0 = now; } else { st.elapsed = T; st.playing = false; }
+  }
+  sync();
+  raf = requestAnimationFrame(frame);
+}
+function sync() {
+  var T = total();
+  $("scrub").max = Math.round(T);
+  $("scrub").value = Math.round(st.elapsed);
+  $("time").textContent = Math.round(st.elapsed) + " ms";
+  render(st.elapsed);
+}
+function play() { st.elapsed = 0; st.t0 = 0; st.playing = true; if (!raf) raf = requestAnimationFrame(frame); }
+function setMode(m) {
+  st.mode = m;
+  $("mNew").classList.toggle("on", m === "new");
+  $("mOld").classList.toggle("on", m === "old");
+  $("oldRow").style.display = m === "old" ? "flex" : "none";
+  sheet.style.transformOrigin = "0 0";
+  play();
+}
+function setOrientation(land) {
+  st.land = land;
+  $("oLand").classList.toggle("on", land);
+  $("oPort").classList.toggle("on", !land);
+  layout(); play();
+}
+
+$("play").onclick = play;
+$("mNew").onclick = function () { setMode("new"); };
+$("mOld").onclick = function () { setMode("old"); };
+$("oLand").onclick = function () { setOrientation(true); };
+$("oPort").onclick = function () { setOrientation(false); };
+$("speed").onchange = function () { var el = st.elapsed; st.speed = +this.value; st.t0 = 0; st.elapsed = el; };
+$("loop").onchange = function () { st.loop = this.checked; };
+$("scrub").oninput = function () { st.playing = false; st.elapsed = +this.value; sync(); };
+var sel = $("accent");
+PRESETS.forEach(function (p) { var o = document.createElement("option"); o.value = p[1]; o.textContent = p[0]; sel.appendChild(o); });
+sel.onchange = function () { st.accent = this.value; };
+function bindRange(id, vid, key) {
+  var el = $(id), out = $(vid);
+  function upd() { st[key] = +el.value; out.textContent = el.value + " ms"; }
+  el.oninput = function () { upd(); play(); };
+  upd();
+}
+bindRange("sExpand", "vExpand", "expand");
+bindRange("sHold", "vHold", "hold");
+bindRange("sMorph", "vMorph", "morph");
+window.addEventListener("resize", function () { layout(); sync(); });
+
+layout();
+play();
+</script>
+</body>
+</html>

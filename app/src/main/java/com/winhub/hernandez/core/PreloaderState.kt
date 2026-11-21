@@ -53,6 +53,26 @@ object PreloaderState {
     private val _ui = MutableStateFlow<PreloaderUi?>(null)
     val ui: StateFlow<PreloaderUi?> = _ui
 
+    /**
+     * The colour of the launch zoom this launch came from, while its reveal is still pending: the overlay
+     * keeps that colour up as a cover until the loading screen has turned it into the mark's dots, then
+     * calls [endReveal]. null = no reveal (a launch that did not come from the zoom).
+     */
+    private val _reveal = MutableStateFlow<Int?>(null)
+    val reveal: StateFlow<Int?> = _reveal
+
+    /** Runs once when the reveal ends (or is abandoned), on the main thread. */
+    @JvmStatic var onRevealEnd: Runnable? = null
+
+    @JvmStatic fun beginReveal(color: Int) { _reveal.value = color }
+
+    @JvmStatic fun endReveal() {
+        _reveal.value = null
+        val done = onRevealEnd
+        onRevealEnd = null
+        done?.run()
+    }
+
     // The failure card's buttons route through these; the hosting activity registers them.
     @JvmStatic var onClose: Runnable? = null
     @JvmStatic var onOpenLog: Runnable? = null

@@ -1340,7 +1340,8 @@ internal fun DeckLaunchStack(
             return
         }
         splash(s)
-        val zoomColor = Deck.primary.toArgb()
+        // Always the mark's blue, whatever the theme: the loading screen turns it into the mark's dots.
+        val zoomColor = com.winhub.hernandez.ui.WinHubBlue.toArgb()
         activity.window.decorView.postDelayed(
             {
                 if (!activity.isFinishing) {

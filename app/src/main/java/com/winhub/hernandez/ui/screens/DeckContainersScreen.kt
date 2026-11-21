@@ -65,6 +65,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.winhub.hernandez.ui.LaunchZoom
+import com.winhub.hernandez.ui.PreloaderOverlayHelper
+import com.winhub.hernandez.ui.WinHubBlue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -234,17 +241,27 @@ internal fun DeckContainersScreen(onEditContainer: (Int) -> Unit, vm: Containers
                         onNew = { onEditContainer(-1) },
                         onDefaults = { onEditContainer(-2) },
                         onEdit = onEditContainer,
-                        onRun = { container ->
-                            if (!XrActivity.isEnabled(context)) {
-                                val intent = Intent(context, XServerDisplayActivity::class.java)
-                                intent.putExtra("container_id", container.id)
-                                if (container.displayBackend == Container.DISPLAY_BACKEND_WAYLAND) {
-                                    intent.putExtra("wayland_mode", true)
+                        onRun = { container, from ->
+                            val start = {
+                                if (!XrActivity.isEnabled(context)) {
+                                    val intent = Intent(context, XServerDisplayActivity::class.java)
+                                    intent.putExtra("container_id", container.id)
+                                    if (container.displayBackend == Container.DISPLAY_BACKEND_WAYLAND) {
+                                        intent.putExtra("wayland_mode", true)
+                                    }
+                                    // The pressed pill zooms to the mark's blue, which the loading screen then turns into the mark.
+                                    if (from != null) intent.putExtra(PreloaderOverlayHelper.EXTRA_ZOOM_COLOR, WinHubBlue.toArgb())
+                                    context.startActivity(intent)
+                                    if (from != null) {
+                                        @Suppress("DEPRECATION")
+                                        activity.overridePendingTransition(0, 0)
+                                    }
+                                } else {
+                                    XrActivity.openIntent(activity, container.id, null)
                                 }
-                                context.startActivity(intent)
-                            } else {
-                                XrActivity.openIntent(activity, container.id, null)
                             }
+                            if (from != null && !XrActivity.isEnabled(context)) scope.launch { LaunchZoom.run(from); start() }
+                            else start()
                         },
                         onDuplicate = { vm.duplicate(it) {} },
                         onRemove = { vm.remove(it, context) {} },
@@ -365,7 +382,7 @@ private fun DeckStorageContainersTab(
     onNew: () -> Unit,
     onDefaults: () -> Unit,
     onEdit: (Int) -> Unit,
-    onRun: (Container) -> Unit,
+    onRun: (Container, Rect?) -> Unit,
     onDuplicate: (Container) -> Unit,
     onRemove: (Container) -> Unit,
     onExport: (Container) -> Unit,
@@ -445,7 +462,7 @@ private fun DeckStorageContainersTab(
                                     .filter { it.isNotEmpty() }
                                     .joinToString(" · "),
                                 chips = deckContainerChips(container),
-                                onRun = { onRun(container) },
+                                onRun = { from -> onRun(container, from) },
                                 onEdit = { onEdit(container.id) },
                                 onDuplicate = { onDuplicate(container) },
                                 onRemove = { onRemove(container) },
@@ -819,7 +836,7 @@ private fun DeckContainerCard(
     name: String,
     subtitle: String,
     chips: List<Pair<String, Color>>,
-    onRun: () -> Unit,
+    onRun: (Rect?) -> Unit,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
     onRemove: () -> Unit,
@@ -828,6 +845,7 @@ private fun DeckContainerCard(
     onBackupRestore: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var runBounds by remember { mutableStateOf<Rect?>(null) }
     val interaction = remember { MutableInteractionSource() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -888,9 +906,10 @@ private fun DeckContainerCard(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(width = 52.dp, height = 40.dp)
+                .onGloballyPositioned { runBounds = it.boundsInWindow() }
                 .clip(RoundedCornerShape(12.dp))
                 .background(DeckPalette.primary)
-                .clickable { onRun() },
+                .clickable { onRun(runBounds) },
         ) {
             Icon(
                 imageVector = Icons.Filled.PlayArrow,

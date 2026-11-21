@@ -310,6 +310,7 @@ internal fun DeckModeScreen() {
     val portrait = remember { AppOrientation.mode(context) == AppOrientation.PORTRAIT }
     // The Glass look: one gliding outline for the whole window, which every focusable of the shell registers with.
     XmbHighlightHost(enabled = rememberGlassLook() && !portrait, modifier = Modifier.fillMaxSize()) { DeckModeBody() }
+    com.winhub.hernandez.ui.LaunchZoomOverlay()
     DeckUpdatesHost()
 }
 
@@ -4038,7 +4039,7 @@ private fun DeckHomeCarousel(
                                 shape = RoundedCornerShape((4.dp.toPx() * (1f - t) / ((scaleX + scaleY) / 2f)).coerceAtLeast(0f))
                                 clip = true
                             }
-                            .background(accent),
+                            .background(com.winhub.hernandez.ui.WinHubBlue),
                     )
                 }
             }

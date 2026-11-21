@@ -1,28 +1,30 @@
 package com.winhub.hernandez.ui
 
 import android.provider.Settings
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -39,7 +41,9 @@ private const val LOOP_MS = 3000
 // A frame where every outline and ripple is gone and the dots are at rest: the plain mark, for when the animation is off.
 private const val STILL_T = 0.95f
 
-private val Blue = Color(0xFF1EA1FF)
+/** The mark's blue; also the colour of the launch zoom, so the zoom can turn into the mark's dots. */
+internal val WinHubBlue = Color(0xFF1EA1FF)
+private val Blue = WinHubBlue
 private val Ink = Color.White
 private const val DOT_R = 11.7f
 
@@ -96,13 +100,32 @@ private fun keyed(t: Float, ease: Easing, k: FloatArray): Float {
     return k[k.size - 1]
 }
 
+/** Where the mark's three dots are, for a mark drawn into [bounds] (window pixels): the launch zoom ends on them. */
+internal object WinHubMark {
+    fun dotCentres(bounds: Rect): List<Offset> {
+        val s = bounds.width / VIEW_W
+        return Dots.map { Offset(bounds.left + (it.x - VIEW_X) * s, bounds.top + (it.y - VIEW_Y) * s) }
+    }
+
+    fun dotRadiusPx(bounds: Rect): Float = DOT_R * bounds.width / VIEW_W
+}
+
 /**
  * The WinHub mark, animated on a 3 s loop. Give it a width; the height follows the artwork's 340:200 shape.
  * [still] (a failure, or the system's "animations off") draws the plain mark instead, so nothing keeps
  * moving on a screen that is waiting on the user.
+ *
+ * The launch zoom turns into the dots: while [atRest] the dots sit still, and [partsAlpha] (read while
+ * drawing, so it costs no recomposition) fades in everything but the dots. Letting go of [atRest] starts the
+ * loop from its first frame.
  */
 @Composable
-internal fun WinHubLogoAnimation(modifier: Modifier = Modifier, still: Boolean = false) {
+internal fun WinHubLogoAnimation(
+    modifier: Modifier = Modifier,
+    still: Boolean = false,
+    atRest: Boolean = false,
+    partsAlpha: () -> Float = { 1f },
+) {
     val context = LocalContext.current
     val animationsOff = remember {
         runCatching {
@@ -110,37 +133,57 @@ internal fun WinHubLogoAnimation(modifier: Modifier = Modifier, still: Boolean =
         }.getOrDefault(1f) == 0f
     }
     val frozen = still || animationsOff
-    val loop = rememberInfiniteTransition(label = "whLogo").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(LOOP_MS, easing = LinearEasing)),
-        label = "whLogoT",
-    )
+    val loop = remember { Animatable(0f) }
+    LaunchedEffect(frozen, atRest) {
+        loop.snapTo(0f)
+        if (frozen || atRest) return@LaunchedEffect
+        while (true) {
+            loop.animateTo(1f, tween(LOOP_MS, easing = LinearEasing))
+            loop.snapTo(0f)
+        }
+    }
     Canvas(modifier.aspectRatio(VIEW_W / VIEW_H).semantics { contentDescription = "WinHub" }) {
         // The phase is read here, in the draw pass, so the loop never recomposes anything.
-        val t = if (frozen) STILL_T else loop.value
+        val t = if (frozen || atRest) STILL_T else loop.value
         // Draw in the SVG's own coordinates: shift its viewBox to the origin, then scale to the canvas.
         withTransform({
             scale(size.width / VIEW_W, size.width / VIEW_W, Offset.Zero)
             translate(-VIEW_X, -VIEW_Y)
-        }) { drawMark(t) }
+        }) { drawMark(t, partsAlpha()) }
     }
 }
 
-private fun DrawScope.drawMark(t: Float) {
-    // W's shadow, then the H's grey bars with theirs, then the outlines that light the H up.
-    for (grow in WShadowGrow) {
-        drawPath(WPath, Color.Black.copy(alpha = 0.14f), style = Stroke(25.4f + grow, cap = StrokeCap.Round, join = StrokeJoin.Round))
+/** Draws [draw] at [alpha]: not at all when it is gone, plainly when it is whole, in a layer in between. */
+private inline fun DrawScope.parts(alpha: Float, draw: DrawScope.() -> Unit) {
+    if (alpha <= 0.001f) return
+    if (alpha >= 0.999f) {
+        draw()
+        return
     }
-    hBar(HStemLeft, HStemLeftBrush, 13f)
-    hBar(HStemRight, HStemRightBrush, 13f)
-    hBar(HBar, HBarBrush, 10.25f)
+    drawIntoCanvas { canvas ->
+        val paint = Paint().apply { this.alpha = alpha }
+        canvas.saveLayer(Rect(VIEW_X - 40f, VIEW_Y - 40f, VIEW_X + VIEW_W + 40f, VIEW_Y + VIEW_H + 40f), paint)
+        draw()
+        canvas.restore()
+    }
+}
 
-    outline(t, .12f, .881f, OutlineLeft, Offset(256.2f, 268f), Offset(256.2f, 185f), 26f)
-    outline(t, .24f, .781f, OutlineBar, Offset(282.25f, 228.25f), Offset(295.75f, 228.25f), 20.5f)
-    outline(t, .34f, .701f, OutlineRight, Offset(324.5f, 266f), Offset(324.5f, 178f), 26f)
+private fun DrawScope.drawMark(t: Float, partsAlpha: Float) {
+    // W's shadow, then the H's grey bars with theirs, then the outlines that light the H up.
+    parts(partsAlpha) {
+        for (grow in WShadowGrow) {
+            drawPath(WPath, Color.Black.copy(alpha = 0.14f), style = Stroke(25.4f + grow, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        hBar(HStemLeft, HStemLeftBrush, 13f)
+        hBar(HStemRight, HStemRightBrush, 13f)
+        hBar(HBar, HBarBrush, 10.25f)
 
-    drawPath(WPath, Ink, style = WStroke)
+        outline(t, .12f, .881f, OutlineLeft, Offset(256.2f, 268f), Offset(256.2f, 185f), 26f)
+        outline(t, .24f, .781f, OutlineBar, Offset(282.25f, 228.25f), Offset(295.75f, 228.25f), 20.5f)
+        outline(t, .34f, .701f, OutlineRight, Offset(324.5f, 266f), Offset(324.5f, 178f), 26f)
+
+        drawPath(WPath, Ink, style = WStroke)
+    }
 
     // Ripples leave all three dots together, as the second pulse peaks.
     if (t in 0.48f..0.72f) {

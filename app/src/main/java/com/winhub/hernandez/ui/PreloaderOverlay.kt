@@ -2,6 +2,8 @@ package com.winhub.hernandez.ui
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -9,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,9 +51,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
@@ -75,6 +84,7 @@ import com.winhub.hernandez.ui.screens.featuredCovers
 import com.winhub.hernandez.ui.screens.hueOf
 import com.winhub.hernandez.ui.theme.AppThemeState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 // The hero surface is always laid over a dark scrim, so text/accents use fixed light-on-dark
@@ -139,6 +149,38 @@ private fun DeckCoverWallBackdrop() {
     )
 }
 
+// The launch zoom's colour keeps covering the screen until it has become the mark's three dots: a beat
+// of hold, then three circles centred on the dots shrink from covering the whole screen down to the
+// dots' own size, and the rest of the mark and the text fade in as they settle.
+private const val REVEAL_HOLD_MS = 60L
+private const val REVEAL_MORPH_MS = 520
+private val RevealEase = CubicBezierEasing(0.2f, 0.5f, 0.3f, 0.9f)
+
+private fun smooth(x: Float): Float {
+    val t = x.coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
+
+/** The cover while it turns into the dots. [progress] runs 0..1 and is read while drawing, so a frame costs no recomposition. */
+@Composable
+private fun RevealDots(color: Color, mark: () -> Rect?, progress: () -> Float) {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    Canvas(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
+        val p = progress()
+        if (p >= 1f) return@Canvas
+        val bounds = mark()
+        if (bounds == null) {
+            drawRect(color)
+            return@Canvas
+        }
+        val reach = kotlin.math.hypot(size.width, size.height)    // one circle alone covers the screen
+        val dotR = WinHubMark.dotRadiusPx(bounds)
+        // Geometric, so the shrinking looks even instead of rushing at the start.
+        val r = reach * Math.pow((dotR / reach).toDouble(), p.toDouble()).toFloat()
+        for (c in WinHubMark.dotCentres(bounds)) drawCircle(color, r, c - origin)
+    }
+}
+
 /**
  * Full-bleed launch overlay. The screen is the Home tab's drifting cover wall behind a dark scrim;
  * the animated WinHub mark sits in the centre, "Starting up" and the game name under
@@ -149,12 +191,39 @@ private fun DeckCoverWallBackdrop() {
 @Composable
 fun PreloaderOverlay() {
     val state by PreloaderState.ui.collectAsState()
-    val ui = state ?: return
+    val revealColor by PreloaderState.reveal.collectAsState()
+    val ui = state
+    if (ui == null) {
+        // A launch that came from the zoom keeps the zoom's colour up until the loading screen can take over.
+        revealColor?.let { Box(Modifier.fillMaxSize().background(Color(it))) }
+        return
+    }
 
     // Centered status/shutdown screen — cover-wall backdrop + message + slim indeterminate bar.
     if (ui.centered) {
         CenteredStatus(ui.tailLabel.ifEmpty { ui.title }, ui.hint, ui.elapsed, ui.percent)
         return
+    }
+
+    val revealing = revealColor != null
+    val morph = remember { Animatable(if (revealing) 0f else 1f) }
+    var markBounds by remember { mutableStateOf<Rect?>(null) }
+    val markAtRest by remember { derivedStateOf { morph.value < 1f } }
+    LaunchedEffect(revealing, markBounds != null) {
+        if (!revealing) {
+            morph.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (markBounds == null) {
+            // The mark has not been measured yet; if it never is, do not hold the cover forever.
+            delay(2000)
+            PreloaderState.endReveal()
+            return@LaunchedEffect
+        }
+        morph.snapTo(0f)
+        delay(REVEAL_HOLD_MS)
+        morph.animateTo(1f, tween(REVEAL_MORPH_MS, easing = RevealEase))
+        PreloaderState.endReveal()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -174,72 +243,86 @@ fun PreloaderOverlay() {
                 .padding(horizontal = 28.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            WinHubLogoAnimation(Modifier.width(if (portrait) 240.dp else 170.dp), still = failed)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Starting up",
-                style = MaterialTheme.typography.headlineSmall,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = HeroText,
-                textAlign = TextAlign.Center,
+            WinHubLogoAnimation(
+                Modifier
+                    .width(if (portrait) 240.dp else 170.dp)
+                    .onGloballyPositioned { markBounds = it.boundsInWindow() },
+                still = failed,
+                atRest = markAtRest,
+                partsAlpha = { smooth((morph.value - 0.5f) / 0.5f) },
             )
-            if (ui.title.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                // Game name, then the "container · resolution" meta line mirrored from the game card.
-                val meta = ui.spec?.meta.orEmpty()
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = HeroText, fontWeight = FontWeight.SemiBold)) { append(ui.title) }
-                        if (meta.isNotEmpty()) append(" · $meta")
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = HeroTextDim,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-
+            // Everything under the mark fades in as the cover turns into the dots.
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.widthIn(max = if (failed) 420.dp else 320.dp).fillMaxWidth(),
+                modifier = Modifier.graphicsLayer { alpha = smooth((morph.value - 0.65f) / 0.35f) },
             ) {
-                when (ui.phase) {
-                    Phase.SETUP -> SetupProgress(ui.stepIndex, ui.stepTotal, ui.stepLabel)
-                    Phase.GUEST -> GuestProgress(ui.tailLabel)
-                    Phase.FAILED -> FailureCard(ui.failure)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Starting up",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = HeroText,
+                    textAlign = TextAlign.Center,
+                )
+                if (ui.title.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    // Game name, then the "container · resolution" meta line mirrored from the game card.
+                    val meta = ui.spec?.meta.orEmpty()
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(color = HeroText, fontWeight = FontWeight.SemiBold)) { append(ui.title) }
+                            if (meta.isNotEmpty()) append(" · $meta")
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = HeroTextDim,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
+                Spacer(Modifier.height(16.dp))
 
-                // Not-frozen reassurance line (SETUP/GUEST only; the failure card is self-contained).
-                if (!failed) {
-                    AnimatedVisibility(visible = ui.hint != null) {
-                        Column {
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = ui.hint ?: "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = HeroAccent,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.widthIn(max = if (failed) 420.dp else 320.dp).fillMaxWidth(),
+                ) {
+                    when (ui.phase) {
+                        Phase.SETUP -> SetupProgress(ui.stepIndex, ui.stepTotal, ui.stepLabel)
+                        Phase.GUEST -> GuestProgress(ui.tailLabel)
+                        Phase.FAILED -> FailureCard(ui.failure)
                     }
-                    // Cancel launch — aborts the launch and tears down the game/container so the user is
-                    // never stuck on the launch screen. Only during a real launch (not the shutdown message).
-                    if (ui.cancellable) {
-                        Spacer(Modifier.height(14.dp))
-                        OutlinedButton(
-                            onClick = { PreloaderState.onCancel?.run() },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = HeroText),
-                            border = BorderStroke(1.dp, HeroText.copy(alpha = 0.45f)),
-                        ) {
-                            Text("Cancel launch")
+
+                    // Not-frozen reassurance line (SETUP/GUEST only; the failure card is self-contained).
+                    if (!failed) {
+                        AnimatedVisibility(visible = ui.hint != null) {
+                            Column {
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    text = ui.hint ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = HeroAccent,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                        // Cancel launch — aborts the launch and tears down the game/container so the user is
+                        // never stuck on the launch screen. Only during a real launch (not the shutdown message).
+                        if (ui.cancellable) {
+                            Spacer(Modifier.height(14.dp))
+                            OutlinedButton(
+                                onClick = { PreloaderState.onCancel?.run() },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = HeroText),
+                                border = BorderStroke(1.dp, HeroText.copy(alpha = 0.45f)),
+                            ) {
+                                Text("Cancel launch")
+                            }
                         }
                     }
                 }
             }
         }
+        if (revealing) RevealDots(Color(revealColor ?: 0), { markBounds }, { morph.value })
     }
 }
 
