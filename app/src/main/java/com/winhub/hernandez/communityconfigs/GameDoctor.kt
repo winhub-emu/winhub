@@ -342,8 +342,12 @@ object GameDoctor {
             "input_xinput_off", "Turn XInput on", "Gives the game its XInput controller again.",
         ) { it.putExtra("disableXinput", null) } else Tweak(
             "input_xinput_off", "Turn XInput off",
-            "Hides the XInput controller. Some older games only behave with DirectInput.",
-        ) { it.putExtra("disableXinput", "1") }
+            "Hides the controller from XInput games and shows it to DirectInput games instead. Some older games only behave with DirectInput.",
+        ) {
+            it.putExtra("disableXinput", "1")
+            it.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1")
+            it.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, DInputVisibility.inputTypeFor(true).toString())
+        }
         return t
     }
 
