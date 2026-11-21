@@ -23,7 +23,7 @@ WinHub runs Windows games and apps on Android with a console-style home: a contr
 
 <p align="center"><img src="docs/media/readme/megabonk-wh.gif" width="100%" alt="Megabonk running in WinHub: launching the game from the console-style Home"></p>
 
-> Note: WinHub is an unofficial community project with no stand-alone website. Only download it from the [Releases](https://github.com/winhub-emu/winhub/releases) page.
+> Note: WinHub is an unofficial community project, with its official website is only https://winhub-emu.vercel.app/ . Only download it from the [Releases](https://github.com/winhub-emu/winhub/releases) page.
 
 ## Requirements and install
 
