@@ -6,6 +6,7 @@ import android.util.Log
 import com.winhub.hernandez.container.Shortcut
 import com.winhub.hernandez.core.DInputVisibility
 import com.winhub.hernandez.core.GPUInformation
+import com.winhub.hernandez.core.HermesXInput
 import com.winhub.hernandez.core.LogInventory
 import com.winhub.hernandez.core.LogRotation
 import com.winhub.hernandez.core.WaylandAdapterSettings
@@ -337,17 +338,17 @@ object GameDoctor {
             it.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, WinHandler.FLAG_INPUT_TYPE_XINPUT.toInt().toString())
         }
 
-        val xinputOff = shortcut.getExtra("disableXinput", "0") == "1"
-        t["input_xinput_off"] = if (xinputOff) Tweak(
-            "input_xinput_off", "Turn XInput on", "Gives the game its XInput controller again.",
-        ) { it.putExtra("disableXinput", null) } else Tweak(
-            "input_xinput_off", "Turn XInput off",
-            "Hides the controller from XInput games and shows it to DirectInput games instead. Some older games only behave with DirectInput.",
+        val directXInput = HermesXInput.effective(container, shortcut)
+        t["input_xinput_off"] = if (directXInput) Tweak(
+            "input_xinput_off", "Turn Direct XInput off",
+            "XInput games stop reading the pad directly and DirectInput games see it instead. Some older games only behave with DirectInput.",
         ) {
-            it.putExtra("disableXinput", "1")
+            it.putExtra(HermesXInput.EXTRA_KEY, "0")
             it.putExtra(DInputVisibility.EXTRA_EXCLUSIVE, "1")
             it.putExtra(DInputVisibility.EXTRA_INPUT_TYPE, DInputVisibility.inputTypeFor(true).toString())
-        }
+        } else Tweak(
+            "input_xinput_off", "Turn Direct XInput on", "XInput games read the controller directly again.",
+        ) { it.putExtra(HermesXInput.EXTRA_KEY, "1") }
         return t
     }
 
