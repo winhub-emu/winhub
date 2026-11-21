@@ -28,11 +28,14 @@ import sys
 
 REPO_URL = "%s/%s" % (os.environ.get("GITHUB_SERVER_URL", "https://github.com"),
                       os.environ.get("GITHUB_REPOSITORY", "winhub-emu/winhub"))
-# Every release page opens with this logo, centered. A notes file may carry its own older logo header: it
-# is swapped for this one, so a page never shows two.
-LOGO_URL = "https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/logo.png"
-LOGO_BLOCK = ('<p align="center">\n<img src="%s" width="1500" height="500" alt="WinHub" />\n</p>\n\n'
-              % LOGO_URL)
+# Every release page opens with this banner, centered (light and dark variants). A notes file may carry
+# an older logo header: it is swapped for this one, so a page never shows two.
+BANNER_BASE = "https://raw.githubusercontent.com/winhub-emu/winhub/refs/heads/master/docs/media/"
+LOGO_URL = BANNER_BASE + "winhub_banner2_light.png"
+LOGO_BLOCK = ('<p align="center">\n'
+              '  <img alt="WinHub Light" src="%swinhub_banner2_light.png#gh-light-mode-only">\n'
+              '  <img alt="WinHub Dark" src="%swinhub_banner2_dark.png#gh-dark-mode-only">\n'
+              '</p>\n\n' % (BANNER_BASE, BANNER_BASE))
 OLD_LOGO = re.compile(r'<p align="center">\s*<img src="[^"]*logo\.(?:jpg|png)[^"]*"[^>]*>\s*</p>\s*',
                       re.I)
 STABLE_TAG = re.compile(r"^\d+\.\d+(\.\d+)?$")
@@ -168,7 +171,7 @@ def short_notes(body, fallback, title):
 
 
 def with_logo(body):
-    """Body with the WinHub logo centered at the very top."""
+    """Body with the WinHub banner centered at the very top."""
     if LOGO_URL in body:
         return body
     if OLD_LOGO.search(body):
@@ -201,7 +204,6 @@ def main():
         if not a.prerelease:
             prev = previous_stable(ver)
             required = [
-                ("the logo header", LOGO_URL),
                 ("the %s version badge" % ver, "img.shields.io/badge/release-%s-" % ver),
                 ("the title", "# Bannerlator %s" % ver),
                 ("What's New since the previous stable (%s)" % prev,
