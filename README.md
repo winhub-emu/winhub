@@ -3,135 +3,69 @@
   <img alt="WinHub Dark" src="docs/media/winhub_banner2_dark.png#gh-dark-mode-only">
 </p>
 
-<h1 align="center">WinHub</h1>
-<p align="center"><b>Windows apps and games on Android, with a console-style interface, full Stores support, frame-gen, Social Hub and much more.</b></p>
+WinHub runs Windows games and apps on Android with a console-style home: a controller-first library, built-in Steam, Epic, GOG, Amazon and Xbox stores, and a retro library next to it. Underneath are Wine/Proton, Box64 and FEXCore, DXVK and VKD3D-Proton, and Vulkan drivers such as Turnip.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.1-ff2d9b?style=for-the-badge" alt="Version 1.1">
-  <img src="https://img.shields.io/github/downloads/winhub-emu/winhub/total?style=for-the-badge&label=Downloads&color=7a4cff" alt="Total Downloads">
-  <img src="https://img.shields.io/badge/Platform-Android%208.0%2B-2d9bff?style=for-the-badge" alt="Platform">
-  <img src="https://img.shields.io/badge/License-GPL--3.0-2dd4bf?style=for-the-badge" alt="License">
+  <a href="https://github.com/winhub-emu/winhub/releases"><img src="https://img.shields.io/badge/Download-Latest%20release-ff2d9b?style=for-the-badge&logo=android&logoColor=white" alt="Download the latest release"></a>
+  <a href="https://discord.gg/KpwUbc2cby"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the WinHub Discord"></a>
+  <a href="https://t.me/winhubchat"><img src="https://img.shields.io/badge/Telegram-Chat-2AABEE?style=for-the-badge&logo=telegram&logoColor=white" alt="Join the WinHub Telegram chat"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/winhub-emu/winhub/releases">
-    <img src="https://img.shields.io/badge/⬇%20Download-Latest%20Release-ff2d9b?style=for-the-badge&logo=android&logoColor=white" alt="Download">
-  </a>
+  <img src="https://img.shields.io/badge/Version-2.0--marcescence-ff2d9b" alt="Version 2.0-marcescence">
+  <img src="https://img.shields.io/github/downloads/winhub-emu/winhub/total?label=Downloads&color=7a4cff" alt="Total downloads">
+  <img src="https://img.shields.io/badge/Android-8.0%2B-2d9bff" alt="Android 8.0 and newer">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-2dd4bf" alt="GPL-3.0 license">
 </p>
 
-<p align="center">
-  <a href="#-contents">Contents</a> •
-  <a href="https://github.com/winhub-emu/winhub/releases">Download</a> •
-  <a href="CHANGELOG.md">Changelog</a> •
-  <a href="#-credits">Credits</a> •
-  <a href="https://t.me/winhubchat">Telegram Chat</a> •
-  <a href="https://t.me/winhubemul">Telegram Server</a> •
-  <a href="https://discord.gg/KpwUbc2cby">Discord Server</a>
-</p>
+<p align="center"><img src="docs/media/readme/megabonk-wh.gif" width="80%" alt="Megabonk running in WinHub: launching the game from the console-style Home"></p>
 
----
+> Note: WinHub is an unofficial community project with no stand-alone website. Only download it from the [Releases](https://github.com/winhub-emu/winhub/releases) page.
 
-## 📖 Contents
+## Requirements and install
 
-- [ℹ️ About](#️-about)
-- [📥 Install and update](#-install-and-update)
-- [🆕 What's new in 1.1](#-whats-new-in-11)
-- [✨ Features](#-features)
-- [🎮 Controller guide](#-controller-guide)
-- [🐛 Report a Mali GPU game issue](#-report-a-mali-gpu-game-issue)
-- [🎨 Adding your own ReShade effects](#-adding-your-own-reshade-effects)
-- [🎮 Frontends workaround](#-frontends-workaround)
-- [🛠️ Building](#️-building)
-- [🤖 Ask me anything](#-ask-me-anything)
-- [🙏 Credits](#-credits)
-- [⚖️ Disclaimer](#️-disclaimer)
-- [📄 License](#-license)
+Use Android 8.0 or newer (`minSdk 26`). Adreno GPUs run on Turnip; Mali GPUs (Exynos, Dimensity, Kirin, Helio) have their own PanVK driver path and a [public report board](#community). Compatibility and performance vary by device, GPU and game.
 
----
+1. Download the APK from the [latest release](https://github.com/winhub-emu/winhub/releases) and allow installs from your browser or file manager when Android asks.
+2. Open WinHub. The first-run setup picks your layout (landscape or portrait) and theme, installs the components it needs, and offers a Social Hub sign-in you can skip. Keep the app open until it finishes.
+3. Add a game from **Home → Add game**, or sign in to a store under **Stores**.
 
-## ℹ️ About
+To update, open **Settings → Updater**, pick the **Stable** or **Preview** channel and let WinHub download and install it. When it can, it uses a small patch (`.wh`) instead of the full APK. The same tab lists Proton, drivers and FEXCore with what is installed and what is newest. Upgrades keep your containers, games and settings.
 
-**WinHub** runs Windows applications and games on Android using Wine, Box64 and FEXCore, with DXVK, VKD3D-Proton and Vulkan drivers (Turnip and others) for graphics. It wraps all of that in a **console-style interface** that works fully with a gamepad and with touch, in landscape and in portrait.
+## Preview
 
-WinHub is an unofficial community project. It continues the Winlator line (Winlator → cmod → Bionic → Star Bionic → Bannerlator → WinHub) and stands on the work of everyone listed in the [Credits](#-credits).
+<table>
+  <tr>
+    <td width="50%"><img src="docs/media/readme/wh-bpm.jpg" alt="WinHub Home with the game carousel, store shelves and controller hints"></td>
+    <td width="50%"><img src="docs/media/readme/wh-retro.jpg" alt="WinHub retro library showing a Nintendo Switch game"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>PC library</b><br>Carousel, shelves for All, Recent, Favourites and each store</td>
+    <td align="center"><b>Retro library</b><br>Your ROM folders, covers and external emulators</td>
+  </tr>
+</table>
 
-> 🤖 Code in this project is written with the assistance of [Claude](https://www.anthropic.com/claude) by Anthropic.
+## Features
 
-| | |
-|---|---|
-| **App name** | `WinHub` |
-| **Package** | `com.winhub.hernandez` (two alternate-package builds are published next to it) |
-| **Version** | **1.1** (`versionCode 91`) |
-| **Android** | `minSdk 26` (Android 8.0+) · `targetSdk 28` · `compileSdk 34` |
-| **Releases** | [github.com/winhub-emu/winhub/releases](https://github.com/winhub-emu/winhub/releases) |
+**Interface.** A console-style Home with a game carousel and shelves, in landscape and portrait. Two Home styles (Classic and Full XMB, which puts the stores and Social on Home), a Glass or Material look, 22 themes, a gliding focus ring and on-screen button hints. Container and per-game editors come in Simple and Advanced views, and the in-game quick menu has Graphics, FPS, Effects, Controls, Audio, Advanced, Tasks and Mods tabs.
 
----
+**Stores and library.** Steam, Epic, GOG, Amazon and Xbox share one layout (Store, Library, Profile). Steam brings depot downloads, Friends and chat, and achievements; Xbox adds PC package install and cloud gaming. Any Windows game can be added from storage, and each keeps its own settings, shortcuts and saves.
 
-## 📥 Install and update
+**Retro library.** In landscape, switch Home to the retro library: 109 consoles, your own ROM folder, covers downloaded for the console on screen, and launching through the external emulator you pick for each system. No emulator cores are bundled.
 
-1. Download the APK from the [latest release](https://github.com/winhub-emu/winhub/releases).
-2. Allow installing from your browser or file manager when Android asks, then open the APK.
-3. On first launch WinHub shows its setup screen and installs the components it needs. Keep the app open until it finishes.
-4. Add a game from **Home → Add game**, or sign in to a store under **Stores**.
+**Compatibility.** Wine and Proton with Box64 and FEXCore, including Wayland sessions, with presets you can add, edit, duplicate, export and import. Components, environment variables and custom startup services are set per container or per game. DXVK, VKD3D-Proton and D7VK come as bundled or downloadable builds. Game Doctor suggests one-tap fixes for common input and launch problems.
 
-**Updating:** open **Settings → Updater**. Pick the **Stable** or **Preview** channel, and WinHub downloads and installs updates for you. When possible it uses a small patch (`.wh`) instead of the full APK.
+**Graphics.** Vulkan, EGL and SurfaceDirect renderers, each with only its own settings. Turnip, Wrapper and PanVK drivers with a driver manager, native frame generation (LSFG, using your own copy of Lossless Scaling), ReShade effects, upscaling and a performance HUD.
 
----
+**Mali.** PanVK driver downloads, a faster BCn layer, PanVK tuning variables, GPU usage from hardware counters and Mali-specific renderer fixes. All of it is Mali-only and does nothing on other GPUs.
 
-## 🆕 What's new in 1.1
+**Controls.** Gamepad, touch and on-screen controls with a live in-game editor, gyro aiming, vibration and Steam Controller support. On-screen icons come in Fusion, Glass and Neon styles.
 
-- 🧭 **First-run setup wizard.** A fresh install now walks you through five steps: **Layout** (Landscape or Portrait, with a live preview), **Theme**, **Contents** (tick extra components, while Proton 9, DXVK, FEXCore and VKD3D are always installed), **Social Hub** sign-in (or skip) and an **Install plan**. Fully usable with a controller. Deck follows the layout you pick.
-- 🗂️ **Deck-style Log Manager.** A themed dialog with a storage meter and **Capture / Storage / Game logs / Tools** sections (LB / RB to switch), per-log hints, log location, keep-last history, **Capture logcat now** and **Read last crash**.
-- 🔍 **Deck-style log viewer.** Find, Copy and Share with big actions and focus rings. A shortcut's **View logs** uses it in Deck mode.
-- 📝 **Report a problem.** A controller-editable Deck dialog that zips your logs into Downloads, strips e-mails and tokens, and opens a prefilled GitHub issue.
+**Mods and community.** REFramework (RE Engine games) and Special K as per-game mods, checked by SHA-256, plus programs that start with the game. The Social Hub has a feed, Game Configurations and a profile, and community configs are cached for offline use.
 
-Upgrading from 1.0? Nothing to do: your containers, games and settings are kept, and the wizard only runs on a fresh install.
+## Controller guide
 
-The full, detailed list is in the **[changelog](CHANGELOG.md)**.
-
----
-
-## ✨ Features
-
-### 🖥️ Interface
-- Console-style Home with a game carousel, shelves (All, Recent, Favourites, Store games) and two Home styles (XMB and Classic).
-- Portrait mode with a liquid Home, glass cards, a floating bottom bar, a Continue playing banner and a hold-a-cover game menu.
-- Seven themes, a gliding focus ring, shoulder-button navigation and A-to-edit text fields.
-- Container and per-game editors in three layouts (tabs, side rail or category pages).
-- A console-style in-game quick menu with Graphics, FPS, Effects, Controls, Audio, Advanced, Tasks and Mods tabs.
-
-### 🛒 Stores and library
-- Built-in **Steam, Epic, GOG, Amazon and Xbox** stores sharing one tab layout (Store, Library, Profile).
-- Steam library, depot downloads, Friends and chat, and achievements; Xbox PC package install and cloud gaming.
-- Add any Windows game from storage; each game keeps its own settings, shortcuts and saves.
-
-### 🧠 Emulation and compatibility
-- **Wine / Proton** with **Box64** and **FEXCore**, and presets you can add, edit, duplicate, export and import from Settings.
-- Per-container and per-game Wine components, environment variables and **custom startup services**.
-- DXVK, VKD3D-Proton and D7VK wrappers, with downloadable builds.
-
-### 🖼️ Graphics
-- **Vulkan, EGL and SurfaceDirect** renderers, each with only its own settings.
-- Turnip, Wrapper and PanVK driver support, with a driver and wrapper manager.
-- Native **frame generation** (LSFG), **ReShade** effects, upscaling and a performance HUD.
-
-### 🟢 Mali
-- PanVK driver downloads, the faster BCn layer, PanVK tuning variables, GPU usage from hardware counters, and Mali-specific renderer fixes. Everything is Mali-only and does nothing on other GPUs.
-
-### 🧩 Mods
-- REFramework (RE Engine games) and Special K (most games) as per-game mods, downloaded on first use and checked by SHA-256.
-- Programs that start with the game, with ordering and a wait for each.
-
-### 💬 Community
-- **Social Hub** with a feed, Game Configurations and a profile.
-- **Community configs** in the game menu, cached for offline use.
-
-### 🎮 Controls
-- Gamepad, touch and on-screen controls, gyro aiming, vibration, and Steam Controller support.
-
----
-
-## 🎮 Controller guide
+Every screen is usable with a gamepad, and the same buttons work everywhere.
 
 | Button | What it does |
 |---|---|
@@ -143,32 +77,10 @@ The full, detailed list is in the **[changelog](CHANGELOG.md)**.
 | **Start** | Quick menu |
 | **D-pad / stick** | Move focus; hold to repeat |
 
----
-
-## 🐛 Report a Mali GPU Game Issue
-
-Games misbehaving on a **Mali GPU** (Exynos / Dimensity / Kirin / Helio devices)? We run a dedicated public bug-report board for Mali devices — file a structured report with your logs, and get answers back from the developers in a public discussion thread on each report.
-
-<p align="center">
-  <a href="https://the412banner.github.io/WinHub/mali-reports/">
-    <img src="https://img.shields.io/badge/📝%20File%20a%20Mali%20report-Submit%20with%20logs-2dd4bf?style=for-the-badge" alt="File a Mali report">
-  </a>
-  <a href="https://the412banner.github.io/WinHub/mali-reports/reports.html">
-    <img src="https://img.shields.io/badge/📋%20Browse%20all%20reports-See%20dev%20answers-8b5cf6?style=for-the-badge" alt="Browse all Mali reports">
-  </a>
-</p>
-
-- **📝 [File a Mali game report](https://the412banner.github.io/WinHub/mali-reports/)** — a quick form; attach the log file(s) so we can actually help.
-- **📋 [Browse all reports & dev answers](https://the412banner.github.io/WinHub/mali-reports/reports.html)** — see what's been reported, answered, and fixed.
-
-Every report gets its own **public discussion thread**. You can reply as the original poster — no account or password needed — and the developers answer right there in the thread.
-
----
-
-## 🎨 Adding your own ReShade effects
+## Guides
 
 <details>
-<summary><b>Show / hide</b></summary>
+<summary><b>Adding your own ReShade effects</b></summary>
 
 Besides the built-in download catalog, you can add **any** ReShade effect yourself by dropping it into a folder. Follow these steps exactly:
 
@@ -210,38 +122,21 @@ ReShade/
 
 </details>
 
----
-
----
-
-## 🎮 Frontends Workaround
-
 <details>
-<summary><b>Show / hide</b></summary>
+<summary><b>Running WinHub from a frontend</b></summary>
 
 WinHub does not work by itself on frontends out of the box. See the [frontends workaround guide](marcescence-frontends.md) to get it running.
 
 </details>
 
----
+## Community
 
----
+Join the [Discord](https://discord.gg/KpwUbc2cby) or the Telegram [chat](https://t.me/winhubchat) and [server](https://t.me/winhubemul) for help, Preview builds and device reports. Changes are listed in the [changelog](CHANGELOG.md).
 
-## 🛠️ Building
-
-This project is built via **GitHub Actions only** — local builds are not supported.
-
-- **Action builds** — every fix is compiled and published as a downloadable workflow artifact.
-- **Releases** — tagged stable builds are published as GitHub Releases.
-
----
-
----
-
-## 🤖 Ask Me Anything
+**Mali game issues.** File a structured report with your logs on the [Mali report board](https://the412banner.github.io/WinHub/mali-reports/) and follow the developers' answers in a public thread on each report, or [browse all reports](https://the412banner.github.io/WinHub/mali-reports/reports.html). You can reply as the original poster with no account.
 
 <details>
-<summary><b>Show / hide</b></summary>
+<summary><b>Ask the codebase</b></summary>
 
 Got a question about WinHub? **Ask the codebase directly.** An AI reads the
 actual source code and answers with the exact file names and line numbers, so you
@@ -306,14 +201,18 @@ a notice explaining what's missing.
 
 </details>
 
----
+## Build
 
----
+WinHub is built with **GitHub Actions only**; local builds are not supported. Every fix is compiled and published as a downloadable workflow artifact, and tagged stable builds are published as [Releases](https://github.com/winhub-emu/winhub/releases). The package is `com.winhub.hernandez`, with two alternate-package builds published next to it.
 
-## 🙏 Credits
+## Limits
+
+Hardware validation is limited, so compatibility varies by device GPU, Android version and individual game. Code in this project is written with the assistance of [Claude](https://www.anthropic.com/claude) by Anthropic.
+
+## Credits
 
 <details>
-<summary><b>Show / hide</b></summary>
+<summary><b>Show all credits</b></summary>
 
 > Credits below were written while this project was still called **Bannerlator**; "Bannerlator" in them means the project WinHub grew out of.
 
@@ -405,22 +304,10 @@ Additional credits surfaced in the **Star Bionic REVAMPED** project (`star.bioni
 
 </details>
 
----
-
----
-
-## ⚖️ Disclaimer
-
-Winlator and its forks are unofficial community projects. They are **not** affiliated with or endorsed by Microsoft, Wine, the Mesa project, Qualcomm, **Valve/Steam, Epic Games, GOG, Amazon**, or any game publisher. The built-in store sign-ins are a third-party login system for libraries **you already own** — see [Security Hardening & your store accounts](#-security-hardening--your-store-accounts), and **use them at your own risk**. Compatibility varies by device GPU, Android version, and individual game.
-
----
-
----
-
-## 📄 License
+## License and disclaimer
 
 **WinHub is licensed under [GPL-3.0](LICENSE) as a whole**, because it incorporates GPL-3.0-licensed components (notably **GameNative** and **lsfg-vk**), whose copyleft governs the combined distribution.
 
-The upstream **Winlator → cmod → Bionic → Star → Ludashi** lineage it builds on is **MIT © 2023 BrunoSX** (permissive, and GPL-3.0-compatible). That MIT notice — and the license and copyright of *every* incorporated component (GameNative, lsfg-vk, gbe_fork/Goldberg, vkBasalt, bcn_layer, JavaSteam, Wine/Box64/Mesa/DXVK, FSR/NIS/SGSR, ReShade shaders, …) — is preserved in **[`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md)**.
+The upstream **Winlator → cmod → Bionic → Star → Ludashi** lineage it builds on is **MIT © 2023 BrunoSX** (permissive, and GPL-3.0-compatible). That MIT notice, and the license and copyright of *every* incorporated component (GameNative, lsfg-vk, gbe_fork/Goldberg, vkBasalt, bcn_layer, JavaSteam, Wine/Box64/Mesa/DXVK, FSR/NIS/SGSR, ReShade shaders, ...), is preserved in **[`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md)**. See [`LICENSE`](LICENSE) for the full GPL-3.0 text.
 
-See [`LICENSE`](LICENSE) for the full GPL-3.0 text and [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md) for all third-party attributions.
+WinHub continues the Winlator line (Winlator → cmod → Bionic → Star Bionic → Bannerlator → WinHub). It is not affiliated with or endorsed by Microsoft, Wine, the Mesa project, Qualcomm, **Valve/Steam, Epic Games, GOG, Amazon**, or any game publisher. The built-in store sign-ins are a third-party login system for libraries **you already own**; use them at your own risk.
