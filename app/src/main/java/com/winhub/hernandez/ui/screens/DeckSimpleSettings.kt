@@ -15,11 +15,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.preference.PreferenceManager
+import com.winhub.hernandez.R
 import com.winhub.hernandez.container.Container
 import com.winhub.hernandez.contentdialog.GraphicsDriverConfigDialog
 import com.winhub.hernandez.contents.AdrenotoolsManager
@@ -35,7 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Settings view: Simple shows the four things most games need (Proton, DXVK, GPU driver, FEXCore
+ * Settings view: Simple shows the things most games need (Proton, resolution, DXVK, GPU driver, FEXCore
  * preset); Advanced is every setting, as it always was. One switch for the whole app, kept across runs.
  * Nothing is reset by switching: settings the Simple view hides keep their values.
  */
@@ -61,7 +63,7 @@ internal fun DeckViewModeRow() {
     val context = LocalContext.current
     DeckChoiceRow(
         label = "Settings view",
-        hint = "Simple: Proton, DXVK, driver and FEXCore preset. Advanced: every setting.",
+        hint = "Simple: Proton, resolution, DXVK, driver and FEXCore preset. Advanced: every setting.",
         options = listOf("simple" to "Simple", "advanced" to "Advanced"),
         selected = if (DeckSettingsMode.advanced(context)) "advanced" else "simple",
         onPick = { DeckSettingsMode.set(context, it == "advanced") },
@@ -109,7 +111,7 @@ internal fun DeckResetDefaultsGroup(viewModel: ContainerDetailViewModel) {
     }
 }
 
-/** The Simple page of the container editor: the four settings, then the switch back to Advanced. */
+/** The Simple page of the container editor: the essential settings, then the switch back to Advanced. */
 @Composable
 internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
     val context = LocalContext.current
@@ -133,6 +135,32 @@ internal fun DeckSimpleContainerPage(viewModel: ContainerDetailViewModel) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+
+        DeckChoiceRow(
+            label = "Screen Size",
+            hint = "The game's resolution inside the container",
+            options = viewModel.screenSizeEntries.map { it to it },
+            selected = viewModel.screenSizeEntries.firstOrNull {
+                it.equals(viewModel.selectedScreenSize, ignoreCase = true)
+            } ?: viewModel.selectedScreenSize,
+            onPick = { viewModel.selectedScreenSize = it },
+        )
+        if (viewModel.selectedScreenSize.equals("custom", ignoreCase = true)) {
+            DeckTextRow(
+                label = "Custom Width",
+                hint = "Even pixel width, e.g. 1280",
+                value = viewModel.customWidth,
+                onValueChange = { viewModel.customWidth = it },
+                width = 360.dp,
+            )
+            DeckTextRow(
+                label = "Custom Height",
+                hint = "Even pixel height, e.g. 720",
+                value = viewModel.customHeight,
+                onValueChange = { viewModel.customHeight = it },
+                width = 360.dp,
+            )
         }
 
         DeckChoiceRow(
@@ -269,6 +297,25 @@ internal fun xmbSimpleMenu(xmb: XmbScope, p: XmbPrefs): XmbMenu {
         val rows = mutableListOf<XmbRow>()
         rows += XmbRow.Header("hEssentials", "Essentials")
         rows += XmbRow.Info("sProton", "Proton", Icons.Filled.Tune, p.c.wineVersion, subtitle = "Set per container")
+
+        // Resolution: the game's own screen size, as the full editors write it ("1280x720", or a custom WxH).
+        val sizes = p.arr(R.array.screen_size_entries)
+        val rawSize = p.ex("screenSize", p.c.getScreenSize())
+        val sizeLabel = sizes.firstOrNull { StringUtils.parseIdentifier(it).equals(rawSize, ignoreCase = true) } ?: "Custom"
+        val customW = if (rawSize.contains("x")) rawSize.substringBefore("x") else "800"
+        val customH = if (rawSize.contains("x")) rawSize.substringAfter("x") else "600"
+        rows += XmbRow.Choice("sSize", p.str(R.string.screen_size), Icons.Filled.AspectRatio, sizes, sizeLabel) { v ->
+            write("screenSize", if (v == "Custom") "${customW}x$customH" else StringUtils.parseIdentifier(v))
+        }
+        if (sizeLabel == "Custom") {
+            fun setWH(nw: String, nh: String) {
+                val ok = nw.matches(Regex("[0-9]+")) && nh.matches(Regex("[0-9]+")) && nw.toInt() % 2 == 0 && nh.toInt() % 2 == 0
+                if (!ok) xmb.toast("Width and height must be even numbers")
+                write("screenSize", if (ok) "${nw}x$nh" else Container.DEFAULT_SCREEN_SIZE)
+            }
+            rows += XmbRow.Text("sCustomW", "Width", Icons.Filled.AspectRatio, customW, subtitle = "Even numbers only", numeric = true) { setWH(it, customH) }
+            rows += XmbRow.Text("sCustomH", "Height", Icons.Filled.AspectRatio, customH, subtitle = "Even numbers only", numeric = true) { setWH(customW, it) }
+        }
 
         // Wayland: where the game runs, and (when it does) how its frames are paced.
         val waylandCapable = com.winhub.hernandez.core.WineWaylandSupport.isWaylandCapable(xmb.context, p.c.wineVersion)
