@@ -1,5 +1,207 @@
 # 📜 WinHub Changelog
 
+## Version 2.0 "Marcescence"
+
+WinHub 2.0 is plug and play: add a game and play it, with nothing to configure. If a game crashes, Game Doctor finds the cause and fixes it for you.
+
+Everything new since 1.2 (versionCode 92 to 93): a new Deck Home with two styles, a Glass interface look, a retro library, Game Doctor, a returning Wayland display path, new container defaults built on GE-Proton, per-stick controller tuning, Ubisoft Connect support, and a rebuilt first-run setup.
+
+Names in `code` style are the real classes and functions behind each feature, for anyone who wants to read the source.
+
+**Jump to:** [Credits](#credits) · [Plug and play](#plug-and-play) · [Home](#home) · [Interface look](#interface-look-glass-and-material) · [Retro library](#retro-library) · [Game Doctor](#game-doctor) · [Wayland](#wayland-display-path) · [Defaults and components](#container-defaults-and-components) · [Controls](#controls) · [Stores and launching](#stores-and-launching) · [First-run setup](#first-run-setup) · [Loading screens](#loading-and-boot-screens) · [Other changes](#other-changes) · [Removed](#removed-and-changed)
+
+---
+
+### Credits
+
+- **The412Banner** built the embedded Wayland display path that returns in this release.
+- **AbuNashmi** designed the Steam Home look: the bottom covers row, the tabs page and the Steam-style navigation. WinHub's Steam Home is built on that design.
+
+Thank you both.
+
+---
+
+### Plug and play
+
+Add a game and play. WinHub sets up the rest.
+
+- **Nothing to set up first.** First run installs GE-Proton 11.0-9 (arm64ec). The setup wizard (`FirstRunSetup`) picks the right driver for your device, including a HyperOS / One UI step.
+- **Adding a game takes one step.** `GameIdentifier.identify()` reads the game's executable and returns a `GameIdentity` (name and app ID). The confirm dialog (`HubConfirmDialog`) is pre-filled with that name and app ID, offers your containers and cover art, and confirming takes one tap.
+- **Tested defaults for every new container.** `AutoDefaults` supplies them: the latest GE-Proton (`AutoDefaults.wine()`), a Turnip matched to your chip (`graphicsDriverId()`), DXVK 2.4.1 gplasync (`dxvkVersion()`), Performance FEX (`FEX_PRESET`), a 1600x720 screen (`SCREEN_SIZE`), and Wayland wherever the layer supports it. The Simple view (`DeckSimpleContainerPage`) shows only the settings most games need, and Advanced is there when you want every setting.
+- **Launchers set themselves up.** A game that needs a store launcher gets a one-time setup prompt instead of an error, and starts by itself when the setup is done (`UbisoftLaunchGate`, `UbisoftPendingLaunch`).
+- **When a game crashes, Game Doctor handles it.** `GameDoctor.diagnose()` reads the game's logs and lists what it found, each with a one-tap fix and an undo. With Auto step-down (on by default), `GameDoctor.autoStepDown()` moves a game that crashes soon after launch from a CPU-translation fault one FEX preset safer on its own, and you get a notice with undo.
+
+---
+
+### Home
+
+Deck Home now has two styles, chosen in Settings and in the first-run setup (`DeckHomeStyle`).
+
+**Steam Home**
+- Design by AbuNashmi. A covers row along the bottom (`XmbSteamLayout`, `XmbSteamBackdrop`), with a tabs page for Stores, Downloads, Friends and Social. The Downloads tab shows the number of active downloads.
+- One shelf per store (Steam, Epic, GOG, Amazon) listing that store's whole library on the covers row. A opens the game's page and B comes back to the shelf.
+- An Add game card in the row, and an All Games card. Hovering All Games shows a drifting wall of your library's covers behind it.
+- The Social tab shows Feed, Configs and Profile inline, with centred sub-tabs and a two-column landscape layout.
+- Slim transparent top bar, rounder and sharper covers.
+
+**Full XMB Home**
+- Stores and Social cards in the XMB layout, a Social Hub page, larger glowing Home cards and a gliding top-bar underline.
+- An All Games card with a moving library wall, automatic Game Details and a smoother XMB dropdown.
+- The same slim transparent top bar as Steam Home.
+
+**Game settings from Home**
+- Choose what a game's Settings opens from either Home style (`GameSettingsStyle`): the Classic settings page, or the XMB columns.
+- The Classic page sits on glass over the game's blurred art, with a slim rail of small tabs.
+
+**Launch menu**
+- In landscape, the launch menu is a three-column card: methods, description and settings, and options. Custom method icons are included.
+- Launches from Deck Home go through `DeckLaunchStack`: the launch method, the SteamLite pre-flight, Goldberg patching and the Ubisoft setup question.
+
+**Store pages**
+- A landscape XMB game page with full-bleed art, tabs, a glass card and pinned actions, for Steam, GOG, Epic, Amazon and the catalog pages (`StoreStyle`).
+- In landscape, every store page and storefront uses the horizontal glass layout, in the Material look as well.
+
+**Sounds**
+- SteamOS-style navigation sounds, with a choice in Settings and in the first-run setup. `DeckSoundMixer` plays them from the app's own mixer at media volume, so no system sound effects are involved. They play on Home, every page, tab and dialog, nested menus, store shelves, and in the game settings editor.
+
+**Other Home changes**
+- File Manager redesigned for landscape and portrait.
+- Storage container cards show driver, DXVK, VKD3D and FEX chips.
+- Optional launcher icon that follows the theme, or one picked by hand (Settings > Theme > App icon).
+- Save Manager and Contents always follow the Settings layout.
+
+---
+
+### Interface look: Glass and Material
+
+A new Interface look setting, Glass or Material, applies to every Deck page, the Steam pages and a game's settings. Screens read it with `rememberGlassLook()` (`GlassLook`).
+
+- Glass puts the stores, Storage, Files, Contents, Save Manager and Controls on frosted glass, and starts on the new Charcoal theme, tuned for it.
+- Toggles, pills, fields, sliders and buttons turn to glass on the XMB glass settings page.
+- Every glass page sits on the blurred art of the last focused game.
+- Compact tab rails and the gliding XMB focus outline on every Deck page. Tabs are D-pad stops, and Up and Down select.
+- The default theme stays Marcescence. Glass no longer moves it to Charcoal in setup, in settings or by migration.
+
+---
+
+### Retro library
+
+A retro library sits beside the PC library in Deck Home. A Switch to retro / Switch to PC library chip changes between them (Select on a pad). The screen is `RetroLibraryScreen`, and `RetroLibrary.scan()` reads your ROM folder into a `RetroScan` (games grouped by console).
+
+- `RetroCatalog` loads 109 consoles and 47 emulators, each with a launch recipe, from `assets/retro/systems.json`. A game opens in an external emulator you choose per game.
+- One row with every game of the consoles you picked. Consoles work as filters and are chosen in Settings and in the first-run setup.
+- ROM folders are picked in the Deck file manager.
+- `RetroArt` fetches covers and backgrounds from SteamGridDB, and takes a cover from the libretro thumbnail server when SteamGridDB has none. The first card, the game played last, is a wide banner.
+- A game's options are the PC Home's XMB dropdown: Game details, Emulator and Remove. Removed games can be shown again.
+- Available in portrait as well, laid out like the PC library.
+
+---
+
+### Game Doctor
+
+Game Doctor (`GameDoctor`) answers "why doesn't my game run?" in one place. It reads the game's last run logs, checks its settings against the device, looks up shared configs for it, and turns all of that into plain findings with one-tap fixes.
+
+- **Reading the logs:** `GameDoctor.diagnose(context, shortcut, library)` reads the last 300 KB of up to 8 log files from the run, because a crash shows up at the end of a log. It returns a `Report` whose findings are ranked PROBLEM, WARNING or TIP.
+- **Fixes:** each fix is a `Tweak` with a label, a detail line and a `change` that edits the shortcut. Nothing changes until you pick it.
+- **Undo:** `GameDoctor.snapshot()` saves the game's settings before a fix and `GameDoctor.restore()` puts them back.
+- **Auto step-down:** `GameDoctor.autoStepDown(context, shortcut, sessionStartMs)` runs when a session ends. If it was short and its logs show a CPU-translation fault, that game's FEX preset moves one step safer (Performance, Intermediate, Compatibility, Stability). Only that one setting changes, only for that game. It is on by default (`isAutoEnabled`) and switchable in Settings.
+- **Notices:** a step-down queues a notice. The Deck shows it (`DeckUpdatesHost`, `DeckDoctorNoticeDialog`) with an undo (`undoNotice`).
+- Available from Deck Home (XMB and list), the portrait sheet, classic cards, the Games wall and Big Picture (`ProvideGameDoctor`).
+- Input fixes: exclusive input on or off, DirectInput off, and XInput off. The XInput tweaks also keep DirectInput games able to see the controller.
+- A Wayland pacing finding with a one-tap Smooth adapter profile fix.
+- The Configs tab can browse the curated config library by game.
+
+---
+
+### Wayland display path
+
+The embedded Wayland display path is back, built by The412Banner.
+
+- **Choosing it:** a Display backend picker in the container, shortcut and XMB game editors (`Container.DISPLAY_BACKEND_WAYLAND` or `DISPLAY_BACKEND_X11`), and Wayland rows in the Deck container and per-game editors.
+- **Knowing when it can run:** `WineWaylandSupport.isWaylandCapable()` says whether a Proton layer ships winewayland.so, and `WineWaylandSupport.problem()` gives the reason when it does not. `runsOnWayland()` decides for a container or a single game.
+- **Adapter settings:** `WaylandAdapterSettings` holds the adapter profiles and keys (`KEY_PROFILE`, `PROFILES`, `normalizeProfile()`), and `resolve()` merges the container's settings, the game's own settings and your environment into one result. The settings page is in the Deck style: profile first, the rest collapsible. Profile, switches and report are also in the XMB game settings.
+- **Drivers:** Mali (PanVK) mode in the adapter settings, and a Mali System compositor driver choice. `compositorDriverChoices()` offers only drivers the compositor can use, and `compositorDriverUnusable()` warns when a choice would show a black screen. `WaylandDriverProbe` and `WaylandGameDriver` check what the device can run.
+- **Adapter report:** `WaylandDriverProbe` produces it, and `warmWaylandAdapterReport()` runs it in the background when a Wayland container or game is saved, and after switching a container to a new driver.
+- HDR10 output through `WaylandHdr` on a screen that supports it.
+- Cursor auto-hide setting, and Wayland session logs in the log viewer.
+- A container's first Wayland launch asks before it starts. The first launch of a shortcut in a Cronos container opens the container, starts the game inside it, then closes the file manager.
+- Exit no longer hangs on the prefix update. The update waits as before (180 s) and Exit can cancel it.
+
+---
+
+### Container defaults and components
+
+- First run installs GE-Proton 11.0-9 (arm64ec). The Deck offers newer GE-Proton, with an optional switch of existing containers (`ComponentUpdates.Offer`, `DeckComponentUpdateDialog`).
+- New arm64ec containers start on the latest GE-Proton, a chip-matched Turnip, DXVK 2.4.1 gplasync and Performance FEX (`AutoDefaults`).
+- New containers start on Wayland when the layer can run it.
+- The container editor has a Simple / Advanced switch (`DeckSettingsMode`). Simple (`DeckSimpleContainerPage`) shows Proton, screen size, display backend, DXVK, driver and FEXCore preset, and settings the Simple view hides keep their values. A game's own Simple menu (`xmbSimpleMenu`) shows the same settings for one game.
+- The Deck Updater tab lists Proton, driver and FEXCore with what is installed and what is newest, and updates them.
+- The app's own defaults (Wayland, 1600x720, DXVK/VKD3D async, FEX Performance) also fill the defaults editor. Its reset button (`ContainerDetailViewModel.resetDefaults()`) forgets your saved defaults for that architecture.
+- Cronos containers keep the form's settings (Wayland, sync, game driver) instead of losing them to the Cronos tag, start on GE-Proton, and use the newest Turnip.
+
+---
+
+### Controls
+
+- **Per-stick tuning:** deadzone and sensitivity for each stick, with a per-game override. `StickShaper` holds the keys (`stickLDeadzone`, `stickLSensitivity`, `stickRDeadzone`, `stickRSensitivity`, `stickEdgeStyle`). A deadzone goes from 0.0 to 0.5. At launch the container's value is used and the game's own value wins when it has one. Available in the XMB game settings and the in-game drawer.
+- **Icon styles:** on-screen control icons come in three styles, Fusion (the new default), Glass (the previous look) and Neon (`ControlsIconStyle`). Switch from the drawer chips or the editor dialog.
+- The Fusion HUD gets a neon outline, the WinHub mark and theme-tinted text, each following the theme or set by hand.
+
+---
+
+### Stores and launching
+
+**Ubisoft Connect support**
+
+Ubisoft games start Ubisoft Connect themselves, and stop with "Unable to find Ubisoft Game Launcher" when it is not in the prefix. WinHub now detects them and sets Connect up once.
+
+- **Detecting:** `UbisoftSupport.gateKind()` tells whether a game is a Ubisoft candidate from string checks alone. `steamSetupFor()` and `epicSetupFor()` then decide whether setup is needed. Epic shortcuts get a Ubisoft stamp when they are written (`stampForFolder()`).
+- **Asking:** `UbisoftLaunchGate.launchWithUbisoftGate()` runs the check off the main thread for at most 4 seconds. A timeout or error launches the game as usual. It is asked from the Games list, Deck Home, the Games wall and Big Picture.
+- **Installing:** `UbisoftSupport.startSetup()` runs the game's own bundled installer. When a game bundles none, or only an old one, `startSetupWithDownload()` fetches Ubisoft's own installer (about 251 MB, after you agree, with progress, cancel and a free-space check in `UbisoftInstallerDownload`).
+- **Install script:** `InstallScriptExecutor` runs the bundled installer first, judges "installed" by the launcher files in the prefix and skips legacy installers.
+- **Resuming:** a finished setup starts the game by itself (`UbisoftPendingLaunch`, `resumePendingLaunch()`).
+- **Overlay:** `UbisoftSupport.disableOverlay()` turns the Ubisoft overlay off, because it crashes games on an Arm64EC DXVK.
+- **Epic builds:** `registerEpicInstall()` records an Epic install of a Ubisoft game in the prefix, so Connect does not offer to download it again.
+- **Steam chain:** `RealSteamLauncher` arms the launcher chain, which keeps the session alive while a game hands off from its stub to the real executable.
+- **Fonts:** `WineFontFallback.ensureTahomaReplacement()` adds a Tahoma replacement to the prefix. Without it, Connect's browser UI recurses on a missing font.
+- **Problem reports:** Log Manager gets an opt-in Ubisoft diagnostics report and an opt-in deep trace (`UbisoftDiag`).
+
+---
+
+### First-run setup
+
+- The first-run wizard is fullscreen and fits portrait and the Contents tab.
+- New steps: Home (look, Home style, game settings, store style), Sounds, and Stores sign-in, with console defaults and landscape recommendations. The picks are stored through `FirstRunViewModel` (`setLook`, `setHome`, `setGameSettings`, `setStore`, `setSounds`).
+- A HyperOS / One UI driver step. Choosing it installs the plain Turnip and turns the wrapper's OneUI / HyperOS fix on for new containers, on every Adreno (`setOneUi`, `AutoDefaults.oneUiFix()`).
+
+---
+
+### Loading and boot screens
+
+- The launch and status screens say "Starting up" and play the animated WinHub mark.
+- The launch zoom is always the mark's blue and turns into the mark's three dots on the loading screen (`PreloaderOverlayHelper.EXTRA_ZOOM_COLOR`). Container runs from the Storage tab zoom too.
+- The Starting services screen is a glass card with store logos, status icons and an overall progress bar, beside the mark in landscape.
+
+---
+
+### Other changes
+
+- Deck landscape: cutout bar and rail icons fixed, drag ring on Controls.
+- Store badges on Steam Home follow the Games screen's rules, so custom games are not marked as Steam.
+- B reliably returns on Steam Home, held-key scrolling is calmer, and the Steam Home sits below the top tab bar on store shelves.
+- The Simple settings page no longer crashes the container editor before it has loaded.
+- The Social Hub opens in the Deck style in portrait, with top tabs like Contents.
+- README redesigned with a preview clip, screenshots, install and feature overview. Release descriptions open with the WinHub banner.
+
+---
+
+### Removed and changed
+
+- The Classic Home style is removed. Steam Home and Full XMB Home replace it.
+- The "Apply layout everywhere" switch is removed. Save Manager and Contents follow the Settings layout.
+
+---
+
 ## ✨ Version 1.2
 
 > Everything new since 1.1. **15 new Deck themes**, a **Deck-style Controls tab**, **OpenGL and Mods in the XMB game settings**, a rebuilt **fake-HDR look**, a tidier **Storage** tab, and **Unreal Engine HDR is gone**. 🚀
